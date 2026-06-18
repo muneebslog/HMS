@@ -1,0 +1,19 @@
+patient:
+-name 
+-phone (nullable)
+-age(nullable)
+-gender(nullable)
+
+service:
+-name 
+-is standalone
+
+doctor:
+-name
+-specialization
+
+servicePrice:
+-serviceid
+-doctorid(nullable) 
+-price   
+-doctorshare(nullable) //stored share will be in percentage of the price
