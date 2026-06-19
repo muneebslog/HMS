@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Doctor;
+use App\Models\LabTest;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -93,4 +94,38 @@ test('service_prices table can store prices without doctor', function () {
         ->doctor_share->toBeNull()
         ->service->id->toBe($service->id)
         ->doctor->toBeNull();
+});
+
+test('lab_tests table can store lab test records', function () {
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'Complete Blood Count',
+        'test_code' => 'CBC-001',
+        'test_price' => 1200.00,
+        'time_required' => '1 hour',
+        'is_in_house' => true,
+    ]);
+
+    expect($labTest->fresh())
+        ->test_name->toBe('Complete Blood Count')
+        ->test_code->toBe('CBC-001')
+        ->test_price->toBe(1200.00)
+        ->time_required->toBe('1 hour')
+        ->is_in_house->toBeTrue();
+});
+
+test('lab_tests table can store send out lab test records', function () {
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'Advanced Genetic Screening',
+        'test_code' => 'AGS-002',
+        'test_price' => 15000.00,
+        'time_required' => '5 days',
+        'is_in_house' => false,
+    ]);
+
+    expect($labTest->fresh())
+        ->test_name->toBe('Advanced Genetic Screening')
+        ->test_code->toBe('AGS-002')
+        ->test_price->toBe(15000.00)
+        ->time_required->toBe('5 days')
+        ->is_in_house->toBeFalse();
 });
