@@ -1,10 +1,13 @@
 <?php
 
 use App\Models\Doctor;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\LabTest;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class)->group('models');
@@ -128,4 +131,73 @@ test('lab_tests table can store send out lab test records', function () {
         ->test_price->toBe(15000.00)
         ->time_required->toBe('5 days')
         ->is_in_house->toBeFalse();
+});
+
+test('invoices table can store invoice records', function () {
+    $patient = Patient::factory()->create();
+    $user = User::factory()->create();
+
+    $invoice = Invoice::factory()->create([
+        'patient_id' => $patient->id,
+        'invoice_number' => 'INV-20260623000001',
+        'total' => 250.00,
+        'status' => 'paid',
+        'created_by' => $user->id,
+    ]);
+
+    expect($invoice->fresh())
+        ->patient_id->toBe($patient->id)
+        ->invoice_number->toBe('INV-20260623000001')
+        ->total->toBe(250.00)
+        ->status->toBe('paid')
+        ->created_by->toBe($user->id)
+        ->patient->id->toBe($patient->id)
+        ->creator->id->toBe($user->id);
+});
+
+test('invoice_items table can store invoice item records', function () {
+    $invoice = Invoice::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $item = InvoiceItem::factory()->create([
+        'invoice_id' => $invoice->id,
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'service_name' => $service->name,
+        'doctor_name' => $doctor->name,
+        'price' => 150.00,
+    ]);
+
+    expect($item->fresh())
+        ->invoice_id->toBe($invoice->id)
+        ->service_id->toBe($service->id)
+        ->doctor_id->toBe($doctor->id)
+        ->service_name->toBe($service->name)
+        ->doctor_name->toBe($doctor->name)
+        ->price->toBe(150.00)
+        ->invoice->id->toBe($invoice->id)
+        ->service->id->toBe($service->id)
+        ->doctor->id->toBe($doctor->id);
+});
+
+test('invoice_items table can store records without a doctor', function () {
+    $invoice = Invoice::factory()->create();
+    $service = Service::factory()->create();
+
+    $item = InvoiceItem::factory()->create([
+        'invoice_id' => $invoice->id,
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'service_name' => $service->name,
+        'doctor_name' => null,
+        'price' => 99.99,
+    ]);
+
+    expect($item->fresh())
+        ->doctor_id->toBeNull()
+        ->doctor_name->toBeNull()
+        ->doctor->toBeNull()
+        ->invoice->id->toBe($invoice->id)
+        ->service->id->toBe($service->id);
 });

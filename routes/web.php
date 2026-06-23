@@ -11,6 +11,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
     Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
+    Route::livewire('reception/invoices', 'pages::reception.invoices')->name('reception.invoices');
 });
 
 require __DIR__.'/settings.php';

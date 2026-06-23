@@ -1,8 +1,12 @@
 <?php
 
+use App\Models\LabInvoice;
+use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
+use App\Models\Patient;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -75,6 +79,8 @@ new #[Title('Lab Entry')] class extends Component
             'lab_test_id' => $labTest->id,
             'test_name' => $labTest->test_name,
             'test_code' => $labTest->test_code,
+            'time_required' => $labTest->time_required,
+            'is_in_house' => $labTest->is_in_house,
             'test_price' => $labTest->test_price,
         ];
 
@@ -122,6 +128,61 @@ new #[Title('Lab Entry')] class extends Component
             'discountPercentage',
         ]);
         $this->resetValidation();
+    }
+
+    /**
+     * Save the lab bill as a lab invoice.
+     */
+    public function save(): void
+    {
+        $this->validate([
+            'patientName' => ['required', 'string', 'max:255'],
+            'patientPhone' => ['required', 'string', 'max:255'],
+            'patientGender' => ['required', 'string', 'in:male,female,other'],
+            'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.lab_test_id' => ['required', 'integer', 'exists:lab_tests,id'],
+            'items.*.test_price' => ['required', 'numeric', 'min:0'],
+            'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $invoice = DB::transaction(function () {
+            $patient = Patient::create([
+                'name' => $this->patientName,
+                'phone' => $this->patientPhone,
+                'age' => $this->patientAge,
+                'gender' => $this->patientGender,
+            ]);
+
+            $invoice = LabInvoice::create([
+                'patient_id' => $patient->id,
+                'invoice_number' => LabInvoice::generateNumber(),
+                'subtotal' => $this->subtotal,
+                'discount_percentage' => (float) $this->discountPercentage,
+                'discount_amount' => $this->discountAmount,
+                'total' => $this->total,
+                'status' => 'paid',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($this->items as $item) {
+                LabInvoiceItem::create([
+                    'lab_invoice_id' => $invoice->id,
+                    'lab_test_id' => $item['lab_test_id'],
+                    'test_name' => $item['test_name'],
+                    'test_code' => $item['test_code'],
+                    'time_required' => $item['time_required'],
+                    'is_in_house' => $item['is_in_house'],
+                    'price' => $item['test_price'],
+                ]);
+            }
+
+            return $invoice;
+        });
+
+        $this->clear();
+
+        Flux::toast(variant: 'success', text: __('Lab invoice :number saved.', ['number' => $invoice->invoice_number]));
     }
 
     /**
@@ -291,6 +352,9 @@ new #[Title('Lab Entry')] class extends Component
                 </div>
 
                 <div class="mt-6 flex gap-3">
+                    <flux:button type="button" variant="primary" icon="document-check" wire:click="save">
+                        {{ __('Save invoice') }}
+                    </flux:button>
                     <flux:button type="button" variant="outline" icon="printer" x-on:click="window.print()">
                         {{ __('Print') }}
                     </flux:button>

@@ -1,0 +1,79 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\LabInvoiceFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
+
+class LabInvoice extends Model
+{
+    /** @use HasFactory<LabInvoiceFactory> */
+    use HasFactory;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'patient_id',
+        'invoice_number',
+        'subtotal',
+        'discount_percentage',
+        'discount_amount',
+        'total',
+        'status',
+        'created_by',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'subtotal' => 'float',
+            'discount_percentage' => 'float',
+            'discount_amount' => 'float',
+            'total' => 'float',
+        ];
+    }
+
+    /**
+     * Get the patient for this lab invoice.
+     */
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(Patient::class);
+    }
+
+    /**
+     * Get the user who created this lab invoice.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the items associated with this lab invoice.
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(LabInvoiceItem::class);
+    }
+
+    /**
+     * Generate a unique lab invoice number.
+     */
+    public static function generateNumber(): string
+    {
+        return 'LAB-'.now()->format('YmdHis').'-'.strtoupper(Str::random(4));
+    }
+}

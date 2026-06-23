@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Doctor;
+use App\Models\Invoice;
+use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\User;
@@ -148,4 +150,116 @@ test('price edits must be a non-negative number', function () {
         ->set('editingItemPrice', '-10')
         ->call('updatePrice')
         ->assertHasErrors(['editingItemPrice']);
+});
+
+test('a walk-in invoice can be saved with items', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 75.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'John Doe')
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->call('saveInvoice')
+        ->assertHasNoErrors();
+
+    $patient = Patient::where('name', 'John Doe')->first();
+    expect($patient)->not->toBeNull();
+
+    $invoice = Invoice::where('patient_id', $patient->id)->first();
+    expect($invoice)->not->toBeNull()
+        ->total->toBe(75.00)
+        ->status->toBe('paid')
+        ->created_by->toBe($user->id);
+
+    expect($invoice->items)->toHaveCount(1)
+        ->and($invoice->items->first())
+        ->service_id->toBe($service->id)
+        ->service_name->toBe($service->name)
+        ->doctor_id->toBeNull()
+        ->doctor_name->toBeNull()
+        ->price->toBe(75.00);
+});
+
+test('a walk-in invoice can be saved with a doctor service', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create(['is_standalone' => false]);
+    $doctor = Doctor::factory()->create();
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'price' => 150.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'Jane Doe')
+        ->set('selectedServiceId', $service->id)
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('add')
+        ->call('saveInvoice')
+        ->assertHasNoErrors();
+
+    $patient = Patient::where('name', 'Jane Doe')->first();
+    $invoice = Invoice::where('patient_id', $patient->id)->first();
+
+    expect($invoice->items)->toHaveCount(1)
+        ->and($invoice->items->first())
+        ->service_id->toBe($service->id)
+        ->doctor_id->toBe($doctor->id)
+        ->doctor_name->toBe($doctor->name)
+        ->price->toBe(150.00);
+});
+
+test('saving a walk-in invoice requires a patient name', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->set('patientName', '')
+        ->call('saveInvoice')
+        ->assertHasErrors(['patientName']);
+
+    expect(Invoice::count())->toBe(0);
+});
+
+test('saving a walk-in invoice requires at least one item', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'John Doe')
+        ->call('saveInvoice')
+        ->assertHasErrors(['items']);
+
+    expect(Invoice::count())->toBe(0)
+        ->and(Patient::count())->toBe(0);
+});
+
+test('saving a walk-in invoice clears the form', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 50.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'John Doe')
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->call('saveInvoice')
+        ->assertSet('patientName', '')
+        ->assertCount('items', 0);
 });

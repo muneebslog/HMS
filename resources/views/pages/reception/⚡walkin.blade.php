@@ -1,10 +1,14 @@
 <?php
 
 use App\Models\Doctor;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -190,6 +194,49 @@ new #[Title('Walk-in')] class extends Component
     }
 
     /**
+     * Save the walk-in services as an invoice.
+     */
+    public function saveInvoice(): void
+    {
+        $this->validate([
+            'patientName' => ['required', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.service_id' => ['required', 'integer', 'exists:services,id'],
+            'items.*.doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $invoice = DB::transaction(function () {
+            $patient = Patient::create(['name' => $this->patientName]);
+
+            $invoice = Invoice::create([
+                'patient_id' => $patient->id,
+                'invoice_number' => Invoice::generateNumber(),
+                'total' => $this->totalPrice,
+                'status' => 'paid',
+                'created_by' => auth()->id(),
+            ]);
+
+            foreach ($this->items as $item) {
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'service_id' => $item['service_id'],
+                    'doctor_id' => $item['doctor_id'],
+                    'service_name' => $item['service_name'],
+                    'doctor_name' => $item['doctor_name'],
+                    'price' => $item['price'],
+                ]);
+            }
+
+            return $invoice;
+        });
+
+        $this->clear();
+
+        Flux::toast(variant: 'success', text: __('Invoice :number saved.', ['number' => $invoice->invoice_number]));
+    }
+
+    /**
      * Get the currently selected service.
      */
     #[Computed]
@@ -341,6 +388,9 @@ new #[Title('Walk-in')] class extends Component
             @endif
 
             <div class="mt-6 flex gap-3">
+                <flux:button type="button" variant="primary" icon="document-check" wire:click="saveInvoice">
+                    {{ __('Save invoice') }}
+                </flux:button>
                 <flux:button type="button" variant="outline" icon="printer" x-on:click="window.print()">
                     {{ __('Print') }}
                 </flux:button>
