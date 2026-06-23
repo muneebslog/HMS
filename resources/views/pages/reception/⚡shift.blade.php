@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Expense;
 use App\Models\Shift;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -15,6 +17,12 @@ new #[Title('Shift')] class extends Component
     #[Validate]
     public string $closingBalance = '';
 
+    #[Validate]
+    public string $expenseName = '';
+
+    #[Validate]
+    public string $expenseAmount = '';
+
     /**
      * Get the validation rules for the shift form.
      *
@@ -25,6 +33,8 @@ new #[Title('Shift')] class extends Component
         return [
             'openingBalance' => ['required', 'numeric', 'min:0'],
             'closingBalance' => ['required', 'numeric', 'min:0'],
+            'expenseName' => ['required', 'string', 'max:255'],
+            'expenseAmount' => ['required', 'numeric', 'min:0'],
         ];
     }
 
@@ -86,12 +96,59 @@ new #[Title('Shift')] class extends Component
     }
 
     /**
+     * Add an expense to the currently open shift.
+     */
+    public function addExpense(): void
+    {
+        $validated = $this->validate([
+            'expenseName' => $this->rules()['expenseName'],
+            'expenseAmount' => $this->rules()['expenseAmount'],
+        ]);
+
+        $shift = Shift::currentForUser(auth()->id());
+
+        if ($shift === null) {
+            Flux::toast(variant: 'danger', text: __('No open shift found.'));
+
+            return;
+        }
+
+        Expense::create([
+            'shift_id' => $shift->id,
+            'user_id' => auth()->id(),
+            'name' => $validated['expenseName'],
+            'amount' => (float) $validated['expenseAmount'],
+        ]);
+
+        $this->reset(['expenseName', 'expenseAmount']);
+
+        Flux::toast(variant: 'success', text: __('Expense added.'));
+    }
+
+    /**
      * Get the currently open shift for the user.
      */
     #[Computed]
     public function activeShift(): ?Shift
     {
         return Shift::currentForUser(auth()->id());
+    }
+
+    /**
+     * Get the expenses for the active shift.
+     *
+     * @return Collection<int, Expense>
+     */
+    #[Computed]
+    public function shiftExpenses(): Collection
+    {
+        $shift = $this->activeShift;
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return $shift->expenses()->latest()->get();
     }
 }; ?>
 
@@ -132,6 +189,94 @@ new #[Title('Shift')] class extends Component
                     <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
                     <flux:heading level="3">{{ number_format($this->activeShift->totalSales(), 2) }}</flux:heading>
                 </div>
+            </flux:card>
+
+            <flux:card>
+                <flux:heading level="2">{{ __('Expenses') }}</flux:heading>
+
+                <form wire:submit="addExpense" class="mt-6 space-y-6">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Expense Name') }}</flux:label>
+                            <flux:input
+                                wire:model="expenseName"
+                                type="text"
+                                required
+                                placeholder="{{ __('e.g. Stationery') }}"
+                            />
+                            <flux:error name="expenseName" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Amount') }}</flux:label>
+                            <flux:input
+                                wire:model="expenseAmount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                required
+                                placeholder="0.00"
+                            />
+                            <flux:error name="expenseAmount" />
+                        </flux:field>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <flux:button type="submit" variant="primary" icon="plus">
+                            {{ __('Add Expense') }}
+                        </flux:button>
+                    </div>
+                </form>
+
+                @if ($this->shiftExpenses->isNotEmpty())
+                    <div class="mt-6 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                            <thead class="bg-zinc-50 dark:bg-zinc-800">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">
+                                        {{ __('Name') }}
+                                    </th>
+                                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">
+                                        {{ __('Amount') }}
+                                    </th>
+                                    <th scope="col" class="hidden px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 sm:table-cell">
+                                        {{ __('Added') }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-900">
+                                @foreach ($this->shiftExpenses as $expense)
+                                    <tr wire:key="expense-{{ $expense->id }}">
+                                        <td class="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                            {{ $expense->name }}
+                                        </td>
+                                        <td class="px-4 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
+                                            {{ number_format($expense->amount, 2) }}
+                                        </td>
+                                        <td class="hidden px-4 py-3 text-right text-sm text-zinc-500 sm:table-cell">
+                                            {{ $expense->created_at->format('Y-m-d H:i') }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="bg-zinc-50 dark:bg-zinc-800">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {{ __('Total Expenses') }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {{ number_format($this->activeShift->totalExpenses(), 2) }}
+                                    </td>
+                                    <td class="hidden sm:table-cell"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @else
+                    <flux:text class="mt-6 text-zinc-500">
+                        {{ __('No expenses logged yet.') }}
+                    </flux:text>
+                @endif
             </flux:card>
 
             <flux:card>

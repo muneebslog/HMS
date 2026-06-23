@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\LabTest;
@@ -202,4 +203,66 @@ test('shift summary reflects created invoices', function () {
         ->totalWalkInSales()->toBe(150.00)
         ->totalLabSales()->toBe(250.00)
         ->totalSales()->toBe(400.00);
+});
+
+test('user can add an expense to an open shift', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('expenseName', 'Stationery')
+        ->set('expenseAmount', '50.00')
+        ->call('addExpense')
+        ->assertHasNoErrors();
+
+    $expense = Expense::first();
+    expect($expense)->not->toBeNull()
+        ->name->toBe('Stationery')
+        ->amount->toBe(50.00)
+        ->user_id->toBe($user->id);
+
+    expect($expense->shift)->not->toBeNull();
+});
+
+test('expense amount and name are validated', function (string $field, mixed $value, array $errors) {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set($field, $value)
+        ->call('addExpense')
+        ->assertHasErrors($errors);
+
+    expect(Expense::count())->toBe(0);
+})->with([
+    'empty name' => ['expenseName', '', ['expenseName']],
+    'empty amount' => ['expenseAmount', '', ['expenseAmount']],
+    'negative amount' => ['expenseAmount', '-10', ['expenseAmount']],
+]);
+
+test('user can see logged expenses and their total on the shift page', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    Expense::factory()->for($shift)->for($user)->create([
+        'name' => 'Coffee',
+        'amount' => 25.00,
+    ]);
+
+    Expense::factory()->for($shift)->for($user)->create([
+        'name' => 'Taxi',
+        'amount' => 75.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->assertSee('Coffee')
+        ->assertSee('25.00')
+        ->assertSee('Taxi')
+        ->assertSee('75.00')
+        ->assertSee('Total Expenses');
+
+    expect($shift->fresh()->totalExpenses())->toBe(100.00);
 });
