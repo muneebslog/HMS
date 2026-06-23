@@ -67,6 +67,14 @@ class Shift extends Model
     }
 
     /**
+     * Get the service queues opened during this shift.
+     */
+    public function serviceQueues(): HasMany
+    {
+        return $this->hasMany(ServiceQueue::class);
+    }
+
+    /**
      * Scope a query to only include open shifts for the given user.
      */
     public function scopeOpenForUser($query, int $userId)

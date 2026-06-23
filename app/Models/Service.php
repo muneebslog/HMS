@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Enums\TokenResetType;
 use Database\Factories\ServiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property TokenResetType $token_reset_type
+ */
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
@@ -20,6 +24,7 @@ class Service extends Model
     protected $fillable = [
         'name',
         'is_standalone',
+        'token_reset_type',
     ];
 
     /**
@@ -31,6 +36,7 @@ class Service extends Model
     {
         return [
             'is_standalone' => 'boolean',
+            'token_reset_type' => TokenResetType::class,
         ];
     }
 
@@ -40,5 +46,15 @@ class Service extends Model
     public function servicePrices(): HasMany
     {
         return $this->hasMany(ServicePrice::class);
+    }
+
+    /**
+     * Get the queues associated with this service.
+     *
+     * @return HasMany<ServiceQueue, $this>
+     */
+    public function serviceQueues(): HasMany
+    {
+        return $this->hasMany(ServiceQueue::class);
     }
 }

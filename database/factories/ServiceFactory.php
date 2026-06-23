@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\TokenResetType;
 use App\Models\Service;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,6 +21,7 @@ class ServiceFactory extends Factory
         return [
             'name' => fake()->words(3, true),
             'is_standalone' => fake()->boolean(),
+            'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
         ];
     }
 }

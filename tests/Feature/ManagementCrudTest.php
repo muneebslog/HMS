@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\Service;
@@ -85,12 +86,14 @@ test('authenticated users can create a service', function () {
         ->call('create')
         ->set('serviceName', 'General Checkup')
         ->set('serviceIsStandalone', true)
+        ->set('serviceTokenResetType', TokenResetType::Shift->value)
         ->call('save')
         ->assertHasNoErrors();
 
     $this->assertDatabaseHas('services', [
         'name' => 'General Checkup',
         'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift->value,
     ]);
 });
 

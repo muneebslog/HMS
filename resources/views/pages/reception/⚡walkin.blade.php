@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Shift;
+use App\Services\QueueService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -228,7 +229,7 @@ new #[Title('Walk-in')] class extends Component
             ]);
 
             foreach ($this->items as $item) {
-                InvoiceItem::create([
+                $invoiceItem = InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'service_id' => $item['service_id'],
                     'doctor_id' => $item['doctor_id'],
@@ -236,6 +237,8 @@ new #[Title('Walk-in')] class extends Component
                     'doctor_name' => $item['doctor_name'],
                     'price' => $item['price'],
                 ]);
+
+                app(QueueService::class)->generateToken($invoiceItem);
             }
 
             return $invoice;

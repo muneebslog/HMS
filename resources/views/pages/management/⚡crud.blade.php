@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\Service;
@@ -31,6 +32,9 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $serviceIsStandalone = false;
+
+    #[Validate]
+    public string $serviceTokenResetType = '';
 
     #[Validate]
     public ?int $priceServiceId = null;
@@ -74,6 +78,7 @@ new #[Title('Management')] class extends Component
             'services' => [
                 'serviceName' => ['required', 'string', 'max:255'],
                 'serviceIsStandalone' => ['boolean'],
+                'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
             ],
             'servicePrices' => [
                 'priceServiceId' => ['required', 'integer', 'exists:services,id'],
@@ -140,6 +145,7 @@ new #[Title('Management')] class extends Component
 
         $this->serviceName = $service->name;
         $this->serviceIsStandalone = $service->is_standalone;
+        $this->serviceTokenResetType = $service->token_reset_type->value;
     }
 
     /**
@@ -179,6 +185,7 @@ new #[Title('Management')] class extends Component
             'doctorSpecialization',
             'serviceName',
             'serviceIsStandalone',
+            'serviceTokenResetType',
             'priceServiceId',
             'priceDoctorId',
             'priceAmount',
@@ -242,6 +249,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['serviceName'],
             'is_standalone' => $validated['serviceIsStandalone'],
+            'token_reset_type' => $validated['serviceTokenResetType'],
         ];
 
         if ($this->editingId) {
@@ -474,7 +482,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
                                         {{ __('No doctors found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -486,6 +494,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Standalone') }}</flux:table.column>
+                            <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -500,6 +509,7 @@ new #[Title('Management')] class extends Component
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
                                     </flux:table.cell>
+                                    <flux:table.cell>{{ $service->token_reset_type->label() }}</flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $service->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $service->id }})" wire:confirm="{{ __('Are you sure you want to delete this service?') }}" />
@@ -507,7 +517,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -578,6 +588,16 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="serviceIsStandalone" :label="__('Standalone service')" />
                     <flux:error name="serviceIsStandalone" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Token reset') }}</flux:label>
+                    <flux:select wire:model="serviceTokenResetType" required>
+                        @foreach (TokenResetType::cases() as $type)
+                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="serviceTokenResetType" />
                 </flux:field>
             @elseif ($activeTab === 'servicePrices')
                 <flux:field>

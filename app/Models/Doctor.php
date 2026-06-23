@@ -29,4 +29,12 @@ class Doctor extends Model
     {
         return $this->hasMany(ServicePrice::class);
     }
+
+    /**
+     * Get the queues associated with this doctor.
+     */
+    public function serviceQueues(): HasMany
+    {
+        return $this->hasMany(ServiceQueue::class);
+    }
 }
