@@ -13,6 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
         Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->name('reception.invoices');
+        Route::livewire('reception/queue', 'pages::reception.queue')->name('reception.queue');
     });
 
     Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');

@@ -1,11 +1,13 @@
 <?php
 
+use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\QueueService;
 use Flux\Flux;
@@ -298,6 +300,55 @@ new #[Title('Walk-in')] class extends Component
     {
         return collect($this->items)->sum('price');
     }
+
+    /**
+     * Get the expected token number for the item at the given index.
+     */
+    public function expectedTokenForItem(int $index): ?int
+    {
+        $item = $this->items[$index] ?? null;
+
+        if ($item === null) {
+            return null;
+        }
+
+        $service = Service::find($item['service_id']);
+
+        if (! $service instanceof Service) {
+            return null;
+        }
+
+        $doctorId = $item['doctor_id'] ?? null;
+
+        $shift = Shift::currentForUser(auth()->id());
+
+        if ($shift === null) {
+            return null;
+        }
+
+        $queue = ServiceQueue::where('service_id', $service->id)
+            ->where('doctor_id', $doctorId)
+            ->where('status', 'open')
+            ->when(
+                $service->token_reset_type === TokenResetType::Shift,
+                fn ($query) => $query->where('shift_id', $shift->id),
+                fn ($query) => $query->whereDate('date', $shift->opened_at)
+            )
+            ->first();
+
+        $base = $queue?->last_token_number ?? 0;
+
+        $precedingSameQueue = 0;
+
+        for ($i = 0; $i < $index; $i++) {
+            if (($this->items[$i]['service_id'] ?? null) === $service->id
+                && ($this->items[$i]['doctor_id'] ?? null) === $doctorId) {
+                $precedingSameQueue++;
+            }
+        }
+
+        return $base + $precedingSameQueue + 1;
+    }
 }; ?>
 
 <div>
@@ -359,6 +410,7 @@ new #[Title('Walk-in')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('Service') }}</flux:table.column>
                     <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                    <flux:table.column>{{ __('Token') }}</flux:table.column>
                     <flux:table.column>{{ __('Price') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                 </flux:table.columns>
@@ -368,6 +420,7 @@ new #[Title('Walk-in')] class extends Component
                         <flux:table.row wire:key="item-{{ $index }}">
                             <flux:table.cell>{{ $item['service_name'] }}</flux:table.cell>
                             <flux:table.cell>{{ $item['doctor_name'] ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $this->expectedTokenForItem($index) ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($item['price'], 2) }}</flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button
@@ -386,7 +439,7 @@ new #[Title('Walk-in')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                 {{ __('No services added yet.') }}
                             </flux:table.cell>
                         </flux:table.row>

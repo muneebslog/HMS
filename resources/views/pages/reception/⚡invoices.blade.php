@@ -33,7 +33,7 @@ new #[Title('Invoices')] class extends Component
     #[Computed]
     public function invoices(): Collection
     {
-        return Invoice::with(['patient', 'items'])->latest()->get();
+        return Invoice::with(['patient', 'items.queueToken'])->latest()->get();
     }
 
     /**
@@ -95,7 +95,7 @@ new #[Title('Invoices')] class extends Component
             return null;
         }
 
-        return Invoice::with(['patient', 'items'])->find($this->viewingInvoiceId);
+        return Invoice::with(['patient', 'items.queueToken'])->find($this->viewingInvoiceId);
     }
 
     /**
@@ -304,6 +304,7 @@ new #[Title('Invoices')] class extends Component
                     <flux:table.columns>
                         <flux:table.column>{{ __('Service') }}</flux:table.column>
                         <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                        <flux:table.column>{{ __('Token') }}</flux:table.column>
                         <flux:table.column>{{ __('Price') }}</flux:table.column>
                     </flux:table.columns>
 
@@ -312,6 +313,7 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.row wire:key="invoice-item-{{ $item->id }}">
                                 <flux:table.cell>{{ $item->service_name }}</flux:table.cell>
                                 <flux:table.cell>{{ $item->doctor_name ?? '-' }}</flux:table.cell>
+                                <flux:table.cell>{{ $item->queueToken?->token_number ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
                             </flux:table.row>
                         @endforeach

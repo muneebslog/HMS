@@ -215,3 +215,53 @@ test('queue token is created with waiting status', function () {
 
     expect($invoice->items->first()->queueToken->status)->toBe('waiting');
 });
+
+test('walk-in page shows expected token number before saving', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create([
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 100.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'Test Patient')
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->assertSee('1');
+});
+
+test('walk-in page shows next expected token when a queue already exists', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create([
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $shift->id,
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+        'last_token_number' => 3,
+    ]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 100.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'Test Patient')
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->assertSee('4');
+});
