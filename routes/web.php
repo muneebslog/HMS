@@ -9,6 +9,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 
     Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
+    Route::livewire('daily-payout', 'pages::payout.daily')->name('payout.daily');
+    Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
 
     Route::middleware('open.shift')->group(function () {
         Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');

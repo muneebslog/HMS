@@ -88,6 +88,7 @@ class ReservationService
                 ->first();
 
             $priceAmount = $price instanceof ServicePrice ? $price->price : 0;
+            $doctorShare = $price instanceof ServicePrice ? $price->doctor_share : null;
 
             $invoice = Invoice::create([
                 'patient_id' => $lockedToken->patient_id,
@@ -105,6 +106,7 @@ class ReservationService
                 'service_name' => $service->name,
                 'doctor_name' => $lockedQueue->doctor?->name,
                 'price' => $priceAmount,
+                'doctor_share' => $doctorShare,
             ]);
 
             $lockedToken->update([

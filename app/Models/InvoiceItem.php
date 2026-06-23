@@ -25,6 +25,7 @@ class InvoiceItem extends Model
         'service_name',
         'doctor_name',
         'price',
+        'doctor_share',
     ];
 
     /**
@@ -36,6 +37,7 @@ class InvoiceItem extends Model
     {
         return [
             'price' => 'float',
+            'doctor_share' => 'float',
         ];
     }
 

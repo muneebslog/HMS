@@ -33,12 +33,14 @@ test('authenticated users can create a doctor', function () {
         ->call('create')
         ->set('doctorName', 'Dr. Smith')
         ->set('doctorSpecialization', 'Cardiology')
+        ->set('doctorPayoutDaily', true)
         ->call('save')
         ->assertHasNoErrors();
 
     $this->assertDatabaseHas('doctors', [
         'name' => 'Dr. Smith',
         'specialization' => 'Cardiology',
+        'payout_daily' => true,
     ]);
 });
 
@@ -52,6 +54,7 @@ test('authenticated users can update a doctor', function () {
         ->call('edit', $doctor->id)
         ->set('doctorName', 'Dr. Updated')
         ->set('doctorSpecialization', 'Neurology')
+        ->set('doctorPayoutDaily', true)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -59,6 +62,7 @@ test('authenticated users can update a doctor', function () {
         'id' => $doctor->id,
         'name' => 'Dr. Updated',
         'specialization' => 'Neurology',
+        'payout_daily' => true,
     ]);
 });
 

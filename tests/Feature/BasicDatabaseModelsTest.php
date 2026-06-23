@@ -56,11 +56,13 @@ test('doctors table can store doctor records', function () {
     $doctor = Doctor::factory()->create([
         'name' => 'Dr. Smith',
         'specialization' => 'Cardiology',
+        'payout_daily' => true,
     ]);
 
     expect($doctor->fresh())
         ->name->toBe('Dr. Smith')
-        ->specialization->toBe('Cardiology');
+        ->specialization->toBe('Cardiology')
+        ->payout_daily->toBeTrue();
 });
 
 test('service_prices table can store prices with doctor', function () {
@@ -172,6 +174,7 @@ test('invoice_items table can store invoice item records', function () {
         'service_name' => $service->name,
         'doctor_name' => $doctor->name,
         'price' => 150.00,
+        'doctor_share' => 25.00,
     ]);
 
     expect($item->fresh())
@@ -181,6 +184,7 @@ test('invoice_items table can store invoice item records', function () {
         ->service_name->toBe($service->name)
         ->doctor_name->toBe($doctor->name)
         ->price->toBe(150.00)
+        ->doctor_share->toBe(25.00)
         ->invoice->id->toBe($invoice->id)
         ->service->id->toBe($service->id)
         ->doctor->id->toBe($doctor->id);

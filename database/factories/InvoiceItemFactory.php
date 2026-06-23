@@ -30,6 +30,7 @@ class InvoiceItemFactory extends Factory
             'service_name' => $service->name,
             'doctor_name' => $doctor?->name,
             'price' => fake()->randomFloat(2, 10, 1000),
+            'doctor_share' => null,
         ];
     }
 }

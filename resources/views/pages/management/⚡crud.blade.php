@@ -28,6 +28,9 @@ new #[Title('Management')] class extends Component
     public string $doctorSpecialization = '';
 
     #[Validate]
+    public bool $doctorPayoutDaily = false;
+
+    #[Validate]
     public string $serviceName = '';
 
     #[Validate]
@@ -74,6 +77,7 @@ new #[Title('Management')] class extends Component
             'doctors' => [
                 'doctorName' => ['required', 'string', 'max:255'],
                 'doctorSpecialization' => ['required', 'string', 'max:255'],
+                'doctorPayoutDaily' => ['boolean'],
             ],
             'services' => [
                 'serviceName' => [
@@ -151,6 +155,7 @@ new #[Title('Management')] class extends Component
 
         $this->doctorName = $doctor->name;
         $this->doctorSpecialization = $doctor->specialization;
+        $this->doctorPayoutDaily = $doctor->payout_daily;
     }
 
     /**
@@ -200,6 +205,7 @@ new #[Title('Management')] class extends Component
         $this->reset([
             'doctorName',
             'doctorSpecialization',
+            'doctorPayoutDaily',
             'serviceName',
             'serviceIsStandalone',
             'serviceTokenResetType',
@@ -245,6 +251,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['doctorName'],
             'specialization' => $validated['doctorSpecialization'],
+            'payout_daily' => $validated['doctorPayoutDaily'],
         ];
 
         if ($this->editingId) {
@@ -484,6 +491,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Specialization') }}</flux:table.column>
+                            <flux:table.column>{{ __('Daily Payout') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -492,6 +500,13 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row wire:key="doctor-{{ $doctor->id }}">
                                     <flux:table.cell>{{ $doctor->name }}</flux:table.cell>
                                     <flux:table.cell>{{ $doctor->specialization }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($doctor->payout_daily)
+                                            <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $doctor->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $doctor->id }})" wire:confirm="{{ __('Are you sure you want to delete this doctor?') }}" />
@@ -499,7 +514,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No doctors found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -594,6 +609,11 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Specialization') }}</flux:label>
                     <flux:input wire:model="doctorSpecialization" type="text" required />
                     <flux:error name="doctorSpecialization" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="doctorPayoutDaily" :label="__('Daily payout')" />
+                    <flux:error name="doctorPayoutDaily" />
                 </flux:field>
             @elseif ($activeTab === 'services')
                 <flux:field>

@@ -231,6 +231,15 @@ new #[Title('Walk-in')] class extends Component
             ]);
 
             foreach ($this->items as $item) {
+                $servicePrice = ServicePrice::query()
+                    ->where('service_id', $item['service_id'])
+                    ->when(
+                        $item['doctor_id'],
+                        fn ($query) => $query->where('doctor_id', $item['doctor_id']),
+                        fn ($query) => $query->whereNull('doctor_id')
+                    )
+                    ->first();
+
                 $invoiceItem = InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'service_id' => $item['service_id'],
@@ -238,6 +247,7 @@ new #[Title('Walk-in')] class extends Component
                     'service_name' => $item['service_name'],
                     'doctor_name' => $item['doctor_name'],
                     'price' => $item['price'],
+                    'doctor_share' => $servicePrice?->doctor_share,
                 ]);
 
                 app(QueueService::class)->generateToken($invoiceItem);
