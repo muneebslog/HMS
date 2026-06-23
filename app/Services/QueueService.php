@@ -32,16 +32,15 @@ class QueueService
             throw new \RuntimeException('Invoice must be associated with a shift to generate a token.');
         }
 
-        return DB::transaction(function () use ($invoiceItem, $service, $shift) {
-            $queue = $this->findOrCreateQueue($service, $invoiceItem->doctor_id, $shift);
+        return DB::transaction(function () use ($invoiceItem, $service, $shift, $invoice) {
+            $queue = $this->queueFor($service, $invoiceItem->doctor_id, $shift);
 
-            $lockedQueue = ServiceQueue::where('id', $queue->id)->lockForUpdate()->firstOrFail();
-            $nextNumber = $lockedQueue->last_token_number + 1;
-            $lockedQueue->update(['last_token_number' => $nextNumber]);
+            $nextNumber = $this->nextTokenNumber($queue);
 
             return QueueToken::create([
                 'service_queue_id' => $queue->id,
                 'invoice_item_id' => $invoiceItem->id,
+                'patient_id' => $invoice->patient_id,
                 'token_number' => $nextNumber,
                 'status' => 'waiting',
             ]);
@@ -51,7 +50,7 @@ class QueueService
     /**
      * Find an open queue matching the reset type, or create a new one.
      */
-    private function findOrCreateQueue(Service $service, ?int $doctorId, Shift $shift): ServiceQueue
+    public function queueFor(Service $service, ?int $doctorId, Shift $shift): ServiceQueue
     {
         $resetType = $service->token_reset_type;
 
@@ -84,6 +83,42 @@ class QueueService
             'status' => 'open',
             'last_token_number' => 0,
         ]);
+    }
+
+    /**
+     * Get the next available token number for the queue without consuming it.
+     */
+    public function peekNextTokenNumber(ServiceQueue $queue): int
+    {
+        $occupied = QueueToken::where('service_queue_id', $queue->id)
+            ->pluck('token_number')
+            ->keyBy(fn (int $number) => $number);
+
+        $number = 1;
+
+        while ($occupied->has($number)) {
+            $number++;
+        }
+
+        return $number;
+    }
+
+    /**
+     * Allocate and return the next available token number for the queue.
+     */
+    public function nextTokenNumber(ServiceQueue $queue): int
+    {
+        return DB::transaction(function () use ($queue) {
+            $lockedQueue = ServiceQueue::where('id', $queue->id)->lockForUpdate()->firstOrFail();
+
+            $nextNumber = $this->peekNextTokenNumber($lockedQueue);
+
+            $lockedQueue->update([
+                'last_token_number' => max($lockedQueue->last_token_number, $nextNumber),
+            ]);
+
+            return $nextNumber;
+        });
     }
 
     /**

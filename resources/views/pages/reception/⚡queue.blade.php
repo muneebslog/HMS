@@ -188,9 +188,11 @@ new #[Title('Queue')] class extends Component
                         @forelse ($this->viewedQueue->tokens as $token)
                             <flux:table.row wire:key="queue-token-{{ $token->id }}">
                                 <flux:table.cell class="font-semibold">{{ $token->token_number }}</flux:table.cell>
-                                <flux:table.cell>{{ $token->invoiceItem->invoice->patient->name ?? '-' }}</flux:table.cell>
+                                <flux:table.cell>{{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>
-                                    @if ($token->status === 'waiting')
+                                    @if ($token->status === 'reserved')
+                                        <flux:badge size="sm" color="purple">{{ __('Reserved') }}</flux:badge>
+                                    @elseif ($token->status === 'waiting')
                                         <flux:badge size="sm" color="amber">{{ __('Waiting') }}</flux:badge>
                                     @elseif ($token->status === 'serving')
                                         <flux:badge size="sm" color="blue">{{ __('Serving') }}</flux:badge>

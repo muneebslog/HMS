@@ -20,6 +20,7 @@ class QueueToken extends Model
     protected $fillable = [
         'service_queue_id',
         'invoice_item_id',
+        'patient_id',
         'token_number',
         'status',
     ];
@@ -42,5 +43,15 @@ class QueueToken extends Model
     public function invoiceItem(): BelongsTo
     {
         return $this->belongsTo(InvoiceItem::class);
+    }
+
+    /**
+     * Get the patient associated with this token.
+     *
+     * @return BelongsTo<Patient, $this>
+     */
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(Patient::class);
     }
 }

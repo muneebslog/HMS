@@ -336,7 +336,9 @@ new #[Title('Walk-in')] class extends Component
             )
             ->first();
 
-        $base = $queue?->last_token_number ?? 0;
+        $base = $queue !== null
+            ? app(QueueService::class)->peekNextTokenNumber($queue)
+            : 1;
 
         $precedingSameQueue = 0;
 
@@ -347,7 +349,7 @@ new #[Title('Walk-in')] class extends Component
             }
         }
 
-        return $base + $precedingSameQueue + 1;
+        return $base + $precedingSameQueue;
     }
 }; ?>
 

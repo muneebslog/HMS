@@ -76,7 +76,24 @@ new #[Title('Management')] class extends Component
                 'doctorSpecialization' => ['required', 'string', 'max:255'],
             ],
             'services' => [
-                'serviceName' => ['required', 'string', 'max:255'],
+                'serviceName' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    function ($attribute, $value, $fail) {
+                        if (strtolower($value) !== 'consultation') {
+                            return;
+                        }
+
+                        $existing = \App\Models\Service::whereRaw('LOWER(name) = ?', ['consultation'])
+                            ->when($this->editingId, fn ($query) => $query->where('id', '!=', $this->editingId))
+                            ->first();
+
+                        if ($existing !== null) {
+                            $fail(__('A service named consultation already exists.'));
+                        }
+                    },
+                ],
                 'serviceIsStandalone' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
             ],

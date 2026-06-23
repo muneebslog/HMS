@@ -22,6 +22,7 @@ class QueueTokenFactory extends Factory
         return [
             'service_queue_id' => ServiceQueue::factory(),
             'invoice_item_id' => InvoiceItem::factory(),
+            'patient_id' => null,
             'token_number' => fake()->randomNumber(2),
             'status' => 'waiting',
         ];
