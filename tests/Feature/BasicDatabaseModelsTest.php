@@ -7,6 +7,7 @@ use App\Models\LabTest;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -136,6 +137,7 @@ test('lab_tests table can store send out lab test records', function () {
 test('invoices table can store invoice records', function () {
     $patient = Patient::factory()->create();
     $user = User::factory()->create();
+    $shift = Shift::factory()->create(['user_id' => $user->id]);
 
     $invoice = Invoice::factory()->create([
         'patient_id' => $patient->id,
@@ -143,6 +145,7 @@ test('invoices table can store invoice records', function () {
         'total' => 250.00,
         'status' => 'paid',
         'created_by' => $user->id,
+        'shift_id' => $shift->id,
     ]);
 
     expect($invoice->fresh())
@@ -151,8 +154,10 @@ test('invoices table can store invoice records', function () {
         ->total->toBe(250.00)
         ->status->toBe('paid')
         ->created_by->toBe($user->id)
+        ->shift_id->toBe($shift->id)
         ->patient->id->toBe($patient->id)
-        ->creator->id->toBe($user->id);
+        ->creator->id->toBe($user->id)
+        ->shift->id->toBe($shift->id);
 });
 
 test('invoice_items table can store invoice item records', function () {

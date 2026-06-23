@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\LabInvoice;
 use App\Models\Patient;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -22,6 +23,7 @@ class LabInvoiceFactory extends Factory
         $subtotal = fake()->randomFloat(2, 100, 10000);
         $discountPercentage = fake()->randomFloat(2, 0, 25);
         $discountAmount = round($subtotal * ($discountPercentage / 100), 2);
+        $user = User::factory()->create();
 
         return [
             'patient_id' => Patient::factory(),
@@ -31,7 +33,8 @@ class LabInvoiceFactory extends Factory
             'discount_amount' => $discountAmount,
             'total' => round($subtotal - $discountAmount, 2),
             'status' => 'pending',
-            'created_by' => fake()->optional(0.8)->passthrough(User::factory()->create()->id),
+            'created_by' => $user->id,
+            'shift_id' => Shift::factory()->state(['user_id' => $user->id]),
         ];
     }
 

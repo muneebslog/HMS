@@ -5,6 +5,7 @@ use App\Models\Invoice;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -19,6 +20,7 @@ test('guests are redirected to the login page', function () {
 
 test('authenticated users can visit the walk-in page', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.walkin'));
 
@@ -154,6 +156,7 @@ test('price edits must be a non-negative number', function () {
 
 test('a walk-in invoice can be saved with items', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create(['is_standalone' => true]);
     ServicePrice::factory()->create([
         'service_id' => $service->id,
@@ -189,6 +192,7 @@ test('a walk-in invoice can be saved with items', function () {
 
 test('a walk-in invoice can be saved with a doctor service', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create(['is_standalone' => false]);
     $doctor = Doctor::factory()->create();
     ServicePrice::factory()->create([
@@ -247,6 +251,7 @@ test('saving a walk-in invoice requires at least one item', function () {
 
 test('saving a walk-in invoice clears the form', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create(['is_standalone' => true]);
     ServicePrice::factory()->create([
         'service_id' => $service->id,

@@ -6,6 +6,7 @@ use App\Models\InvoiceItem;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -206,7 +207,15 @@ new #[Title('Walk-in')] class extends Component
             'items.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $invoice = DB::transaction(function () {
+        $shift = Shift::currentForUser(auth()->id());
+
+        if ($shift === null) {
+            Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+
+            return;
+        }
+
+        $invoice = DB::transaction(function () use ($shift) {
             $patient = Patient::create(['name' => $this->patientName]);
 
             $invoice = Invoice::create([
@@ -215,6 +224,7 @@ new #[Title('Walk-in')] class extends Component
                 'total' => $this->totalPrice,
                 'status' => 'paid',
                 'created_by' => auth()->id(),
+                'shift_id' => $shift->id,
             ]);
 
             foreach ($this->items as $item) {

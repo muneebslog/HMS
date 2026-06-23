@@ -2,6 +2,7 @@
 
 use App\Models\Invoice;
 use App\Models\LabInvoice;
+use App\Models\Shift;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -14,6 +15,15 @@ new #[Title('Invoices')] class extends Component
     public ?string $viewingType = null;
 
     public bool $showViewModal = false;
+
+    /**
+     * Get the currently open shift for the user.
+     */
+    #[Computed]
+    public function currentShift(): ?Shift
+    {
+        return Shift::currentForUser(auth()->id());
+    }
 
     /**
      * Get the walk-in invoices with their patient and items.
@@ -107,6 +117,51 @@ new #[Title('Invoices')] class extends Component
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <flux:heading level="1">{{ __('Invoices') }}</flux:heading>
         </div>
+
+        @if ($this->currentShift)
+            <flux:card>
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <flux:heading level="2">{{ __('Current Shift') }}</flux:heading>
+                        <flux:text class="text-zinc-500">
+                            {{ __('Opened at') }}: {{ $this->currentShift->opened_at->format('Y-m-d H:i') }}
+                        </flux:text>
+                    </div>
+                    <flux:badge size="sm" color="green">{{ __('Open') }}</flux:badge>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Opening Balance') }}</flux:text>
+                        <flux:text class="font-semibold">{{ number_format($this->currentShift->opening_balance, 2) }}</flux:text>
+                    </div>
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Walk-in Sales') }}</flux:text>
+                        <flux:text class="font-semibold">{{ number_format($this->currentShift->totalWalkInSales(), 2) }}</flux:text>
+                    </div>
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Lab Sales') }}</flux:text>
+                        <flux:text class="font-semibold">{{ number_format($this->currentShift->totalLabSales(), 2) }}</flux:text>
+                    </div>
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
+                        <flux:text class="font-semibold">{{ number_format($this->currentShift->totalSales(), 2) }}</flux:text>
+                    </div>
+                </div>
+            </flux:card>
+        @else
+            <flux:card>
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <flux:heading level="2">{{ __('No Open Shift') }}</flux:heading>
+                        <flux:text class="text-zinc-500">{{ __('Open a shift to start creating invoices.') }}</flux:text>
+                    </div>
+                    <flux:button variant="primary" icon="lock-open" :href="route('reception.shift')" wire:navigate>
+                        {{ __('Open Shift') }}
+                    </flux:button>
+                </div>
+            </flux:card>
+        @endif
 
         <flux:card>
             <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

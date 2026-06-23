@@ -27,6 +27,9 @@
                     <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                         {{ __('Invoices') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
+                        {{ __('Shift') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

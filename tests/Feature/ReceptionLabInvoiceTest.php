@@ -3,6 +3,7 @@
 use App\Models\LabInvoice;
 use App\Models\LabTest;
 use App\Models\Patient;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -11,6 +12,7 @@ uses(RefreshDatabase::class);
 
 test('a lab invoice can be saved with items', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $labTest = LabTest::factory()->create([
         'test_name' => 'Complete Blood Count',
         'test_code' => 'CBC-001',
@@ -57,6 +59,7 @@ test('a lab invoice can be saved with items', function () {
 
 test('a lab invoice can be saved with a discount', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $labTest = LabTest::factory()->create(['test_price' => 1000.00]);
 
     Livewire::actingAs($user)
@@ -115,6 +118,7 @@ test('saving a lab invoice requires at least one item', function () {
 
 test('saving a lab invoice clears the form', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $labTest = LabTest::factory()->create();
 
     Livewire::actingAs($user)

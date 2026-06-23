@@ -4,6 +4,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -18,6 +19,7 @@ test('guests are redirected to the login page', function () {
 
 test('authenticated users can visit the invoices page', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.invoices'));
 

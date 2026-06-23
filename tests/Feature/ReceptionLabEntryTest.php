@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\LabTest;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -15,6 +16,7 @@ test('guests are redirected to the login page', function () {
 
 test('authenticated users can visit the lab entry page', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.lab-entry'));
 
@@ -49,6 +51,7 @@ test('a lab test can be added to the bill', function () {
 
 test('a discount can be applied to the whole bill', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $labTest = LabTest::factory()->create(['test_price' => 1000.00]);
 
     Livewire::actingAs($user)
@@ -85,6 +88,7 @@ test('a lab test can be removed from the list', function () {
 
 test('the clear button resets the form and selected tests', function () {
     $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
     $labTest = LabTest::factory()->create();
 
     Livewire::actingAs($user)

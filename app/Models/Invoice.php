@@ -25,6 +25,7 @@ class Invoice extends Model
         'total',
         'status',
         'created_by',
+        'shift_id',
     ];
 
     /**
@@ -61,6 +62,14 @@ class Invoice extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    /**
+     * Get the shift this invoice belongs to.
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
     }
 
     /**

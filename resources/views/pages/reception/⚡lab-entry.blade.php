@@ -4,6 +4,7 @@ use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
 use App\Models\Patient;
+use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -146,7 +147,15 @@ new #[Title('Lab Entry')] class extends Component
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        $invoice = DB::transaction(function () {
+        $shift = Shift::currentForUser(auth()->id());
+
+        if ($shift === null) {
+            Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+
+            return;
+        }
+
+        $invoice = DB::transaction(function () use ($shift) {
             $patient = Patient::create([
                 'name' => $this->patientName,
                 'phone' => $this->patientPhone,
@@ -163,6 +172,7 @@ new #[Title('Lab Entry')] class extends Component
                 'total' => $this->total,
                 'status' => 'paid',
                 'created_by' => auth()->id(),
+                'shift_id' => $shift->id,
             ]);
 
             foreach ($this->items as $item) {
