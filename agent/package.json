@@ -1,0 +1,21 @@
+{
+  "name": "hms-reception-agent",
+  "version": "1.0.0",
+  "description": "Local reception agent that polls the HMS server for print jobs and prints them to the thermal printer.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "thermal-printing",
+    "hms",
+    "reception"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "node-thermal-printer": "^4.4.4"
+  }
+}

@@ -92,3 +92,33 @@ test('unauthenticated users are redirected to login', function () use ($routeMap
             ->assertRedirect(route('login'));
     }
 });
+
+test('users with the default user role are redirected to the pending role page', function () use ($routeMap) {
+    $user = User::factory()->user()->create();
+
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['shared']) as $route) {
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertRedirect(route('pending-role'));
+    }
+});
+
+test('users with the default user role can access the pending role page', function () {
+    $user = User::factory()->user()->create();
+
+    $this->actingAs($user)
+        ->get(route('pending-role'))
+        ->assertSuccessful();
+});
+
+test('assigned users are redirected away from the pending role page', function (UserRole $role) {
+    $user = User::factory()->{$role->value}()->create();
+
+    $this->actingAs($user)
+        ->get(route('pending-role'))
+        ->assertRedirect(route('dashboard'));
+})->with([
+    'admin' => [UserRole::Admin],
+    'receptionist' => [UserRole::Receptionist],
+    'management' => [UserRole::Management],
+]);

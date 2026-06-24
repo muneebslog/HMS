@@ -7,6 +7,7 @@ enum UserRole: string
     case Admin = 'admin';
     case Receptionist = 'receptionist';
     case Management = 'management';
+    case User = 'user';
 
     /**
      * Get the translated label for the role.
@@ -17,6 +18,7 @@ enum UserRole: string
             self::Admin => __('Admin'),
             self::Receptionist => __('Receptionist'),
             self::Management => __('Management'),
+            self::User => __('User'),
         };
     }
 

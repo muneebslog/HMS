@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreatePrintJob;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\ProcedurePayment;
@@ -134,6 +135,28 @@ new #[Title('Invoices')] class extends Component
     }
 
     /**
+     * Queue a print job for the selected invoice.
+     */
+    public function printInvoice(int $id, string $type): void
+    {
+        $invoice = match ($type) {
+            'walkin' => Invoice::find($id),
+            'lab' => LabInvoice::find($id),
+            default => null,
+        };
+
+        if ($invoice === null) {
+            Flux::toast(variant: 'danger', text: __('Invoice not found.'));
+
+            return;
+        }
+
+        app(CreatePrintJob::class)->create($invoice);
+
+        Flux::toast(variant: 'success', text: __('Print job queued for :number.', ['number' => $invoice->invoice_number]));
+    }
+
+    /**
      * Get the invoice currently being viewed.
      */
     #[Computed]
@@ -256,7 +279,7 @@ new #[Title('Invoices')] class extends Component
                                     size="sm"
                                     variant="ghost"
                                     icon="printer"
-                                    x-on:click="window.print()"
+                                    wire:click="printInvoice({{ $invoice->id }}, 'walkin')"
                                 />
                             </flux:table.cell>
                         </flux:table.row>
@@ -312,7 +335,7 @@ new #[Title('Invoices')] class extends Component
                                     size="sm"
                                     variant="ghost"
                                     icon="printer"
-                                    x-on:click="window.print()"
+                                    wire:click="printInvoice({{ $invoice->id }}, 'lab')"
                                 />
                             </flux:table.cell>
                         </flux:table.row>
@@ -458,9 +481,11 @@ new #[Title('Invoices')] class extends Component
         @endif
 
         <div class="mt-6 flex justify-end gap-3 print:hidden">
-            <flux:button type="button" variant="outline" icon="printer" x-on:click="window.print()">
-                {{ __('Print') }}
-            </flux:button>
+            @if ($this->viewingInvoiceId && $this->viewingType)
+                <flux:button type="button" variant="outline" icon="printer" wire:click="printInvoice({{ $this->viewingInvoiceId }}, '{{ $this->viewingType }}')">
+                    {{ __('Print') }}
+                </flux:button>
+            @endif
             <flux:button type="button" variant="ghost" wire:click="closeViewModal">
                 {{ __('Close') }}
             </flux:button>

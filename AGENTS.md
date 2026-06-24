@@ -13,6 +13,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
+- laravel/sanctum (SANCTUM) - v4
 - livewire/flux (FLUXUI_FREE) - v2
 - livewire/livewire (LIVEWIRE) - v4
 - larastan/larastan (LARASTAN) - v3
@@ -155,7 +156,6 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Livewire allow to build dynamic, reactive interfaces in PHP without writing JavaScript.
 - You can use Alpine.js for client-side interactions instead of JavaScript frameworks.
 - Keep state server-side so the UI reflects it. Validate and authorize in actions as you would in HTTP requests.
-- Full-page Livewire components in `resources/views/pages/` do NOT need an `<x-layouts::app>` wrapper. The layout is applied automatically by Livewire. Use a single root element (e.g. `<div>`) for the component's frontend code and set the page title with the `#[Title('...')]` attribute on the component class.
 
 === pint/core rules ===
 

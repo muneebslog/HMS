@@ -69,6 +69,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user has only the default user role.
+     */
+    public function user(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::User,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

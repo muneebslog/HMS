@@ -6,8 +6,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
+
+    Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
@@ -16,12 +18,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
-        Route::livewire('reception/invoices', 'pages::reception.invoices')->name('reception.invoices');
+        Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
+        Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

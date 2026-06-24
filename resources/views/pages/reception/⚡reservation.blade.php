@@ -6,6 +6,7 @@ use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\QueueService;
+use App\Actions\CreatePrintJob;
 use App\Services\ReservationService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -136,11 +137,11 @@ new #[Title('Reservations')] class extends Component
         try {
             $invoice = app(ReservationService::class)->arrive($token);
 
+            app(CreatePrintJob::class)->create($invoice);
+
             $this->closeArrivalModal();
 
-            $this->dispatch('open-print-window', url: route('invoices.print', $invoice));
-
-            Flux::toast(variant: 'success', text: __('Invoice :number created.', ['number' => $invoice->invoice_number]));
+            Flux::toast(variant: 'success', text: __('Invoice :number created. Print job queued.', ['number' => $invoice->invoice_number]));
         } catch (\Throwable $e) {
             Flux::toast(variant: 'danger', text: $e->getMessage());
         }
@@ -261,7 +262,7 @@ new #[Title('Reservations')] class extends Component
     }
 }; ?>
 
-<div x-on:open-print-window.window="window.open($event.detail.url, '_blank')">
+<div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <flux:heading level="1">{{ __('Reservations') }}</flux:heading>

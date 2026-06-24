@@ -1,0 +1,14 @@
+{
+  "apiBaseUrl": "https://hms.example.com",
+  "apiToken": "your-print-agent-token-here",
+  "pollIntervalMs": 2000,
+  "printer": {
+    "mode": "escpos",
+    "interface": "usb",
+    "name": "EPSON TM-T82 Receipt",
+    "width": 48,
+    "characterSet": "SLOVENIA",
+    "removeSpecialCharacters": false,
+    "lineCharacter": "-"
+  }
+}

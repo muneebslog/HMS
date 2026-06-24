@@ -1,9 +1,11 @@
 <?php
 
+use App\Enums\PrintJobStatus;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\Invoice;
 use App\Models\Patient;
+use App\Models\PrintJob;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -147,9 +149,14 @@ test('marking a reservation arrived creates an invoice and links the token', fun
 
     $component->call('selectToken', 4)
         ->call('markArrived')
-        ->assertDispatched('open-print-window');
+        ->assertHasNoErrors();
 
     $invoice = Invoice::first();
+
+    expect(PrintJob::count())->toBe(1);
+    expect(PrintJob::first())
+        ->invoice_id->toBe($invoice->id)
+        ->status->toBe(PrintJobStatus::Pending);
     expect($invoice)->not->toBeNull()
         ->patient->name->toBe('Phone Patient')
         ->total->toBe(250.00)

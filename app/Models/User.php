@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -21,7 +22,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $name
  * @property string $email
  * @property Carbon|null $email_verified_at
- * @property string $role
+ * @property UserRole $role
  * @property string $password
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
@@ -52,6 +53,16 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the role requests submitted by the user.
+     *
+     * @return HasMany<RoleRequest, $this>
+     */
+    public function roleRequests(): HasMany
+    {
+        return $this->hasMany(RoleRequest::class);
+    }
+
+    /**
      * Determine whether the user is an admin.
      */
     public function isAdmin(): bool
@@ -73,6 +84,14 @@ class User extends Authenticatable implements PasskeyUser
     public function isManagement(): bool
     {
         return $this->role === UserRole::Management;
+    }
+
+    /**
+     * Determine whether the user has only the default user role.
+     */
+    public function isUser(): bool
+    {
+        return $this->role === UserRole::User;
     }
 
     /**

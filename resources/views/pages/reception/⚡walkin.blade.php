@@ -7,6 +7,7 @@ use App\Models\InvoiceItem;
 use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Actions\CreatePrintJob;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\QueueService;
@@ -256,9 +257,11 @@ new #[Title('Walk-in')] class extends Component
             return $invoice;
         });
 
+        app(CreatePrintJob::class)->create($invoice);
+
         $this->clear();
 
-        Flux::toast(variant: 'success', text: __('Invoice :number saved.', ['number' => $invoice->invoice_number]));
+        Flux::toast(variant: 'success', text: __('Invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
     }
 
     /**
@@ -469,9 +472,7 @@ new #[Title('Walk-in')] class extends Component
                 <flux:button type="button" variant="primary" icon="document-check" wire:click="saveInvoice">
                     {{ __('Save invoice') }}
                 </flux:button>
-                <flux:button type="button" variant="outline" icon="printer" x-on:click="window.print()">
-                    {{ __('Print') }}
-                </flux:button>
+
                 <flux:button type="button" variant="ghost" wire:click="clear">
                     {{ __('Reset') }}
                 </flux:button>

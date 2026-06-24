@@ -1,0 +1,116 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\LabInvoice;
+use App\Models\PrintJob;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class PrintJobController extends Controller
+{
+    /**
+     * Get pending print jobs for the reception agent.
+     */
+    public function pending(): JsonResponse
+    {
+        $jobs = PrintJob::pending()
+            ->with(['invoice.items.queueToken', 'invoice.patient', 'labInvoice.items', 'labInvoice.patient'])
+            ->orderBy('created_at')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'data' => $jobs->map(fn (PrintJob $job) => $this->formatJob($job)),
+        ]);
+    }
+
+    /**
+     * Mark a print job as printed.
+     */
+    public function printed(PrintJob $job): JsonResponse
+    {
+        $job->markAsPrinted();
+
+        return response()->json([
+            'message' => 'Print job marked as printed.',
+            'data' => $this->formatJob($job),
+        ]);
+    }
+
+    /**
+     * Mark a print job as failed.
+     */
+    public function failed(Request $request, PrintJob $job): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'error_message' => ['required', 'string', 'max:1000'],
+        ])->validate();
+
+        $job->markAsFailed($validated['error_message']);
+
+        return response()->json([
+            'message' => 'Print job marked as failed.',
+            'data' => $this->formatJob($job),
+        ]);
+    }
+
+    /**
+     * Format a print job for the agent response.
+     *
+     * @return array<string, mixed>
+     */
+    protected function formatJob(PrintJob $job): array
+    {
+        $invoice = $job->invoice;
+        $labInvoice = $job->labInvoice;
+
+        if ($labInvoice instanceof LabInvoice) {
+            return [
+                'id' => $job->id,
+                'status' => $job->status->value,
+                'payload' => $job->payload,
+                'attempts' => $job->attempts,
+                'invoice' => [
+                    'id' => $labInvoice->id,
+                    'invoice_number' => $labInvoice->invoice_number,
+                    'total' => $labInvoice->total,
+                    'created_at' => $labInvoice->created_at->format('Y-m-d H:i'),
+                    'patient' => [
+                        'name' => $labInvoice->patient->name,
+                    ],
+                    'items' => $labInvoice->items->map(fn ($item) => [
+                        'service_name' => $item->test_name,
+                        'price' => $item->price,
+                        'doctor_name' => null,
+                        'token_number' => null,
+                    ]),
+                ],
+            ];
+        }
+
+        return [
+            'id' => $job->id,
+            'status' => $job->status->value,
+            'payload' => $job->payload,
+            'attempts' => $job->attempts,
+            'invoice' => [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'total' => $invoice->total,
+                'created_at' => $invoice->created_at->format('Y-m-d H:i'),
+                'patient' => [
+                    'name' => $invoice->patient->name,
+                ],
+                'items' => $invoice->items->map(fn ($item) => [
+                    'service_name' => $item->service_name,
+                    'price' => $item->price,
+                    'doctor_name' => $item->doctor_name,
+                    'token_number' => $item->queueToken?->token_number,
+                ]),
+            ],
+        ];
+    }
+}

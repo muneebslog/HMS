@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreatePrintJob;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
@@ -190,9 +191,11 @@ new #[Title('Lab Entry')] class extends Component
             return $invoice;
         });
 
+        app(CreatePrintJob::class)->create($invoice);
+
         $this->clear();
 
-        Flux::toast(variant: 'success', text: __('Lab invoice :number saved.', ['number' => $invoice->invoice_number]));
+        Flux::toast(variant: 'success', text: __('Lab invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
     }
 
     /**
@@ -365,9 +368,7 @@ new #[Title('Lab Entry')] class extends Component
                     <flux:button type="button" variant="primary" icon="document-check" wire:click="save">
                         {{ __('Save invoice') }}
                     </flux:button>
-                    <flux:button type="button" variant="outline" icon="printer" x-on:click="window.print()">
-                        {{ __('Print') }}
-                    </flux:button>
+
                     <flux:button type="button" variant="ghost" wire:click="clear">
                         {{ __('Clear') }}
                     </flux:button>

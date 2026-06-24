@@ -32,6 +32,14 @@ test('non-admins cannot visit the users page', function (UserRole $role) {
     'management' => [UserRole::Management],
 ]);
 
+test('users with the default user role are redirected to the pending role page', function () {
+    $user = User::factory()->user()->create();
+
+    $response = $this->actingAs($user)->get(route('admin.users'));
+
+    $response->assertRedirect(route('pending-role'));
+});
+
 test('admin can change another users role', function () {
     $admin = User::factory()->admin()->create();
     $user = User::factory()->receptionist()->create();
