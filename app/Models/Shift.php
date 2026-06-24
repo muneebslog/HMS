@@ -93,6 +93,14 @@ class Shift extends Model
     }
 
     /**
+     * Get the doctor payouts recorded during this shift.
+     */
+    public function doctorPayouts(): HasMany
+    {
+        return $this->hasMany(DoctorPayout::class);
+    }
+
+    /**
      * Scope a query to only include open shifts for the given user.
      */
     public function scopeOpenForUser($query, int $userId)
@@ -149,5 +157,24 @@ class Shift extends Model
     public function totalExpenses(): float
     {
         return $this->expenses()->sum('amount') ?: 0.0;
+    }
+
+    /**
+     * Get the total daily doctor payouts recorded during this shift.
+     */
+    public function totalDailyPayouts(): float
+    {
+        return $this->doctorPayouts()->sum('share_amount') ?: 0.0;
+    }
+
+    /**
+     * Get the expected cash for this shift.
+     */
+    public function expectedCash(): float
+    {
+        return $this->opening_balance
+            + $this->totalSales()
+            - $this->totalDailyPayouts()
+            - $this->totalExpenses();
     }
 }

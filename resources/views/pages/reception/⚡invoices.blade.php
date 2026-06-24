@@ -2,6 +2,7 @@
 
 use App\Models\Invoice;
 use App\Models\LabInvoice;
+use App\Models\ProcedurePayment;
 use App\Models\Shift;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -26,29 +27,67 @@ new #[Title('Invoices')] class extends Component
     }
 
     /**
-     * Get the walk-in invoices with their patient and items.
+     * Get the walk-in invoices for the current shift with their patient and items.
      *
      * @return Collection<int, Invoice>
      */
     #[Computed]
     public function invoices(): Collection
     {
-        return Invoice::with(['patient', 'items.queueToken'])->latest()->get();
+        $shift = $this->currentShift;
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return Invoice::with(['patient', 'items.queueToken'])
+            ->where('shift_id', $shift->id)
+            ->latest()
+            ->get();
     }
 
     /**
-     * Get the lab invoices with their patient and items.
+     * Get the lab invoices for the current shift with their patient and items.
      *
      * @return Collection<int, LabInvoice>
      */
     #[Computed]
     public function labInvoices(): Collection
     {
-        return LabInvoice::with(['patient', 'items'])->latest()->get();
+        $shift = $this->currentShift;
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return LabInvoice::with(['patient', 'items'])
+            ->where('shift_id', $shift->id)
+            ->latest()
+            ->get();
     }
 
     /**
-     * Get the total of all walk-in invoices.
+     * Get the procedure payments recorded for the current shift.
+     *
+     * @return Collection<int, ProcedurePayment>
+     */
+    #[Computed]
+    public function procedurePayments(): Collection
+    {
+        $shift = $this->currentShift;
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return ProcedurePayment::with(['procedure.patient', 'procedure.doctor'])
+            ->where('shift_id', $shift->id)
+            ->latest()
+            ->get();
+    }
+
+    /**
+     * Get the total of all walk-in invoices for the current shift.
      */
     #[Computed]
     public function totalWalkInInvoices(): float
@@ -57,12 +96,21 @@ new #[Title('Invoices')] class extends Component
     }
 
     /**
-     * Get the total of all lab invoices.
+     * Get the total of all lab invoices for the current shift.
      */
     #[Computed]
     public function totalLabInvoices(): float
     {
         return $this->labInvoices->sum('total');
+    }
+
+    /**
+     * Get the total of all procedure payments for the current shift.
+     */
+    #[Computed]
+    public function totalProcedurePayments(): float
+    {
+        return $this->procedurePayments->sum('amount');
     }
 
     /**
@@ -130,7 +178,7 @@ new #[Title('Invoices')] class extends Component
                     <flux:badge size="sm" color="green">{{ __('Open') }}</flux:badge>
                 </div>
 
-                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-5">
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Opening Balance') }}</flux:text>
                         <flux:text class="font-semibold">{{ number_format($this->currentShift->opening_balance, 2) }}</flux:text>
@@ -142,6 +190,10 @@ new #[Title('Invoices')] class extends Component
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Lab Sales') }}</flux:text>
                         <flux:text class="font-semibold">{{ number_format($this->currentShift->totalLabSales(), 2) }}</flux:text>
+                    </div>
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Procedure Payments') }}</flux:text>
+                        <flux:text class="font-semibold">{{ number_format($this->currentShift->totalProcedureSales(), 2) }}</flux:text>
                     </div>
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
@@ -268,6 +320,41 @@ new #[Title('Invoices')] class extends Component
                         <flux:table.row>
                             <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                 {{ __('No lab invoices found.') }}
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @endforelse
+                </flux:table.rows>
+            </flux:table>
+        </flux:card>
+
+        <flux:card>
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <flux:heading level="2">{{ __('Procedure Payments') }}</flux:heading>
+                <flux:text class="font-semibold">{{ __('Total') }}: {{ number_format($this->totalProcedurePayments, 2) }}</flux:text>
+            </div>
+
+            <flux:table>
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Procedure') }}</flux:table.column>
+                    <flux:table.column>{{ __('Patient') }}</flux:table.column>
+                    <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                    <flux:table.column>{{ __('Amount') }}</flux:table.column>
+                    <flux:table.column>{{ __('Date') }}</flux:table.column>
+                </flux:table.columns>
+
+                <flux:table.rows>
+                    @forelse ($this->procedurePayments as $payment)
+                        <flux:table.row wire:key="procedure-payment-{{ $payment->id }}">
+                            <flux:table.cell>{{ $payment->procedure->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->procedure->patient->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->procedure->doctor?->name ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                        </flux:table.row>
+                    @empty
+                        <flux:table.row>
+                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                {{ __('No procedure payments found.') }}
                             </flux:table.cell>
                         </flux:table.row>
                     @endforelse

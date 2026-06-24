@@ -3,6 +3,7 @@
 use App\Models\Doctor;
 use App\Models\DoctorPayout;
 use App\Models\InvoiceItem;
+use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -149,6 +150,8 @@ new #[Title('Daily Payout')] class extends Component
             return;
         }
 
+        $shift = Shift::currentForUser(auth()->id());
+
         DoctorPayout::create([
             'doctor_id' => $doctor->id,
             'date' => today(),
@@ -156,6 +159,7 @@ new #[Title('Daily Payout')] class extends Component
             'share_amount' => $this->shareAmount,
             'paid_at' => now(),
             'created_by' => auth()->id(),
+            'shift_id' => $shift?->id,
         ]);
 
         Flux::toast(variant: 'success', text: __('Share paid for :doctor.', ['doctor' => $doctor->name]));

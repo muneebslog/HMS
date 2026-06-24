@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\UserRole;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
@@ -19,16 +20,19 @@ test('guests are redirected to the login page', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('authenticated users can visit the shift page', function () {
-    $user = User::factory()->create();
+test('authenticated receptionists and management can visit the shift page', function (UserRole $role) {
+    $user = User::factory()->{$role->value}()->create();
 
     $response = $this->actingAs($user)->get(route('reception.shift'));
 
     $response->assertOk();
-});
+})->with([
+    'receptionist' => [UserRole::Receptionist],
+    'management' => [UserRole::Management],
+]);
 
 test('user sees open shift form when no shift is active', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
@@ -37,7 +41,7 @@ test('user sees open shift form when no shift is active', function () {
 });
 
 test('user can open a shift with an opening balance', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
@@ -54,7 +58,7 @@ test('user can open a shift with an opening balance', function () {
 });
 
 test('opening balance must be a non-negative number', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
@@ -66,7 +70,7 @@ test('opening balance must be a non-negative number', function () {
 });
 
 test('user cannot open more than one shift at a time', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
 
     Livewire::actingAs($user)
@@ -79,7 +83,7 @@ test('user cannot open more than one shift at a time', function () {
 });
 
 test('user can close an open shift with a closing balance', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create([
         'opening_balance' => 200.00,
     ]);
@@ -97,8 +101,8 @@ test('user can close an open shift with a closing balance', function () {
         ->closed_at->not->toBeNull();
 });
 
-test('user is redirected to shift page when accessing reception without an open shift', function () {
-    $user = User::factory()->create();
+test('receptionist is redirected to shift page when accessing reception without an open shift', function () {
+    $user = User::factory()->receptionist()->create();
 
     $this->actingAs($user)
         ->get(route('reception.walkin'))
@@ -107,14 +111,18 @@ test('user is redirected to shift page when accessing reception without an open 
     $this->actingAs($user)
         ->get(route('reception.lab-entry'))
         ->assertRedirect(route('reception.shift'));
+});
+
+test('management is redirected to shift page when accessing invoices without an open shift', function () {
+    $user = User::factory()->management()->create();
 
     $this->actingAs($user)
         ->get(route('reception.invoices'))
         ->assertRedirect(route('reception.shift'));
 });
 
-test('user can access reception pages with an open shift', function () {
-    $user = User::factory()->create();
+test('receptionist can access reception pages with an open shift', function () {
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
 
     $this->actingAs($user)
@@ -124,6 +132,11 @@ test('user can access reception pages with an open shift', function () {
     $this->actingAs($user)
         ->get(route('reception.lab-entry'))
         ->assertOk();
+});
+
+test('management can access invoices with an open shift', function () {
+    $user = User::factory()->management()->create();
+    Shift::factory()->for($user)->open()->create();
 
     $this->actingAs($user)
         ->get(route('reception.invoices'))
@@ -131,7 +144,7 @@ test('user can access reception pages with an open shift', function () {
 });
 
 test('walk-in invoice is linked to the current shift', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create(['is_standalone' => true]);
     ServicePrice::factory()->create([
@@ -155,7 +168,7 @@ test('walk-in invoice is linked to the current shift', function () {
 });
 
 test('lab invoice is linked to the current shift', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     $shift = Shift::factory()->for($user)->open()->create();
 
     $labTest = LabTest::factory()->create([
@@ -182,7 +195,7 @@ test('lab invoice is linked to the current shift', function () {
 });
 
 test('shift summary reflects created invoices', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     $shift = Shift::factory()->for($user)->open()->create([
         'opening_balance' => 100.00,
     ]);
@@ -206,7 +219,7 @@ test('shift summary reflects created invoices', function () {
 });
 
 test('user can add an expense to an open shift', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
 
     Livewire::actingAs($user)
@@ -226,7 +239,7 @@ test('user can add an expense to an open shift', function () {
 });
 
 test('expense amount and name are validated', function (string $field, mixed $value, array $errors) {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
 
     Livewire::actingAs($user)
@@ -243,7 +256,7 @@ test('expense amount and name are validated', function (string $field, mixed $va
 ]);
 
 test('user can see logged expenses and their total on the shift page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     $shift = Shift::factory()->for($user)->open()->create();
 
     Expense::factory()->for($shift)->for($user)->create([
@@ -265,4 +278,38 @@ test('user can see logged expenses and their total on the shift page', function 
         ->assertSee('Total Expenses');
 
     expect($shift->fresh()->totalExpenses())->toBe(100.00);
+});
+
+test('shift page shows expected cash reconciliation', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 1000.00,
+    ]);
+
+    Invoice::factory()->create([
+        'shift_id' => $shift->id,
+        'total' => 500.00,
+        'created_by' => $user->id,
+    ]);
+
+    LabInvoice::factory()->create([
+        'shift_id' => $shift->id,
+        'total' => 300.00,
+        'created_by' => $user->id,
+    ]);
+
+    Expense::factory()->for($shift)->for($user)->create([
+        'name' => 'Supplies',
+        'amount' => 50.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->assertSee(number_format(1000.00, 2))
+        ->assertSee(number_format(500.00, 2))
+        ->assertSee(number_format(300.00, 2))
+        ->assertSee(number_format(50.00, 2))
+        ->assertSee(number_format(1750.00, 2));
+
+    expect($shift->fresh()->expectedCash())->toBe(1750.00);
 });

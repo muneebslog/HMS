@@ -17,7 +17,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the management page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     $response = $this->actingAs($user)->get(route('management.crud'));
 
@@ -25,7 +25,7 @@ test('authenticated users can visit the management page', function () {
 });
 
 test('authenticated users can create a doctor', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -45,7 +45,7 @@ test('authenticated users can create a doctor', function () {
 });
 
 test('authenticated users can update a doctor', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $doctor = Doctor::factory()->create();
 
     Livewire::actingAs($user)
@@ -67,7 +67,7 @@ test('authenticated users can update a doctor', function () {
 });
 
 test('authenticated users can delete a doctor', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $doctor = Doctor::factory()->create();
 
     Livewire::actingAs($user)
@@ -82,7 +82,7 @@ test('authenticated users can delete a doctor', function () {
 });
 
 test('authenticated users can create a service', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -102,7 +102,7 @@ test('authenticated users can create a service', function () {
 });
 
 test('authenticated users can create a service price', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
 
@@ -126,7 +126,7 @@ test('authenticated users can create a service price', function () {
 });
 
 test('service price doctor share can be null', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $service = Service::factory()->create();
 
     Livewire::actingAs($user)
@@ -149,7 +149,7 @@ test('service price doctor share can be null', function () {
 });
 
 test('authenticated users can create a lab test', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -173,7 +173,7 @@ test('authenticated users can create a lab test', function () {
 });
 
 test('authenticated users can update a lab test', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $labTest = LabTest::factory()->create();
 
     Livewire::actingAs($user)
@@ -199,7 +199,7 @@ test('authenticated users can update a lab test', function () {
 });
 
 test('authenticated users can delete a lab test', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
     $labTest = LabTest::factory()->create();
 
     Livewire::actingAs($user)

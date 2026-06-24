@@ -26,6 +26,7 @@ class DoctorPayout extends Model
         'share_amount',
         'paid_at',
         'created_by',
+        'shift_id',
     ];
 
     /**
@@ -59,5 +60,13 @@ class DoctorPayout extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get the shift during which this payout was recorded.
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
     }
 }

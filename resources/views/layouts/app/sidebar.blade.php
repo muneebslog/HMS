@@ -15,36 +15,51 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
-                        {{ __('Management') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
-                        {{ __('Walk-in') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="calendar" :href="route('reception.reservation')" :current="request()->routeIs('reception.reservation')" wire:navigate>
-                        {{ __('Reservations') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
-                        {{ __('Lab Entry') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
-                        {{ __('Procedures') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
-                        {{ __('Invoices') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
-                        {{ __('Daily Payout') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
-                        {{ __('Doctor Payout') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
-                        {{ __('Queue') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
-                        {{ __('Shift') }}
-                    </flux:sidebar.item>
+
+                    @if (auth()->user()->isAdmin())
+                        <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
+                            {{ __('Management') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
+                            {{ __('Users') }}
+                        </flux:sidebar.item>
+                    @endif
+
+                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
+                        <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
+                            {{ __('Walk-in') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="calendar" :href="route('reception.reservation')" :current="request()->routeIs('reception.reservation')" wire:navigate>
+                            {{ __('Reservations') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
+                            {{ __('Lab Entry') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
+                            {{ __('Procedures') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
+                            {{ __('Queue') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
+                            {{ __('Daily Payout') }}
+                        </flux:sidebar.item>
+                    @endif
+
+                    @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+                        <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
+                            {{ __('Invoices') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
+                            {{ __('Doctor Payout') }}
+                        </flux:sidebar.item>
+                    @endif
+
+                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                        <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
+                            {{ __('Shift') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

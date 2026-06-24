@@ -24,7 +24,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the invoices page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.invoices'));
@@ -32,10 +32,12 @@ test('authenticated users can visit the invoices page', function () {
     $response->assertOk();
 });
 
-test('walk-in invoices are listed', function () {
-    $user = User::factory()->create();
+test('walk-in invoices are listed for the current shift', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
     $invoice = Invoice::factory()->create([
         'created_by' => $user->id,
+        'shift_id' => $shift->id,
         'status' => 'pending',
     ]);
 
@@ -47,10 +49,26 @@ test('walk-in invoices are listed', function () {
         ->assertSee('Pending');
 });
 
-test('walk-in invoice total is shown', function () {
-    $user = User::factory()->create();
-    $invoiceOne = Invoice::factory()->create(['created_by' => $user->id, 'total' => 100.00]);
-    $invoiceTwo = Invoice::factory()->create(['created_by' => $user->id, 'total' => 250.00]);
+test('walk-in invoices from other shifts are not listed', function () {
+    $user = User::factory()->management()->create();
+    Shift::factory()->for($user)->open()->create();
+    $otherUser = User::factory()->management()->create();
+    $otherShift = Shift::factory()->for($otherUser)->open()->create();
+    $invoice = Invoice::factory()->create([
+        'created_by' => $otherUser->id,
+        'shift_id' => $otherShift->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.invoices')
+        ->assertDontSee($invoice->invoice_number);
+});
+
+test('walk-in invoice total is shown for the current shift', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoiceOne = Invoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id, 'total' => 100.00]);
+    $invoiceTwo = Invoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id, 'total' => 250.00]);
     $expectedTotal = number_format($invoiceOne->total + $invoiceTwo->total, 2);
 
     Livewire::actingAs($user)
@@ -58,10 +76,12 @@ test('walk-in invoice total is shown', function () {
         ->assertSee($expectedTotal);
 });
 
-test('lab invoices are listed', function () {
-    $user = User::factory()->create();
+test('lab invoices are listed for the current shift', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
     $invoice = LabInvoice::factory()->create([
         'created_by' => $user->id,
+        'shift_id' => $shift->id,
         'status' => 'paid',
     ]);
 
@@ -73,10 +93,11 @@ test('lab invoices are listed', function () {
         ->assertSee('Paid');
 });
 
-test('lab invoice total is shown', function () {
-    $user = User::factory()->create();
-    $invoiceOne = LabInvoice::factory()->create(['created_by' => $user->id, 'total' => 300.00]);
-    $invoiceTwo = LabInvoice::factory()->create(['created_by' => $user->id, 'total' => 450.00]);
+test('lab invoice total is shown for the current shift', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoiceOne = LabInvoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id, 'total' => 300.00]);
+    $invoiceTwo = LabInvoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id, 'total' => 450.00]);
     $expectedTotal = number_format($invoiceOne->total + $invoiceTwo->total, 2);
 
     Livewire::actingAs($user)
@@ -85,8 +106,9 @@ test('lab invoice total is shown', function () {
 });
 
 test('walk-in invoice details can be viewed', function () {
-    $user = User::factory()->create();
-    $invoice = Invoice::factory()->create(['created_by' => $user->id]);
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = Invoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id]);
     $item = InvoiceItem::factory()->create(['invoice_id' => $invoice->id]);
 
     Livewire::actingAs($user)
@@ -101,8 +123,9 @@ test('walk-in invoice details can be viewed', function () {
 });
 
 test('lab invoice details can be viewed', function () {
-    $user = User::factory()->create();
-    $invoice = LabInvoice::factory()->create(['created_by' => $user->id]);
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = LabInvoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id]);
     $item = LabInvoiceItem::factory()->create(['lab_invoice_id' => $invoice->id]);
 
     Livewire::actingAs($user)
@@ -117,8 +140,9 @@ test('lab invoice details can be viewed', function () {
 });
 
 test('view modal can be closed', function () {
-    $user = User::factory()->create();
-    $invoice = Invoice::factory()->create(['created_by' => $user->id]);
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = Invoice::factory()->create(['created_by' => $user->id, 'shift_id' => $shift->id]);
 
     Livewire::actingAs($user)
         ->test('pages::reception.invoices')
@@ -131,7 +155,7 @@ test('view modal can be closed', function () {
 });
 
 test('walk-in invoice details show the token number', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create([
         'is_standalone' => true,

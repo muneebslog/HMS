@@ -20,7 +20,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the doctor payout page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
 
     $response = $this->actingAs($user)->get(route('payout.doctor'));
 
@@ -28,7 +28,7 @@ test('authenticated users can visit the doctor payout page', function () {
 });
 
 test('all doctors are listed regardless of daily payout setting', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $dailyDoctor = Doctor::factory()->create(['payout_daily' => true, 'name' => 'Dr. Daily']);
     $regularDoctor = Doctor::factory()->create(['payout_daily' => false, 'name' => 'Dr. Regular']);
 
@@ -39,7 +39,7 @@ test('all doctors are listed regardless of daily payout setting', function () {
 });
 
 test('selecting a doctor shows services and calculated share for the date range', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();
     $doctor = Doctor::factory()->create();
     $service = Service::factory()->create();
@@ -73,7 +73,7 @@ test('selecting a doctor shows services and calculated share for the date range'
 });
 
 test('marking share paid creates a range payout record', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();
     $doctor = Doctor::factory()->create();
     $service = Service::factory()->create();
@@ -120,7 +120,7 @@ test('marking share paid creates a range payout record', function () {
 });
 
 test('paid doctors show paid status and cannot be double paid for an overlapping range', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $doctor = Doctor::factory()->create();
     DoctorPayout::factory()->create([
         'doctor_id' => $doctor->id,
@@ -140,7 +140,7 @@ test('paid doctors show paid status and cannot be double paid for an overlapping
 });
 
 test('cannot mark paid when from date is after to date', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $doctor = Doctor::factory()->create();
 
     Livewire::actingAs($user)
