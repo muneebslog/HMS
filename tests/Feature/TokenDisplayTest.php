@@ -303,3 +303,58 @@ test('guests cannot recall a token', function () {
         ->call('recallCurrent')
         ->assertStatus(403);
 });
+
+test('upcoming tokens sidebar is visible by default', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSet('sidebarOpen', true)
+        ->assertSee(__('Upcoming'));
+});
+
+test('guests cannot toggle the upcoming tokens sidebar', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->call('toggleSidebar')
+        ->assertStatus(403);
+});
+
+test('authenticated users can collapse and reopen the upcoming tokens sidebar', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSet('sidebarOpen', true)
+        ->call('toggleSidebar')
+        ->assertSet('sidebarOpen', false)
+        ->assertDontSee(__('No waiting tokens.'))
+        ->call('toggleSidebar')
+        ->assertSet('sidebarOpen', true)
+        ->assertSee(__('Upcoming'));
+});

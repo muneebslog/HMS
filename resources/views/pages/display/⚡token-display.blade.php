@@ -16,6 +16,8 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
     public bool $showQueueSelector = true;
 
+    public bool $sidebarOpen = true;
+
     /**
      * Get all open service queues for today.
      *
@@ -138,6 +140,16 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
+     * Toggle the upcoming tokens sidebar visibility.
+     */
+    public function toggleSidebar(): void
+    {
+        $this->ensureAuthenticated();
+
+        $this->sidebarOpen = ! $this->sidebarOpen;
+    }
+
+    /**
      * Ensure the user is authenticated before performing a control action.
      */
     private function ensureAuthenticated(): void
@@ -254,37 +266,69 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
             </div>
 
             {{-- Upcoming tokens sidebar --}}
-            <div style="display: flex; flex-direction: column; width: 320px; padding: 24px; background-color: rgba(24, 24, 27, 0.5); border-left: 1px solid #27272a;">
-                <h3 style="margin: 0 0 24px 0; font-size: 20px; font-weight: 600; color: #ffffff;">
-                    {{ __('Upcoming') }}
-                </h3>
+            @if ($this->sidebarOpen)
+                <div style="display: flex; flex-direction: column; width: 320px; padding: 24px; background-color: rgba(24, 24, 27, 0.5); border-left: 1px solid #27272a;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                        <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">
+                            {{ __('Upcoming') }}
+                        </h3>
 
-                <div style="display: flex; flex: 1; flex-direction: column; gap: 12px; overflow-y: auto;">
-                    @forelse ($this->upcomingTokens as $token)
-                        <div
-                            style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                            wire:key="upcoming-token-{{ $token->id }}"
-                        >
-                            <div>
-                                <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                    {{ $token->token_number }}
-                                </div>
-                                <div style="font-size: 14px; color: #a1a1aa;">
-                                    {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                        @auth
+                            <button
+                                type="button"
+                                wire:click="toggleSidebar"
+                                style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: #a1a1aa; background-color: transparent; border: 1px solid #3f3f46; border-radius: 6px;"
+                                title="{{ __('Collapse sidebar') }}"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M11.78 4.22a.75.75 0 0 1 0 1.06L8.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.24-4.24a.75.75 0 0 1 0-1.06l4.24-4.24a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/>
+                                    <path d="M3.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 3.5 8Z"/>
+                                </svg>
+                            </button>
+                        @endauth
+                    </div>
+
+                    <div style="display: flex; flex: 1; flex-direction: column; gap: 12px; overflow-y: auto;">
+                        @forelse ($this->upcomingTokens as $token)
+                            <div
+                                style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                wire:key="upcoming-token-{{ $token->id }}"
+                            >
+                                <div>
+                                    <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                        {{ $token->token_number }}
+                                    </div>
+                                    <div style="font-size: 14px; color: #a1a1aa;">
+                                        {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    @empty
-                        <p style="margin: 0; font-size: 16px; color: #71717a;">
-                            {{ __('No waiting tokens.') }}
-                        </p>
-                    @endforelse
+                        @empty
+                            <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                {{ __('No waiting tokens.') }}
+                            </p>
+                        @endforelse
+                    </div>
                 </div>
-            </div>
+            @endif
 
             {{-- Controls --}}
             @auth
                 <div style="position: absolute; right: 24px; bottom: 24px; display: flex; gap: 12px;">
+                    @if (! $this->sidebarOpen)
+                        <button
+                            type="button"
+                            wire:click="toggleSidebar"
+                            style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #3f3f46; border: none; border-radius: 8px;"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4.22 4.22a.75.75 0 0 1 1.06 0l4.24 4.24a.75.75 0 0 1 0 1.06l-4.24 4.24a.75.75 0 1 1-1.06-1.06L7.94 8 4.22 4.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
+                                <path d="M12.5 8a.75.75 0 0 1-.75.75h-5a.75.75 0 0 1 0-1.5h5A.75.75 0 0 1 12.5 8Z"/>
+                            </svg>
+                            {{ __('Show Upcoming') }}
+                        </button>
+                    @endif
+
                     <button
                         type="button"
                         wire:click="recallCurrent"
