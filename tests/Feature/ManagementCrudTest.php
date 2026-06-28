@@ -24,6 +24,15 @@ test('authenticated users can visit the management page', function () {
     $response->assertOk();
 });
 
+test('management page displays current server time', function () {
+    $user = User::factory()->admin()->create();
+
+    $response = $this->actingAs($user)->get(route('management.crud'));
+
+    $response->assertOk();
+    $response->assertSee(now()->format('Y-m-d'));
+});
+
 test('authenticated users can create a doctor', function () {
     $user = User::factory()->admin()->create();
 

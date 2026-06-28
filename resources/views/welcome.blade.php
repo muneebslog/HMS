@@ -1752,6 +1752,12 @@
                             Login
                         </a>
                     </li>
+                    <li>
+                        <a href="{{ route('display.tokens') }}"
+                            class="inline-block dark:text-[#EDEDEC] text-[#1b1b18] border border-[#19140035] hover:border-[#1915014a] dark:border-[#3E3E3A] dark:hover:border-[#62605b] px-5 py-1.5 rounded-sm text-sm leading-normal">
+                            Token Display
+                        </a>
+                    </li>
                 </ul>
             </div>
             <div

@@ -419,8 +419,13 @@ new #[Title('Management')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <flux:heading level="1">{{ __('Management') }}</flux:heading>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:poll.1s>
+                <div class="flex items-center gap-3">
+                    <flux:heading level="1">{{ __('Management') }}</flux:heading>
+                    <flux:badge size="sm" color="zinc" icon="clock">
+                        {{ now()->format('Y-m-d H:i:s') }}
+                    </flux:badge>
+                </div>
                 <flux:button variant="primary" icon="plus" wire:click="create">
                     {{ __('Add new') }}
                 </flux:button>
