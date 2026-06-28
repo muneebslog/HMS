@@ -276,3 +276,29 @@ test('procedures are listed with correct totals', function () {
         ->assertSee('4,000.00')
         ->assertSee('6,000.00');
 });
+
+test('procedure payment ledger can be viewed from the list', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create([
+        'name' => 'Knee Surgery',
+        'full_amount' => 10000,
+    ]);
+    $payment = ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 4000,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSet('viewingProcedureId', $procedure->id)
+        ->assertSet('showViewModal', true)
+        ->assertSee('Payment Ledger')
+        ->assertSee('4,000.00')
+        ->assertSee($user->name)
+        ->assertSee($shift->opened_at->format('Y-m-d H:i'));
+
+    $payment->delete();
+});

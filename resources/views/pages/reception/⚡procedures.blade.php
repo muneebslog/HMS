@@ -19,7 +19,11 @@ new #[Title('Procedures')] class extends Component
 
     public bool $showPaymentModal = false;
 
+    public bool $showViewModal = false;
+
     public ?int $editingProcedureId = null;
+
+    public ?int $viewingProcedureId = null;
 
     #[Validate]
     public string $patientName = '';
@@ -125,6 +129,24 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Open the detail/ledger modal for the selected procedure.
+     */
+    public function viewProcedure(int $id): void
+    {
+        $this->viewingProcedureId = $id;
+        $this->showViewModal = true;
+    }
+
+    /**
+     * Close the detail/ledger modal and reset its state.
+     */
+    public function closeViewModal(): void
+    {
+        $this->showViewModal = false;
+        $this->viewingProcedureId = null;
+    }
+
+    /**
      * Reset the procedure form fields.
      */
     private function resetProcedureForm(): void
@@ -170,6 +192,21 @@ new #[Title('Procedures')] class extends Component
         $this->showPaymentModal = false;
         $this->editingProcedureId = null;
         $this->resetPaymentForm();
+    }
+
+    /**
+     * Get the procedure currently being viewed with its ledger.
+     *
+     * @return Procedure|null
+     */
+    #[Computed]
+    public function viewedProcedure(): ?Procedure
+    {
+        if ($this->viewingProcedureId === null) {
+            return null;
+        }
+
+        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift'])->find($this->viewingProcedureId);
     }
 
     /**
@@ -402,6 +439,7 @@ new #[Title('Procedures')] class extends Component
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
+                                <flux:button size="sm" variant="ghost" icon="eye" wire:click="viewProcedure({{ $procedure->id }})" />
                                 <flux:button size="sm" variant="ghost" icon="banknotes" wire:click="addPayment({{ $procedure->id }})" />
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $procedure->id }})" />
                             </flux:table.cell>
@@ -526,5 +564,79 @@ new #[Title('Procedures')] class extends Component
                 </flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showViewModal" class="w-full max-w-2xl">
+        @if ($this->viewedProcedure)
+            <flux:heading level="2">{{ $this->viewedProcedure->name }}</flux:heading>
+
+            <div class="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Patient') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->patient->name }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Phone') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->patient->phone ?? '-' }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Room') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->room_number }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Doctor') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->doctor?->name ?? '-' }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Full Amount') }}</flux:text>
+                    <flux:text>{{ number_format($this->viewedProcedure->full_amount, 2) }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Balance') }}</flux:text>
+                    <flux:text>{{ number_format($this->viewedProcedure->balance(), 2) }}</flux:text>
+                </div>
+            </div>
+
+            <flux:heading level="3" class="mt-6">{{ __('Payment Ledger') }}</flux:heading>
+
+            <flux:table class="mt-4">
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Date') }}</flux:table.column>
+                    <flux:table.column>{{ __('Amount') }}</flux:table.column>
+                    <flux:table.column>{{ __('Recorded By') }}</flux:table.column>
+                    <flux:table.column>{{ __('Shift') }}</flux:table.column>
+                </flux:table.columns>
+
+                <flux:table.rows>
+                    @forelse ($this->viewedProcedure->payments as $payment)
+                        <flux:table.row wire:key="procedure-ledger-payment-{{ $payment->id }}">
+                            <flux:table.cell>{{ $payment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                            <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->creator?->name ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->shift?->opened_at->format('Y-m-d H:i') ?? '-' }}</flux:table.cell>
+                        </flux:table.row>
+                    @empty
+                        <flux:table.row>
+                            <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                {{ __('No payments recorded.') }}
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @endforelse
+                </flux:table.rows>
+            </flux:table>
+
+            <div class="mt-4 flex justify-end border-t pt-4 text-sm">
+                <div class="text-right">
+                    <flux:text class="text-zinc-500">{{ __('Total Paid') }}</flux:text>
+                    <flux:text class="text-lg font-semibold">{{ number_format($this->viewedProcedure->totalPaid(), 2) }}</flux:text>
+                </div>
+            </div>
+        @endif
+
+        <div class="mt-6 flex justify-end gap-3">
+            <flux:button type="button" variant="ghost" wire:click="closeViewModal">
+                {{ __('Close') }}
+            </flux:button>
+        </div>
     </flux:modal>
 </div>
