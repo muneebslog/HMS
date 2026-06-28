@@ -97,7 +97,10 @@ test('shift reset services start a new queue on the next shift', function () {
 
 test('daily reset services continue the same queue across shifts on the same day', function () {
     $user = User::factory()->create();
-    $firstShift = Shift::factory()->for($user)->open()->create();
+    $today = now()->startOfDay();
+    $firstShift = Shift::factory()->for($user)->open()->create([
+        'opened_at' => $today,
+    ]);
     $service = Service::factory()->create([
         'is_standalone' => true,
         'token_reset_type' => TokenResetType::Daily,
@@ -110,7 +113,9 @@ test('daily reset services continue the same queue across shifts on the same day
         'closed_at' => now(),
     ]);
 
-    $secondShift = Shift::factory()->for($user)->open()->create();
+    $secondShift = Shift::factory()->for($user)->open()->create([
+        'opened_at' => $today,
+    ]);
 
     $secondInvoice = createWalkInInvoice($user, $secondShift, $service);
 
@@ -140,7 +145,14 @@ test('daily reset services start a new queue on the next day', function () {
 
     app(QueueService::class)->generateToken($invoiceItem);
 
-    $todayShift = Shift::factory()->for($user)->open()->create();
+    $yesterdayShift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+    ]);
+
+    $todayShift = Shift::factory()->for($user)->open()->create([
+        'opened_at' => now(),
+    ]);
 
     $todayInvoice = createWalkInInvoice($user, $todayShift, $service);
 

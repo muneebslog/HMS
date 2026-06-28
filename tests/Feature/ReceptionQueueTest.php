@@ -70,7 +70,7 @@ test('closed service queues are not listed', function () {
 test('queues from other shifts are not listed for shift reset services', function () {
     $user = User::factory()->create();
     $currentShift = Shift::factory()->for($user)->open()->create();
-    $otherShift = Shift::factory()->open()->create();
+    $otherShift = Shift::factory()->closed()->create();
     $service = Service::factory()->create();
 
     ServiceQueue::factory()->create([

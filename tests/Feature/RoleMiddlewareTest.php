@@ -32,12 +32,17 @@ $routeMap = [
 
 test('admins can access all protected routes', function () use ($routeMap) {
     $user = User::factory()->admin()->create();
+    $shiftRoutes = [
+        'reception.walkin',
+        'reception.reservation',
+        'reception.lab-entry',
+        'reception.procedures',
+        'reception.queue',
+        'reception.invoices',
+    ];
+    Shift::factory()->for($user)->open()->create();
 
     foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['shared']) as $route) {
-        if ($route === 'reception.walkin' || $route === 'reception.reservation' || $route === 'reception.lab-entry' || $route === 'reception.procedures' || $route === 'reception.queue' || $route === 'reception.invoices') {
-            Shift::factory()->for($user)->open()->create();
-        }
-
         $this->actingAs($user)
             ->get(route($route))
             ->assertSuccessful();

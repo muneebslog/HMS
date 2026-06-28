@@ -171,7 +171,7 @@ new #[Title('Daily Payout')] class extends Component
             return;
         }
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         DoctorPayout::create([
             'doctor_id' => $doctor->id,

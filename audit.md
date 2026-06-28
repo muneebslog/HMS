@@ -123,8 +123,8 @@ abort_if($job->status !== PrintJobStatus::Pending, 422, 'Job is not pending.');
 - **Files:**
   - `resources/views/pages/reception/⚡shift.blade.php:44-68` (open)
   - `resources/views/pages/reception/⚡shift.blade.php:73-96` (close)
-- **Issue:** `Shift::currentForUser()` is queried and then acted upon in separate steps. Concurrent requests can create multiple open shifts for the same user or close a shift twice.
-- **Recommendation:** Use `lockForUpdate()` when reading the shift, or enforce a unique partial index on `(user_id, status)` where `status = 'open'`.
+- **Issue:** `Shift::currentForUser()` was queried and then acted upon in separate steps, so concurrent requests could create multiple open shifts for the same user or close a shift twice.
+- **Resolution:** Shifts are now global. `Shift::current()` returns the single open shift, and a partial unique index on `status` where `status = 'open'` prevents more than one open shift from being created.
 
 ### 15. Race Condition in Daily / Range Doctor Payouts
 

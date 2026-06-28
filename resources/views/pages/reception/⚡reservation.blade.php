@@ -182,7 +182,7 @@ new #[Title('Reservations')] class extends Component
     #[Computed]
     public function currentShift(): ?Shift
     {
-        return Shift::currentForUser(auth()->id());
+        return Shift::current();
     }
 
     /**

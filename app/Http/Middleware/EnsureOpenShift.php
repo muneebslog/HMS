@@ -26,7 +26,7 @@ class EnsureOpenShift
             return $next($request);
         }
 
-        $openShift = Shift::currentForUser($user->id);
+        $openShift = Shift::current();
 
         if ($openShift === null) {
             return redirect()->route('reception.shift');

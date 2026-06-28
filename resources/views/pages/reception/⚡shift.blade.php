@@ -47,7 +47,7 @@ new #[Title('Shift')] class extends Component
             'openingBalance' => $this->rules()['openingBalance'],
         ]);
 
-        $existingOpenShift = Shift::currentForUser(auth()->id());
+        $existingOpenShift = Shift::current();
 
         if ($existingOpenShift !== null) {
             Flux::toast(variant: 'danger', text: __('You already have an open shift.'));
@@ -76,7 +76,7 @@ new #[Title('Shift')] class extends Component
             'closingBalance' => $this->rules()['closingBalance'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('No open shift found.'));
@@ -105,7 +105,7 @@ new #[Title('Shift')] class extends Component
             'expenseAmount' => $this->rules()['expenseAmount'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('No open shift found.'));
@@ -131,7 +131,7 @@ new #[Title('Shift')] class extends Component
     #[Computed]
     public function activeShift(): ?Shift
     {
-        return Shift::currentForUser(auth()->id());
+        return Shift::current();
     }
 
     /**

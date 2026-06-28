@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
+Route::livewire('display/tokens', 'pages::display.token-display')->name('display.tokens');
+
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 

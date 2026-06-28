@@ -69,11 +69,12 @@ test('opening balance must be a non-negative number', function () {
     expect(Shift::count())->toBe(0);
 });
 
-test('user cannot open more than one shift at a time', function () {
-    $user = User::factory()->receptionist()->create();
-    Shift::factory()->for($user)->open()->create();
+test('only one open shift can exist at a time', function () {
+    $firstUser = User::factory()->receptionist()->create();
+    $secondUser = User::factory()->receptionist()->create();
+    Shift::factory()->for($firstUser)->open()->create();
 
-    Livewire::actingAs($user)
+    Livewire::actingAs($secondUser)
         ->test('pages::reception.shift')
         ->set('openingBalance', '100.00')
         ->call('openShift')
@@ -140,6 +141,16 @@ test('management can access invoices with an open shift', function () {
 
     $this->actingAs($user)
         ->get(route('reception.invoices'))
+        ->assertOk();
+});
+
+test('any authenticated user can use reception pages while a global shift is open', function () {
+    $firstUser = User::factory()->receptionist()->create();
+    $secondUser = User::factory()->receptionist()->create();
+    Shift::factory()->for($firstUser)->open()->create();
+
+    $this->actingAs($secondUser)
+        ->get(route('reception.walkin'))
         ->assertOk();
 });
 

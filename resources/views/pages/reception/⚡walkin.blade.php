@@ -211,7 +211,7 @@ new #[Title('Walk-in')] class extends Component
             'items.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
@@ -333,7 +333,7 @@ new #[Title('Walk-in')] class extends Component
 
         $doctorId = $item['doctor_id'] ?? null;
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             return null;

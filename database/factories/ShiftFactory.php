@@ -18,13 +18,15 @@ class ShiftFactory extends Factory
      */
     public function definition(): array
     {
+        $openedAt = fake()->dateTimeBetween('-1 month', 'now');
+
         return [
             'user_id' => User::factory(),
-            'opened_at' => now(),
-            'closed_at' => null,
+            'opened_at' => $openedAt,
+            'closed_at' => now(),
             'opening_balance' => fake()->randomFloat(2, 0, 1000),
-            'closing_balance' => null,
-            'status' => 'open',
+            'closing_balance' => fake()->randomFloat(2, 0, 1000),
+            'status' => 'closed',
         ];
     }
 

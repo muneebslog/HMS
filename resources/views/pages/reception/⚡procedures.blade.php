@@ -189,7 +189,7 @@ new #[Title('Procedures')] class extends Component
             'advancePayment' => $this->editingProcedureId === null ? $this->rules()['advancePayment'] : ['nullable'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
@@ -287,7 +287,7 @@ new #[Title('Procedures')] class extends Component
             'paymentAmount' => $this->rules()['paymentAmount'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
@@ -321,7 +321,7 @@ new #[Title('Procedures')] class extends Component
     #[Computed]
     public function currentShift(): ?Shift
     {
-        return Shift::currentForUser(auth()->id());
+        return Shift::current();
     }
 
     /**

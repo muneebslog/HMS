@@ -148,7 +148,7 @@ new #[Title('Lab Entry')] class extends Component
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        $shift = Shift::currentForUser(auth()->id());
+        $shift = Shift::current();
 
         if ($shift === null) {
             Flux::toast(variant: 'danger', text: __('Please open a shift first.'));

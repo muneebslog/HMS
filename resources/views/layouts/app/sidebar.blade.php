@@ -56,6 +56,9 @@
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                        <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
+                            {{ __('Token Display') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                             {{ __('Shift') }}
                         </flux:sidebar.item>

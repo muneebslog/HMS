@@ -20,7 +20,7 @@ new #[Title('Queue')] class extends Component
     #[Computed]
     public function currentShift(): ?Shift
     {
-        return Shift::currentForUser(auth()->id());
+        return Shift::current();
     }
 
     /**
@@ -198,6 +198,8 @@ new #[Title('Queue')] class extends Component
                                         <flux:badge size="sm" color="blue">{{ __('Serving') }}</flux:badge>
                                     @elseif ($token->status === 'served')
                                         <flux:badge size="sm" color="green">{{ __('Served') }}</flux:badge>
+                                    @elseif ($token->status === 'skipped')
+                                        <flux:badge size="sm" color="zinc">{{ __('Skipped') }}</flux:badge>
                                     @else
                                         <flux:badge size="sm">{{ ucfirst($token->status) }}</flux:badge>
                                     @endif

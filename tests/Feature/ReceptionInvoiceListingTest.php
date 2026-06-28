@@ -53,7 +53,7 @@ test('walk-in invoices from other shifts are not listed', function () {
     $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();
     $otherUser = User::factory()->management()->create();
-    $otherShift = Shift::factory()->for($otherUser)->open()->create();
+    $otherShift = Shift::factory()->for($otherUser)->closed()->create();
     $invoice = Invoice::factory()->create([
         'created_by' => $otherUser->id,
         'shift_id' => $otherShift->id,

@@ -101,19 +101,19 @@ class Shift extends Model
     }
 
     /**
-     * Scope a query to only include open shifts for the given user.
+     * Scope a query to only include open shifts.
      */
-    public function scopeOpenForUser($query, int $userId)
+    public function scopeOpen($query)
     {
-        return $query->where('user_id', $userId)->where('status', 'open');
+        return $query->where('status', 'open');
     }
 
     /**
-     * Get the currently open shift for the given user, if any.
+     * Get the single currently open shift, if any.
      */
-    public static function currentForUser(int $userId): ?self
+    public static function current(): ?self
     {
-        return self::openForUser($userId)->latest('opened_at')->first();
+        return self::open()->latest('opened_at')->first();
     }
 
     /**

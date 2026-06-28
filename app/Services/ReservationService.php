@@ -66,7 +66,7 @@ class ReservationService
                 throw new \RuntimeException(__('This token is not reserved.'));
             }
 
-            $shift = Shift::currentForUser((int) auth()->id());
+            $shift = Shift::current();
 
             if ($shift === null) {
                 throw new \RuntimeException(__('Please open a shift first.'));
