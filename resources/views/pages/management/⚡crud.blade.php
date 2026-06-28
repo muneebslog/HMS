@@ -31,6 +31,12 @@ new #[Title('Management')] class extends Component
     public bool $doctorPayoutDaily = false;
 
     #[Validate]
+    public bool $doctorGetFullSlips = false;
+
+    #[Validate]
+    public string $doctorFullSlipsCount = '0';
+
+    #[Validate]
     public string $serviceName = '';
 
     #[Validate]
@@ -78,6 +84,8 @@ new #[Title('Management')] class extends Component
                 'doctorName' => ['required', 'string', 'max:255'],
                 'doctorSpecialization' => ['required', 'string', 'max:255'],
                 'doctorPayoutDaily' => ['boolean'],
+                'doctorGetFullSlips' => ['boolean'],
+                'doctorFullSlipsCount' => ['required', 'integer', 'min:0'],
             ],
             'services' => [
                 'serviceName' => [
@@ -156,6 +164,8 @@ new #[Title('Management')] class extends Component
         $this->doctorName = $doctor->name;
         $this->doctorSpecialization = $doctor->specialization;
         $this->doctorPayoutDaily = $doctor->payout_daily;
+        $this->doctorGetFullSlips = $doctor->get_full_slips;
+        $this->doctorFullSlipsCount = (string) $doctor->full_slips_count;
     }
 
     /**
@@ -206,6 +216,8 @@ new #[Title('Management')] class extends Component
             'doctorName',
             'doctorSpecialization',
             'doctorPayoutDaily',
+            'doctorGetFullSlips',
+            'doctorFullSlipsCount',
             'serviceName',
             'serviceIsStandalone',
             'serviceTokenResetType',
@@ -252,6 +264,8 @@ new #[Title('Management')] class extends Component
             'name' => $validated['doctorName'],
             'specialization' => $validated['doctorSpecialization'],
             'payout_daily' => $validated['doctorPayoutDaily'],
+            'get_full_slips' => $validated['doctorGetFullSlips'],
+            'full_slips_count' => $validated['doctorFullSlipsCount'],
         ];
 
         if ($this->editingId) {
@@ -492,6 +506,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Specialization') }}</flux:table.column>
                             <flux:table.column>{{ __('Daily Payout') }}</flux:table.column>
+                            <flux:table.column>{{ __('Full Slips') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -507,6 +522,13 @@ new #[Title('Management')] class extends Component
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
                                     </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($doctor->get_full_slips)
+                                            <flux:badge size="sm" color="green">{{ __('First :count', ['count' => $doctor->full_slips_count]) }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $doctor->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $doctor->id }})" wire:confirm="{{ __('Are you sure you want to delete this doctor?') }}" />
@@ -514,7 +536,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                         {{ __('No doctors found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -614,6 +636,17 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="doctorPayoutDaily" :label="__('Daily payout')" />
                     <flux:error name="doctorPayoutDaily" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="doctorGetFullSlips" :label="__('Get full slips')" />
+                    <flux:error name="doctorGetFullSlips" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Full slips count') }}</flux:label>
+                    <flux:input wire:model="doctorFullSlipsCount" type="number" min="0" step="1" />
+                    <flux:error name="doctorFullSlipsCount" />
                 </flux:field>
             @elseif ($activeTab === 'services')
                 <flux:field>

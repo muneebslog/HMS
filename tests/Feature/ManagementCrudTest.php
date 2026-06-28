@@ -34,6 +34,8 @@ test('authenticated users can create a doctor', function () {
         ->set('doctorName', 'Dr. Smith')
         ->set('doctorSpecialization', 'Cardiology')
         ->set('doctorPayoutDaily', true)
+        ->set('doctorGetFullSlips', true)
+        ->set('doctorFullSlipsCount', '5')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -41,6 +43,8 @@ test('authenticated users can create a doctor', function () {
         'name' => 'Dr. Smith',
         'specialization' => 'Cardiology',
         'payout_daily' => true,
+        'get_full_slips' => true,
+        'full_slips_count' => 5,
     ]);
 });
 
@@ -55,6 +59,8 @@ test('authenticated users can update a doctor', function () {
         ->set('doctorName', 'Dr. Updated')
         ->set('doctorSpecialization', 'Neurology')
         ->set('doctorPayoutDaily', true)
+        ->set('doctorGetFullSlips', true)
+        ->set('doctorFullSlipsCount', '3')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -63,6 +69,8 @@ test('authenticated users can update a doctor', function () {
         'name' => 'Dr. Updated',
         'specialization' => 'Neurology',
         'payout_daily' => true,
+        'get_full_slips' => true,
+        'full_slips_count' => 3,
     ]);
 });
 

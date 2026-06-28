@@ -102,14 +102,35 @@ new #[Title('Doctor Payout')] class extends Component
     }
 
     /**
+     * Get the calculated share amounts for each item in the selected range.
+     *
+     * @return array<int, float>
+     */
+    #[Computed]
+    public function itemShareAmounts(): array
+    {
+        $doctor = $this->viewedDoctor;
+
+        if ($doctor === null) {
+            return [];
+        }
+
+        return $doctor->calculateItemShareAmounts($this->items, perDay: true);
+    }
+
+    /**
      * Get the total doctor share for the viewed doctor within the selected range.
      */
     #[Computed]
     public function shareAmount(): float
     {
-        return $this->items->sum(
-            fn (InvoiceItem $item) => $item->price * ($item->doctor_share ?? 0) / 100
-        );
+        $doctor = $this->viewedDoctor;
+
+        if ($doctor === null) {
+            return 0.0;
+        }
+
+        return $doctor->calculateShareAmount($this->items, perDay: true);
     }
 
     /**
@@ -323,7 +344,7 @@ new #[Title('Doctor Payout')] class extends Component
                                 <flux:table.cell>{{ $item->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                                 <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
                                 <flux:table.cell>{{ $item->doctor_share !== null ? number_format($item->doctor_share, 2).'%' : '-' }}</flux:table.cell>
-                                <flux:table.cell>{{ number_format($item->price * ($item->doctor_share ?? 0) / 100, 2) }}</flux:table.cell>
+                                <flux:table.cell>{{ number_format($this->itemShareAmounts[$item->id] ?? 0, 2) }}</flux:table.cell>
                             </flux:table.row>
                         @empty
                             <flux:table.row>
