@@ -118,6 +118,26 @@ test('authenticated users can create a service', function () {
     ]);
 });
 
+test('service creation defaults token reset to shift', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'services')
+        ->call('create')
+        ->assertSet('serviceTokenResetType', TokenResetType::Shift->value)
+        ->set('serviceName', 'Default Shift Service')
+        ->set('serviceIsStandalone', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('services', [
+        'name' => 'Default Shift Service',
+        'is_standalone' => false,
+        'token_reset_type' => TokenResetType::Shift->value,
+    ]);
+});
+
 test('authenticated users can create a service price', function () {
     $user = User::factory()->admin()->create();
     $service = Service::factory()->create();

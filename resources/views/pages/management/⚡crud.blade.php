@@ -43,7 +43,7 @@ new #[Title('Management')] class extends Component
     public bool $serviceIsStandalone = false;
 
     #[Validate]
-    public string $serviceTokenResetType = '';
+    public string $serviceTokenResetType = 'shift';
 
     #[Validate]
     public ?int $priceServiceId = null;
