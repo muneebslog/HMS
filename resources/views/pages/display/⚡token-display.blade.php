@@ -16,7 +16,15 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
     public bool $showQueueSelector = true;
 
-    public bool $sidebarOpen = true;
+    public bool $sidebarOpen = false;
+
+    /**
+     * Initialize the component state.
+     */
+    public function mount(): void
+    {
+        $this->sidebarOpen = auth()->check();
+    }
 
     /**
      * Get all open service queues for today.

@@ -91,6 +91,7 @@ test('selecting a queue shows the current serving token', function () {
 });
 
 test('upcoming waiting tokens are shown for the selected queue', function () {
+    $user = User::factory()->create();
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -118,7 +119,8 @@ test('upcoming waiting tokens are shown for the selected queue', function () {
         'created_at' => now(),
     ]);
 
-    Livewire::test('pages::display.token-display')
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->assertSee($firstToken->token_number)
         ->assertSee($firstPatient->name)
@@ -304,7 +306,7 @@ test('guests cannot recall a token', function () {
         ->assertStatus(403);
 });
 
-test('upcoming tokens sidebar is visible by default', function () {
+test('upcoming tokens sidebar is hidden for guests by default', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -316,8 +318,8 @@ test('upcoming tokens sidebar is visible by default', function () {
 
     Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
-        ->assertSet('sidebarOpen', true)
-        ->assertSee(__('Upcoming'));
+        ->assertSet('sidebarOpen', false)
+        ->assertDontSee(__('Upcoming'));
 });
 
 test('guests cannot toggle the upcoming tokens sidebar', function () {
@@ -351,6 +353,7 @@ test('authenticated users can collapse and reopen the upcoming tokens sidebar', 
         ->test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->assertSet('sidebarOpen', true)
+        ->assertSee(__('Upcoming'))
         ->call('toggleSidebar')
         ->assertSet('sidebarOpen', false)
         ->assertDontSee(__('No waiting tokens.'))
