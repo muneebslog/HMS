@@ -22,7 +22,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users with an open shift can visit the queue page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.queue'));
@@ -31,7 +31,7 @@ test('authenticated users with an open shift can visit the queue page', function
 });
 
 test('open service queues for the current shift are listed', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
@@ -52,7 +52,7 @@ test('open service queues for the current shift are listed', function () {
 });
 
 test('closed service queues are not listed', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create();
 
@@ -68,7 +68,7 @@ test('closed service queues are not listed', function () {
 });
 
 test('queues from other shifts are not listed for shift reset services', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $currentShift = Shift::factory()->for($user)->open()->create();
     $otherShift = Shift::factory()->closed()->create();
     $service = Service::factory()->create();
@@ -86,7 +86,7 @@ test('queues from other shifts are not listed for shift reset services', functio
 });
 
 test('tokens belonging to a queue can be viewed', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->management()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create();
     $patient = Patient::factory()->create();

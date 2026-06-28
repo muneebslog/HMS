@@ -14,6 +14,7 @@ $routeMap = [
     ],
     'management' => [
         'reception.invoices',
+        'reception.queue',
         'payout.doctor',
     ],
     'receptionist' => [
@@ -21,7 +22,6 @@ $routeMap = [
         'reception.reservation',
         'reception.lab-entry',
         'reception.procedures',
-        'reception.queue',
         'payout.daily',
     ],
     'shared' => [
@@ -37,8 +37,8 @@ test('admins can access all protected routes', function () use ($routeMap) {
         'reception.reservation',
         'reception.lab-entry',
         'reception.procedures',
-        'reception.queue',
         'reception.invoices',
+        'reception.queue',
     ];
     Shift::factory()->for($user)->open()->create();
 

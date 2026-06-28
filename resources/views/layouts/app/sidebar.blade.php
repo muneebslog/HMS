@@ -38,9 +38,6 @@
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                             {{ __('Procedures') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
-                            {{ __('Queue') }}
-                        </flux:sidebar.item>
                         <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
                             {{ __('Daily Payout') }}
                         </flux:sidebar.item>
@@ -49,6 +46,9 @@
                     @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
                         <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                             {{ __('Invoices') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
+                            {{ __('Queue') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
                             {{ __('Doctor Payout') }}

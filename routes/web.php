@@ -21,6 +21,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
+        Route::livewire('reception/queue', 'pages::reception.queue')->middleware('open.shift')->name('reception.queue');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
     });
 
@@ -35,7 +36,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
-            Route::livewire('reception/queue', 'pages::reception.queue')->name('reception.queue');
         });
 
         Route::livewire('daily-payout', 'pages::payout.daily')->name('payout.daily');
