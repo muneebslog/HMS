@@ -1,12 +1,24 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\Display\TokenDisplayController;
+use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
-Route::livewire('display/tokens', 'pages::display.token-display')->name('display.tokens');
+Route::livewire('display/tokens', 'pages::display.token-display')
+    ->middleware(RedirectLegacyDisplayDevices::class)
+    ->name('display.tokens');
+
+Route::get('display/tokens/tv', [TokenDisplayController::class, 'tv'])->name('display.tokens.tv');
+
+Route::post('display/tokens/tv/select', [TokenDisplayController::class, 'selectQueue'])->name('display.tokens.tv.select');
+Route::post('display/tokens/tv/next', [TokenDisplayController::class, 'callNext'])->name('display.tokens.tv.next');
+Route::post('display/tokens/tv/skip', [TokenDisplayController::class, 'skipCurrent'])->name('display.tokens.tv.skip');
+Route::post('display/tokens/tv/recall', [TokenDisplayController::class, 'recallCurrent'])->name('display.tokens.tv.recall');
+Route::get('display/tokens/tv/toggle-sidebar', [TokenDisplayController::class, 'toggleSidebar'])->name('display.tokens.tv.toggle-sidebar');
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
