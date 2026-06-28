@@ -3,6 +3,44 @@ const fs = require('fs');
 const path = require('path');
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
 
+function toWindowsDevicePath(port) {
+  if (/^(COM|ESDPRT)\d+$/i.test(port)) {
+    return `\\\\.\\${port}`;
+  }
+  return port;
+}
+
+function writeRawToPort(buffer, port) {
+  const devicePath = toWindowsDevicePath(port);
+
+  return new Promise((resolve, reject) => {
+    const stream = fs.createWriteStream(devicePath, { autoClose: true });
+    let finished = false;
+
+    function cleanup(error) {
+      if (finished) return;
+      finished = true;
+      stream.destroy();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    }
+
+    stream.on('error', cleanup);
+    stream.on('finish', cleanup);
+
+    stream.write(buffer, (error) => {
+      if (error) {
+        cleanup(error);
+        return;
+      }
+      stream.end();
+    });
+  });
+}
+
 const configPath = process.argv[2] || path.join(__dirname, 'config.json');
 
 if (!fs.existsSync(configPath)) {
@@ -30,12 +68,18 @@ function buildPrinter() {
     throw new Error(`Unsupported printer mode: ${printerConfig.mode}`);
   }
 
-  const interfaceType = printerConfig.interface || 'usb';
+  const interfaceType = printerConfig.interface || 'epson-port';
 
   let printerType;
   let interfaceValue;
 
   switch (interfaceType) {
+    case 'epson-port':
+      printerType = PrinterTypes.EPSON;
+      // node-thermal-printer still needs an interface value for internal setup,
+      // but we will send the raw bytes ourselves via the virtual port.
+      interfaceValue = toWindowsDevicePath(printerConfig.port || 'ESDPRT001');
+      break;
     case 'usb':
       printerType = PrinterTypes.EPSON;
       interfaceValue = printerConfig.name;
@@ -117,10 +161,16 @@ async function printReceipt(printer, job) {
   printer.newLine();
   printer.cut();
 
-  const result = await printer.execute();
+  if (config.printer?.interface === 'epson-port') {
+    const buffer = printer.getBuffer();
+    await writeRawToPort(buffer, config.printer.port);
+    printer.clear();
+  } else {
+    const result = await printer.execute();
 
-  if (!result) {
-    throw new Error('Printer returned false.');
+    if (!result) {
+      throw new Error('Printer returned false.');
+    }
   }
 }
 
@@ -145,11 +195,17 @@ async function poll() {
     }
 
     const printer = buildPrinter();
-    const isConnected = await printer.isPrinterConnected();
 
-    if (!isConnected) {
-      console.error(`[${new Date().toISOString()}] Printer not connected.`);
-      return;
+    // Epson virtual ports (\\.\ESDPRT001) are raw Windows device paths.
+    // fs.existsSync is unreliable for them, so skip the connectivity probe
+    // and let the actual write attempt surface any errors.
+    if (config.printer?.interface !== 'epson-port') {
+      const isConnected = await printer.isPrinterConnected();
+
+      if (!isConnected) {
+        console.error(`[${new Date().toISOString()}] Printer not connected.`);
+        return;
+      }
     }
 
     for (const job of jobs) {
@@ -170,6 +226,10 @@ function start() {
   console.log(`[${new Date().toISOString()}] HMS Reception Agent started.`);
   console.log(`[${new Date().toISOString()}] API: ${config.apiBaseUrl}`);
   console.log(`[${new Date().toISOString()}] Printer mode: ${config.printer?.mode}`);
+
+  if (config.printer?.interface === 'epson-port') {
+    console.log(`[${new Date().toISOString()}] Printer port: ${toWindowsDevicePath(config.printer.port)}`);
+  }
 
   poll();
   setInterval(poll, config.pollIntervalMs || 2000);

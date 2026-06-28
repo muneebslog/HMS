@@ -156,8 +156,8 @@ Edit `config.json`:
   "footerText": "Thank you for visiting!",
   "printer": {
     "mode": "escpos",
-    "interface": "usb",
-    "name": "EPSON TM-T82 Receipt",
+    "interface": "epson-port",
+    "port": "ESDPRT001",
     "width": 48,
     "characterSet": "SLOVENIA",
     "removeSpecialCharacters": false,
@@ -195,7 +195,24 @@ Create a test invoice from the HMS web app. The agent should pick up the pending
 
 The agent currently supports **ESC/POS** thermal printers through `node-thermal-printer`.
 
-### Finding your printer name on Windows
+### Epson virtual ports on Windows
+
+Epson thermal printers often appear on a virtual port such as `ESDPRT001` instead of a regular USB printer name. The agent handles this with the `epson-port` interface.
+
+1. Open **Settings → Bluetooth & devices → Printers & scanners**.
+2. Click your Epson printer, then **Printer properties → Ports**.
+3. Look for a port named `ESDPRT00x` (e.g., `ESDPRT001`).
+4. Copy the port name into `config.json` under `printer.port`:
+
+   ```json
+   "printer": {
+     "mode": "escpos",
+     "interface": "epson-port",
+     "port": "ESDPRT001"
+   }
+   ```
+
+### Finding your printer name on Windows (USB / spooler mode)
 
 1. Open **Settings → Bluetooth & devices → Printers & scanners**.
 2. Click your thermal printer.
@@ -206,8 +223,9 @@ The agent currently supports **ESC/POS** thermal printers through `node-thermal-
 
 | Interface | Config value | Notes |
 |-----------|--------------|-------|
-| USB | `"usb"` | Uses the Windows printer name |
-| Network | `"network"` | Use `address` instead of `name`, e.g., `"192.168.1.100:9100"` |
+| Epson virtual port (recommended) | `"epson-port"` | Writes raw ESC/POS bytes to `\\.\ESDPRT001` or `\\.\COMx`. Use `port` instead of `name`. |
+| USB / Windows spooler | `"usb"` | Uses the Windows printer name |
+| Network | `"network"` | Use `address` instead of `name`, e.g., `"tcp://192.168.1.100:9100"` |
 | Serial | `"serial"` | Use `port` instead of `name`, e.g., `"COM3"` |
 
 ### Common ESC/POS printer brands
@@ -335,10 +353,11 @@ Keep the Command Prompt window open.
 
 **Fix:**
 
-1. Open Windows printer settings and copy the exact printer name.
-2. Update `printer.name` in `config.json`.
+1. If you are using `interface: "usb"`, open Windows printer settings and copy the exact printer name into `printer.name`.
+2. If you are using `interface: "epson-port"`, open **Printer properties → Ports** and copy the exact port name (e.g., `ESDPRT001`) into `printer.port`.
 3. Make sure the printer is powered on and shows **Ready** in Windows.
 4. Print a Windows test page first to confirm the driver works.
+5. For Epson virtual ports, try running the agent as Administrator.
 
 ### Prints are blank or garbled
 
@@ -474,7 +493,7 @@ Authorization: Bearer <PRINT_AGENT_TOKEN>
 - [ ] Server deployed and `/api/print-jobs/pending` reachable
 - [ ] Node.js installed on reception PC
 - [ ] `agent/config.json` created from `config.example.json`
-- [ ] Printer name copied exactly from Windows
+- [ ] Printer port/name copied exactly from Windows
 - [ ] `npm install` ran in `agent/` folder
 - [ ] `npm start` or PM2 started successfully
 - [ ] Agent runs on startup (PM2 or Task Scheduler)
