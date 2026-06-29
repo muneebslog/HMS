@@ -342,7 +342,7 @@ new #[Title('Reservations')] class extends Component
                                     @else bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 @endif"
                             >
                                 <span class="text-lg font-semibold">{{ $number }}</span>
-                                @if ($isReserved && $token->patient)
+                                @if ($token?->patient)
                                     <span class="mt-1 max-w-full truncate text-xs">{{ $token->patient->name }}</span>
                                 @elseif ($isUsed)
                                     <span class="mt-1 text-xs">{{ __('Used') }}</span>

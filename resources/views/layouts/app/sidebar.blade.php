@@ -16,6 +16,10 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
+                    <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
+                        {{ __('Lab') }}
+                    </flux:sidebar.item>
+
                     @if (auth()->user()->isAdmin())
                         <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
                             {{ __('Management') }}
