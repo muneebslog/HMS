@@ -52,6 +52,12 @@
                 text-align: center;
             }
             @media print {
+                @page {
+                    margin-left: 12mm;
+                }
+                body {
+                    padding-left: 32px;
+                }
                 .no-print {
                     display: none;
                 }
