@@ -21,6 +21,7 @@ class PrintJob extends Model
     protected $fillable = [
         'invoice_id',
         'lab_invoice_id',
+        'shift_id',
         'status',
         'payload',
         'attempts',
@@ -59,6 +60,14 @@ class PrintJob extends Model
     public function labInvoice(): BelongsTo
     {
         return $this->belongsTo(LabInvoice::class);
+    }
+
+    /**
+     * Get the shift associated with this print job.
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
     }
 
     /**

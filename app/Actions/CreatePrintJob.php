@@ -6,6 +6,7 @@ use App\Enums\PrintJobStatus;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\PrintJob;
+use App\Models\Shift;
 
 class CreatePrintJob
 {
@@ -30,5 +31,21 @@ class CreatePrintJob
         }
 
         return PrintJob::create($data);
+    }
+
+    /**
+     * Create a pending print job for the given shift closing report.
+     */
+    public function createForShift(Shift $shift): PrintJob
+    {
+        return PrintJob::create([
+            'shift_id' => $shift->id,
+            'status' => PrintJobStatus::Pending,
+            'payload' => [
+                'type' => 'shift_report',
+                'source' => 'web',
+            ],
+            'attempts' => 0,
+        ]);
     }
 }

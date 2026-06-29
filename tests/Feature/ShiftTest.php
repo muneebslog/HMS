@@ -5,6 +5,7 @@ use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\LabTest;
+use App\Models\PrintJob;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Shift;
@@ -100,6 +101,27 @@ test('user can close an open shift with a closing balance', function () {
         ->status->toBe('closed')
         ->closing_balance->toBe(800.00)
         ->closed_at->not->toBeNull();
+});
+
+test('closing a shift creates a pending shift report print job', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 200.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('closingBalance', '800.00')
+        ->call('closeShift')
+        ->assertHasNoErrors();
+
+    expect(PrintJob::count())->toBe(1);
+
+    $job = PrintJob::first();
+    expect($job)
+        ->shift_id->toBe($shift->id)
+        ->status->value->toBe('pending');
+    expect($job->payload)->toMatchArray(['type' => 'shift_report', 'source' => 'web']);
 });
 
 test('receptionist is redirected to shift page when accessing reception without an open shift', function () {

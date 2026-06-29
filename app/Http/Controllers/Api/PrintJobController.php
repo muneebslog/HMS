@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\LabInvoice;
 use App\Models\PrintJob;
+use App\Models\Shift;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -17,7 +18,14 @@ class PrintJobController extends Controller
     public function pending(): JsonResponse
     {
         $jobs = PrintJob::pending()
-            ->with(['invoice.items.queueToken', 'invoice.patient', 'labInvoice.items', 'labInvoice.patient'])
+            ->with([
+                'invoice.items.queueToken',
+                'invoice.patient',
+                'labInvoice.items',
+                'labInvoice.patient',
+                'shift.user',
+                'shift.expenses',
+            ])
             ->orderBy('created_at')
             ->limit(50)
             ->get();
@@ -66,6 +74,37 @@ class PrintJobController extends Controller
     {
         $invoice = $job->invoice;
         $labInvoice = $job->labInvoice;
+        $shift = $job->shift;
+
+        if ($shift instanceof Shift) {
+            return [
+                'id' => $job->id,
+                'status' => $job->status->value,
+                'payload' => $job->payload,
+                'attempts' => $job->attempts,
+                'shift' => [
+                    'id' => $shift->id,
+                    'user' => [
+                        'name' => $shift->user->name,
+                    ],
+                    'opened_at' => $shift->opened_at->format('Y-m-d H:i'),
+                    'closed_at' => $shift->closed_at?->format('Y-m-d H:i'),
+                    'opening_balance' => $shift->opening_balance,
+                    'closing_balance' => $shift->closing_balance,
+                    'total_walk_in_sales' => $shift->totalWalkInSales(),
+                    'total_lab_sales' => $shift->totalLabSales(),
+                    'total_procedure_sales' => $shift->totalProcedureSales(),
+                    'total_sales' => $shift->totalSales(),
+                    'total_expenses' => $shift->totalExpenses(),
+                    'total_daily_payouts' => $shift->totalDailyPayouts(),
+                    'expected_cash' => $shift->expectedCash(),
+                    'expenses' => $shift->expenses->map(fn ($expense) => [
+                        'name' => $expense->name,
+                        'amount' => $expense->amount,
+                    ]),
+                ],
+            ];
+        }
 
         if ($labInvoice instanceof LabInvoice) {
             return [

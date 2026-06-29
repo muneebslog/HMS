@@ -6,6 +6,7 @@ use App\Enums\PrintJobStatus;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\PrintJob;
+use App\Models\Shift;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -35,6 +36,22 @@ class PrintJobFactory extends Factory
             'failed_at' => null,
             'error_message' => null,
         ];
+    }
+
+    /**
+     * Indicate that the print job is for a shift closing report.
+     */
+    public function shiftReport(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'invoice_id' => null,
+            'lab_invoice_id' => null,
+            'shift_id' => Shift::factory(),
+            'payload' => [
+                'type' => 'shift_report',
+                'source' => 'web',
+            ],
+        ]);
     }
 
     /**

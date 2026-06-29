@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreatePrintJob;
 use App\Enums\PrintJobStatus;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
@@ -97,6 +98,18 @@ test('the invoices page can queue a print job for a lab invoice', function () {
     expect(PrintJob::first())
         ->lab_invoice_id->toBe($labInvoice->id)
         ->status->toBe(PrintJobStatus::Pending);
+});
+
+test('createForShift creates a pending shift report print job', function () {
+    $shift = Shift::factory()->for(User::factory()->receptionist())->open()->create();
+
+    $job = app(CreatePrintJob::class)->createForShift($shift);
+
+    expect(PrintJob::count())->toBe(1);
+    expect($job)
+        ->shift_id->toBe($shift->id)
+        ->status->toBe(PrintJobStatus::Pending);
+    expect($job->payload)->toMatchArray(['type' => 'shift_report', 'source' => 'web']);
 });
 
 test('a print job can be retried from the monitoring page', function () {

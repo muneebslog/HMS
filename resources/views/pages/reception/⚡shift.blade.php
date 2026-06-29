@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreatePrintJob;
 use App\Models\Expense;
 use App\Models\Shift;
 use Flux\Flux;
@@ -89,6 +90,8 @@ new #[Title('Shift')] class extends Component
             'closing_balance' => (float) $validated['closingBalance'],
             'status' => 'closed',
         ]);
+
+        app(CreatePrintJob::class)->createForShift($shift);
 
         $this->reset('closingBalance');
 
