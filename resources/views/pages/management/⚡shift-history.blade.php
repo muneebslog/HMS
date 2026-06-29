@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\ProcedurePayment;
@@ -102,6 +103,26 @@ new #[Title('Shift History')] class extends Component
     }
 
     /**
+     * Get the expenses for the selected shift.
+     *
+     * @return Collection<int, Expense>
+     */
+    #[Computed]
+    public function expenses(): Collection
+    {
+        $shift = $this->selectedShift;
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return Expense::with('user')
+            ->where('shift_id', $shift->id)
+            ->latest()
+            ->get();
+    }
+
+    /**
      * Open the detail modal for the selected shift.
      */
     public function viewShift(int $id): void
@@ -136,6 +157,7 @@ new #[Title('Shift History')] class extends Component
                     <flux:table.column>{{ __('Operator') }}</flux:table.column>
                     <flux:table.column>{{ __('Opening') }}</flux:table.column>
                     <flux:table.column>{{ __('Sales') }}</flux:table.column>
+                    <flux:table.column>{{ __('Expenses') }}</flux:table.column>
                     <flux:table.column>{{ __('Expected Cash') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                 </flux:table.columns>
@@ -148,6 +170,7 @@ new #[Title('Shift History')] class extends Component
                             <flux:table.cell>{{ $shift->user->name }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($shift->opening_balance, 2) }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($shift->totalSales(), 2) }}</flux:table.cell>
+                            <flux:table.cell class="text-red-600">-{{ number_format($shift->totalExpenses(), 2) }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($shift->expectedCash(), 2) }}</flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button
@@ -162,7 +185,7 @@ new #[Title('Shift History')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                 {{ __('No closed shifts found.') }}
                             </flux:table.cell>
                         </flux:table.row>
@@ -341,6 +364,39 @@ new #[Title('Shift History')] class extends Component
                                 <flux:table.row>
                                     <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No procedure payments found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                </div>
+
+                <div>
+                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <flux:heading level="3">{{ __('Expenses') }}</flux:heading>
+                        <flux:text class="font-semibold">{{ __('Total') }}: {{ number_format($this->expenses->sum('amount'), 2) }}</flux:text>
+                    </div>
+
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Amount') }}</flux:table.column>
+                            <flux:table.column>{{ __('Recorded By') }}</flux:table.column>
+                            <flux:table.column>{{ __('Date') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->expenses as $expense)
+                                <flux:table.row wire:key="expense-{{ $expense->id }}">
+                                    <flux:table.cell>{{ $expense->name }}</flux:table.cell>
+                                    <flux:table.cell class="text-red-600">-{{ number_format($expense->amount, 2) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $expense->user->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $expense->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                        {{ __('No expenses found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
