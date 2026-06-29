@@ -18,6 +18,11 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
+function validPhone(): string
+{
+    return '03001234567';
+}
+
 function consultationService(): Service
 {
     return Service::factory()->create([
@@ -63,6 +68,7 @@ test('a token can be reserved for a doctor', function () {
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 5)
         ->set('patientName', 'Reserved Patient')
+        ->set('patientPhone', validPhone())
         ->call('reserve')
         ->assertHasNoErrors();
 
@@ -75,6 +81,7 @@ test('a token can be reserved for a doctor', function () {
         ->token_number->toBe(5)
         ->status->toBe('reserved')
         ->patient->name->toBe('Reserved Patient')
+        ->patient->phone->toBe(validPhone())
         ->invoice_item_id->toBeNull();
 });
 
@@ -99,6 +106,7 @@ test('reserving an already used token fails', function () {
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 3)
         ->set('patientName', 'Another Patient')
+        ->set('patientPhone', validPhone())
         ->call('reserve');
 
     expect(QueueToken::where('token_number', 3)->count())->toBe(1);
@@ -116,6 +124,7 @@ test('walk-in tokens skip reserved numbers', function () {
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 1)
         ->set('patientName', 'Reserved Patient')
+        ->set('patientPhone', validPhone())
         ->call('reserve');
 
     Livewire::actingAs($user)
@@ -143,6 +152,7 @@ test('marking a reservation arrived creates an invoice and links the token', fun
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 4)
         ->set('patientName', 'Phone Patient')
+        ->set('patientPhone', validPhone())
         ->call('reserve');
 
     $token = QueueToken::first();
@@ -167,6 +177,118 @@ test('marking a reservation arrived creates an invoice and links the token', fun
         ->status->toBe('waiting')
         ->invoice_item_id->not->toBeNull()
         ->invoiceItem->invoice_id->toBe($invoice->id);
+});
+
+test('phone is required for reservation', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'Reserved Patient')
+        ->set('patientPhone', '')
+        ->call('reserve')
+        ->assertHasErrors(['patientPhone']);
+
+    expect(QueueToken::count())->toBe(0);
+});
+
+test('phone must be exactly 11 digits', function (string $phone) {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'Reserved Patient')
+        ->set('patientPhone', $phone)
+        ->call('reserve')
+        ->assertHasErrors(['patientPhone']);
+
+    expect(QueueToken::count())->toBe(0);
+})->with([
+    'ten digits' => '0300123456',
+    'twelve digits' => '030012345678',
+    'letters' => '0300abc4567',
+]);
+
+test('receptionists can visit the doctor reservations page', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    $response = $this->actingAs($user)->get(route('reception.doctor-reservations'));
+
+    $response->assertOk();
+});
+
+test('doctor reservations page lists only reserved tokens for the selected doctor', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
+
+    $reservedPatient = Patient::factory()->create(['phone' => validPhone()]);
+    $arrivedPatient = Patient::factory()->create();
+
+    $reservedToken = QueueToken::create([
+        'service_queue_id' => $queue->id,
+        'invoice_item_id' => null,
+        'patient_id' => $reservedPatient->id,
+        'token_number' => 1,
+        'status' => 'reserved',
+    ]);
+
+    QueueToken::create([
+        'service_queue_id' => $queue->id,
+        'invoice_item_id' => null,
+        'patient_id' => $arrivedPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.doctor-reservations')
+        ->set('selectedDoctorId', $doctor->id)
+        ->assertSee($reservedPatient->name)
+        ->assertSee($reservedToken->token_number)
+        ->assertDontSee($arrivedPatient->name);
+});
+
+test('doctor reservations page renders a call link for each reservation', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
+
+    $patient = Patient::factory()->create(['phone' => validPhone()]);
+
+    QueueToken::create([
+        'service_queue_id' => $queue->id,
+        'invoice_item_id' => null,
+        'patient_id' => $patient->id,
+        'token_number' => 1,
+        'status' => 'reserved',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.doctor-reservations')
+        ->set('selectedDoctorId', $doctor->id)
+        ->assertSeeHtml('href="tel:'.validPhone().'"');
 });
 
 test('management cannot create a second consultation service', function () {

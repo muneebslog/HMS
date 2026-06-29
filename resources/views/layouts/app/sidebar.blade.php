@@ -32,6 +32,9 @@
                         <flux:sidebar.item icon="calendar" :href="route('reception.reservation')" :current="request()->routeIs('reception.reservation')" wire:navigate>
                             {{ __('Reservations') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="phone" :href="route('reception.doctor-reservations')" :current="request()->routeIs('reception.doctor-reservations')" wire:navigate>
+                            {{ __('Doctor Reservations') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                             {{ __('Lab Entry') }}
                         </flux:sidebar.item>

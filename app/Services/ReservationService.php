@@ -17,9 +17,9 @@ class ReservationService
     /**
      * Reserve a token number in the given queue for a phone patient.
      */
-    public function reserve(ServiceQueue $queue, int $tokenNumber, string $patientName): QueueToken
+    public function reserve(ServiceQueue $queue, int $tokenNumber, string $patientName, string $patientPhone): QueueToken
     {
-        return DB::transaction(function () use ($queue, $tokenNumber, $patientName) {
+        return DB::transaction(function () use ($queue, $tokenNumber, $patientName, $patientPhone) {
             $lockedQueue = ServiceQueue::where('id', $queue->id)->lockForUpdate()->firstOrFail();
 
             $exists = QueueToken::where('service_queue_id', $lockedQueue->id)
@@ -30,7 +30,10 @@ class ReservationService
                 throw new \RuntimeException(__('Token number :number is already in use.', ['number' => $tokenNumber]));
             }
 
-            $patient = Patient::create(['name' => $patientName]);
+            $patient = Patient::create([
+                'name' => $patientName,
+                'phone' => $patientPhone,
+            ]);
 
             $token = QueueToken::create([
                 'service_queue_id' => $lockedQueue->id,

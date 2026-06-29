@@ -23,6 +23,9 @@ new #[Title('Reservations')] class extends Component
     #[Validate]
     public string $patientName = '';
 
+    #[Validate]
+    public string $patientPhone = '';
+
     public int $visibleCount = 30;
 
     public ?int $viewingTokenNumber = null;
@@ -43,6 +46,7 @@ new #[Title('Reservations')] class extends Component
         return [
             'selectedDoctorId' => ['required', 'integer', 'exists:doctors,id'],
             'patientName' => ['required', 'string', 'max:255'],
+            'patientPhone' => ['required', 'digits:11'],
         ];
     }
 
@@ -90,6 +94,7 @@ new #[Title('Reservations')] class extends Component
     public function reserve(): void
     {
         $this->validateOnly('patientName');
+        $this->validateOnly('patientPhone');
 
         if ($this->viewingTokenNumber === null || $this->selectedDoctorId === null) {
             return;
@@ -107,7 +112,7 @@ new #[Title('Reservations')] class extends Component
         try {
             $queue = app(QueueService::class)->queueFor($service, $this->selectedDoctorId, $shift);
 
-            app(ReservationService::class)->reserve($queue, $this->viewingTokenNumber, $this->patientName);
+            app(ReservationService::class)->reserve($queue, $this->viewingTokenNumber, $this->patientName, $this->patientPhone);
 
             $this->closeReserveModal();
 
@@ -155,6 +160,7 @@ new #[Title('Reservations')] class extends Component
         $this->showReserveModal = false;
         $this->viewingTokenNumber = null;
         $this->patientName = '';
+        $this->patientPhone = '';
         $this->resetValidation();
     }
 
@@ -366,6 +372,25 @@ new #[Title('Reservations')] class extends Component
                 <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
                 <flux:error name="patientName" />
             </flux:field>
+
+            <div x-data="{ phone: '' }">
+                <flux:field>
+                    <flux:label>{{ __('Phone number') }}</flux:label>
+                    <flux:input
+                        type="tel"
+                        inputmode="numeric"
+                        maxlength="11"
+                        pattern="[0-9]{11}"
+                        required
+                        placeholder="03XXXXXXXXX"
+                        x-model="phone"
+                        x-init="phone = $wire.patientPhone"
+                        x-on:input="phone = phone.replace(/\D/g, ''); $wire.patientPhone = phone"
+                        x-bind:class="phone.length === 11 ? 'ring-2 ring-green-500 dark:ring-green-400 border-green-500 dark:border-green-400' : ''"
+                    />
+                    <flux:error name="patientPhone" />
+                </flux:field>
+            </div>
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="closeReserveModal">
