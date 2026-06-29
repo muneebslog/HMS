@@ -60,6 +60,9 @@
                         <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
                             {{ __('Doctor Payout') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
+                            {{ __('Shift History') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())

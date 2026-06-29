@@ -34,6 +34,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
         Route::livewire('reception/queue', 'pages::reception.queue')->middleware('open.shift')->name('reception.queue');
+        Route::livewire('management/shift-history', 'pages::management.shift-history')->name('management.shift-history');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
     });
 
