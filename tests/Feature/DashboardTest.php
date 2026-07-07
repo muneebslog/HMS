@@ -43,6 +43,20 @@ test('management users see current and last closed shift finance stats', functio
         ->assertSee('225.50');
 });
 
+test('management dashboard stats auto-refresh periodically', function () {
+    $user = User::factory()->management()->create();
+
+    Shift::factory()->open()->create([
+        'user_id' => $user->id,
+        'opening_balance' => 150.00,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('dashboard'));
+
+    $response->assertOk()
+        ->assertSee('wire:poll.5s', false);
+});
+
 test('non-management users do not see shift finance stats', function () {
     $user = User::factory()->receptionist()->create();
 

@@ -32,7 +32,7 @@ new #[Title('Dashboard')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         @if (auth()->user()->isManagement())
-            <div class="grid auto-rows-min gap-4 md:grid-cols-2">
+            <div class="grid auto-rows-min gap-4 md:grid-cols-2" wire:poll.5s>
                 <flux:card>
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <flux:heading level="2">{{ __('Current Shift') }}</flux:heading>
