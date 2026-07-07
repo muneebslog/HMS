@@ -21,7 +21,7 @@ Route::post('display/tokens/tv/recall', [TokenDisplayController::class, 'recallC
 Route::get('display/tokens/tv/toggle-sidebar', [TokenDisplayController::class, 'toggleSidebar'])->name('display.tokens.tv.toggle-sidebar');
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 
     Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
 
