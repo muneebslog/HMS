@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -87,11 +88,29 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is a doctor.
+     */
+    public function isDoctor(): bool
+    {
+        return $this->role === UserRole::Doctor;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool
     {
         return $this->role === UserRole::User;
+    }
+
+    /**
+     * Get the doctor profile linked to this user.
+     *
+     * @return HasOne<Doctor, $this>
+     */
+    public function doctor(): HasOne
+    {
+        return $this->hasOne(Doctor::class);
     }
 
     /**

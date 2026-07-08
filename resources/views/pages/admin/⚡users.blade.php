@@ -2,6 +2,7 @@
 
 use App\Enums\RoleRequestStatus;
 use App\Enums\UserRole;
+use App\Models\Doctor;
 use App\Models\RoleRequest;
 use App\Models\User;
 use Flux\Flux;
@@ -17,7 +18,11 @@ new #[Title('Users')] class extends Component
 
     public string $editingRole = '';
 
+    public ?int $editingDoctorId = null;
+
     public ?int $processingRequestId = null;
+
+    public ?int $requestDoctorId = null;
 
     public string $adminNotes = '';
 
@@ -49,6 +54,22 @@ new #[Title('Users')] class extends Component
     }
 
     /**
+     * Get doctor profiles available to link to a user.
+     *
+     * @return Collection<int, Doctor>
+     */
+    #[Computed]
+    public function availableDoctors(): Collection
+    {
+        $excludeUserId = $this->editingUserId ?? $this->currentRequest?->user_id;
+
+        return Doctor::whereNull('user_id')
+            ->orWhere('user_id', $excludeUserId)
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
      * Start editing the user's role.
      */
     public function editRole(int $userId): void
@@ -61,6 +82,7 @@ new #[Title('Users')] class extends Component
 
         $this->editingUserId = $user->id;
         $this->editingRole = $user->role->value;
+        $this->editingDoctorId = $user->doctor?->id;
     }
 
     /**
@@ -68,7 +90,7 @@ new #[Title('Users')] class extends Component
      */
     public function cancelEdit(): void
     {
-        $this->reset(['editingUserId', 'editingRole']);
+        $this->reset(['editingUserId', 'editingRole', 'editingDoctorId']);
     }
 
     /**
@@ -82,9 +104,15 @@ new #[Title('Users')] class extends Component
             return;
         }
 
-        $validated = $this->validate([
+        $rules = [
             'editingRole' => ['required', 'string', Rule::in(UserRole::values())],
-        ]);
+        ];
+
+        if ($this->editingRole === UserRole::Doctor->value) {
+            $rules['editingDoctorId'] = ['required', 'integer', 'exists:doctors,id'];
+        }
+
+        $validated = $this->validate($rules);
 
         $newRole = UserRole::from($validated['editingRole']);
 
@@ -94,9 +122,31 @@ new #[Title('Users')] class extends Component
             return;
         }
 
+        $previousDoctor = $user->doctor;
+
+        if ($newRole !== UserRole::Doctor && $previousDoctor !== null) {
+            $previousDoctor->update(['user_id' => null]);
+        }
+
+        if ($newRole === UserRole::Doctor) {
+            $doctor = Doctor::find($validated['editingDoctorId']);
+
+            if ($doctor !== null && $doctor->user_id !== null && $doctor->user_id !== $user->id) {
+                Flux::toast(variant: 'danger', text: __('This doctor profile is already linked to another user.'));
+
+                return;
+            }
+
+            if ($previousDoctor !== null && $previousDoctor->id !== $doctor?->id) {
+                $previousDoctor->update(['user_id' => null]);
+            }
+
+            $doctor?->update(['user_id' => $user->id]);
+        }
+
         $user->update(['role' => $newRole]);
 
-        $this->reset(['editingUserId', 'editingRole']);
+        $this->reset(['editingUserId', 'editingRole', 'editingDoctorId']);
 
         Flux::toast(variant: 'success', text: __('Role updated for :name.', ['name' => $user->name]));
     }
@@ -133,6 +183,7 @@ new #[Title('Users')] class extends Component
         }
 
         $this->processingRequestId = $request->id;
+        $this->requestDoctorId = null;
         $this->adminNotes = '';
         $this->resetValidation();
         $this->showRequestModal = true;
@@ -145,6 +196,7 @@ new #[Title('Users')] class extends Component
     {
         $this->showRequestModal = false;
         $this->processingRequestId = null;
+        $this->requestDoctorId = null;
         $this->adminNotes = '';
         $this->resetValidation();
     }
@@ -166,9 +218,27 @@ new #[Title('Users')] class extends Component
             return;
         }
 
-        $validated = $this->validate([
+        $rules = [
             'adminNotes' => ['nullable', 'string', 'max:1000'],
-        ]);
+        ];
+
+        if ($request->requested_role === UserRole::Doctor) {
+            $rules['requestDoctorId'] = ['required', 'integer', 'exists:doctors,id'];
+        }
+
+        $validated = $this->validate($rules);
+
+        if ($request->requested_role === UserRole::Doctor) {
+            $doctor = Doctor::find($validated['requestDoctorId']);
+
+            if ($doctor !== null && $doctor->user_id !== null && $doctor->user_id !== $request->user_id) {
+                Flux::toast(variant: 'danger', text: __('This doctor profile is already linked to another user.'));
+
+                return;
+            }
+
+            $doctor?->update(['user_id' => $request->user_id]);
+        }
 
         $request->update([
             'status' => RoleRequestStatus::Approved,
@@ -283,15 +353,34 @@ new #[Title('Users')] class extends Component
                             <flux:table.cell>{{ $user->email }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($editingUserId === $user->id)
-                                    <flux:select wire:model="editingRole" size="sm" class="w-40">
-                                        @foreach (App\Enums\UserRole::cases() as $role)
-                                            <flux:select.option value="{{ $role->value }}">
-                                                {{ $role->label() }}
-                                            </flux:select.option>
-                                        @endforeach
-                                    </flux:select>
+                                    <div class="flex flex-col gap-2">
+                                        <flux:select wire:model.live="editingRole" size="sm" class="w-40">
+                                            @foreach (App\Enums\UserRole::cases() as $role)
+                                                <flux:select.option value="{{ $role->value }}">
+                                                    {{ $role->label() }}
+                                                </flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+
+                                        @if ($editingRole === App\Enums\UserRole::Doctor->value)
+                                            <flux:select wire:model="editingDoctorId" size="sm" class="w-64">
+                                                <option value="">{{ __('Select a doctor profile') }}</option>
+                                                @foreach ($this->availableDoctors as $doctor)
+                                                    <option value="{{ $doctor->id }}">
+                                                        {{ $doctor->name }} — {{ $doctor->specialization }}
+                                                    </option>
+                                                @endforeach
+                                            </flux:select>
+                                            <flux:error name="editingDoctorId" />
+                                        @endif
+                                    </div>
                                 @else
-                                    {{ $user->roleLabel() }}
+                                    <div class="flex flex-col">
+                                        <span>{{ $user->roleLabel() }}</span>
+                                        @if ($user->isDoctor() && $user->doctor)
+                                            <span class="text-xs text-zinc-500">{{ $user->doctor->name }}</span>
+                                        @endif
+                                    </div>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
@@ -343,6 +432,21 @@ new #[Title('Users')] class extends Component
             </div>
 
             <form class="mt-6 space-y-6">
+                @if ($this->currentRequest->requested_role === App\Enums\UserRole::Doctor)
+                    <flux:field>
+                        <flux:label>{{ __('Doctor Profile') }}</flux:label>
+                        <flux:select wire:model="requestDoctorId" required>
+                            <option value="">{{ __('Select a doctor profile') }}</option>
+                            @foreach ($this->availableDoctors as $doctor)
+                                <option value="{{ $doctor->id }}">
+                                    {{ $doctor->name }} — {{ $doctor->specialization }}
+                                </option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="requestDoctorId" />
+                    </flux:field>
+                @endif
+
                 <flux:field>
                     <flux:label>{{ __('Admin Notes (optional)') }}</flux:label>
                     <flux:textarea wire:model="adminNotes" rows="3" />

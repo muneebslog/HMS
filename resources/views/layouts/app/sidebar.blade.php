@@ -16,6 +16,12 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
+                    @if (auth()->user()->isDoctor())
+                        <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
+                            {{ __('Doctor Portal') }}
+                        </flux:sidebar.item>
+                    @endif
+
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
                         {{ __('Lab') }}
                     </flux:sidebar.item>
@@ -37,7 +43,7 @@
                             {{ __('Reservations') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="phone" :href="route('reception.doctor-reservations')" :current="request()->routeIs('reception.doctor-reservations')" wire:navigate>
-                            {{ __('Doctor Reservations') }}
+                            {{ __('Patient Calling') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                             {{ __('Lab Entry') }}

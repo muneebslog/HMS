@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Doctor;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,5 +23,15 @@ class DoctorFactory extends Factory
             'specialization' => fake()->jobTitle(),
             'payout_daily' => false,
         ];
+    }
+
+    /**
+     * Indicate that the doctor is linked to the given user.
+     */
+    public function forUser(?User $user): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_id' => $user?->id,
+        ]);
     }
 }

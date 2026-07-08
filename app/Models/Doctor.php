@@ -6,6 +6,7 @@ use Database\Factories\DoctorFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Doctor extends Model
@@ -24,6 +25,7 @@ class Doctor extends Model
         'payout_daily',
         'get_full_slips',
         'full_slips_count',
+        'user_id',
     ];
 
     /**
@@ -38,6 +40,16 @@ class Doctor extends Model
             'get_full_slips' => 'boolean',
             'full_slips_count' => 'integer',
         ];
+    }
+
+    /**
+     * Get the portal user linked to this doctor profile.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**

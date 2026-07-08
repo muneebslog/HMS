@@ -24,6 +24,9 @@ $routeMap = [
         'reception.procedures',
         'payout.daily',
     ],
+    'doctor' => [
+        'doctor.portal',
+    ],
     'shared' => [
         'reception.shift',
         'dashboard',
@@ -42,7 +45,7 @@ test('admins can access all protected routes', function () use ($routeMap) {
     ];
     Shift::factory()->for($user)->open()->create();
 
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['shared']) as $route) {
         $this->actingAs($user)
             ->get(route($route))
             ->assertSuccessful();
@@ -91,8 +94,28 @@ test('management is blocked from admin and receptionist routes', function () use
     }
 });
 
+test('doctors can access their own routes and dashboard', function () use ($routeMap) {
+    $user = User::factory()->doctor()->create();
+
+    foreach (array_merge($routeMap['doctor'], ['dashboard']) as $route) {
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertSuccessful();
+    }
+});
+
+test('doctors are blocked from admin, management and receptionist routes', function () use ($routeMap) {
+    $user = User::factory()->doctor()->create();
+
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist']) as $route) {
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertForbidden();
+    }
+});
+
 test('unauthenticated users are redirected to login', function () use ($routeMap) {
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['shared']) as $route) {
         $this->get(route($route))
             ->assertRedirect(route('login'));
     }
@@ -101,7 +124,7 @@ test('unauthenticated users are redirected to login', function () use ($routeMap
 test('users with the default user role are redirected to the pending role page', function () use ($routeMap) {
     $user = User::factory()->user()->create();
 
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['shared']) as $route) {
         $this->actingAs($user)
             ->get(route($route))
             ->assertRedirect(route('pending-role'));
@@ -126,4 +149,5 @@ test('assigned users are redirected away from the pending role page', function (
     'admin' => [UserRole::Admin],
     'receptionist' => [UserRole::Receptionist],
     'management' => [UserRole::Management],
+    'doctor' => [UserRole::Doctor],
 ]);

@@ -2,6 +2,7 @@
 
 use App\Enums\PrintJobStatus;
 use App\Enums\TokenResetType;
+use App\Models\AdminNotification;
 use App\Models\Doctor;
 use App\Models\Invoice;
 use App\Models\Patient;
@@ -289,6 +290,56 @@ test('doctor reservations page renders a call link for each reservation', functi
         ->test('pages::reception.doctor-reservations')
         ->set('selectedDoctorId', $doctor->id)
         ->assertSeeHtml('href="tel:'.validPhone().'"');
+});
+
+test('a token can be reserved without a phone number', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'No Phone Patient')
+        ->set('hasNoPhone', true)
+        ->call('reserve')
+        ->assertHasNoErrors();
+
+    $token = QueueToken::first();
+    expect($token)->not->toBeNull()
+        ->token_number->toBe(5)
+        ->status->toBe('reserved')
+        ->patient->name->toBe('No Phone Patient')
+        ->patient->phone->toBeNull();
+});
+
+test('reserving without a phone number logs an admin notification', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'No Phone Patient')
+        ->set('hasNoPhone', true)
+        ->call('reserve')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::first();
+    expect($notification)->not->toBeNull()
+        ->user_id->toBe($user->id)
+        ->type->toBe('reservation_without_phone')
+        ->read_at->toBeNull();
+
+    expect($notification->message)->toContain('No Phone Patient');
+    expect($notification->message)->toContain((string) $user->name);
 });
 
 test('management cannot create a second consultation service', function () {

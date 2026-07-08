@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AdminNotification;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Patient;
@@ -15,9 +16,9 @@ use Illuminate\Support\Facades\DB;
 class ReservationService
 {
     /**
-     * Reserve a token number in the given queue for a phone patient.
+     * Reserve a token number in the given queue for a patient.
      */
-    public function reserve(ServiceQueue $queue, int $tokenNumber, string $patientName, string $patientPhone): QueueToken
+    public function reserve(ServiceQueue $queue, int $tokenNumber, string $patientName, ?string $patientPhone): QueueToken
     {
         return DB::transaction(function () use ($queue, $tokenNumber, $patientName, $patientPhone) {
             $lockedQueue = ServiceQueue::where('id', $queue->id)->lockForUpdate()->firstOrFail();
@@ -46,6 +47,30 @@ class ReservationService
             $lockedQueue->update([
                 'last_token_number' => max($lockedQueue->last_token_number, $tokenNumber),
             ]);
+
+            if (blank($patientPhone)) {
+                AdminNotification::create([
+                    'user_id' => auth()->id(),
+                    'type' => 'reservation_without_phone',
+                    'title' => __('Token issued without contact number'),
+                    'message' => __(
+                        'Receptionist :name issued token :number for :patient without a contact number.',
+                        [
+                            'name' => auth()->user()?->name ?? __('Unknown'),
+                            'number' => $tokenNumber,
+                            'patient' => $patientName,
+                        ]
+                    ),
+                    'actionable_url' => route('reception.reservation'),
+                    'metadata' => [
+                        'token_id' => $token->id,
+                        'token_number' => $tokenNumber,
+                        'patient_id' => $patient->id,
+                        'patient_name' => $patientName,
+                        'queue_id' => $lockedQueue->id,
+                    ],
+                ]);
+            }
 
             return $token;
         });

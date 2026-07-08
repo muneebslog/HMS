@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\AdminNotification;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -78,4 +80,67 @@ test('non-management users do not see shift finance stats', function () {
         ->assertDontSee('Last Closed Shift')
         ->assertDontSee('999.00')
         ->assertDontSee('777.00');
+});
+
+test('management users see unread admin notifications', function () {
+    $user = User::factory()->management()->create();
+
+    AdminNotification::factory()->create([
+        'title' => 'Missing Phone Alert',
+        'message' => 'A token was issued without a phone number.',
+        'read_at' => null,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('dashboard'));
+
+    $response->assertOk()
+        ->assertSee('Notifications')
+        ->assertSee('Missing Phone Alert')
+        ->assertSee('A token was issued without a phone number.');
+});
+
+test('receptionist users do not see admin notifications', function () {
+    $user = User::factory()->receptionist()->create();
+
+    AdminNotification::factory()->create([
+        'title' => 'Missing Phone Alert',
+        'message' => 'A token was issued without a phone number.',
+        'read_at' => null,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('dashboard'));
+
+    $response->assertOk()
+        ->assertDontSee('Notifications')
+        ->assertDontSee('Missing Phone Alert');
+});
+
+test('a notification can be marked as read from the dashboard', function () {
+    $user = User::factory()->management()->create();
+
+    $notification = AdminNotification::factory()->create([
+        'title' => 'Missing Phone Alert',
+        'message' => 'A token was issued without a phone number.',
+        'read_at' => null,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::dashboard')
+        ->call('markNotificationAsRead', $notification->id)
+        ->assertHasNoErrors();
+
+    expect($notification->fresh()->read_at)->not->toBeNull();
+});
+
+test('all notifications can be marked as read from the dashboard', function () {
+    $user = User::factory()->management()->create();
+
+    AdminNotification::factory()->count(3)->create(['read_at' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::dashboard')
+        ->call('markAllNotificationsAsRead')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::whereNull('read_at')->count())->toBe(0);
 });

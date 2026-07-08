@@ -30,6 +30,10 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
     });
 
+    Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
+        Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
+    });
+
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
