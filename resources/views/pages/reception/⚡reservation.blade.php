@@ -239,6 +239,15 @@ new #[Title('Reservations')] class extends Component
     }
 
     /**
+     * Get the currently selected doctor.
+     */
+    #[Computed]
+    public function selectedDoctor(): ?Doctor
+    {
+        return $this->doctors->firstWhere('id', $this->selectedDoctorId);
+    }
+
+    /**
      * Get the current open queue for the selected doctor and consultation service.
      */
     #[Computed]
@@ -344,6 +353,7 @@ new #[Title('Reservations')] class extends Component
                                 $token = $this->tokensInRange->get($number);
                                 $isReserved = $token !== null && $token->status === 'reserved';
                                 $isUsed = $token !== null && ! $isReserved;
+                                $dutyStart = $this->selectedDoctor?->duty_start_time;
                             @endphp
 
                             <button
@@ -357,6 +367,11 @@ new #[Title('Reservations')] class extends Component
                                     @else bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 @endif"
                             >
                                 <span class="text-lg font-semibold">{{ $number }}</span>
+                                @if ($dutyStart)
+                                    <span class="mt-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                                        {{ $dutyStart->copy()->addMinutes(($number - 1) * 5)->format('g:i A') }}
+                                    </span>
+                                @endif
                                 @if ($token?->patient)
                                     <span class="mt-1 dark:text-zinc-300 max-w-full truncate text-xs">{{ $token->patient->name }}</span>
                                 @elseif ($isUsed)

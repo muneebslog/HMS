@@ -45,6 +45,7 @@ test('authenticated users can create a doctor', function () {
         ->set('doctorPayoutDaily', true)
         ->set('doctorGetFullSlips', true)
         ->set('doctorFullSlipsCount', '5')
+        ->set('doctorDutyStartTime', '18:00')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -54,6 +55,7 @@ test('authenticated users can create a doctor', function () {
         'payout_daily' => true,
         'get_full_slips' => true,
         'full_slips_count' => 5,
+        'duty_start_time' => '18:00:00',
     ]);
 });
 
@@ -70,6 +72,7 @@ test('authenticated users can update a doctor', function () {
         ->set('doctorPayoutDaily', true)
         ->set('doctorGetFullSlips', true)
         ->set('doctorFullSlipsCount', '3')
+        ->set('doctorDutyStartTime', '19:30')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -80,6 +83,7 @@ test('authenticated users can update a doctor', function () {
         'payout_daily' => true,
         'get_full_slips' => true,
         'full_slips_count' => 3,
+        'duty_start_time' => '19:30:00',
     ]);
 });
 

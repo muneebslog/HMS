@@ -16,14 +16,27 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'role' => UserRole::Receptionist,
+            ]
+        );
 
-        User::factory()->admin()->create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
+        User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Admin User',
+                'role' => UserRole::Admin,
+            ]
+        );
+
+        $this->call([
+            DoctorSeeder::class,
+            ServiceSeeder::class,
+            ServicePriceSeeder::class,
+            LabTestSeeder::class,
         ]);
     }
 }

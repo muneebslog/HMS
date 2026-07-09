@@ -15,6 +15,29 @@ class DoctorSeeder extends Seeder
      */
     public function run(): void
     {
-        Doctor::factory()->count(10)->create();
+        $doctors = [
+            [
+                'name' => 'Dr. Ahmed Hassan',
+                'specialization' => 'General Medicine',
+                'duty_start_time' => '18:00:00',
+            ],
+            [
+                'name' => 'Dr. Sara Ali',
+                'specialization' => 'Pediatrics',
+                'duty_start_time' => '18:00:00',
+            ],
+            [
+                'name' => 'Dr. Mohammed Kareem',
+                'specialization' => 'Internal Medicine',
+                'duty_start_time' => '18:00:00',
+            ],
+        ];
+
+        foreach ($doctors as $doctor) {
+            Doctor::updateOrCreate(
+                ['name' => $doctor['name']],
+                $doctor
+            );
+        }
     }
 }

@@ -22,6 +22,7 @@ class DoctorFactory extends Factory
             'name' => fake()->name(),
             'specialization' => fake()->jobTitle(),
             'payout_daily' => false,
+            'duty_start_time' => null,
         ];
     }
 

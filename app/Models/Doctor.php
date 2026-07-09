@@ -25,6 +25,7 @@ class Doctor extends Model
         'payout_daily',
         'get_full_slips',
         'full_slips_count',
+        'duty_start_time',
         'user_id',
     ];
 
@@ -39,6 +40,7 @@ class Doctor extends Model
             'payout_daily' => 'boolean',
             'get_full_slips' => 'boolean',
             'full_slips_count' => 'integer',
+            'duty_start_time' => 'datetime:H:i',
         ];
     }
 

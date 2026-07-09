@@ -20,6 +20,7 @@ class LabTest extends Model
         'test_name',
         'test_code',
         'test_price',
+        'sample',
         'time_required',
         'is_in_house',
     ];

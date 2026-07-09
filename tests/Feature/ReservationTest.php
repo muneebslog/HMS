@@ -342,6 +342,35 @@ test('reserving without a phone number logs an admin notification', function () 
     expect($notification->message)->toContain((string) $user->name);
 });
 
+test('reservation page shows estimated token times when doctor has a duty start time', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create(['duty_start_time' => '18:00:00']);
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->assertSee('6:00 PM')
+        ->assertSee('6:05 PM')
+        ->assertSee('6:10 PM');
+});
+
+test('reservation page hides estimated token times when doctor has no duty start time', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create(['duty_start_time' => null]);
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->assertDontSee('PM')
+        ->assertDontSee('AM');
+});
+
 test('management cannot create a second consultation service', function () {
     $user = User::factory()->create();
     Service::factory()->create(['name' => 'Consultation']);
