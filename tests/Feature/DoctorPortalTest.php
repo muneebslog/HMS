@@ -126,3 +126,21 @@ test('portal calculates paid and pending share correctly', function () {
         ->assertSet('paidShare', 30.0)
         ->assertSet('pendingShare', 20.0);
 });
+
+test('portal renders payout with missing date range', function () {
+    $doctorUser = User::factory()->doctor()->create();
+    $doctor = Doctor::factory()->forUser($doctorUser)->create();
+
+    DoctorPayout::factory()->create([
+        'doctor_id' => $doctor->id,
+        'date' => now(),
+        'from_date' => null,
+        'to_date' => null,
+        'share_amount' => 30.00,
+    ]);
+
+    Livewire::actingAs($doctorUser)
+        ->test('pages::doctor.portal')
+        ->assertOk()
+        ->assertSee(number_format(30.00, 2));
+});

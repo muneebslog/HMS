@@ -2,6 +2,7 @@
 
 use App\Enums\PrintJobStatus;
 use App\Enums\TokenResetType;
+use App\Jobs\SendAppointmentConfirmationSms;
 use App\Models\AdminNotification;
 use App\Models\Doctor;
 use App\Models\Invoice;
@@ -14,8 +15,11 @@ use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\QueueService;
+use App\Services\SmsService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -317,12 +321,8 @@ test('a token can be reserved without a phone number', function () {
         ->patient->phone->toBeNull();
 });
 
-test('reservation sends a confirmation sms when a phone number is provided', function () {
-    Http::fake();
-    config([
-        'services.veevo_sms.enabled' => true,
-        'services.veevo_sms.hash' => 'test-api-hash',
-    ]);
+test('reservation dispatches appointment confirmation sms job when a phone number is provided', function () {
+    Queue::fake();
 
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
@@ -338,6 +338,27 @@ test('reservation sends a confirmation sms when a phone number is provided', fun
         ->set('patientPhone', validPhone())
         ->call('reserve')
         ->assertHasNoErrors();
+
+    Queue::assertPushed(function (SendAppointmentConfirmationSms $job) use ($doctor) {
+        return $job->phone === validPhone()
+            && $job->doctor->is($doctor)
+            && $job->tokenNumber === 5
+            && $job->estimatedTime?->format('g:i A') === '6:20 PM';
+    });
+});
+
+test('appointment confirmation sms job sends sms via veevotech', function () {
+    Http::fake();
+    config([
+        'services.veevo_sms.enabled' => true,
+        'services.veevo_sms.hash' => 'test-api-hash',
+    ]);
+
+    $doctor = Doctor::factory()->create();
+    $estimatedTime = Carbon::parse('18:20:00');
+
+    $job = new SendAppointmentConfirmationSms(validPhone(), $doctor, 5, $estimatedTime);
+    $job->handle(app(SmsService::class));
 
     Http::assertSent(function ($request) use ($doctor) {
         return $request->url() === 'https://api.veevotech.com/v3/sendsms'

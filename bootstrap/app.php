@@ -4,9 +4,12 @@ use App\Http\Middleware\EnsureOpenShift;
 use App\Http\Middleware\EnsurePrintAgentToken;
 use App\Http\Middleware\EnsureRoleAssigned;
 use App\Http\Middleware\EnsureUserRole;
+use App\Http\Middleware\ForceHttpsForDomain;
+use App\Http\Middleware\TrustProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\TrustProxies as TrustProxiesMiddleware;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -17,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->replace(TrustProxiesMiddleware::class, TrustProxies::class);
+
+        $middleware->prepend(ForceHttpsForDomain::class);
+
         $middleware->alias([
             'open.shift' => EnsureOpenShift::class,
             'print.agent' => EnsurePrintAgentToken::class,

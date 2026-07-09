@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAppointmentConfirmationSms;
 use App\Models\AdminNotification;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -53,12 +54,12 @@ class ReservationService
                     ? $lockedQueue->doctor->duty_start_time->copy()->addMinutes(($tokenNumber - 1) * 5)
                     : null;
 
-                app(SmsService::class)->sendAppointmentConfirmation(
+                dispatch(new SendAppointmentConfirmationSms(
                     $patientPhone,
                     $lockedQueue->doctor,
                     $tokenNumber,
                     $estimatedTime
-                );
+                ));
             }
 
             if (blank($patientPhone)) {

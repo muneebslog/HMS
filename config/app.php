@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Force HTTPS Host
+    |--------------------------------------------------------------------------
+    |
+    | When the application is accessed through this host, URL generation will
+    | be forced to use HTTPS. This is useful for deployments behind a reverse
+    | proxy such as Cloudflare Zero Trust Tunnel while keeping local HTTP
+    | access unchanged.
+    |
+    */
+
+    'force_https_host' => env('FORCE_HTTPS_HOST', 'mednexus.space'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
