@@ -405,10 +405,10 @@ test('appointment confirmation sms job sends sms via veevotech and marks log as 
     Http::assertSent(function ($request) use ($doctor) {
         return $request->url() === 'https://api.veevotech.com/v3/sendsms'
             && $request['receivernum'] === '+923001234567'
-            && str_contains($request['textmessage'], 'Mohsin Medical Complex')
-            && str_contains($request['textmessage'], $doctor->name)
+            && str_contains($request['textmessage'], 'Your appointment with Dr. '.$doctor->name)
             && str_contains($request['textmessage'], 'token #5')
-            && str_contains($request['textmessage'], '6:20 PM');
+            && str_contains($request['textmessage'], '6:20 PM')
+            && str_contains($request['textmessage'], 'This time is computer estimated and not exact.');
     });
 
     $log->refresh();

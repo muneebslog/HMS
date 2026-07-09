@@ -80,9 +80,11 @@ class SmsService
      */
     public function buildAppointmentMessage(Doctor $doctor, int $tokenNumber, ?CarbonInterface $estimatedTime = null): string
     {
+        $doctorName = $this->formatDoctorName($doctor->name);
+
         $base = sprintf(
-            'Assalam-o-Alaikum from Mohsin Medical Complex. Your appointment with Dr. %s is token #%d',
-            $doctor->name,
+            'Your appointment with %s is token #%d',
+            $doctorName,
             $tokenNumber
         );
 
@@ -90,9 +92,23 @@ class SmsService
             $base .= sprintf(' at approximately %s', $estimatedTime->format('g:i A'));
         }
 
-        $base .= '. Please arrive 10 minutes early. This time is computer estimated and not exact. If you are late by more than 10 tokens, you will need a new token.';
+        $base .= ". Please arrive 10 minutes early.\nThis time is computer estimated and not exact. If you are late by more than 10 tokens, you will need a new token.";
 
         return $base;
+    }
+
+    /**
+     * Format the doctor name for the SMS, avoiding a duplicated "Dr." prefix.
+     */
+    private function formatDoctorName(string $name): string
+    {
+        $name = trim($name);
+
+        if (str_starts_with(strtolower($name), 'dr.')) {
+            return $name;
+        }
+
+        return 'Dr. '.$name;
     }
 
     /**
