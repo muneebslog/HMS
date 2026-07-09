@@ -92,7 +92,7 @@ class SmsService
             $base .= sprintf(' at approximately %s', $estimatedTime->format('g:i A'));
         }
 
-        $base .= ". Please arrive 10 minutes early.\nThis time is computer estimated and not exact. If you are late by more than 10 tokens, you will need a new token.";
+        $base .= ". Please arrive 10 minutes early.\nیہ وقت کمپیوٹر کے ذریعے اندازہ لگایا گیا ہے اور بالکل درست نہیں ہے۔ اگر آپ 10 ٹوکنز سے زیادہ دیر سے پہنچیں تو آپ کو نیا ٹوکن لینا ہوگا۔";
 
         return $base;
     }
