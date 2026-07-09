@@ -33,6 +33,9 @@
                         <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
                             {{ __('Users') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
+                            {{ __('SMS Logs') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())

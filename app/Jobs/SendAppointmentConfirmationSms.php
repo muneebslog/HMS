@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Doctor;
+use App\Models\SmsLog;
 use App\Services\SmsService;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,7 +20,8 @@ class SendAppointmentConfirmationSms implements ShouldQueue
         public string $phone,
         public Doctor $doctor,
         public int $tokenNumber,
-        public ?CarbonInterface $estimatedTime = null,
+        public ?CarbonInterface $estimatedTime,
+        public int $smsLogId,
     ) {
         //
     }
@@ -29,11 +31,18 @@ class SendAppointmentConfirmationSms implements ShouldQueue
      */
     public function handle(SmsService $smsService): void
     {
+        $log = SmsLog::find($this->smsLogId);
+
+        if ($log === null) {
+            return;
+        }
+
         $smsService->sendAppointmentConfirmation(
             $this->phone,
             $this->doctor,
             $this->tokenNumber,
             $this->estimatedTime,
+            $log,
         );
     }
 }

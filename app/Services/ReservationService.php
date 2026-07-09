@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SmsStatus;
 use App\Jobs\SendAppointmentConfirmationSms;
 use App\Models\AdminNotification;
 use App\Models\Invoice;
@@ -12,6 +13,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
+use App\Models\SmsLog;
 use Illuminate\Support\Facades\DB;
 
 class ReservationService
@@ -54,11 +56,19 @@ class ReservationService
                     ? $lockedQueue->doctor->duty_start_time->copy()->addMinutes(($tokenNumber - 1) * 5)
                     : null;
 
+                $log = SmsLog::create([
+                    'doctor_id' => $lockedQueue->doctor?->id,
+                    'phone' => $patientPhone,
+                    'token_number' => $tokenNumber,
+                    'status' => SmsStatus::Queued,
+                ]);
+
                 dispatch(new SendAppointmentConfirmationSms(
                     $patientPhone,
                     $lockedQueue->doctor,
                     $tokenNumber,
-                    $estimatedTime
+                    $estimatedTime,
+                    $log->id,
                 ));
             }
 

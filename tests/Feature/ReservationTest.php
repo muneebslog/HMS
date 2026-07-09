@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PrintJobStatus;
+use App\Enums\SmsStatus;
 use App\Enums\TokenResetType;
 use App\Jobs\SendAppointmentConfirmationSms;
 use App\Models\AdminNotification;
@@ -13,6 +14,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
+use App\Models\SmsLog;
 use App\Models\User;
 use App\Services\QueueService;
 use App\Services\SmsService;
@@ -321,7 +323,7 @@ test('a token can be reserved without a phone number', function () {
         ->patient->phone->toBeNull();
 });
 
-test('reservation dispatches appointment confirmation sms job when a phone number is provided', function () {
+test('reservation creates a queued sms log and dispatches job when a phone number is provided', function () {
     Queue::fake();
 
     $user = User::factory()->create();
@@ -339,15 +341,50 @@ test('reservation dispatches appointment confirmation sms job when a phone numbe
         ->call('reserve')
         ->assertHasNoErrors();
 
-    Queue::assertPushed(function (SendAppointmentConfirmationSms $job) use ($doctor) {
+    $log = SmsLog::first();
+    expect($log)->not->toBeNull()
+        ->status->toBe(SmsStatus::Queued)
+        ->phone->toBe(validPhone())
+        ->doctor_id->toBe($doctor->id)
+        ->token_number->toBe(5);
+
+    Queue::assertPushed(function (SendAppointmentConfirmationSms $job) use ($doctor, $log) {
         return $job->phone === validPhone()
             && $job->doctor->is($doctor)
             && $job->tokenNumber === 5
-            && $job->estimatedTime?->format('g:i A') === '6:20 PM';
+            && $job->estimatedTime?->format('g:i A') === '6:20 PM'
+            && $job->smsLogId === $log->id;
     });
 });
 
-test('appointment confirmation sms job sends sms via veevotech', function () {
+test('appointment confirmation sms job marks log as failed when veevotech returns an error', function () {
+    Http::fake([
+        'https://api.veevotech.com/v3/sendsms' => Http::response('Error', 500),
+    ]);
+    config([
+        'services.veevo_sms.enabled' => true,
+        'services.veevo_sms.hash' => 'test-api-hash',
+    ]);
+
+    $doctor = Doctor::factory()->create();
+    $estimatedTime = Carbon::parse('18:20:00');
+    $log = SmsLog::factory()->queued()->create([
+        'doctor_id' => $doctor->id,
+        'phone' => validPhone(),
+        'token_number' => 5,
+    ]);
+
+    $job = new SendAppointmentConfirmationSms(validPhone(), $doctor, 5, $estimatedTime, $log->id);
+    $job->handle(app(SmsService::class));
+
+    $log->refresh();
+    expect($log)
+        ->status->toBe(SmsStatus::Failed)
+        ->sent_at->toBeNull()
+        ->provider_response->toBe('Error');
+});
+
+test('appointment confirmation sms job sends sms via veevotech and marks log as sent', function () {
     Http::fake();
     config([
         'services.veevo_sms.enabled' => true,
@@ -356,8 +393,13 @@ test('appointment confirmation sms job sends sms via veevotech', function () {
 
     $doctor = Doctor::factory()->create();
     $estimatedTime = Carbon::parse('18:20:00');
+    $log = SmsLog::factory()->queued()->create([
+        'doctor_id' => $doctor->id,
+        'phone' => validPhone(),
+        'token_number' => 5,
+    ]);
 
-    $job = new SendAppointmentConfirmationSms(validPhone(), $doctor, 5, $estimatedTime);
+    $job = new SendAppointmentConfirmationSms(validPhone(), $doctor, 5, $estimatedTime, $log->id);
     $job->handle(app(SmsService::class));
 
     Http::assertSent(function ($request) use ($doctor) {
@@ -368,9 +410,16 @@ test('appointment confirmation sms job sends sms via veevotech', function () {
             && str_contains($request['textmessage'], 'token #5')
             && str_contains($request['textmessage'], '6:20 PM');
     });
+
+    $log->refresh();
+    expect($log)
+        ->status->toBe(SmsStatus::Sent)
+        ->message->toContain($doctor->name)
+        ->sent_at->not->toBeNull();
 });
 
 test('reservation does not send a confirmation sms when no phone number is provided', function () {
+    Queue::fake();
     Http::fake();
     config([
         'services.veevo_sms.enabled' => true,
@@ -392,7 +441,9 @@ test('reservation does not send a confirmation sms when no phone number is provi
         ->call('reserve')
         ->assertHasNoErrors();
 
+    Queue::assertNothingPushed();
     Http::assertNothingSent();
+    expect(SmsLog::count())->toBe(0);
 });
 
 test('reserving without a phone number logs an admin notification', function () {

@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\SmsStatus;
 use App\Models\Doctor;
+use App\Models\SmsLog;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -21,17 +23,36 @@ class SmsService
     /**
      * Send an appointment confirmation SMS.
      */
-    public function sendAppointmentConfirmation(string $phone, Doctor $doctor, int $tokenNumber, ?CarbonInterface $estimatedTime = null): bool
+    public function sendAppointmentConfirmation(string $phone, Doctor $doctor, int $tokenNumber, ?CarbonInterface $estimatedTime = null, ?SmsLog $log = null): bool
     {
         $receiver = $this->normalizePhone($phone);
 
         if ($receiver === null) {
+            $log?->update([
+                'status' => SmsStatus::Failed,
+                'provider_response' => __('Invalid phone number'),
+            ]);
+
             return false;
         }
 
         $message = $this->buildAppointmentMessage($doctor, $tokenNumber, $estimatedTime);
 
-        return $this->send($receiver, $message);
+        $log?->update([
+            'phone' => $receiver,
+            'message' => $message,
+        ]);
+
+        $sent = $this->send($receiver, $message, $log);
+
+        if ($log !== null) {
+            $log->update([
+                'status' => $sent ? SmsStatus::Sent : SmsStatus::Failed,
+                'sent_at' => $sent ? now() : null,
+            ]);
+        }
+
+        return $sent;
     }
 
     /**
@@ -77,7 +98,7 @@ class SmsService
     /**
      * Send an SMS via the VeevoTech API.
      */
-    public function send(string $receiver, string $message): bool
+    public function send(string $receiver, string $message, ?SmsLog $log = null): bool
     {
         if (! $this->enabled()) {
             return false;
@@ -97,6 +118,8 @@ class SmsService
                 return true;
             }
 
+            $log?->update(['provider_response' => $response->body()]);
+
             Log::warning('VeevoTech SMS returned non-successful response.', [
                 'receiver' => $receiver,
                 'status' => $response->status(),
@@ -105,6 +128,8 @@ class SmsService
 
             return false;
         } catch (\Throwable $e) {
+            $log?->update(['provider_response' => $e->getMessage()]);
+
             Log::error('Failed to send VeevoTech SMS.', [
                 'receiver' => $receiver,
                 'exception' => $e->getMessage(),

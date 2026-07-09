@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
+        Route::livewire('admin/sms-logs', 'pages::admin.sms-logs')->name('admin.sms-logs');
     });
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
