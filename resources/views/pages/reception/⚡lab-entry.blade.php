@@ -31,6 +31,8 @@ new #[Title('Lab Entry')] class extends Component
     #[Validate]
     public ?int $selectedLabTestId = null;
 
+    public string $search = '';
+
     /**
      * @var list<array<string, mixed>>
      */
@@ -86,7 +88,7 @@ new #[Title('Lab Entry')] class extends Component
             'test_price' => $labTest->test_price,
         ];
 
-        $this->reset('selectedLabTestId');
+        $this->reset(['selectedLabTestId', 'search']);
         $this->resetValidation('selectedLabTestId');
 
         Flux::toast(variant: 'success', text: __('Test added.'));
@@ -199,14 +201,22 @@ new #[Title('Lab Entry')] class extends Component
     }
 
     /**
-     * Get the list of lab tests.
+     * Get the list of lab tests filtered by the search query.
      *
      * @return Collection<int, LabTest>
      */
     #[Computed]
     public function labTests(): Collection
     {
-        return LabTest::orderBy('test_name')->get();
+        return LabTest::query()
+            ->when(trim($this->search) !== '', function ($query) {
+                $query->where(function ($q) {
+                    $q->where('test_name', 'like', '%'.$this->search.'%')
+                        ->orWhere('test_code', 'like', '%'.$this->search.'%');
+                });
+            })
+            ->orderBy('test_name')
+            ->get();
     }
 
     /**
@@ -278,10 +288,20 @@ new #[Title('Lab Entry')] class extends Component
         </flux:card>
 
         <flux:card>
-            <flux:heading level="2"> <form wire:submit="add" class="grid grid-cols-1 items-end gap-6 md:grid-cols-12">
-                
+            <flux:heading level="2">{{ __('Tests') }}</flux:heading>
 
-                <flux:field class="md:col-span-10">
+            <form wire:submit="add" class="mt-4 grid grid-cols-1 items-end gap-6 md:grid-cols-12">
+                <flux:field class="md:col-span-5">
+                    <flux:label>{{ __('Search tests') }}</flux:label>
+                    <flux:input
+                        wire:model.live.debounce.300ms="search"
+                        type="search"
+                        placeholder="{{ __('Search by name or code') }}"
+                        icon="magnifying-glass"
+                    />
+                </flux:field>
+
+                <flux:field class="md:col-span-5">
                     <flux:label>{{ __('Test') }}</flux:label>
                     <flux:select wire:model="selectedLabTestId" required>
                         <option value="">{{ __('Select a test') }}</option>
@@ -297,7 +317,7 @@ new #[Title('Lab Entry')] class extends Component
                         {{ __('Add') }}
                     </flux:button>
                 </div>
-            </form></flux:heading>
+            </form>
 
             @if ($patientName)
                 <div class="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">

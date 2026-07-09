@@ -118,3 +118,29 @@ test('patient details are required to add a test', function () {
         ->call('add')
         ->assertHasErrors(['patientName', 'patientPhone', 'patientGender', 'patientAge']);
 });
+
+test('lab tests can be filtered by name or code', function () {
+    $user = User::factory()->create();
+    $matchingTest = LabTest::factory()->create([
+        'test_name' => 'Complete Blood Count',
+        'test_code' => 'CBC-001',
+    ]);
+    LabTest::factory()->create([
+        'test_name' => 'Liver Function Test',
+        'test_code' => 'LFT-001',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->assertCount('labTests', 2)
+        ->set('search', 'CBC')
+        ->assertCount('labTests', 1)
+        ->assertSee($matchingTest->test_name)
+        ->set('search', 'Blood')
+        ->assertCount('labTests', 1)
+        ->assertSee($matchingTest->test_name)
+        ->set('search', 'nonexistent')
+        ->assertCount('labTests', 0)
+        ->set('search', '')
+        ->assertCount('labTests', 2);
+});
