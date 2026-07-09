@@ -408,7 +408,7 @@ test('appointment confirmation sms job sends sms via veevotech and marks log as 
             && str_contains($request['textmessage'], 'Your appointment with Dr. '.$doctor->name)
             && str_contains($request['textmessage'], 'token #5')
             && str_contains($request['textmessage'], '6:20 PM')
-            && str_contains($request['textmessage'], 'کمپیوٹر کے ذریعے اندازہ لگایا گیا ہے');
+            && str_contains($request['textmessage'], 'اس میں فرق آسکتا ہے');
     });
 
     $log->refresh();
