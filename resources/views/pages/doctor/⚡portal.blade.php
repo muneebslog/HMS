@@ -268,9 +268,11 @@ new #[Title('Doctor Portal')] class extends Component
                                 <div class="flex items-center justify-between border-b border-zinc-200 pb-3 last:border-0 last:pb-0 dark:border-zinc-700" wire:key="payout-{{ $payout->id }}">
                                     <div>
                                         <flux:text class="font-medium">{{ $payout->date->format('Y-m-d') }}</flux:text>
-                                        <flux:text class="text-xs text-zinc-500">
-                                            {{ $payout->from_date->format('Y-m-d') }} — {{ $payout->to_date->format('Y-m-d') }}
-                                        </flux:text>
+                                        @if ($payout->from_date && $payout->to_date)
+                                            <flux:text class="text-xs text-zinc-500">
+                                                {{ $payout->from_date->format('Y-m-d') }} — {{ $payout->to_date->format('Y-m-d') }}
+                                            </flux:text>
+                                        @endif
                                     </div>
                                     <flux:heading level="4">{{ number_format($payout->share_amount, 2) }}</flux:heading>
                                 </div>
