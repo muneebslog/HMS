@@ -39,4 +39,10 @@ return [
         'token' => env('PRINT_AGENT_TOKEN'),
     ],
 
+    'veevo_sms' => [
+        'enabled' => env('VEEVO_SMS_ENABLED', false),
+        'hash' => env('VEEVO_SMS_HASH'),
+        'endpoint' => env('VEEVO_SMS_ENDPOINT', 'https://api.veevotech.com/v3/sendsms'),
+    ],
+
 ];

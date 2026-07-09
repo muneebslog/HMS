@@ -48,6 +48,19 @@ class ReservationService
                 'last_token_number' => max($lockedQueue->last_token_number, $tokenNumber),
             ]);
 
+            if (filled($patientPhone)) {
+                $estimatedTime = $lockedQueue->doctor?->duty_start_time !== null
+                    ? $lockedQueue->doctor->duty_start_time->copy()->addMinutes(($tokenNumber - 1) * 5)
+                    : null;
+
+                app(SmsService::class)->sendAppointmentConfirmation(
+                    $patientPhone,
+                    $lockedQueue->doctor,
+                    $tokenNumber,
+                    $estimatedTime
+                );
+            }
+
             if (blank($patientPhone)) {
                 AdminNotification::create([
                     'user_id' => auth()->id(),

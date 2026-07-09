@@ -15,6 +15,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Services\QueueService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -314,6 +315,63 @@ test('a token can be reserved without a phone number', function () {
         ->status->toBe('reserved')
         ->patient->name->toBe('No Phone Patient')
         ->patient->phone->toBeNull();
+});
+
+test('reservation sends a confirmation sms when a phone number is provided', function () {
+    Http::fake();
+    config([
+        'services.veevo_sms.enabled' => true,
+        'services.veevo_sms.hash' => 'test-api-hash',
+    ]);
+
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create(['duty_start_time' => '18:00:00']);
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'SMS Patient')
+        ->set('patientPhone', validPhone())
+        ->call('reserve')
+        ->assertHasNoErrors();
+
+    Http::assertSent(function ($request) use ($doctor) {
+        return $request->url() === 'https://api.veevotech.com/v3/sendsms'
+            && $request['receivernum'] === '+923001234567'
+            && str_contains($request['textmessage'], 'Mohsin Medical Complex')
+            && str_contains($request['textmessage'], $doctor->name)
+            && str_contains($request['textmessage'], 'token #5')
+            && str_contains($request['textmessage'], '6:20 PM');
+    });
+});
+
+test('reservation does not send a confirmation sms when no phone number is provided', function () {
+    Http::fake();
+    config([
+        'services.veevo_sms.enabled' => true,
+        'services.veevo_sms.hash' => 'test-api-hash',
+    ]);
+
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->set('patientName', 'No Phone Patient')
+        ->set('hasNoPhone', true)
+        ->call('reserve')
+        ->assertHasNoErrors();
+
+    Http::assertNothingSent();
 });
 
 test('reserving without a phone number logs an admin notification', function () {
