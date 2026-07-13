@@ -5,7 +5,114 @@
         $patientName = fn ($token) => $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-';
     @endphp
 
-    <div style="display: flex; flex-direction: column; height: 100vh; width: 100%; overflow: hidden;">
+    <style>
+        .token-display-root {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        .token-display-main {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .token-display-current {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .token-display-token {
+            font-size: 180px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .token-display-patient {
+            margin-top: 24px;
+            font-size: 48px;
+            font-weight: 600;
+        }
+
+        .token-display-sidebar {
+            display: flex;
+            flex-direction: column;
+            width: 320px;
+            padding: 24px;
+            background-color: rgba(24, 24, 27, 0.5);
+            border-left: 1px solid #27272a;
+        }
+
+        .token-display-controls {
+            position: absolute;
+            right: 24px;
+            bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        @media (max-width: 1023px) {
+            .token-display-main {
+                flex-direction: column;
+                overflow-y: auto;
+            }
+
+            .token-display-current {
+                padding-bottom: 96px;
+            }
+
+            .token-display-sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid #27272a;
+            }
+
+            .token-display-token {
+                font-size: 96px;
+            }
+
+            .token-display-patient {
+                font-size: 28px;
+            }
+
+            .token-display-controls {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 12px;
+                background-color: rgba(9, 9, 11, 0.95);
+                border-top: 1px solid #27272a;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 639px) {
+            .token-display-token {
+                font-size: 64px;
+            }
+
+            .token-display-patient {
+                font-size: 22px;
+            }
+
+            .token-display-controls {
+                gap: 8px;
+            }
+        }
+    </style>
+
+    <div class="token-display-root">
         {{-- Top bar --}}
         <div style="display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; background-color: #18181b; border-bottom: 1px solid #27272a;">
             <div style="display: flex; align-items: center;">
@@ -27,15 +134,29 @@
             </div>
 
             @if ($selectedQueue)
-                <a
-                    href="{{ route('display.tokens.tv') }}"
-                    style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                        <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
-                    </svg>
-                    {{ __('Switch Queue') }}
-                </a>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    @auth
+                        <a
+                            href="{{ route('display.tokens.control', ['selectedQueueId' => $selectedQueue->id]) }}"
+                            style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
+                                <path fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM4.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.5 8Z" clip-rule="evenodd"/>
+                            </svg>
+                            {{ __('Control') }}
+                        </a>
+                    @endauth
+
+                    <a
+                        href="{{ route('display.tokens.tv') }}"
+                        style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
+                            <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
+                        </svg>
+                        {{ __('Switch Queue') }}
+                    </a>
+                </div>
             @endif
         </div>
 
@@ -77,19 +198,19 @@
             </div>
         @else
             {{-- Token display --}}
-            <div style="display: flex; flex: 1; position: relative; overflow: hidden;">
-                <div style="display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 32px;">
+            <div class="token-display-main">
+                <div class="token-display-current">
                     @if ($currentToken)
-                        <div style="text-align: center; color: #ffffff;">
+                        <div style="color: #ffffff;">
                             <p style="margin: 0 0 16px 0; font-size: 20px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: #a1a1aa;">
                                 {{ __('Now Serving') }}
                             </p>
 
-                            <div style="font-size: 180px; font-weight: 900; line-height: 1;">
+                            <div class="token-display-token">
                                 {{ $currentToken->token_number }}
                             </div>
 
-                            <div style="margin-top: 24px; font-size: 48px; font-weight: 600;">
+                            <div class="token-display-patient">
                                 {{ $patientName($currentToken) }}
                             </div>
 
@@ -100,7 +221,7 @@
                             @endif
                         </div>
                     @else
-                        <div style="text-align: center;">
+                        <div>
                             <p style="margin: 0; font-size: 48px; font-weight: 600; color: #d4d4d8;">
                                 {{ __('No token being served') }}
                             </p>
@@ -114,7 +235,7 @@
 
                 {{-- Upcoming tokens sidebar --}}
                 @if ($sidebarOpen)
-                    <div style="display: flex; flex-direction: column; width: 320px; padding: 24px; background-color: rgba(24, 24, 27, 0.5); border-left: 1px solid #27272a;">
+                    <div class="token-display-sidebar">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                             <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">
                                 {{ __('Upcoming') }}
@@ -215,11 +336,11 @@
 
                 {{-- Controls --}}
                 @auth
-                    <div style="position: absolute; right: 24px; bottom: 24px;">
+                    <div class="token-display-controls">
                         @if (! $sidebarOpen)
                             <a
                                 href="{{ route('display.tokens.tv.toggle-sidebar', ['queue' => $selectedQueue->id, 'sidebar' => '1']) }}"
-                                style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #3f3f46; border: none; border-radius: 8px;"
+                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #3f3f46; border: none; border-radius: 8px;"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
                                     <path fill-rule="evenodd" d="M4.22 4.22a.75.75 0 0 1 1.06 0l4.24 4.24a.75.75 0 0 1 0 1.06l-4.24 4.24a.75.75 0 1 1-1.06-1.06L7.94 8 4.22 4.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
@@ -236,7 +357,7 @@
                             <button
                                 type="submit"
                                 @disabled(! $currentToken)
-                                style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
+                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
                                     <path d="M8.5 1.5a.5.5 0 0 0-1 0v3.879L5.479 3.358a.5.5 0 1 0-.707.707l2.828 2.828a.5.5 0 0 0 .707 0l2.828-2.828a.5.5 0 1 0-.707-.707L8.5 5.379V1.5Z"/>
@@ -253,7 +374,7 @@
                             <button
                                 type="submit"
                                 @disabled(! $currentToken)
-                                style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #dc2626; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
+                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #dc2626; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
                                     <path fill-rule="evenodd" d="M2 8a.75.75 0 0 1 .75-.75h8.69l-3.22-3.22a.75.75 0 1 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z" clip-rule="evenodd"/>

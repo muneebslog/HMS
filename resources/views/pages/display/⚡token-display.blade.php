@@ -207,210 +207,218 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 }; ?>
 
-<div
-    style="display: flex; flex-direction: column; height: 100vh; width: 100%; overflow: hidden;"
-    wire:poll.5s
->
+<div class="flex min-h-screen flex-col" wire:poll.5s>
     {{-- Top bar --}}
-    <div style="display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 24px; background-color: #18181b; border-bottom: 1px solid #27272a;">
-        <div style="display: flex; align-items: center;">
-            <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff;">
+    <div class="flex h-16 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 sm:px-6">
+        <div class="flex items-center gap-3 sm:gap-4">
+            <h1 class="text-lg font-bold text-white sm:text-xl">
                 {{ config('app.name', 'HMS') }}
             </h1>
 
             @if ($this->selectedQueue)
-                <span style="display: inline-flex; align-items: center; margin-left: 16px; padding: 6px 12px; font-size: 14px; font-weight: 500; color: #14532d; background-color: #86efac; border-radius: 6px;">
+                <flux:badge variant="success" size="sm">
                     {{ $this->selectedQueue->service->name }}
-                </span>
+                </flux:badge>
 
                 @if ($this->selectedQueue->doctor)
-                    <p style="margin: 0 0 0 16px; font-size: 16px; color: #a1a1aa;">
+                    <p class="hidden text-base text-zinc-400 sm:block">
                         {{ $this->selectedQueue->doctor->name }}
                     </p>
                 @endif
             @endif
         </div>
 
-        @if ($this->selectedQueue)
-            <button
-                type="button"
-                wire:click="showQueues"
-                style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                    <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
-                </svg>
-                {{ __('Switch Queue') }}
-            </button>
-        @endif
+        <div class="flex items-center gap-2">
+            @if ($this->selectedQueue)
+                @auth
+                    <flux:button
+                        type="button"
+                        variant="ghost"
+                        icon="adjustments-horizontal"
+                        :href="route('display.tokens.control', ['selectedQueueId' => $this->selectedQueue->id])"
+                        wire:navigate
+                        class="hidden sm:inline-flex"
+                    >
+                        {{ __('Control') }}
+                    </flux:button>
+                @endauth
+
+                <flux:button
+                    type="button"
+                    variant="ghost"
+                    icon="arrow-left-start-on-rectangle"
+                    wire:click="showQueues"
+                    class="hidden sm:inline-flex"
+                >
+                    {{ __('Switch Queue') }}
+                </flux:button>
+
+                <flux:button
+                    type="button"
+                    variant="ghost"
+                    icon="arrow-left-start-on-rectangle"
+                    wire:click="showQueues"
+                    class="sm:hidden"
+                    title="{{ __('Switch Queue') }}"
+                />
+            @endif
+        </div>
     </div>
 
     {{-- Queue selector --}}
     @if ($this->showQueueSelector || $this->selectedQueue === null)
-        <div style="display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 32px;">
-            <h2 style="margin: 0 0 32px 0; font-size: 32px; font-weight: 600; color: #ffffff;">
+        <div class="flex flex-1 flex-col items-center justify-center p-6">
+            <flux:heading level="2" size="xl" class="mb-8 text-center">
                 {{ __('Select a Queue') }}
-            </h2>
+            </flux:heading>
 
             @if ($this->queues->isEmpty())
-                <p style="margin: 0; font-size: 20px; color: #a1a1aa;">
+                <flux:text class="text-zinc-500">
                     {{ __('No open queues available.') }}
-                </p>
+                </flux:text>
             @else
-                <div style="display: flex; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1200px;">
+                <div class="grid w-full max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach ($this->queues as $queue)
-                        <button
+                        <flux:button
                             type="button"
                             wire:click="selectQueue({{ $queue->id }})"
                             wire:key="queue-card-{{ $queue->id }}"
-                            style="display: flex; flex-direction: column; align-items: flex-start; width: 320px; margin: 12px; padding: 24px; text-align: left; background-color: #18181b; border: 1px solid #3f3f46; border-radius: 16px;"
+                            variant="filled"
+                            class="h-auto flex-col items-start justify-start gap-1 p-6 text-left"
                         >
-                            <h3 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #ffffff;">
-                                {{ $queue->service->name }}
-                            </h3>
-
-                            <p style="margin: 0; font-size: 18px; color: #a1a1aa;">
-                                {{ $queue->doctor?->name ?? __('No doctor assigned') }}
-                            </p>
-                        </button>
+                            <span class="text-lg font-bold text-white">{{ $queue->service->name }}</span>
+                            <span class="text-zinc-400">{{ $queue->doctor?->name ?? __('No doctor assigned') }}</span>
+                        </flux:button>
                     @endforeach
                 </div>
             @endif
         </div>
     @else
         {{-- Token display --}}
-        <div style="display: flex; flex: 1; position: relative; overflow: hidden;">
-            <div style="display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 32px;">
+        <div class="flex flex-1 flex-col overflow-hidden lg:flex-row">
+            <div class="flex flex-1 flex-col items-center justify-center p-6 pb-24 text-center lg:pb-6">
                 @if ($this->currentToken)
-                    <div style="text-align: center; color: #ffffff;">
-                        <p style="margin: 0 0 16px 0; font-size: 20px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: #a1a1aa;">
-                            {{ __('Now Serving') }}
-                        </p>
+                    <flux:text class="mb-4 text-xs font-medium uppercase tracking-widest text-zinc-500 sm:text-sm">
+                        {{ __('Now Serving') }}
+                    </flux:text>
 
-                        <div style="font-size: 180px; font-weight: 900; line-height: 1;">
-                            {{ $this->currentToken->token_number }}
-                        </div>
-
-                        <div style="margin-top: 24px; font-size: 48px; font-weight: 600;">
-                            {{ $this->currentToken->patient?->name ?? $this->currentToken->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                        </div>
-
-                        @if ($this->selectedQueue?->doctor)
-                            <div style="margin-top: 12px; font-size: 24px; color: #a1a1aa;">
-                                {{ $this->selectedQueue->doctor->name }}
-                            </div>
-                        @endif
+                    <div class="text-7xl font-black text-white sm:text-8xl md:text-9xl lg:text-[180px]">
+                        {{ $this->currentToken->token_number }}
                     </div>
+
+                    <div class="mt-4 text-2xl font-semibold text-white sm:text-3xl md:text-4xl lg:mt-6">
+                        {{ $this->currentToken->patient?->name ?? $this->currentToken->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                    </div>
+
+                    @if ($this->selectedQueue?->doctor)
+                        <div class="mt-2 text-lg text-zinc-400 lg:mt-3 lg:text-2xl">
+                            {{ $this->selectedQueue->doctor->name }}
+                        </div>
+                    @endif
                 @else
-                    <div style="text-align: center;">
-                        <p style="margin: 0; font-size: 48px; font-weight: 600; color: #d4d4d8;">
-                            {{ __('No token being served') }}
-                        </p>
+                    <flux:heading level="2" size="xl" class="text-zinc-300">
+                        {{ __('No token being served') }}
+                    </flux:heading>
 
-                        <p style="margin: 16px 0 0 0; font-size: 24px; color: #71717a;">
-                            {{ __('Use the controls to call the next token.') }}
-                        </p>
-                    </div>
+                    <flux:text class="mt-4 text-zinc-500">
+                        {{ __('Use the controls to call the next token.') }}
+                    </flux:text>
                 @endif
             </div>
 
             {{-- Upcoming tokens sidebar --}}
             @if ($this->sidebarOpen)
-                <div style="display: flex; flex-direction: column; width: 320px; padding: 24px; background-color: rgba(24, 24, 27, 0.5); border-left: 1px solid #27272a;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                        <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">
+                <div class="flex shrink-0 flex-col border-t border-zinc-800 bg-zinc-900/50 p-4 sm:p-6 lg:w-80 lg:border-l lg:border-t-0">
+                    <div class="mb-4 flex items-center justify-between sm:mb-6">
+                        <flux:heading level="3" size="lg">
                             {{ __('Upcoming') }}
-                        </h3>
+                        </flux:heading>
 
                         @auth
-                            <button
+                            <flux:button
                                 type="button"
+                                variant="ghost"
+                                icon="chevron-double-right"
                                 wire:click="toggleSidebar"
-                                style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: #a1a1aa; background-color: transparent; border: 1px solid #3f3f46; border-radius: 6px;"
                                 title="{{ __('Collapse sidebar') }}"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M11.78 4.22a.75.75 0 0 1 0 1.06L8.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.24-4.24a.75.75 0 0 1 0-1.06l4.24-4.24a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/>
-                                    <path d="M3.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 3.5 8Z"/>
-                                </svg>
-                            </button>
+                            />
                         @endauth
                     </div>
 
-                    <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 24px;">
+                    <div class="flex flex-1 flex-col gap-4 overflow-y-auto sm:gap-6">
                         <div>
-                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                 {{ __('Reserved') }}
                             </h4>
 
                             @forelse ($this->reservedTokens as $token)
                                 <div
-                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
                                     wire:key="reserved-token-{{ $token->id }}"
                                 >
                                     <div>
-                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                        <div class="text-xl font-bold text-white sm:text-2xl">
                                             {{ $token->token_number }}
                                         </div>
-                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                        <div class="text-sm text-zinc-400">
                                             {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
                                         </div>
                                     </div>
                                 </div>
                             @empty
-                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                <p class="text-sm text-zinc-500">
                                     {{ __('No reserved tokens.') }}
                                 </p>
                             @endforelse
                         </div>
 
                         <div>
-                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                 {{ __('Arrived') }}
                             </h4>
 
                             @forelse ($this->arrivedTokens as $token)
                                 <div
-                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
                                     wire:key="arrived-token-{{ $token->id }}"
                                 >
                                     <div>
-                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                        <div class="text-xl font-bold text-white sm:text-2xl">
                                             {{ $token->token_number }}
                                         </div>
-                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                        <div class="text-sm text-zinc-400">
                                             {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
                                         </div>
                                     </div>
                                 </div>
                             @empty
-                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                <p class="text-sm text-zinc-500">
                                     {{ __('No arrived tokens.') }}
                                 </p>
                             @endforelse
                         </div>
 
                         <div>
-                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                                 {{ __('Waiting') }}
                             </h4>
 
                             @forelse ($this->walkInTokens as $token)
                                 <div
-                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
                                     wire:key="walk-in-token-{{ $token->id }}"
                                 >
                                     <div>
-                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                        <div class="text-xl font-bold text-white sm:text-2xl">
                                             {{ $token->token_number }}
                                         </div>
-                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                        <div class="text-sm text-zinc-400">
                                             {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
                                         </div>
                                     </div>
                                 </div>
                             @empty
-                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                <p class="text-sm text-zinc-500">
                                     {{ __('No waiting tokens.') }}
                                 </p>
                             @endforelse
@@ -421,56 +429,47 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
             {{-- Controls --}}
             @auth
-                <div style="position: absolute; right: 24px; bottom: 24px; display: flex;">
+                <div class="fixed bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 p-3 backdrop-blur sm:gap-3 lg:absolute lg:right-6 lg:bottom-6 lg:left-auto lg:w-auto lg:border-0 lg:bg-transparent lg:p-0">
                     @if (! $this->sidebarOpen)
-                        <button
+                        <flux:button
                             type="button"
                             wire:click="toggleSidebar"
-                            style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #3f3f46; border: none; border-radius: 8px;"
+                            variant="ghost"
+                            icon="chevron-double-left"
+                            class="hidden lg:inline-flex"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                                <path fill-rule="evenodd" d="M4.22 4.22a.75.75 0 0 1 1.06 0l4.24 4.24a.75.75 0 0 1 0 1.06l-4.24 4.24a.75.75 0 1 1-1.06-1.06L7.94 8 4.22 4.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
-                                <path d="M12.5 8a.75.75 0 0 1-.75.75h-5a.75.75 0 0 1 0-1.5h5A.75.75 0 0 1 12.5 8Z"/>
-                            </svg>
                             {{ __('Show Upcoming') }}
-                        </button>
+                        </flux:button>
                     @endif
 
-                    <button
+                    <flux:button
                         type="button"
                         wire:click="recallCurrent"
-                        @disabled(! $this->currentToken)
-                        style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px; opacity: {{ $this->currentToken ? '1' : '0.5' }};"
+                        icon="speaker-wave"
+                        variant="primary"
+                        :disabled="! $this->currentToken"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                            <path d="M8.5 1.5a.5.5 0 0 0-1 0v3.879L5.479 3.358a.5.5 0 1 0-.707.707l2.828 2.828a.5.5 0 0 0 .707 0l2.828-2.828a.5.5 0 1 0-.707-.707L8.5 5.379V1.5Z"/>
-                            <path d="M12.5 9a.5.5 0 0 1-.5.5H8.5v2.5a.5.5 0 0 1-1 0V9.5H5a.5.5 0 0 1 0-1h8a.5.5 0 0 1 .5.5Z"/>
-                        </svg>
                         {{ __('Recall') }}
-                    </button>
+                    </flux:button>
 
-                    <button
+                    <flux:button
                         type="button"
                         wire:click="skipCurrent"
-                        @disabled(! $this->currentToken)
-                        style="display: inline-flex; align-items: center; margin-right: 12px; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #dc2626; border: none; border-radius: 8px; opacity: {{ $this->currentToken ? '1' : '0.5' }};"
+                        icon="forward"
+                        variant="danger"
+                        :disabled="! $this->currentToken"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                            <path fill-rule="evenodd" d="M2 8a.75.75 0 0 1 .75-.75h8.69l-3.22-3.22a.75.75 0 1 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z" clip-rule="evenodd"/>
-                        </svg>
                         {{ __('Skip') }}
-                    </button>
+                    </flux:button>
 
-                    <button
+                    <flux:button
                         type="button"
                         wire:click="callNext"
-                        style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px;"
+                        icon="arrow-right"
+                        variant="primary"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                            <path fill-rule="evenodd" d="M2 8a.75.75 0 0 1 .75-.75h8.69l-3.22-3.22a.75.75 0 1 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z" clip-rule="evenodd"/>
-                        </svg>
                         {{ __('Next') }}
-                    </button>
+                    </flux:button>
                 </div>
             @endauth
         </div>

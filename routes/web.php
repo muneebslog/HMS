@@ -20,6 +20,10 @@ Route::post('display/tokens/tv/skip', [TokenDisplayController::class, 'skipCurre
 Route::post('display/tokens/tv/recall', [TokenDisplayController::class, 'recallCurrent'])->name('display.tokens.tv.recall');
 Route::get('display/tokens/tv/toggle-sidebar', [TokenDisplayController::class, 'toggleSidebar'])->name('display.tokens.tv.toggle-sidebar');
 
+Route::livewire('display/tokens/control', 'pages::display.token-control')
+    ->middleware(['auth'])
+    ->name('display.tokens.control');
+
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 
