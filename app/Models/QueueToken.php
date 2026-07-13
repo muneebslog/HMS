@@ -24,6 +24,7 @@ class QueueToken extends Model
         'patient_id',
         'token_number',
         'status',
+        'origin',
     ];
 
     /**

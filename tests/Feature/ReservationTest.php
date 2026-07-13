@@ -89,6 +89,7 @@ test('a token can be reserved for a doctor', function () {
     expect($token)->not->toBeNull()
         ->token_number->toBe(5)
         ->status->toBe('reserved')
+        ->origin->toBe('reservation')
         ->patient->name->toBe('Reserved Patient')
         ->patient->phone->toBe(validPhone())
         ->invoice_item_id->toBeNull();
@@ -108,6 +109,7 @@ test('reserving an already used token fails', function () {
         'patient_id' => Patient::factory()->create()->id,
         'token_number' => 3,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)
@@ -184,6 +186,7 @@ test('marking a reservation arrived creates an invoice and links the token', fun
     $token->refresh();
     expect($token)
         ->status->toBe('waiting')
+        ->origin->toBe('reservation')
         ->invoice_item_id->not->toBeNull()
         ->invoiceItem->invoice_id->toBe($invoice->id);
 });
@@ -257,6 +260,7 @@ test('patient calling page lists only reserved tokens for the selected doctor', 
         'patient_id' => $reservedPatient->id,
         'token_number' => 1,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     QueueToken::create([
@@ -292,6 +296,7 @@ test('patient calling page renders a call link for each reservation', function (
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)
@@ -536,6 +541,7 @@ test('uncalled reservations appear in the not called today list', function () {
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)
@@ -562,6 +568,7 @@ test('marking a reservation called creates a patient call record', function () {
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)
@@ -595,6 +602,7 @@ test('a called reservation is removed from the not called today list', function 
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'reserved',
+        'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)

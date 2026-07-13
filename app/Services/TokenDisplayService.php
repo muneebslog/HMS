@@ -59,14 +59,13 @@ class TokenDisplayService
     }
 
     /**
-     * Find the oldest waiting token and mark it as serving.
+     * Find the next waiting token by token number and mark it as serving.
      */
     private function callOldestWaiting(ServiceQueue $queue): ?QueueToken
     {
         $next = QueueToken::where('service_queue_id', $queue->id)
             ->where('status', 'waiting')
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->orderBy('token_number')
             ->lockForUpdate()
             ->first();
 

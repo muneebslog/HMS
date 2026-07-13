@@ -28,7 +28,8 @@ class TokenDisplayController extends Controller
             'queues' => $this->queues(),
             'selectedQueue' => $selectedQueue,
             'currentToken' => $selectedQueue !== null ? app(TokenDisplayService::class)->currentToken($selectedQueue) : null,
-            'upcomingTokens' => $selectedQueue !== null ? $this->upcomingTokens($selectedQueue) : new Collection,
+            'arrivedTokens' => $selectedQueue !== null ? $this->arrivedTokens($selectedQueue) : new Collection,
+            'walkInTokens' => $selectedQueue !== null ? $this->walkInTokens($selectedQueue) : new Collection,
             'sidebarOpen' => $request->boolean('sidebar', auth()->check()),
         ]);
     }
@@ -138,17 +139,33 @@ class TokenDisplayController extends Controller
     }
 
     /**
-     * Get the upcoming waiting tokens for the selected queue.
+     * Get the reserved patients who have arrived for the selected queue.
      *
      * @return Collection<int, QueueToken>
      */
-    private function upcomingTokens(ServiceQueue $queue): Collection
+    private function arrivedTokens(ServiceQueue $queue): Collection
     {
         return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
             ->where('service_queue_id', $queue->id)
             ->where('status', 'waiting')
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->where('origin', 'reservation')
+            ->orderBy('token_number')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * Get the walk-in patients waiting for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    private function walkInTokens(ServiceQueue $queue): Collection
+    {
+        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
+            ->where('service_queue_id', $queue->id)
+            ->where('status', 'waiting')
+            ->where('origin', 'walk_in')
+            ->orderBy('token_number')
             ->limit(8)
             ->get();
     }

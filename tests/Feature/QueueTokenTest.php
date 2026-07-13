@@ -215,7 +215,7 @@ test('management can update token reset type for a service', function () {
     expect($service->fresh()->token_reset_type)->toBe(TokenResetType::Daily);
 });
 
-test('queue token is created with waiting status', function () {
+test('queue token is created with waiting status and walk-in origin', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create([
@@ -225,7 +225,9 @@ test('queue token is created with waiting status', function () {
 
     $invoice = createWalkInInvoice($user, $shift, $service);
 
-    expect($invoice->items->first()->queueToken->status)->toBe('waiting');
+    expect($invoice->items->first()->queueToken)
+        ->status->toBe('waiting')
+        ->origin->toBe('walk_in');
 });
 
 test('walk-in page shows expected token number before saving', function () {

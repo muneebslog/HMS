@@ -43,6 +43,7 @@ class QueueService
                 'patient_id' => $invoice->patient_id,
                 'token_number' => $nextNumber,
                 'status' => 'waiting',
+                'origin' => 'walk_in',
             ]);
         });
     }

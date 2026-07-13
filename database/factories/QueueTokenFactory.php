@@ -25,6 +25,7 @@ class QueueTokenFactory extends Factory
             'patient_id' => null,
             'token_number' => fake()->randomNumber(2),
             'status' => 'waiting',
+            'origin' => 'walk_in',
         ];
     }
 }

@@ -73,12 +73,12 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Get the upcoming waiting tokens for the selected queue.
+     * Get the reserved patients who have arrived for the selected queue.
      *
      * @return Collection<int, QueueToken>
      */
     #[Computed]
-    public function upcomingTokens(): Collection
+    public function arrivedTokens(): Collection
     {
         if ($this->selectedQueueId === null) {
             return new Collection();
@@ -87,8 +87,29 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
         return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
             ->where('service_queue_id', $this->selectedQueueId)
             ->where('status', 'waiting')
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->where('origin', 'reservation')
+            ->orderBy('token_number')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * Get the walk-in patients waiting for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function walkInTokens(): Collection
+    {
+        if ($this->selectedQueueId === null) {
+            return new Collection();
+        }
+
+        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
+            ->where('service_queue_id', $this->selectedQueueId)
+            ->where('status', 'waiting')
+            ->where('origin', 'walk_in')
+            ->orderBy('token_number')
             ->limit(8)
             ->get();
     }
@@ -296,26 +317,58 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                         @endauth
                     </div>
 
-                    <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto;">
-                        @forelse ($this->upcomingTokens as $token)
-                            <div
-                                style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                                wire:key="upcoming-token-{{ $token->id }}"
-                            >
-                                <div>
-                                    <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                        {{ $token->token_number }}
-                                    </div>
-                                    <div style="font-size: 14px; color: #a1a1aa;">
-                                        {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                    <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 24px;">
+                        <div>
+                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                                {{ __('Arrived') }}
+                            </h4>
+
+                            @forelse ($this->arrivedTokens as $token)
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    wire:key="arrived-token-{{ $token->id }}"
+                                >
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                            {{ $token->token_number }}
+                                        </div>
+                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        @empty
-                            <p style="margin: 0; font-size: 16px; color: #71717a;">
-                                {{ __('No waiting tokens.') }}
-                            </p>
-                        @endforelse
+                            @empty
+                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                    {{ __('No arrived tokens.') }}
+                                </p>
+                            @endforelse
+                        </div>
+
+                        <div>
+                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                                {{ __('Waiting') }}
+                            </h4>
+
+                            @forelse ($this->walkInTokens as $token)
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    wire:key="walk-in-token-{{ $token->id }}"
+                                >
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                            {{ $token->token_number }}
+                                        </div>
+                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                    {{ __('No waiting tokens.') }}
+                                </p>
+                            @endforelse
+                        </div>
                     </div>
                 </div>
             @endif

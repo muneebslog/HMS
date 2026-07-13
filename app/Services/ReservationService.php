@@ -45,6 +45,7 @@ class ReservationService
                 'patient_id' => $patient->id,
                 'token_number' => $tokenNumber,
                 'status' => 'reserved',
+                'origin' => 'reservation',
             ]);
 
             $lockedQueue->update([

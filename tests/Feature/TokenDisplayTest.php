@@ -361,3 +361,95 @@ test('authenticated users can collapse and reopen the upcoming tokens sidebar', 
         ->assertSet('sidebarOpen', true)
         ->assertSee(__('Upcoming'));
 });
+
+test('call next selects the lowest waiting token number regardless of creation order', function () {
+    $user = User::factory()->create();
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 6,
+        'status' => 'serving',
+    ]);
+
+    $nextToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->call('callNext');
+
+    expect($currentToken->fresh()->status)->toBe('served')
+        ->and($nextToken->fresh()->status)->toBe('serving');
+});
+
+test('arrived reservation tokens are shown in the arrived sidebar section', function () {
+    $user = User::factory()->create();
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 5,
+        'status' => 'waiting',
+        'origin' => 'reservation',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSee(__('Arrived'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});
+
+test('walk-in tokens are shown in the waiting sidebar section', function () {
+    $user = User::factory()->create();
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 3,
+        'status' => 'waiting',
+        'origin' => 'walk_in',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSee(__('Waiting'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});

@@ -351,3 +351,103 @@ test('the tv display page includes an auto refresh meta tag', function () {
     $response->assertOk()
         ->assertSee('http-equiv="refresh"', false);
 });
+
+test('tv display shows arrived reservation tokens in the arrived section', function () {
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 5,
+        'status' => 'waiting',
+        'origin' => 'reservation',
+    ]);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
+
+    $response->assertOk()
+        ->assertSee(__('Arrived'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});
+
+test('tv display shows walk-in tokens in the waiting section', function () {
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 3,
+        'status' => 'waiting',
+        'origin' => 'walk_in',
+    ]);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
+
+    $response->assertOk()
+        ->assertSee(__('Waiting'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});
+
+test('tv display calls the lowest waiting token number on next', function () {
+    $user = User::factory()->create();
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 6,
+        'status' => 'serving',
+    ]);
+
+    $nextToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('display.tokens.tv.next'), [
+            'queue' => $queue->id,
+        ]);
+
+    expect($currentToken->fresh()->status)->toBe('served')
+        ->and($nextToken->fresh()->status)->toBe('serving');
+});
