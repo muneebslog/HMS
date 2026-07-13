@@ -136,3 +136,34 @@ test('saving a lab invoice clears the form', function () {
         ->assertSet('patientAge', null)
         ->assertCount('items', 0);
 });
+
+test('a lab invoice can be saved when a test has no code', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'ASO Titer',
+        'test_code' => null,
+        'test_price' => 1000.00,
+        'time_required' => 'Next day',
+        'is_in_house' => false,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('patientGender', 'male')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $invoice = LabInvoice::first();
+    expect($invoice)->not->toBeNull()
+        ->and($invoice->items)->toHaveCount(1)
+        ->and($invoice->items->first())
+        ->test_name->toBe('ASO Titer')
+        ->test_code->toBeNull()
+        ->price->toBe(1000.00);
+});

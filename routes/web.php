@@ -52,7 +52,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::middleware('open.shift')->group(function () {
             Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');
-            Route::livewire('reception/doctor-reservations', 'pages::reception.doctor-reservations')->name('reception.doctor-reservations');
+            Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
         });

@@ -306,7 +306,7 @@ new #[Title('Lab Entry')] class extends Component
                     <flux:select wire:model="selectedLabTestId" required>
                         <option value="">{{ __('Select a test') }}</option>
                         @foreach ($this->labTests as $labTest)
-                            <option value="{{ $labTest->id }}">{{ $labTest->test_name }} ({{ $labTest->test_code }})</option>
+                            <option value="{{ $labTest->id }}">{{ $labTest->test_name }}{{ $labTest->test_code ? ' ('.$labTest->test_code.')' : '' }}</option>
                         @endforeach
                     </flux:select>
                     <flux:error name="selectedLabTestId" />
@@ -339,7 +339,7 @@ new #[Title('Lab Entry')] class extends Component
                     @forelse ($this->items as $index => $item)
                         <flux:table.row wire:key="lab-item-{{ $index }}">
                             <flux:table.cell>{{ $item['test_name'] }}</flux:table.cell>
-                            <flux:table.cell>{{ $item['test_code'] }}</flux:table.cell>
+                            <flux:table.cell>{{ $item['test_code'] ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($item['test_price'], 2) }}</flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button

@@ -6,6 +6,7 @@ use Database\Factories\QueueTokenFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class QueueToken extends Model
 {
@@ -53,5 +54,15 @@ class QueueToken extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
+    }
+
+    /**
+     * Get the call records for this token.
+     *
+     * @return HasMany<PatientCall, $this>
+     */
+    public function patientCalls(): HasMany
+    {
+        return $this->hasMany(PatientCall::class);
     }
 }

@@ -471,7 +471,7 @@ new #[Title('Invoices')] class extends Component
                         @foreach ($this->viewedLabInvoice->items as $item)
                             <flux:table.row wire:key="lab-invoice-item-{{ $item->id }}">
                                 <flux:table.cell>{{ $item->test_name }}</flux:table.cell>
-                                <flux:table.cell>{{ $item->test_code }}</flux:table.cell>
+                                <flux:table.cell>{{ $item->test_code ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
                             </flux:table.row>
                         @endforeach
