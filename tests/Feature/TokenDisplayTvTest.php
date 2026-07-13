@@ -451,3 +451,35 @@ test('tv display calls the lowest waiting token number on next', function () {
     expect($currentToken->fresh()->status)->toBe('served')
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
+
+test('tv display shows reserved tokens in the reserved section', function () {
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 4,
+        'status' => 'reserved',
+        'origin' => 'reservation',
+    ]);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
+
+    $response->assertOk()
+        ->assertSee(__('Reserved'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});

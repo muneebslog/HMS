@@ -137,6 +137,31 @@
                         <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 24px;">
                             <div>
                                 <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    {{ __('Reserved') }}
+                                </h4>
+
+                                @forelse ($reservedTokens as $token)
+                                    <div
+                                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    >
+                                        <div>
+                                            <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                                {{ $token->token_number }}
+                                            </div>
+                                            <div style="font-size: 14px; color: #a1a1aa;">
+                                                {{ $patientName($token) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                        {{ __('No reserved tokens.') }}
+                                    </p>
+                                @endforelse
+                            </div>
+
+                            <div>
+                                <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
                                     {{ __('Arrived') }}
                                 </h4>
 

@@ -115,6 +115,26 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
+     * Get the reserved tokens for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function reservedTokens(): Collection
+    {
+        if ($this->selectedQueueId === null) {
+            return new Collection();
+        }
+
+        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
+            ->where('service_queue_id', $this->selectedQueueId)
+            ->where('status', 'reserved')
+            ->orderBy('token_number')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
      * Select a queue and start displaying its tokens.
      */
     public function selectQueue(int $id): void
@@ -318,6 +338,32 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                     </div>
 
                     <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 24px;">
+                        <div>
+                            <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
+                                {{ __('Reserved') }}
+                            </h4>
+
+                            @forelse ($this->reservedTokens as $token)
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                    wire:key="reserved-token-{{ $token->id }}"
+                                >
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                            {{ $token->token_number }}
+                                        </div>
+                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                    {{ __('No reserved tokens.') }}
+                                </p>
+                            @endforelse
+                        </div>
+
                         <div>
                             <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
                                 {{ __('Arrived') }}

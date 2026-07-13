@@ -453,3 +453,31 @@ test('walk-in tokens are shown in the waiting sidebar section', function () {
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
 });
+
+test('reserved tokens are shown in the reserved sidebar section', function () {
+    $user = User::factory()->create();
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 4,
+        'status' => 'reserved',
+        'origin' => 'reservation',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSee(__('Reserved'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});

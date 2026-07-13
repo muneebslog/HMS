@@ -28,6 +28,7 @@ class TokenDisplayController extends Controller
             'queues' => $this->queues(),
             'selectedQueue' => $selectedQueue,
             'currentToken' => $selectedQueue !== null ? app(TokenDisplayService::class)->currentToken($selectedQueue) : null,
+            'reservedTokens' => $selectedQueue !== null ? $this->reservedTokens($selectedQueue) : new Collection,
             'arrivedTokens' => $selectedQueue !== null ? $this->arrivedTokens($selectedQueue) : new Collection,
             'walkInTokens' => $selectedQueue !== null ? $this->walkInTokens($selectedQueue) : new Collection,
             'sidebarOpen' => $request->boolean('sidebar', auth()->check()),
@@ -136,6 +137,21 @@ class TokenDisplayController extends Controller
             'tokens.patient',
             'tokens.invoiceItem.invoice.patient',
         ])->find($queueId);
+    }
+
+    /**
+     * Get the reserved tokens for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    private function reservedTokens(ServiceQueue $queue): Collection
+    {
+        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
+            ->where('service_queue_id', $queue->id)
+            ->where('status', 'reserved')
+            ->orderBy('token_number')
+            ->limit(8)
+            ->get();
     }
 
     /**
