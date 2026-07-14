@@ -17,6 +17,18 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @fluxAppearance
 
+        {{-- Fallback redirect for older Android TV browsers that the server-side middleware may miss. --}}
+        <script>
+            (function () {
+                var ua = navigator.userAgent.toLowerCase();
+                var match = ua.match(/chrome\/(\d+)/);
+
+                if (match && parseInt(match[1], 10) < 111) {
+                    window.location.replace('{{ route('display.tokens.tv') }}' + window.location.search);
+                }
+            })();
+        </script>
+
         {{-- Fallback styles for older Android TV browsers that do not support Tailwind CSS layers. --}}
         <style>
             *, *::before, *::after {

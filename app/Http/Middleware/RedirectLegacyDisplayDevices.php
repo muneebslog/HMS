@@ -19,11 +19,31 @@ class RedirectLegacyDisplayDevices
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($this->isLegacyDisplayDevice($request) && ! $request->routeIs('display.tokens.tv*')) {
-            return redirect()->route('display.tokens.tv', $request->only(['queue', 'sidebar']));
+        if (! $this->isLegacyDisplayDevice($request) || $this->isAlreadyOnTvRoute($request)) {
+            return $next($request);
         }
 
-        return $next($request);
+        return $this->redirectToTvRoute($request);
+    }
+
+    /**
+     * Determine whether the request is already targeting a TV/legacy route.
+     */
+    private function isAlreadyOnTvRoute(Request $request): bool
+    {
+        return $request->routeIs('display.tokens.tv*', 'reception.queue.tv');
+    }
+
+    /**
+     * Redirect the request to the appropriate TV/legacy route.
+     */
+    private function redirectToTvRoute(Request $request): Response
+    {
+        if ($request->routeIs('reception.queue')) {
+            return redirect()->route('reception.queue.tv', $request->only(['queue']));
+        }
+
+        return redirect()->route('display.tokens.tv', $request->only(['queue', 'sidebar']));
     }
 
     /**

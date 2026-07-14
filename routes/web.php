@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
+use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
 use Illuminate\Support\Facades\Route;
@@ -42,7 +43,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
-        Route::livewire('reception/queue', 'pages::reception.queue')->middleware('open.shift')->name('reception.queue');
+        Route::livewire('reception/queue', 'pages::reception.queue')->middleware(['open.shift', RedirectLegacyDisplayDevices::class])->name('reception.queue');
+        Route::get('reception/queue/tv', QueueTvController::class)->middleware('open.shift')->name('reception.queue.tv');
         Route::livewire('management/shift-history', 'pages::management.shift-history')->name('management.shift-history');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
     });
