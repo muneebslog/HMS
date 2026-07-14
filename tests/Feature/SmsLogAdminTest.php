@@ -85,3 +85,14 @@ test('sms logs page shows failure reason for failed logs in a modal', function (
         ->assertSee('Insufficient credit')
         ->assertSee('Failure Reason');
 });
+
+test('sms logs page shows a placeholder when a failed log has no recorded reason', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $log = SmsLog::factory()->failed()->create(['provider_response' => null]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.sms-logs')
+        ->call('viewLog', $log->id)
+        ->assertSee('Failure Reason')
+        ->assertSee('No failure reason was recorded for this log.');
+});

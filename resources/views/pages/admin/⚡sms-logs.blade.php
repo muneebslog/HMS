@@ -193,12 +193,14 @@ new #[Title('SMS Logs')] class extends Component
                     <flux:text class="mt-1 block whitespace-pre-wrap">{{ $this->selectedLog->message ?? '-' }}</flux:text>
                 </div>
 
-                @if (filled($this->selectedLog->provider_response))
+                @if ($this->selectedLog->status === App\Enums\SmsStatus::Failed || filled($this->selectedLog->provider_response))
                     <div>
                         <flux:text class="text-zinc-500">
                             {{ $this->selectedLog->status === App\Enums\SmsStatus::Failed ? __('Failure Reason') : __('Provider Response') }}
                         </flux:text>
-                        <flux:text class="mt-1 block whitespace-pre-wrap">{{ $this->selectedLog->provider_response }}</flux:text>
+                        <flux:text class="mt-1 block whitespace-pre-wrap">
+                            {{ filled($this->selectedLog->provider_response) ? $this->selectedLog->provider_response : __('No failure reason was recorded for this log.') }}
+                        </flux:text>
                     </div>
                 @endif
             </div>
