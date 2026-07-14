@@ -27,6 +27,14 @@ test('legacy tv browsers are redirected from the main display to the tv display'
     $response->assertRedirect(route('display.tokens.tv'));
 });
 
+test('chrome 93 android tv browsers are redirected from the main display to the tv display', function () {
+    $response = $this->withHeaders([
+        'User-Agent' => 'Mozilla/5.0 (Linux; Android 9; Foxbox) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.62 Safari/537.36',
+    ])->get(route('display.tokens'));
+
+    $response->assertRedirect(route('display.tokens.tv'));
+});
+
 test('modern browsers are not redirected from the main display', function () {
     $response = $this->withHeaders([
         'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

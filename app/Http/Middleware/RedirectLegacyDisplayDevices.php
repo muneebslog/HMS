@@ -11,9 +11,9 @@ class RedirectLegacyDisplayDevices
     /**
      * Handle an incoming request.
      *
-     * Redirect legacy smart TV browsers (e.g. Chrome 73 on Android 5.1.1)
-     * to the plain HTML TV display that does not rely on Livewire or modern
-     * CSS features such as flexbox gap.
+     * Redirect legacy smart TV browsers (e.g. Chrome 73 on Android 5.1.1 or
+     * Chrome 93 on Android TV) to the plain HTML TV display that does not rely
+     * on Livewire, Flux, or Tailwind CSS v4, which requires Chrome 111+.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -47,7 +47,7 @@ class RedirectLegacyDisplayDevices
 
     /**
      * Detect Chrome versions that are known to be incompatible with the
-     * Livewire 4 / Flux 2 bundles used by the default display.
+     * Tailwind CSS v4 styles used by the default display.
      */
     private function isOldChrome(string $userAgent): bool
     {
@@ -61,6 +61,6 @@ class RedirectLegacyDisplayDevices
 
         $version = (int) $matches[1];
 
-        return $version > 0 && $version < 84;
+        return $version > 0 && $version < 111;
     }
 }
