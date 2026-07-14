@@ -21,6 +21,10 @@ class LoginResponse implements LoginResponseContract
             return redirect()->to(route('pending-role'));
         }
 
+        if ($user !== null && $user->role === UserRole::Doctor) {
+            return redirect()->to(route('doctor.portal'));
+        }
+
         return redirect()->intended(config('fortify.home', '/dashboard'));
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Models\AdminNotification;
 use App\Models\Expense;
 use App\Models\Shift;
 use Flux\Flux;
@@ -56,12 +57,31 @@ new #[Title('Shift')] class extends Component
             return;
         }
 
-        Shift::create([
+        $shift = Shift::create([
             'user_id' => auth()->id(),
             'opened_at' => now(),
             'opening_balance' => (float) $validated['openingBalance'],
             'status' => 'open',
         ]);
+
+        if ($shift->opening_balance === 0.0) {
+            AdminNotification::create([
+                'user_id' => auth()->id(),
+                'type' => 'shift_opened_without_balance',
+                'title' => __('Shift opened without opening balance'),
+                'message' => __(
+                    'Receptionist :name opened shift #:shift without adding an opening balance.',
+                    [
+                        'name' => auth()->user()?->name ?? __('Unknown'),
+                        'shift' => $shift->id,
+                    ]
+                ),
+                'actionable_url' => route('reception.shift'),
+                'metadata' => [
+                    'shift_id' => $shift->id,
+                ],
+            ]);
+        }
 
         $this->reset('openingBalance');
 
@@ -90,6 +110,44 @@ new #[Title('Shift')] class extends Component
             'closing_balance' => (float) $validated['closingBalance'],
             'status' => 'closed',
         ]);
+
+        if ($shift->totalExpenses() === 0.0) {
+            AdminNotification::create([
+                'user_id' => auth()->id(),
+                'type' => 'shift_closed_without_expenses',
+                'title' => __('Shift closed without expenses'),
+                'message' => __(
+                    'Receptionist :name closed shift #:shift without recording any expenses.',
+                    [
+                        'name' => auth()->user()?->name ?? __('Unknown'),
+                        'shift' => $shift->id,
+                    ]
+                ),
+                'actionable_url' => route('management.shift-history'),
+                'metadata' => [
+                    'shift_id' => $shift->id,
+                ],
+            ]);
+        }
+
+        if ($shift->doctorPayouts()->count() === 0) {
+            AdminNotification::create([
+                'user_id' => auth()->id(),
+                'type' => 'shift_closed_without_doctor_payouts',
+                'title' => __('Shift closed without doctor share payments'),
+                'message' => __(
+                    'Receptionist :name closed shift #:shift without recording any doctor share payments.',
+                    [
+                        'name' => auth()->user()?->name ?? __('Unknown'),
+                        'shift' => $shift->id,
+                    ]
+                ),
+                'actionable_url' => route('payout.daily'),
+                'metadata' => [
+                    'shift_id' => $shift->id,
+                ],
+            ]);
+        }
 
         app(CreatePrintJob::class)->createForShift($shift);
 

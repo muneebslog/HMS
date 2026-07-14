@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\AdminNotification;
+use App\Models\DoctorPayout;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
@@ -311,6 +313,107 @@ test('user can see logged expenses and their total on the shift page', function 
         ->assertSee('Total Expenses');
 
     expect($shift->fresh()->totalExpenses())->toBe(100.00);
+});
+
+test('opening a shift with zero balance creates an admin notification', function () {
+    $user = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('openingBalance', '0')
+        ->call('openShift')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::where('type', 'shift_opened_without_balance')->first();
+    expect($notification)->not->toBeNull()
+        ->title->toBe(__('Shift opened without opening balance'))
+        ->user_id->toBe($user->id);
+});
+
+test('opening a shift with a positive balance does not create a balance notification', function () {
+    $user = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('openingBalance', '500.00')
+        ->call('openShift')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::where('type', 'shift_opened_without_balance')->count())->toBe(0);
+});
+
+test('closing a shift without expenses creates a zero expenses notification', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 200.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('closingBalance', '800.00')
+        ->call('closeShift')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::where('type', 'shift_closed_without_expenses')->first();
+    expect($notification)->not->toBeNull()
+        ->title->toBe(__('Shift closed without expenses'))
+        ->user_id->toBe($user->id);
+});
+
+test('closing a shift with expenses does not create a zero expenses notification', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 200.00,
+    ]);
+    Expense::factory()->for($shift)->for($user)->create([
+        'name' => 'Coffee',
+        'amount' => 25.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('closingBalance', '800.00')
+        ->call('closeShift')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::where('type', 'shift_closed_without_expenses')->count())->toBe(0);
+});
+
+test('closing a shift without doctor payouts creates a payout notification', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 200.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('closingBalance', '800.00')
+        ->call('closeShift')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::where('type', 'shift_closed_without_doctor_payouts')->first();
+    expect($notification)->not->toBeNull()
+        ->title->toBe(__('Shift closed without doctor share payments'))
+        ->user_id->toBe($user->id);
+});
+
+test('closing a shift with doctor payouts does not create a payout notification', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 200.00,
+    ]);
+    DoctorPayout::factory()->create([
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->set('closingBalance', '800.00')
+        ->call('closeShift')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::where('type', 'shift_closed_without_doctor_payouts')->count())->toBe(0);
 });
 
 test('shift page shows expected cash reconciliation', function () {

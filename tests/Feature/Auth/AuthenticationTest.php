@@ -27,6 +27,21 @@ test('users can authenticate using the login screen', function () {
     $this->assertAuthenticated();
 });
 
+test('doctors are redirected to the doctor portal after login', function () {
+    $user = User::factory()->doctor()->create();
+
+    $response = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('doctor.portal', absolute: false));
+
+    $this->assertAuthenticated();
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 
