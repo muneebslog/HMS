@@ -144,3 +144,36 @@ test('lab tests can be filtered by name or code', function () {
         ->set('search', '')
         ->assertCount('labTests', 2);
 });
+
+test('time required is shown for added tests', function () {
+    $user = User::factory()->create();
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'Complete Blood Count',
+        'time_required' => '1 day',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('patientGender', 'male')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->assertSee('1 day');
+});
+
+test('gender other is not allowed for lab entry', function () {
+    $user = User::factory()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('patientGender', 'other')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->assertHasErrors(['patientGender']);
+});

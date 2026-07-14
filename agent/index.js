@@ -174,6 +174,74 @@ async function printReceipt(printer, job) {
   }
 }
 
+async function printLabReceipt(printer, job) {
+  const invoice = job.invoice;
+  const copyFor = job.payload?.copy_for || 'patient';
+  const isPatientCopy = copyFor === 'patient';
+
+  printer.alignCenter();
+  printer.bold(true);
+  printer.setTextSize(1, 1);
+  printer.println(config.headerText || 'HMS');
+  printer.setTextNormal();
+  printer.bold(false);
+  printer.println(isPatientCopy ? 'PATIENT COPY' : 'LAB COPY');
+  printer.println(config.subHeaderText || 'Lab Receipt');
+  printer.drawLine();
+
+  printer.alignLeft();
+  printer.println(`Invoice #: ${invoice.invoice_number}`);
+  printer.println(`Date: ${invoice.created_at}`);
+  printer.println(`Patient: ${invoice.patient.name}`);
+  printer.newLine();
+
+  printer.alignLeft();
+  invoice.items.forEach((item) => {
+    const name = item.service_name.padEnd(24, ' ').substring(0, 24);
+    const price = item.price.toFixed(2).padStart(8, ' ');
+    printer.println(`${name}${price}`);
+    printer.println(`  Code: ${item.test_code || '-'}`);
+
+    if (item.time_required) {
+      printer.println(`  Time: ${item.time_required}`);
+    }
+  });
+
+  printer.drawLine();
+  printer.bold(true);
+  const totalLabel = 'TOTAL';
+  const totalValue = invoice.total.toFixed(2);
+  const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
+  printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
+  printer.bold(false);
+
+  if (isPatientCopy && invoice.qr_url) {
+    printer.newLine();
+    printer.alignCenter();
+    printer.println('Scan for report:');
+    printer.printQR(invoice.qr_url, { cellSize: 4, correction: 'M', model: 2 });
+  }
+
+  printer.newLine();
+  printer.alignCenter();
+  printer.println(config.footerText || 'Thank you!');
+  printer.newLine();
+  printer.newLine();
+  printer.cut();
+
+  if (config.printer?.interface === 'epson-port') {
+    const buffer = printer.getBuffer();
+    await writeRawToPort(buffer, config.printer.port);
+    printer.clear();
+  } else {
+    const result = await printer.execute();
+
+    if (!result) {
+      throw new Error('Printer returned false.');
+    }
+  }
+}
+
 async function markPrinted(job) {
   await api.post(`/api/print-jobs/${job.id}/printed`);
   console.log(`[${new Date().toISOString()}] Job #${job.id} marked as printed.`);
@@ -210,7 +278,11 @@ async function poll() {
 
     for (const job of jobs) {
       try {
-        await printReceipt(printer, job);
+        if (job.payload?.type === 'lab_invoice') {
+          await printLabReceipt(printer, job);
+        } else {
+          await printReceipt(printer, job);
+        }
         await markPrinted(job);
       } catch (error) {
         await markFailed(job, error);

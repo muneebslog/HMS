@@ -45,4 +45,10 @@ return [
         'endpoint' => env('VEEVO_SMS_ENDPOINT', 'https://api.veevotech.com/v3/sendsms'),
     ],
 
+    'lab' => [
+        'url' => env('LAB_API_URL'),
+        'token' => env('LAB_API_TOKEN'),
+        'enabled' => env('LAB_API_ENABLED', true),
+    ],
+
 ];

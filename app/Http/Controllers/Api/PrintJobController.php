@@ -115,6 +115,8 @@ class PrintJobController extends Controller
                 'invoice' => [
                     'id' => $labInvoice->id,
                     'invoice_number' => $labInvoice->invoice_number,
+                    'qr_url' => $job->payload['qr_url'] ?? null,
+                    'copy_for' => $job->payload['copy_for'] ?? null,
                     'total' => $labInvoice->total,
                     'created_at' => $labInvoice->created_at->format('Y-m-d H:i'),
                     'patient' => [
@@ -122,6 +124,8 @@ class PrintJobController extends Controller
                     ],
                     'items' => $labInvoice->items->map(fn ($item) => [
                         'service_name' => $item->test_name,
+                        'test_code' => $item->test_code,
+                        'time_required' => $item->time_required,
                         'price' => $item->price,
                         'doctor_name' => null,
                         'token_number' => null,

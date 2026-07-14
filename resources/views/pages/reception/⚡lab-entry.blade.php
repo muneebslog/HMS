@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Jobs\SendLabCaseToLab;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
@@ -51,7 +52,7 @@ new #[Title('Lab Entry')] class extends Component
         return [
             'patientName' => ['required', 'string', 'max:255'],
             'patientPhone' => ['required', 'string', 'max:255'],
-            'patientGender' => ['required', 'string', 'in:male,female,other'],
+            'patientGender' => ['required', 'string', 'in:male,female'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'selectedLabTestId' => ['required', 'integer', 'exists:lab_tests,id'],
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -142,7 +143,7 @@ new #[Title('Lab Entry')] class extends Component
         $this->validate([
             'patientName' => ['required', 'string', 'max:255'],
             'patientPhone' => ['required', 'string', 'max:255'],
-            'patientGender' => ['required', 'string', 'in:male,female,other'],
+            'patientGender' => ['required', 'string', 'in:male,female'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.lab_test_id' => ['required', 'integer', 'exists:lab_tests,id'],
@@ -193,11 +194,14 @@ new #[Title('Lab Entry')] class extends Component
             return $invoice;
         });
 
-        app(CreatePrintJob::class)->create($invoice);
+        $qrUrl = rtrim((string) config('services.lab.url'), '/').'/public/invoice/'.$invoice->invoice_number;
+
+        app(CreatePrintJob::class)->createLabInvoiceReceipts($invoice, $qrUrl);
+        SendLabCaseToLab::dispatch($invoice->id);
 
         $this->clear();
 
-        Flux::toast(variant: 'success', text: __('Lab invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
+        Flux::toast(variant: 'success', text: __('Lab invoice :number saved. Receipts and lab sync queued.', ['number' => $invoice->invoice_number]));
     }
 
     /**
@@ -279,7 +283,6 @@ new #[Title('Lab Entry')] class extends Component
                         <option value="">{{ __('Select') }}</option>
                         <option value="male">{{ __('Male') }}</option>
                         <option value="female">{{ __('Female') }}</option>
-                        <option value="other">{{ __('Other') }}</option>
                     </flux:select>
                     <flux:error name="patientGender" />
                 </flux:field>
@@ -331,6 +334,7 @@ new #[Title('Lab Entry')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('Test') }}</flux:table.column>
                     <flux:table.column>{{ __('Code') }}</flux:table.column>
+                    <flux:table.column>{{ __('Time required') }}</flux:table.column>
                     <flux:table.column>{{ __('Price') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                 </flux:table.columns>
@@ -338,8 +342,14 @@ new #[Title('Lab Entry')] class extends Component
                 <flux:table.rows>
                     @forelse ($this->items as $index => $item)
                         <flux:table.row wire:key="lab-item-{{ $index }}">
-                            <flux:table.cell>{{ $item['test_name'] }}</flux:table.cell>
+                            <flux:table.cell>
+                                {{ $item['test_name'] }}
+                                @if ($item['is_in_house'])
+                                    <flux:badge size="sm" color="teal" class="ms-2">{{ __('In-house') }}</flux:badge>
+                                @endif
+                            </flux:table.cell>
                             <flux:table.cell>{{ $item['test_code'] ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $item['time_required'] ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($item['test_price'], 2) }}</flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button
@@ -352,7 +362,7 @@ new #[Title('Lab Entry')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                 {{ __('No tests added yet.') }}
                             </flux:table.cell>
                         </flux:table.row>

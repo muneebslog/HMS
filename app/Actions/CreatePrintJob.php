@@ -34,6 +34,19 @@ class CreatePrintJob
     }
 
     /**
+     * Create pending print jobs for a lab invoice receipt.
+     *
+     * @return array<int, PrintJob>
+     */
+    public function createLabInvoiceReceipts(LabInvoice $invoice, string $qrUrl): array
+    {
+        return [
+            $this->createLabCopy($invoice, $qrUrl, 'patient'),
+            $this->createLabCopy($invoice, $qrUrl, 'lab'),
+        ];
+    }
+
+    /**
      * Create a pending print job for the given shift closing report.
      */
     public function createForShift(Shift $shift): PrintJob
@@ -44,6 +57,24 @@ class CreatePrintJob
             'payload' => [
                 'type' => 'shift_report',
                 'source' => 'web',
+            ],
+            'attempts' => 0,
+        ]);
+    }
+
+    /**
+     * Create a single lab invoice copy print job.
+     */
+    private function createLabCopy(LabInvoice $invoice, string $qrUrl, string $copyFor): PrintJob
+    {
+        return PrintJob::create([
+            'lab_invoice_id' => $invoice->id,
+            'status' => PrintJobStatus::Pending,
+            'payload' => [
+                'type' => 'lab_invoice',
+                'source' => 'web',
+                'copy_for' => $copyFor,
+                'qr_url' => $qrUrl,
             ],
             'attempts' => 0,
         ]);

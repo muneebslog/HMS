@@ -1,11 +1,15 @@
 <?php
 
+use App\Jobs\SendLabCaseToLab;
+use App\Models\AdminNotification;
 use App\Models\LabInvoice;
 use App\Models\LabTest;
 use App\Models\Patient;
+use App\Models\PrintJob;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -166,4 +170,78 @@ test('a lab invoice can be saved when a test has no code', function () {
         ->test_name->toBe('ASO Titer')
         ->test_code->toBeNull()
         ->price->toBe(1000.00);
+});
+
+test('saving a lab invoice uses a predictable invoice number and queues two receipts', function () {
+    Bus::fake();
+
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'Complete Blood Count',
+        'test_code' => '1300',
+        'test_price' => 1200.00,
+        'time_required' => '1 hour',
+        'is_in_house' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('patientGender', 'male')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $invoice = LabInvoice::first();
+    expect($invoice)->not->toBeNull()
+        ->invoice_number->toMatch('/^\d{12}$/');
+
+    $printJobs = PrintJob::where('lab_invoice_id', $invoice->id)->get();
+    expect($printJobs)->toHaveCount(2);
+
+    $copyTypes = $printJobs->pluck('payload.copy_for')->all();
+    expect($copyTypes)->toContain('patient', 'lab');
+
+    $patientCopy = $printJobs->firstWhere('payload.copy_for', 'patient');
+    expect($patientCopy->payload['qr_url'])->toBe(rtrim(config('services.lab.url'), '/').'/public/invoice/'.$invoice->invoice_number);
+
+    Bus::assertDispatched(SendLabCaseToLab::class, fn ($job) => $job->labInvoiceId === $invoice->id);
+});
+
+test('in-house tests without numeric codes create an admin notification', function () {
+    config(['services.lab.url' => 'https://lab.mohsinmedicalcomplex.com']);
+    config(['services.lab.token' => 'test-token']);
+    config(['services.lab.enabled' => true]);
+
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $labTest = LabTest::factory()->create([
+        'test_name' => 'ASO Titer',
+        'test_code' => 'ABC',
+        'test_price' => 1000.00,
+        'time_required' => 'Next day',
+        'is_in_house' => true,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('patientGender', 'male')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $invoice = LabInvoice::first();
+    expect($invoice)->not->toBeNull();
+
+    $notification = AdminNotification::where('type', 'lab_test_missing_code')->first();
+    expect($notification)->not->toBeNull()
+        ->message->toContain('ASO Titer');
 });

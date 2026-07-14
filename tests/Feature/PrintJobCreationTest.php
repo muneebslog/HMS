@@ -45,7 +45,7 @@ test('saving a walk-in invoice creates a pending print job', function () {
         ->payload->toMatchArray(['type' => 'invoice', 'source' => 'web']);
 });
 
-test('saving a lab invoice creates a pending print job', function () {
+test('saving a lab invoice creates pending patient and lab copy print jobs', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
     $test = LabTest::factory()->create();
@@ -61,11 +61,13 @@ test('saving a lab invoice creates a pending print job', function () {
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(PrintJob::count())->toBe(1);
-    expect(PrintJob::first())
-        ->lab_invoice_id->not->toBeNull()
-        ->status->toBe(PrintJobStatus::Pending)
-        ->payload->toMatchArray(['type' => 'lab_invoice', 'source' => 'web']);
+    $invoice = LabInvoice::first();
+    expect(PrintJob::where('lab_invoice_id', $invoice->id)->count())->toBe(2);
+
+    $copies = PrintJob::where('lab_invoice_id', $invoice->id)->get()
+        ->map(fn ($job) => $job->payload['copy_for'])
+        ->all();
+    expect($copies)->toContain('patient', 'lab');
 });
 
 test('the invoices page can queue a print job for a walk-in invoice', function () {

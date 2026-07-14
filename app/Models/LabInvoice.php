@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class LabInvoice extends Model
 {
@@ -80,9 +79,21 @@ class LabInvoice extends Model
 
     /**
      * Generate a unique lab invoice number.
+     *
+     * Format: ddmmyy + daily sequential number starting at 1001.
      */
     public static function generateNumber(): string
     {
-        return 'LAB-'.now()->format('YmdHis').'-'.strtoupper(Str::random(4));
+        $today = now()->startOfDay();
+
+        $sequence = LabInvoiceNumberSequence::firstOrCreate(
+            ['date' => $today],
+            ['last_number' => 1000]
+        );
+
+        $sequence->increment('last_number');
+        $sequence->refresh();
+
+        return $today->format('dmY').$sequence->last_number;
     }
 }
