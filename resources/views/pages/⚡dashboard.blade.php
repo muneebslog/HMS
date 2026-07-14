@@ -10,6 +10,16 @@ use Livewire\Component;
 new #[Title('Dashboard')] class extends Component
 {
     /**
+     * Redirect doctors to their dedicated portal.
+     */
+    public function mount(): void
+    {
+        if (auth()->user()?->isDoctor()) {
+            $this->redirect(route('doctor.portal'), navigate: true);
+        }
+    }
+
+    /**
      * Get the currently open shift.
      */
     #[Computed]

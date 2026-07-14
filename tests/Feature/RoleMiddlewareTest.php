@@ -94,14 +94,22 @@ test('management is blocked from admin and receptionist routes', function () use
     }
 });
 
-test('doctors can access their own routes and dashboard', function () use ($routeMap) {
+test('doctors can access their own routes', function () use ($routeMap) {
     $user = User::factory()->doctor()->create();
 
-    foreach (array_merge($routeMap['doctor'], ['dashboard']) as $route) {
+    foreach ($routeMap['doctor'] as $route) {
         $this->actingAs($user)
             ->get(route($route))
             ->assertSuccessful();
     }
+});
+
+test('doctors are redirected from dashboard to doctor portal', function () {
+    $user = User::factory()->doctor()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('doctor.portal'));
 });
 
 test('doctors are blocked from admin, management and receptionist routes', function () use ($routeMap) {

@@ -244,38 +244,36 @@ new #[Title('Doctor Portal')] class extends Component
                 <flux:card class="lg:col-span-2">
                     <flux:heading level="2" class="mb-4">{{ __('Recent Activity') }}</flux:heading>
 
-                    <div class="-mx-4 overflow-x-auto sm:-mx-6">
-                        <div class="inline-block min-w-full align-middle px-4 sm:px-6">
-                            <flux:table>
-                                <flux:table.columns>
-                                    <flux:table.column>{{ __('Service') }}</flux:table.column>
-                                    <flux:table.column>{{ __('Patient') }}</flux:table.column>
-                                    <flux:table.column>{{ __('Date') }}</flux:table.column>
-                                    <flux:table.column>{{ __('Price') }}</flux:table.column>
-                                    <flux:table.column>{{ __('Share %') }}</flux:table.column>
-                                    <flux:table.column>{{ __('Share Amount') }}</flux:table.column>
-                                </flux:table.columns>
+                    <div class="overflow-x-auto">
+                        <flux:table>
+                            <flux:table.columns>
+                                <flux:table.column>{{ __('Service') }}</flux:table.column>
+                                <flux:table.column>{{ __('Patient') }}</flux:table.column>
+                                <flux:table.column>{{ __('Date') }}</flux:table.column>
+                                <flux:table.column>{{ __('Price') }}</flux:table.column>
+                                <flux:table.column>{{ __('Share %') }}</flux:table.column>
+                                <flux:table.column>{{ __('Share Amount') }}</flux:table.column>
+                            </flux:table.columns>
 
-                                <flux:table.rows>
-                                    @forelse ($this->items as $item)
-                                        <flux:table.row wire:key="item-{{ $item->id }}">
-                                            <flux:table.cell>{{ $item->service_name }}</flux:table.cell>
-                                            <flux:table.cell>{{ $item->invoice?->patient?->name ?? '-' }}</flux:table.cell>
-                                            <flux:table.cell>{{ $item->created_at->format('Y-m-d H:i') }}</flux:table.cell>
-                                            <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
-                                            <flux:table.cell>{{ $item->doctor_share !== null ? number_format($item->doctor_share, 2).'%' : '-' }}</flux:table.cell>
-                                            <flux:table.cell>{{ number_format($this->itemShareAmounts[$item->id] ?? 0, 2) }}</flux:table.cell>
-                                        </flux:table.row>
-                                    @empty
-                                        <flux:table.row>
-                                            <flux:table.cell colspan="6" class="text-center text-zinc-500">
-                                                {{ __('No activity recorded in the selected range.') }}
-                                            </flux:table.cell>
-                                        </flux:table.row>
-                                    @endforelse
-                                </flux:table.rows>
-                            </flux:table>
-                        </div>
+                            <flux:table.rows>
+                                @forelse ($this->items as $item)
+                                    <flux:table.row wire:key="item-{{ $item->id }}">
+                                        <flux:table.cell>{{ $item->service_name }}</flux:table.cell>
+                                        <flux:table.cell>{{ $item->invoice?->patient?->name ?? '-' }}</flux:table.cell>
+                                        <flux:table.cell>{{ $item->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                                        <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
+                                        <flux:table.cell>{{ $item->doctor_share !== null ? number_format($item->doctor_share, 2).'%' : '-' }}</flux:table.cell>
+                                        <flux:table.cell>{{ number_format($this->itemShareAmounts[$item->id] ?? 0, 2) }}</flux:table.cell>
+                                    </flux:table.row>
+                                @empty
+                                    <flux:table.row>
+                                        <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                            {{ __('No activity recorded in the selected range.') }}
+                                        </flux:table.cell>
+                                    </flux:table.row>
+                                @endforelse
+                            </flux:table.rows>
+                        </flux:table>
                     </div>
                 </flux:card>
 
@@ -287,20 +285,22 @@ new #[Title('Doctor Portal')] class extends Component
                             {{ __('No payouts recorded in the selected range.') }}
                         </flux:text>
                     @else
-                        <div class="space-y-3">
-                            @foreach ($this->payouts as $payout)
-                                <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3 last:border-b-0 dark:border-zinc-700" wire:key="payout-{{ $payout->id }}">
-                                    <div>
-                                        <flux:text class="font-medium">{{ $payout->date->format('Y-m-d') }}</flux:text>
-                                        @if ($payout->from_date && $payout->to_date)
-                                            <flux:text class="text-xs text-zinc-500">
-                                                {{ $payout->from_date->format('Y-m-d') }} — {{ $payout->to_date->format('Y-m-d') }}
-                                            </flux:text>
-                                        @endif
+                        <div class="overflow-x-auto">
+                            <div class="min-w-full space-y-3">
+                                @foreach ($this->payouts as $payout)
+                                    <div class="flex items-center justify-between gap-4 rounded-lg border border-zinc-200 p-3 last:border-b-0 dark:border-zinc-700" wire:key="payout-{{ $payout->id }}">
+                                        <div class="min-w-0">
+                                            <flux:text class="font-medium">{{ $payout->date->format('Y-m-d') }}</flux:text>
+                                            @if ($payout->from_date && $payout->to_date)
+                                                <flux:text class="truncate text-xs text-zinc-500">
+                                                    {{ $payout->from_date->format('Y-m-d') }} — {{ $payout->to_date->format('Y-m-d') }}
+                                                </flux:text>
+                                            @endif
+                                        </div>
+                                        <flux:heading level="4" class="shrink-0">{{ number_format($payout->share_amount, 2) }}</flux:heading>
                                     </div>
-                                    <flux:heading level="4">{{ number_format($payout->share_amount, 2) }}</flux:heading>
-                                </div>
-                            @endforeach
+                                @endforeach
+                            </div>
                         </div>
                     @endif
                 </flux:card>

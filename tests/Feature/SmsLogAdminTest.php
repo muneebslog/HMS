@@ -72,3 +72,16 @@ test('sms logs page shows log details in a modal', function () {
         ->assertSet('selectedLogId', $log->id)
         ->assertSet('showLogModal', true);
 });
+
+test('sms logs page shows failure reason for failed logs in a modal', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $log = SmsLog::factory()->failed()->create([
+        'provider_response' => 'Insufficient credit',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.sms-logs')
+        ->call('viewLog', $log->id)
+        ->assertSee('Insufficient credit')
+        ->assertSee('Failure Reason');
+});

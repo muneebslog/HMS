@@ -119,7 +119,9 @@ new #[Title('SMS Logs')] class extends Component
                                 @elseif ($log->status === App\Enums\SmsStatus::Sent)
                                     <flux:badge size="sm" color="green">{{ $log->status->label() }}</flux:badge>
                                 @else
-                                    <flux:badge size="sm" color="red">{{ $log->status->label() }}</flux:badge>
+                                    <flux:tooltip :content="filled($log->provider_response) ? Str::limit($log->provider_response, 200) : __('Click View for details')" position="top">
+                                        <flux:badge size="sm" color="red">{{ $log->status->label() }}</flux:badge>
+                                    </flux:tooltip>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $log->created_at->format('Y-m-d H:i') }}</flux:table.cell>
@@ -193,7 +195,9 @@ new #[Title('SMS Logs')] class extends Component
 
                 @if (filled($this->selectedLog->provider_response))
                     <div>
-                        <flux:text class="text-zinc-500">{{ __('Provider Response') }}</flux:text>
+                        <flux:text class="text-zinc-500">
+                            {{ $this->selectedLog->status === App\Enums\SmsStatus::Failed ? __('Failure Reason') : __('Provider Response') }}
+                        </flux:text>
                         <flux:text class="mt-1 block whitespace-pre-wrap">{{ $this->selectedLog->provider_response }}</flux:text>
                     </div>
                 @endif

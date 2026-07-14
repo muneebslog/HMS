@@ -424,6 +424,30 @@ test('appointment confirmation sms job sends sms via veevotech and marks log as 
         ->sent_at->not->toBeNull();
 });
 
+test('appointment confirmation sms job marks log as failed when sms service is disabled', function () {
+    config([
+        'services.veevo_sms.enabled' => false,
+        'services.veevo_sms.hash' => null,
+    ]);
+
+    $doctor = Doctor::factory()->create();
+    $estimatedTime = Carbon::parse('18:20:00');
+    $log = SmsLog::factory()->queued()->create([
+        'doctor_id' => $doctor->id,
+        'phone' => validPhone(),
+        'token_number' => 5,
+    ]);
+
+    $job = new SendAppointmentConfirmationSms(validPhone(), $doctor, 5, $estimatedTime, $log->id);
+    $job->handle(app(SmsService::class));
+
+    $log->refresh();
+    expect($log)
+        ->status->toBe(SmsStatus::Failed)
+        ->sent_at->toBeNull()
+        ->provider_response->toBe('SMS service is disabled');
+});
+
 test('reservation does not send a confirmation sms when no phone number is provided', function () {
     Queue::fake();
     Http::fake();

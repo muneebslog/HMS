@@ -117,6 +117,8 @@ class SmsService
     public function send(string $receiver, string $message, ?SmsLog $log = null): bool
     {
         if (! $this->enabled()) {
+            $log?->update(['provider_response' => __('SMS service is disabled')]);
+
             return false;
         }
 
