@@ -75,26 +75,6 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
     }
 
     /**
-     * Get the upcoming tokens for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    #[Computed]
-    public function upcomingTokens(): Collection
-    {
-        if ($this->selectedQueueId === null) {
-            return new Collection();
-        }
-
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $this->selectedQueueId)
-            ->whereIn('status', ['reserved', 'waiting'])
-            ->orderBy('token_number')
-            ->limit(16)
-            ->get();
-    }
-
-    /**
      * Select a queue and start controlling its tokens.
      */
     public function selectQueue(int $id): void
@@ -136,26 +116,6 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
         app(TokenDisplayService::class)->callPrevious($this->selectedQueue);
     }
 
-    /**
-     * Skip the currently serving token and call the next one.
-     */
-    public function skipCurrent(): void
-    {
-        if ($this->selectedQueue === null) {
-            return;
-        }
-
-        app(TokenDisplayService::class)->skipCurrent($this->selectedQueue);
-    }
-
-    /**
-     * Recall the currently serving token.
-     */
-    public function recallCurrent(): void
-    {
-        // Recall is intentionally a no-op on the data model; it simply
-        // refreshes the display so the current token can be re-announced.
-    }
 }; ?>
 
 <div class="flex min-h-screen flex-col" wire:poll.5s>
@@ -243,6 +203,12 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
                             {{ $this->selectedQueue->doctor->name }}
                         </div>
                     @endif
+
+                    @if ($this->currentToken->status === 'reserved')
+                        <flux:badge variant="danger" size="lg" class="mt-2">{{ __('Not Arrived') }}</flux:badge>
+                    @else
+                        <flux:badge variant="success" size="lg" class="mt-2">{{ __('Arrived') }}</flux:badge>
+                    @endif
                 @else
                     <flux:heading level="2" size="xl" class="text-zinc-300">
                         {{ __('No token being served') }}
@@ -254,7 +220,7 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
                 @endif
             </flux:card>
 
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div class="grid grid-cols-2 gap-3">
                 <flux:button
                     type="button"
                     wire:click="callPrevious"
@@ -268,28 +234,6 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
 
                 <flux:button
                     type="button"
-                    wire:click="recallCurrent"
-                    icon="speaker-wave"
-                    variant="primary"
-                    :disabled="! $this->currentToken"
-                    class="justify-center py-6 text-lg"
-                >
-                    {{ __('Recall') }}
-                </flux:button>
-
-                <flux:button
-                    type="button"
-                    wire:click="skipCurrent"
-                    icon="forward"
-                    variant="danger"
-                    :disabled="! $this->currentToken"
-                    class="justify-center py-6 text-lg"
-                >
-                    {{ __('Skip') }}
-                </flux:button>
-
-                <flux:button
-                    type="button"
                     wire:click="callNext"
                     icon="arrow-right"
                     variant="primary"
@@ -298,39 +242,6 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
                     {{ __('Next Token') }}
                 </flux:button>
             </div>
-
-            <flux:card>
-                <flux:heading level="3" size="lg" class="mb-4">
-                    {{ __('Upcoming') }}
-                </flux:heading>
-
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    @forelse ($this->upcomingTokens as $token)
-                        <div
-                            class="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3"
-                            wire:key="control-upcoming-token-{{ $token->id }}"
-                        >
-                            <div>
-                                <div class="text-xl font-bold text-white">
-                                    {{ $token->token_number }}
-                                </div>
-                                <div class="text-sm text-zinc-400">
-                                    {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                                </div>
-                                @if ($token->status === 'reserved')
-                                    <flux:badge variant="danger" size="sm" class="mt-2">{{ __('Not Arrived') }}</flux:badge>
-                                @else
-                                    <flux:badge variant="success" size="sm" class="mt-2">{{ __('Arrived') }}</flux:badge>
-                                @endif
-                            </div>
-                        </div>
-                    @empty
-                        <flux:text class="col-span-full text-zinc-500">
-                            {{ __('No upcoming tokens.') }}
-                        </flux:text>
-                    @endforelse
-                </div>
-            </flux:card>
         </div>
     @endif
 </div>

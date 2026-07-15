@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Display;
 
 use App\Http\Controllers\Controller;
-use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Services\TokenDisplayService;
 use Illuminate\Database\Eloquent\Collection;
@@ -24,15 +23,12 @@ class TokenDisplayController extends Controller
     public function tv(Request $request): View
     {
         $selectedQueue = $this->resolveSelectedQueue($request);
-        $pinVerified = $this->pinVerified();
 
         return view('pages.display.token-display-tv', [
             'queues' => $this->queues(),
             'selectedQueue' => $selectedQueue,
             'currentToken' => $selectedQueue !== null ? app(TokenDisplayService::class)->currentToken($selectedQueue) : null,
-            'upcomingTokens' => $selectedQueue !== null ? $this->upcomingTokens($selectedQueue) : new Collection,
-            'sidebarOpen' => $request->boolean('sidebar', $pinVerified),
-            'pinVerified' => $pinVerified,
+            'pinVerified' => $this->pinVerified(),
         ]);
     }
 
@@ -47,7 +43,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $request->integer('queue'),
-            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -71,7 +66,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $request->input('queue'),
-            'sidebar' => '1',
         ]);
     }
 
@@ -86,7 +80,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -101,7 +94,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -116,7 +108,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -129,7 +120,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -154,7 +144,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => ! $request->boolean('sidebar'),
         ]);
     }
 
@@ -189,21 +178,6 @@ class TokenDisplayController extends Controller
             'tokens.patient',
             'tokens.invoiceItem.invoice.patient',
         ])->find($queueId);
-    }
-
-    /**
-     * Get the upcoming tokens for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    private function upcomingTokens(ServiceQueue $queue): Collection
-    {
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $queue->id)
-            ->whereIn('status', ['reserved', 'waiting'])
-            ->orderBy('token_number')
-            ->limit(16)
-            ->get();
     }
 
     /**

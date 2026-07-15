@@ -150,45 +150,7 @@ test('authenticated users can call the previous token from the control page', fu
         ->and($previousToken->fresh()->status)->toBe('serving');
 });
 
-test('authenticated users can skip the current token from the control page', function () {
-    $user = User::factory()->create();
-    $firstPatient = Patient::factory()->create();
-    $secondPatient = Patient::factory()->create();
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $currentToken = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'patient_id' => $firstPatient->id,
-        'token_number' => 1,
-        'status' => 'serving',
-        'created_at' => now()->subMinute(),
-    ]);
-
-    $nextToken = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'patient_id' => $secondPatient->id,
-        'token_number' => 2,
-        'status' => 'waiting',
-        'created_at' => now(),
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::display.token-control')
-        ->call('selectQueue', $queue->id)
-        ->call('skipCurrent');
-
-    expect($currentToken->fresh()->status)->toBe('skipped')
-        ->and($nextToken->fresh()->status)->toBe('serving');
-});
-
-test('recalling a token does not change its status on the control page', function () {
+test('control page shows arrived badge for the current serving token', function () {
     $user = User::factory()->create();
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -200,55 +162,17 @@ test('recalling a token does not change its status on the control page', functio
         'status' => 'open',
     ]);
 
-    $token = QueueToken::factory()->create([
+    QueueToken::factory()->create([
         'service_queue_id' => $queue->id,
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'serving',
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::display.token-control')
-        ->call('selectQueue', $queue->id)
-        ->call('recallCurrent');
-
-    expect($token->fresh()->status)->toBe('serving');
-});
-
-test('upcoming tokens on the control page show arrival badges', function () {
-    $user = User::factory()->create();
-    $patient = Patient::factory()->create();
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $arrivedToken = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'patient_id' => $patient->id,
-        'token_number' => 1,
-        'status' => 'waiting',
-        'origin' => 'reservation',
-    ]);
-
-    $reservedToken = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'patient_id' => $patient->id,
-        'token_number' => 2,
-        'status' => 'reserved',
         'origin' => 'reservation',
     ]);
 
     Livewire::actingAs($user)
         ->test('pages::display.token-control')
         ->call('selectQueue', $queue->id)
-        ->assertSee(__('Upcoming'))
-        ->assertSee($arrivedToken->token_number)
-        ->assertSee($reservedToken->token_number)
         ->assertSee(__('Arrived'))
-        ->assertSee(__('Not Arrived'));
+        ->assertSee($patient->name);
 });

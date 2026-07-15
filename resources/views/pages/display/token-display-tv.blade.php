@@ -50,15 +50,6 @@
             font-weight: 600;
         }
 
-        .token-display-sidebar {
-            display: flex;
-            flex-direction: column;
-            width: 320px;
-            padding: 24px;
-            background-color: rgba(24, 24, 27, 0.5);
-            border-left: 1px solid #27272a;
-        }
-
         .token-display-controls {
             position: absolute;
             right: 24px;
@@ -110,9 +101,9 @@
 
         .token-arrival-badge {
             display: inline-block;
-            margin-top: 8px;
-            padding: 4px 10px;
-            font-size: 12px;
+            margin-top: 16px;
+            padding: 8px 16px;
+            font-size: 18px;
             font-weight: 600;
             border-radius: 999px;
             text-transform: uppercase;
@@ -120,19 +111,8 @@
         }
 
         @media (max-width: 1023px) {
-            .token-display-main {
-                flex-direction: column;
-                overflow-y: auto;
-            }
-
             .token-display-current {
                 padding-bottom: 96px;
-            }
-
-            .token-display-sidebar {
-                width: 100%;
-                border-left: none;
-                border-top: 1px solid #27272a;
             }
 
             .token-display-token {
@@ -152,6 +132,10 @@
                 background-color: rgba(9, 9, 11, 0.95);
                 border-top: 1px solid #27272a;
                 justify-content: center;
+            }
+
+            .token-arrival-badge {
+                font-size: 14px;
             }
         }
 
@@ -235,7 +219,6 @@
                             <form method="POST" action="{{ route('display.tokens.tv.select') }}" style="display: inline;">
                                 @csrf
                                 <input type="hidden" name="queue" value="{{ $queue->id }}">
-                                <input type="hidden" name="sidebar" value="{{ $pinVerified ? '1' : '0' }}">
 
                                 <button
                                     type="submit"
@@ -259,6 +242,10 @@
             <div class="token-display-main">
                 <div class="token-display-current">
                     @if ($currentToken)
+                        @php
+                            $badge = $arrivalBadge($currentToken);
+                        @endphp
+
                         <div style="color: #ffffff;">
                             <p style="margin: 0 0 16px 0; font-size: 20px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: #a1a1aa;">
                                 {{ __('Now Serving') }}
@@ -277,6 +264,13 @@
                                     {{ $selectedQueue->doctor->name }}
                                 </div>
                             @endif
+
+                            <span
+                                class="token-arrival-badge"
+                                style="color: {{ $badge['color'] }}; background-color: {{ $badge['background'] }};"
+                            >
+                                {{ $badge['label'] }}
+                            </span>
                         </div>
                     @else
                         <div>
@@ -291,81 +285,12 @@
                     @endif
                 </div>
 
-                {{-- Upcoming tokens sidebar --}}
-                @if ($sidebarOpen)
-                    <div class="token-display-sidebar">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                            <h3 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">
-                                {{ __('Upcoming') }}
-                            </h3>
-
-                            @if ($pinVerified)
-                                <a
-                                    href="{{ route('display.tokens.tv.toggle-sidebar', ['queue' => $selectedQueue->id, 'sidebar' => '0']) }}"
-                                    style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: #a1a1aa; background-color: transparent; border: 1px solid #3f3f46; border-radius: 6px;"
-                                    title="{{ __('Collapse sidebar') }}"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M11.78 4.22a.75.75 0 0 1 0 1.06L8.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.24-4.24a.75.75 0 0 1 0-1.06l4.24-4.24a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/>
-                                        <path d="M3.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 3.5 8Z"/>
-                                    </svg>
-                                </a>
-                            @endif
-                        </div>
-
-                        <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 16px;">
-                            @forelse ($upcomingTokens as $token)
-                                @php
-                                    $badge = $arrivalBadge($token);
-                                @endphp
-
-                                <div
-                                    style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                                >
-                                    <div>
-                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                            {{ $token->token_number }}
-                                        </div>
-                                        <div style="font-size: 14px; color: #a1a1aa;">
-                                            {{ $patientName($token) }}
-                                        </div>
-                                        <span
-                                            class="token-arrival-badge"
-                                            style="color: {{ $badge['color'] }}; background-color: {{ $badge['background'] }};"
-                                        >
-                                            {{ $badge['label'] }}
-                                        </span>
-                                    </div>
-                                </div>
-                            @empty
-                                <p style="margin: 0; font-size: 16px; color: #71717a;">
-                                    {{ __('No upcoming tokens.') }}
-                                </p>
-                            @endforelse
-                        </div>
-                    </div>
-                @endif
-
                 {{-- Controls --}}
                 @if ($pinVerified)
                     <div class="token-display-controls">
-                        @if (! $sidebarOpen)
-                            <a
-                                href="{{ route('display.tokens.tv.toggle-sidebar', ['queue' => $selectedQueue->id, 'sidebar' => '1']) }}"
-                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #3f3f46; border: none; border-radius: 8px;"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                                    <path fill-rule="evenodd" d="M4.22 4.22a.75.75 0 0 1 1.06 0l4.24 4.24a.75.75 0 0 1 0 1.06l-4.24 4.24a.75.75 0 1 1-1.06-1.06L7.94 8 4.22 4.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
-                                    <path d="M12.5 8a.75.75 0 0 1-.75.75h-5a.75.75 0 0 1 0-1.5h5A.75.75 0 0 1 12.5 8Z"/>
-                                </svg>
-                                {{ __('Show Upcoming') }}
-                            </a>
-                        @endif
-
                         <form method="POST" action="{{ route('display.tokens.tv.back') }}" style="display: inline;">
                             @csrf
                             <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <input type="hidden" name="sidebar" value="{{ $sidebarOpen ? '1' : '0' }}">
                             <button
                                 type="submit"
                                 @disabled(! $currentToken)
@@ -378,43 +303,9 @@
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('display.tokens.tv.recall') }}" style="display: inline;">
-                            @csrf
-                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <input type="hidden" name="sidebar" value="{{ $sidebarOpen ? '1' : '0' }}">
-                            <button
-                                type="submit"
-                                @disabled(! $currentToken)
-                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                                    <path d="M8.5 1.5a.5.5 0 0 0-1 0v3.879L5.479 3.358a.5.5 0 1 0-.707.707l2.828 2.828a.5.5 0 0 0 .707 0l2.828-2.828a.5.5 0 1 0-.707-.707L8.5 5.379V1.5Z"/>
-                                    <path d="M12.5 9a.5.5 0 0 1-.5.5H8.5v2.5a.5.5 0 0 1-1 0V9.5H5a.5.5 0 0 1 0-1h8a.5.5 0 0 1 .5.5Z"/>
-                                </svg>
-                                {{ __('Recall') }}
-                            </button>
-                        </form>
-
-                        <form method="POST" action="{{ route('display.tokens.tv.skip') }}" style="display: inline;">
-                            @csrf
-                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <input type="hidden" name="sidebar" value="{{ $sidebarOpen ? '1' : '0' }}">
-                            <button
-                                type="submit"
-                                @disabled(! $currentToken)
-                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #dc2626; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
-                                    <path fill-rule="evenodd" d="M2 8a.75.75 0 0 1 .75-.75h8.69l-3.22-3.22a.75.75 0 1 1 1.06-1.06l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H2.75A.75.75 0 0 1 2 8Z" clip-rule="evenodd"/>
-                                </svg>
-                                {{ __('Skip') }}
-                            </button>
-                        </form>
-
                         <form method="POST" action="{{ route('display.tokens.tv.next') }}" style="display: inline;">
                             @csrf
                             <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <input type="hidden" name="sidebar" value="{{ $sidebarOpen ? '1' : '0' }}">
                             <button
                                 type="submit"
                                 style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px;"

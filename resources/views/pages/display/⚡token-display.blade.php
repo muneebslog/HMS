@@ -16,8 +16,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
     public bool $showQueueSelector = true;
 
-    public bool $sidebarOpen = false;
-
     public ?string $pin = '';
 
     public bool $pinVerified = false;
@@ -28,7 +26,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     public function mount(): void
     {
         $this->pinVerified = (bool) session('display_pin_verified', false);
-        $this->sidebarOpen = $this->pinVerified;
     }
 
     /**
@@ -75,26 +72,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
         }
 
         return app(TokenDisplayService::class)->currentToken($this->selectedQueue);
-    }
-
-    /**
-     * Get the upcoming tokens for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    #[Computed]
-    public function upcomingTokens(): Collection
-    {
-        if ($this->selectedQueueId === null) {
-            return new Collection();
-        }
-
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $this->selectedQueueId)
-            ->whereIn('status', ['reserved', 'waiting'])
-            ->orderBy('token_number')
-            ->limit(16)
-            ->get();
     }
 
     /**
@@ -169,37 +146,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
         app(TokenDisplayService::class)->callPrevious($this->selectedQueue);
     }
 
-    /**
-     * Skip the currently serving token and call the next one.
-     */
-    public function skipCurrent(): void
-    {
-        $this->ensurePinVerified();
-
-        if ($this->selectedQueue === null) {
-            return;
-        }
-
-        app(TokenDisplayService::class)->skipCurrent($this->selectedQueue);
-    }
-
-    /**
-     * Recall the currently serving token.
-     */
-    public function recallCurrent(): void
-    {
-        $this->ensurePinVerified();
-    }
-
-    /**
-     * Toggle the upcoming tokens sidebar visibility.
-     */
-    public function toggleSidebar(): void
-    {
-        $this->ensurePinVerified();
-
-        $this->sidebarOpen = ! $this->sidebarOpen;
-    }
 
     /**
      * Ensure the PIN has been verified before performing a control action.
@@ -297,176 +243,100 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
         </div>
     @else
         {{-- Token display --}}
-        <div class="flex flex-1 flex-col overflow-hidden lg:flex-row">
-            <div class="flex flex-1 flex-col items-center justify-center p-6 pb-24 text-center lg:pb-6">
-                @if ($this->currentToken)
-                    <flux:text class="mb-4 text-xs font-medium uppercase tracking-widest text-zinc-500 sm:text-sm">
-                        {{ __('Now Serving') }}
-                    </flux:text>
+        <div class="flex flex-1 flex-col items-center justify-center p-6 pb-24 text-center">
+            @if ($this->currentToken)
+                <flux:text class="mb-4 text-xs font-medium uppercase tracking-widest text-zinc-500 sm:text-sm">
+                    {{ __('Now Serving') }}
+                </flux:text>
 
-                    <div class="text-7xl font-black text-white sm:text-8xl md:text-9xl lg:text-[180px]">
-                        {{ $this->currentToken->token_number }}
+                <div class="text-7xl font-black text-white sm:text-8xl md:text-9xl lg:text-[180px]">
+                    {{ $this->currentToken->token_number }}
+                </div>
+
+                <div class="mt-4 text-2xl font-semibold text-white sm:text-3xl md:text-4xl lg:mt-6">
+                    {{ $this->currentToken->patient?->name ?? $this->currentToken->invoiceItem?->invoice?->patient?->name ?? '-' }}
+                </div>
+
+                @if ($this->selectedQueue?->doctor)
+                    <div class="mt-2 text-lg text-zinc-400 lg:mt-3 lg:text-2xl">
+                        {{ $this->selectedQueue->doctor->name }}
                     </div>
-
-                    <div class="mt-4 text-2xl font-semibold text-white sm:text-3xl md:text-4xl lg:mt-6">
-                        {{ $this->currentToken->patient?->name ?? $this->currentToken->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                    </div>
-
-                    @if ($this->selectedQueue?->doctor)
-                        <div class="mt-2 text-lg text-zinc-400 lg:mt-3 lg:text-2xl">
-                            {{ $this->selectedQueue->doctor->name }}
-                        </div>
-                    @endif
-                @else
-                    <flux:heading level="2" size="xl" class="text-zinc-300">
-                        {{ __('No token being served') }}
-                    </flux:heading>
-
-                    <flux:text class="mt-4 text-zinc-500">
-                        {{ __('Use the controls to call the next token.') }}
-                    </flux:text>
                 @endif
-            </div>
 
-            {{-- Upcoming tokens sidebar --}}
-            @if ($this->sidebarOpen)
-                <div class="flex shrink-0 flex-col border-t border-zinc-800 bg-zinc-900/50 p-4 sm:p-6 lg:w-80 lg:border-l lg:border-t-0">
-                    <div class="mb-4 flex items-center justify-between sm:mb-6">
-                        <flux:heading level="3" size="lg">
-                            {{ __('Upcoming') }}
-                        </flux:heading>
+                @if ($this->currentToken->status === 'reserved')
+                    <flux:badge variant="danger" size="lg" class="mt-4">{{ __('Not Arrived') }}</flux:badge>
+                @else
+                    <flux:badge variant="success" size="lg" class="mt-4">{{ __('Arrived') }}</flux:badge>
+                @endif
+            @else
+                <flux:heading level="2" size="xl" class="text-zinc-300">
+                    {{ __('No token being served') }}
+                </flux:heading>
 
-                        @if ($pinVerified)
-                            <flux:button
-                                type="button"
-                                variant="ghost"
-                                icon="chevron-double-right"
-                                wire:click="toggleSidebar"
-                                title="{{ __('Collapse sidebar') }}"
-                            />
-                        @endif
-                    </div>
-
-                    <div class="flex flex-1 flex-col gap-3 overflow-y-auto sm:gap-4">
-                        @forelse ($this->upcomingTokens as $token)
-                            <div
-                                class="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
-                                wire:key="upcoming-token-{{ $token->id }}"
-                            >
-                                <div>
-                                    <div class="text-xl font-bold text-white sm:text-2xl">
-                                        {{ $token->token_number }}
-                                    </div>
-                                    <div class="text-sm text-zinc-400">
-                                        {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                                    </div>
-                                    @if ($token->status === 'reserved')
-                                        <flux:badge variant="danger" size="sm" class="mt-2">{{ __('Not Arrived') }}</flux:badge>
-                                    @else
-                                        <flux:badge variant="success" size="sm" class="mt-2">{{ __('Arrived') }}</flux:badge>
-                                    @endif
-                                </div>
-                            </div>
-                        @empty
-                            <p class="text-sm text-zinc-500">
-                                {{ __('No upcoming tokens.') }}
-                            </p>
-                        @endforelse
-                    </div>
-                </div>
-            @endif
-
-            {{-- PIN prompt --}}
-            @if (! $pinVerified)
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">
-                    <div class="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
-                        <flux:heading level="2" size="lg" class="text-center">
-                            {{ __('Enter PIN') }}
-                        </flux:heading>
-
-                        <flux:text class="mt-2 text-center text-zinc-500">
-                            {{ __('Enter the 4-digit PIN to unlock the controls.') }}
-                        </flux:text>
-
-                        <form wire:submit="verifyPin" class="mt-6 space-y-4">
-                            <flux:input
-                                type="password"
-                                wire:model="pin"
-                                inputmode="numeric"
-                                pattern="[0-9]{4}"
-                                maxlength="4"
-                                placeholder="----"
-                                class="text-center text-2xl tracking-[0.5em]"
-                                autofocus
-                            />
-
-                            @error('pin')
-                                <flux:text variant="danger" class="text-center">{{ $message }}</flux:text>
-                            @enderror
-
-                            <flux:button type="submit" variant="primary" class="w-full">
-                                {{ __('Unlock') }}
-                            </flux:button>
-                        </form>
-                    </div>
-                </div>
-            @endif
-
-            {{-- Controls --}}
-            @if ($pinVerified)
-                <div class="fixed bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 p-3 backdrop-blur sm:gap-3 lg:absolute lg:right-6 lg:bottom-6 lg:left-auto lg:w-auto lg:border-0 lg:bg-transparent lg:p-0">
-                    @if (! $this->sidebarOpen)
-                        <flux:button
-                            type="button"
-                            wire:click="toggleSidebar"
-                            variant="ghost"
-                            icon="chevron-double-left"
-                            class="hidden lg:inline-flex"
-                        >
-                            {{ __('Show Upcoming') }}
-                        </flux:button>
-                    @endif
-
-                    <flux:button
-                        type="button"
-                        wire:click="callPrevious"
-                        icon="arrow-left"
-                        variant="primary"
-                        :disabled="! $this->currentToken"
-                    >
-                        {{ __('Back') }}
-                    </flux:button>
-
-                    <flux:button
-                        type="button"
-                        wire:click="recallCurrent"
-                        icon="speaker-wave"
-                        variant="primary"
-                        :disabled="! $this->currentToken"
-                    >
-                        {{ __('Recall') }}
-                    </flux:button>
-
-                    <flux:button
-                        type="button"
-                        wire:click="skipCurrent"
-                        icon="forward"
-                        variant="danger"
-                        :disabled="! $this->currentToken"
-                    >
-                        {{ __('Skip') }}
-                    </flux:button>
-
-                    <flux:button
-                        type="button"
-                        wire:click="callNext"
-                        icon="arrow-right"
-                        variant="primary"
-                    >
-                        {{ __('Next') }}
-                    </flux:button>
-                </div>
+                <flux:text class="mt-4 text-zinc-500">
+                    {{ __('Use the controls to call the next token.') }}
+                </flux:text>
             @endif
         </div>
+
+        {{-- PIN prompt --}}
+        @if (! $pinVerified)
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">
+                <div class="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+                    <flux:heading level="2" size="lg" class="text-center">
+                        {{ __('Enter PIN') }}
+                    </flux:heading>
+
+                    <flux:text class="mt-2 text-center text-zinc-500">
+                        {{ __('Enter the 4-digit PIN to unlock the controls.') }}
+                    </flux:text>
+
+                    <form wire:submit="verifyPin" class="mt-6 space-y-4">
+                        <flux:input
+                            type="password"
+                            wire:model="pin"
+                            inputmode="numeric"
+                            pattern="[0-9]{4}"
+                            maxlength="4"
+                            placeholder="----"
+                            class="text-center text-2xl tracking-[0.5em]"
+                            autofocus
+                        />
+
+                        @error('pin')
+                            <flux:text variant="danger" class="text-center">{{ $message }}</flux:text>
+                        @enderror
+
+                        <flux:button type="submit" variant="primary" class="w-full">
+                            {{ __('Unlock') }}
+                        </flux:button>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- Controls --}}
+        @if ($pinVerified)
+            <div class="fixed bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 p-3 backdrop-blur sm:gap-3 lg:absolute lg:right-6 lg:bottom-6 lg:left-auto lg:w-auto lg:border-0 lg:bg-transparent lg:p-0">
+                <flux:button
+                    type="button"
+                    wire:click="callPrevious"
+                    icon="arrow-left"
+                    variant="primary"
+                    :disabled="! $this->currentToken"
+                >
+                    {{ __('Back') }}
+                </flux:button>
+
+                <flux:button
+                    type="button"
+                    wire:click="callNext"
+                    icon="arrow-right"
+                    variant="primary"
+                >
+                    {{ __('Next') }}
+                </flux:button>
+            </div>
+        @endif
     @endif
 </div>
