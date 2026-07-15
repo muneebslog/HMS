@@ -26,6 +26,19 @@ class QueueTokenFactory extends Factory
             'token_number' => fake()->randomNumber(2),
             'status' => 'waiting',
             'origin' => 'walk_in',
+            'arrived_at' => now(),
         ];
+    }
+
+    /**
+     * Indicate that the token is reserved and has not arrived.
+     */
+    public function reserved(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'reserved',
+            'origin' => 'reservation',
+            'arrived_at' => null,
+        ]);
     }
 }

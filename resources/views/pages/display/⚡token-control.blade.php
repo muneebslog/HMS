@@ -204,7 +204,7 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
                         </div>
                     @endif
 
-                    @if ($this->currentToken->status === 'reserved')
+                    @if ($this->currentToken->arrived_at === null)
                         <flux:badge variant="danger" size="lg" class="mt-2">{{ __('Not Arrived') }}</flux:badge>
                     @else
                         <flux:badge variant="success" size="lg" class="mt-2">{{ __('Arrived') }}</flux:badge>

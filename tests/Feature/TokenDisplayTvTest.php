@@ -267,7 +267,7 @@ test('tv display shows arrived badge for the current serving token', function ()
         ->assertSee($patient->name);
 });
 
-test('tv display calls the lowest waiting token number on next', function () {
+test('tv display calls the next token number in order', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -282,7 +282,7 @@ test('tv display calls the lowest waiting token number on next', function () {
     $currentToken = QueueToken::factory()->create([
         'service_queue_id' => $queue->id,
         'patient_id' => $firstPatient->id,
-        'token_number' => 6,
+        'token_number' => 1,
         'status' => 'serving',
     ]);
 
@@ -300,6 +300,48 @@ test('tv display calls the lowest waiting token number on next', function () {
 
     expect($currentToken->fresh()->status)->toBe('served')
         ->and($nextToken->fresh()->status)->toBe('serving');
+});
+
+test('tv display serves a reserved token in numeric order and shows not arrived badge', function () {
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'serving',
+    ]);
+
+    $nextToken = QueueToken::factory()->reserved()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+    ]);
+
+    $this->withSession(['display_pin_verified' => true])
+        ->post(route('display.tokens.tv.next'), [
+            'queue' => $queue->id,
+        ]);
+
+    expect($nextToken->fresh()->status)->toBe('serving');
+
+    $response = $this->get(route('display.tokens.tv', ['queue' => $queue->id]));
+
+    $response->assertOk()
+        ->assertSee($nextToken->token_number)
+        ->assertSee($secondPatient->name)
+        ->assertSee(__('Not Arrived'));
 });
 
 test('entering the correct pin unlocks the tv controls', function () {

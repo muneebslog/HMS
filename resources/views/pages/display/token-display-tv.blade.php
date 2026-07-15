@@ -5,7 +5,7 @@
         $patientName = fn ($token) => $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-';
 
         $arrivalBadge = function (\App\Models\QueueToken $token): array {
-            if ($token->status === 'reserved') {
+            if ($token->arrived_at === null) {
                 return ['label' => __('Not Arrived'), 'color' => '#ef4444', 'background' => '#450a0a'];
             }
 

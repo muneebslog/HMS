@@ -25,7 +25,20 @@ class QueueToken extends Model
         'token_number',
         'status',
         'origin',
+        'arrived_at',
     ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'arrived_at' => 'datetime',
+        ];
+    }
 
     /**
      * Get the queue this token belongs to.

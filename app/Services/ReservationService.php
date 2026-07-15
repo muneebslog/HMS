@@ -46,6 +46,7 @@ class ReservationService
                 'token_number' => $tokenNumber,
                 'status' => 'reserved',
                 'origin' => 'reservation',
+                'arrived_at' => null,
             ]);
 
             $lockedQueue->update([
@@ -165,6 +166,7 @@ class ReservationService
             $lockedToken->update([
                 'invoice_item_id' => $invoiceItem->id,
                 'status' => 'waiting',
+                'arrived_at' => now(),
             ]);
 
             return $invoice;

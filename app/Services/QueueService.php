@@ -44,6 +44,7 @@ class QueueService
                 'token_number' => $nextNumber,
                 'status' => 'waiting',
                 'origin' => 'walk_in',
+                'arrived_at' => now(),
             ]);
         });
     }

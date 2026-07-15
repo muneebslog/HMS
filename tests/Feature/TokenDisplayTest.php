@@ -210,7 +210,7 @@ test('verified users can call the previous token', function () {
         ->and($previousToken->fresh()->status)->toBe('serving');
 });
 
-test('call next selects the lowest waiting token number regardless of creation order', function () {
+test('call next selects the next token number in order', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -225,7 +225,7 @@ test('call next selects the lowest waiting token number regardless of creation o
     $currentToken = QueueToken::factory()->create([
         'service_queue_id' => $queue->id,
         'patient_id' => $firstPatient->id,
-        'token_number' => 6,
+        'token_number' => 1,
         'status' => 'serving',
     ]);
 
@@ -234,6 +234,41 @@ test('call next selects the lowest waiting token number regardless of creation o
         'patient_id' => $secondPatient->id,
         'token_number' => 2,
         'status' => 'waiting',
+    ]);
+
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->call('callNext');
+
+    expect($currentToken->fresh()->status)->toBe('served')
+        ->and($nextToken->fresh()->status)->toBe('serving');
+});
+
+test('call next serves a reserved token in numeric order and shows not arrived badge', function () {
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'serving',
+    ]);
+
+    $nextToken = QueueToken::factory()->reserved()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
     ]);
 
     $this->withSession(['display_pin_verified' => true]);

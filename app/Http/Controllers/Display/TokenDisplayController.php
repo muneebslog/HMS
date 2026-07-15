@@ -98,32 +98,6 @@ class TokenDisplayController extends Controller
     }
 
     /**
-     * Skip the currently serving token and call the next one.
-     */
-    public function skipCurrent(Request $request): RedirectResponse
-    {
-        $queue = $this->requireQueue($request);
-
-        app(TokenDisplayService::class)->skipCurrent($queue);
-
-        return redirect()->route('display.tokens.tv', [
-            'queue' => $queue->id,
-        ]);
-    }
-
-    /**
-     * Recall the currently serving token.
-     */
-    public function recallCurrent(Request $request): RedirectResponse
-    {
-        $queue = $this->requireQueue($request);
-
-        return redirect()->route('display.tokens.tv', [
-            'queue' => $queue->id,
-        ]);
-    }
-
-    /**
      * Lock the TV controls by clearing the verified PIN session.
      */
     public function lock(Request $request): RedirectResponse
@@ -132,18 +106,6 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $request->input('queue'),
-        ]);
-    }
-
-    /**
-     * Toggle the upcoming tokens sidebar visibility.
-     */
-    public function toggleSidebar(Request $request): RedirectResponse
-    {
-        $queue = $this->requireQueue($request);
-
-        return redirect()->route('display.tokens.tv', [
-            'queue' => $queue->id,
         ]);
     }
 

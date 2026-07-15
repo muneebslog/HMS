@@ -20,9 +20,6 @@ Route::post('display/tokens/tv/verify-pin', [TokenDisplayController::class, 'ver
 Route::get('display/tokens/tv/lock', [TokenDisplayController::class, 'lock'])->name('display.tokens.tv.lock');
 Route::post('display/tokens/tv/next', [TokenDisplayController::class, 'callNext'])->name('display.tokens.tv.next');
 Route::post('display/tokens/tv/back', [TokenDisplayController::class, 'callPrevious'])->name('display.tokens.tv.back');
-Route::post('display/tokens/tv/skip', [TokenDisplayController::class, 'skipCurrent'])->name('display.tokens.tv.skip');
-Route::post('display/tokens/tv/recall', [TokenDisplayController::class, 'recallCurrent'])->name('display.tokens.tv.recall');
-Route::get('display/tokens/tv/toggle-sidebar', [TokenDisplayController::class, 'toggleSidebar'])->name('display.tokens.tv.toggle-sidebar');
 
 Route::livewire('display/tokens/control', 'pages::display.token-control')
     ->middleware(['auth'])
