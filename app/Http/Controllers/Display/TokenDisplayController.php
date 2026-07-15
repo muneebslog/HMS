@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class TokenDisplayController extends Controller
@@ -23,15 +24,15 @@ class TokenDisplayController extends Controller
     public function tv(Request $request): View
     {
         $selectedQueue = $this->resolveSelectedQueue($request);
+        $pinVerified = $this->pinVerified();
 
         return view('pages.display.token-display-tv', [
             'queues' => $this->queues(),
             'selectedQueue' => $selectedQueue,
             'currentToken' => $selectedQueue !== null ? app(TokenDisplayService::class)->currentToken($selectedQueue) : null,
-            'reservedTokens' => $selectedQueue !== null ? $this->reservedTokens($selectedQueue) : new Collection,
-            'arrivedTokens' => $selectedQueue !== null ? $this->arrivedTokens($selectedQueue) : new Collection,
-            'walkInTokens' => $selectedQueue !== null ? $this->walkInTokens($selectedQueue) : new Collection,
-            'sidebarOpen' => $request->boolean('sidebar', auth()->check()),
+            'upcomingTokens' => $selectedQueue !== null ? $this->upcomingTokens($selectedQueue) : new Collection,
+            'sidebarOpen' => $request->boolean('sidebar', $pinVerified),
+            'pinVerified' => $pinVerified,
         ]);
     }
 
@@ -46,7 +47,31 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $request->integer('queue'),
-            'sidebar' => $request->boolean('sidebar', auth()->check() ? 1 : 0),
+            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
+        ]);
+    }
+
+    /**
+     * Verify the TV display PIN and unlock the controls.
+     */
+    public function verifyPin(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'pin' => ['required', 'string', 'size:4'],
+            'queue' => ['nullable', 'integer', 'exists:service_queues,id'],
+        ]);
+
+        if ($request->string('pin')->value() !== config('display.pin')) {
+            throw ValidationException::withMessages([
+                'pin' => __('Invalid PIN.'),
+            ]);
+        }
+
+        $request->session()->put('display_pin_verified', true);
+
+        return redirect()->route('display.tokens.tv', [
+            'queue' => $request->input('queue'),
+            'sidebar' => '1',
         ]);
     }
 
@@ -61,7 +86,22 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', auth()->check() ? 1 : 0),
+            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
+        ]);
+    }
+
+    /**
+     * Call the previous token.
+     */
+    public function callPrevious(Request $request): RedirectResponse
+    {
+        $queue = $this->requireQueue($request);
+
+        app(TokenDisplayService::class)->callPrevious($queue);
+
+        return redirect()->route('display.tokens.tv', [
+            'queue' => $queue->id,
+            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -76,7 +116,7 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', auth()->check() ? 1 : 0),
+            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
         ]);
     }
 
@@ -89,7 +129,19 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $queue->id,
-            'sidebar' => $request->boolean('sidebar', auth()->check() ? 1 : 0),
+            'sidebar' => $request->boolean('sidebar', $this->pinVerified() ? 1 : 0),
+        ]);
+    }
+
+    /**
+     * Lock the TV controls by clearing the verified PIN session.
+     */
+    public function lock(Request $request): RedirectResponse
+    {
+        $request->session()->forget('display_pin_verified');
+
+        return redirect()->route('display.tokens.tv', [
+            'queue' => $request->input('queue'),
         ]);
     }
 
@@ -140,63 +192,39 @@ class TokenDisplayController extends Controller
     }
 
     /**
-     * Get the reserved tokens for the selected queue.
+     * Get the upcoming tokens for the selected queue.
      *
      * @return Collection<int, QueueToken>
      */
-    private function reservedTokens(ServiceQueue $queue): Collection
+    private function upcomingTokens(ServiceQueue $queue): Collection
     {
         return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
             ->where('service_queue_id', $queue->id)
-            ->where('status', 'reserved')
+            ->whereIn('status', ['reserved', 'waiting'])
             ->orderBy('token_number')
-            ->limit(8)
+            ->limit(16)
             ->get();
     }
 
     /**
-     * Get the reserved patients who have arrived for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    private function arrivedTokens(ServiceQueue $queue): Collection
-    {
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $queue->id)
-            ->where('status', 'waiting')
-            ->where('origin', 'reservation')
-            ->orderBy('token_number')
-            ->limit(8)
-            ->get();
-    }
-
-    /**
-     * Get the walk-in patients waiting for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    private function walkInTokens(ServiceQueue $queue): Collection
-    {
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $queue->id)
-            ->where('status', 'waiting')
-            ->where('origin', 'walk_in')
-            ->orderBy('token_number')
-            ->limit(8)
-            ->get();
-    }
-
-    /**
-     * Require a selected queue for an action.
+     * Require a selected queue and a verified PIN for an action.
      */
     private function requireQueue(Request $request): ServiceQueue
     {
-        abort_if(! auth()->check(), 403);
+        abort_if(! $this->pinVerified(), 403);
 
         $queue = $this->resolveSelectedQueue($request);
 
         abort_if($queue === null, 404);
 
         return $queue;
+    }
+
+    /**
+     * Determine whether the display PIN has been verified this session.
+     */
+    private function pinVerified(): bool
+    {
+        return (bool) request()->session()->get('display_pin_verified', false);
     }
 }

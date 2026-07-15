@@ -44,6 +44,37 @@ class TokenDisplayService
     }
 
     /**
+     * Mark the current serving token as waiting and call the previous token.
+     */
+    public function callPrevious(ServiceQueue $queue): ?QueueToken
+    {
+        return DB::transaction(function () use ($queue) {
+            $current = QueueToken::where('service_queue_id', $queue->id)
+                ->where('status', 'serving')
+                ->lockForUpdate()
+                ->first();
+
+            if ($current === null) {
+                return null;
+            }
+
+            $previous = QueueToken::where('service_queue_id', $queue->id)
+                ->where('token_number', $current->token_number - 1)
+                ->lockForUpdate()
+                ->first();
+
+            if ($previous === null) {
+                return null;
+            }
+
+            $current->update(['status' => 'waiting']);
+            $previous->update(['status' => 'serving']);
+
+            return $previous->fresh();
+        });
+    }
+
+    /**
      * Resolve the current serving token with the given status.
      */
     private function resolveCurrentToken(ServiceQueue $queue, string $status): void

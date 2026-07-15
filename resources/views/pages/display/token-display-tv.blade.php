@@ -3,6 +3,14 @@
 @section('content')
     @php
         $patientName = fn ($token) => $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-';
+
+        $arrivalBadge = function (\App\Models\QueueToken $token): array {
+            if ($token->status === 'reserved') {
+                return ['label' => __('Not Arrived'), 'color' => '#ef4444', 'background' => '#450a0a'];
+            }
+
+            return ['label' => __('Arrived'), 'color' => '#22c55e', 'background' => '#052e16'];
+        };
     @endphp
 
     <style>
@@ -59,6 +67,56 @@
             flex-wrap: wrap;
             justify-content: flex-end;
             gap: 12px;
+        }
+
+        .token-pin-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(9, 9, 11, 0.95);
+        }
+
+        .token-pin-box {
+            width: 100%;
+            max-width: 360px;
+            padding: 32px;
+            text-align: center;
+            background-color: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 16px;
+        }
+
+        .token-pin-input {
+            width: 100%;
+            padding: 16px;
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 0.25em;
+            color: #ffffff;
+            background-color: #27272a;
+            border: 1px solid #3f3f46;
+            border-radius: 12px;
+        }
+
+        .token-pin-error {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #ef4444;
+        }
+
+        .token-arrival-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         @media (max-width: 1023px) {
@@ -135,17 +193,17 @@
 
             @if ($selectedQueue)
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    @auth
+                    @if ($pinVerified)
                         <a
-                            href="{{ route('display.tokens.control', ['selectedQueueId' => $selectedQueue->id]) }}"
+                            href="{{ route('display.tokens.tv.lock', ['queue' => $selectedQueue->id]) }}"
                             style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
                                 <path fill-rule="evenodd" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM4.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 4.5 8Z" clip-rule="evenodd"/>
                             </svg>
-                            {{ __('Control') }}
+                            {{ __('Lock') }}
                         </a>
-                    @endauth
+                    @endif
 
                     <a
                         href="{{ route('display.tokens.tv') }}"
@@ -177,7 +235,7 @@
                             <form method="POST" action="{{ route('display.tokens.tv.select') }}" style="display: inline;">
                                 @csrf
                                 <input type="hidden" name="queue" value="{{ $queue->id }}">
-                                <input type="hidden" name="sidebar" value="{{ auth()->check() ? '1' : '0' }}">
+                                <input type="hidden" name="sidebar" value="{{ $pinVerified ? '1' : '0' }}">
 
                                 <button
                                     type="submit"
@@ -241,7 +299,7 @@
                                 {{ __('Upcoming') }}
                             </h3>
 
-                            @auth
+                            @if ($pinVerified)
                                 <a
                                     href="{{ route('display.tokens.tv.toggle-sidebar', ['queue' => $selectedQueue->id, 'sidebar' => '0']) }}"
                                     style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: #a1a1aa; background-color: transparent; border: 1px solid #3f3f46; border-radius: 6px;"
@@ -252,90 +310,44 @@
                                         <path d="M3.5 8a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5A.75.75 0 0 1 3.5 8Z"/>
                                     </svg>
                                 </a>
-                            @endauth
+                            @endif
                         </div>
 
-                        <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 24px;">
-                            <div>
-                                <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
-                                    {{ __('Reserved') }}
-                                </h4>
+                        <div style="display: flex; flex: 1; flex-direction: column; overflow-y: auto; gap: 16px;">
+                            @forelse ($upcomingTokens as $token)
+                                @php
+                                    $badge = $arrivalBadge($token);
+                                @endphp
 
-                                @forelse ($reservedTokens as $token)
-                                    <div
-                                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                                    >
-                                        <div>
-                                            <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                                {{ $token->token_number }}
-                                            </div>
-                                            <div style="font-size: 14px; color: #a1a1aa;">
-                                                {{ $patientName($token) }}
-                                            </div>
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
+                                >
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
+                                            {{ $token->token_number }}
                                         </div>
-                                    </div>
-                                @empty
-                                    <p style="margin: 0; font-size: 16px; color: #71717a;">
-                                        {{ __('No reserved tokens.') }}
-                                    </p>
-                                @endforelse
-                            </div>
-
-                            <div>
-                                <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
-                                    {{ __('Arrived') }}
-                                </h4>
-
-                                @forelse ($arrivedTokens as $token)
-                                    <div
-                                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                                    >
-                                        <div>
-                                            <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                                {{ $token->token_number }}
-                                            </div>
-                                            <div style="font-size: 14px; color: #a1a1aa;">
-                                                {{ $patientName($token) }}
-                                            </div>
+                                        <div style="font-size: 14px; color: #a1a1aa;">
+                                            {{ $patientName($token) }}
                                         </div>
+                                        <span
+                                            class="token-arrival-badge"
+                                            style="color: {{ $badge['color'] }}; background-color: {{ $badge['background'] }};"
+                                        >
+                                            {{ $badge['label'] }}
+                                        </span>
                                     </div>
-                                @empty
-                                    <p style="margin: 0; font-size: 16px; color: #71717a;">
-                                        {{ __('No arrived tokens.') }}
-                                    </p>
-                                @endforelse
-                            </div>
-
-                            <div>
-                                <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em;">
-                                    {{ __('Waiting') }}
-                                </h4>
-
-                                @forelse ($walkInTokens as $token)
-                                    <div
-                                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 16px; background-color: #18181b; border: 1px solid #27272a; border-radius: 12px;"
-                                    >
-                                        <div>
-                                            <div style="font-size: 24px; font-weight: 700; color: #ffffff;">
-                                                {{ $token->token_number }}
-                                            </div>
-                                            <div style="font-size: 14px; color: #a1a1aa;">
-                                                {{ $patientName($token) }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                @empty
-                                    <p style="margin: 0; font-size: 16px; color: #71717a;">
-                                        {{ __('No waiting tokens.') }}
-                                    </p>
-                                @endforelse
-                            </div>
+                                </div>
+                            @empty
+                                <p style="margin: 0; font-size: 16px; color: #71717a;">
+                                    {{ __('No upcoming tokens.') }}
+                                </p>
+                            @endforelse
                         </div>
                     </div>
                 @endif
 
                 {{-- Controls --}}
-                @auth
+                @if ($pinVerified)
                     <div class="token-display-controls">
                         @if (! $sidebarOpen)
                             <a
@@ -349,6 +361,22 @@
                                 {{ __('Show Upcoming') }}
                             </a>
                         @endif
+
+                        <form method="POST" action="{{ route('display.tokens.tv.back') }}" style="display: inline;">
+                            @csrf
+                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+                            <input type="hidden" name="sidebar" value="{{ $sidebarOpen ? '1' : '0' }}">
+                            <button
+                                type="submit"
+                                @disabled(! $currentToken)
+                                style="display: inline-flex; align-items: center; padding: 12px 20px; font-size: 16px; font-weight: 500; color: #ffffff; background-color: #2563eb; border: none; border-radius: 8px; opacity: {{ $currentToken ? '1' : '0.5' }};"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 8px;">
+                                    <path fill-rule="evenodd" d="M14 8a.75.75 0 0 1-.75.75H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 1.06L4.56 7.25h8.69A.75.75 0 0 1 14 8Z" clip-rule="evenodd"/>
+                                </svg>
+                                {{ __('Back') }}
+                            </button>
+                        </form>
 
                         <form method="POST" action="{{ route('display.tokens.tv.recall') }}" style="display: inline;">
                             @csrf
@@ -398,7 +426,48 @@
                             </button>
                         </form>
                     </div>
-                @endauth
+                @else
+                    {{-- PIN prompt overlay --}}
+                    <div class="token-pin-overlay">
+                        <div class="token-pin-box">
+                            <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600; color: #ffffff;">
+                                {{ __('Enter PIN') }}
+                            </h2>
+
+                            <p style="margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa;">
+                                {{ __('Enter the 4-digit PIN to unlock the controls.') }}
+                            </p>
+
+                            <form method="POST" action="{{ route('display.tokens.tv.verify-pin') }}">
+                                @csrf
+                                <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+
+                                <input
+                                    type="password"
+                                    name="pin"
+                                    inputmode="numeric"
+                                    pattern="[0-9]{4}"
+                                    maxlength="4"
+                                    class="token-pin-input"
+                                    placeholder="----"
+                                    required
+                                    autofocus
+                                >
+
+                                @error('pin')
+                                    <p class="token-pin-error">{{ $message }}</p>
+                                @enderror
+
+                                <button
+                                    type="submit"
+                                    style="width: 100%; margin-top: 24px; padding: 14px; font-size: 16px; font-weight: 600; color: #ffffff; background-color: #2563eb; border: none; border-radius: 10px;"
+                                >
+                                    {{ __('Unlock') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                @endif
             </div>
         @endif
     </div>

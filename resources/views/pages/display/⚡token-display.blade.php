@@ -18,12 +18,17 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
     public bool $sidebarOpen = false;
 
+    public ?string $pin = '';
+
+    public bool $pinVerified = false;
+
     /**
      * Initialize the component state.
      */
     public function mount(): void
     {
-        $this->sidebarOpen = auth()->check();
+        $this->pinVerified = (bool) session('display_pin_verified', false);
+        $this->sidebarOpen = $this->pinVerified;
     }
 
     /**
@@ -73,12 +78,12 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Get the reserved patients who have arrived for the selected queue.
+     * Get the upcoming tokens for the selected queue.
      *
      * @return Collection<int, QueueToken>
      */
     #[Computed]
-    public function arrivedTokens(): Collection
+    public function upcomingTokens(): Collection
     {
         if ($this->selectedQueueId === null) {
             return new Collection();
@@ -86,51 +91,9 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
         return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
             ->where('service_queue_id', $this->selectedQueueId)
-            ->where('status', 'waiting')
-            ->where('origin', 'reservation')
+            ->whereIn('status', ['reserved', 'waiting'])
             ->orderBy('token_number')
-            ->limit(8)
-            ->get();
-    }
-
-    /**
-     * Get the walk-in patients waiting for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    #[Computed]
-    public function walkInTokens(): Collection
-    {
-        if ($this->selectedQueueId === null) {
-            return new Collection();
-        }
-
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $this->selectedQueueId)
-            ->where('status', 'waiting')
-            ->where('origin', 'walk_in')
-            ->orderBy('token_number')
-            ->limit(8)
-            ->get();
-    }
-
-    /**
-     * Get the reserved tokens for the selected queue.
-     *
-     * @return Collection<int, QueueToken>
-     */
-    #[Computed]
-    public function reservedTokens(): Collection
-    {
-        if ($this->selectedQueueId === null) {
-            return new Collection();
-        }
-
-        return QueueToken::with(['patient', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $this->selectedQueueId)
-            ->where('status', 'reserved')
-            ->orderBy('token_number')
-            ->limit(8)
+            ->limit(16)
             ->get();
     }
 
@@ -153,11 +116,37 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
+     * Verify the display PIN and unlock the controls.
+     */
+    public function verifyPin(): void
+    {
+        if ($this->pin !== config('display.pin')) {
+            $this->addError('pin', __('Invalid PIN.'));
+
+            return;
+        }
+
+        session(['display_pin_verified' => true]);
+        $this->pinVerified = true;
+        $this->pin = '';
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Lock the controls by clearing the verified PIN session.
+     */
+    public function lock(): void
+    {
+        session()->forget('display_pin_verified');
+        $this->pinVerified = false;
+    }
+
+    /**
      * Call the next waiting token.
      */
     public function callNext(): void
     {
-        $this->ensureAuthenticated();
+        $this->ensurePinVerified();
 
         if ($this->selectedQueue === null) {
             return;
@@ -167,11 +156,25 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
+     * Call the previous token.
+     */
+    public function callPrevious(): void
+    {
+        $this->ensurePinVerified();
+
+        if ($this->selectedQueue === null) {
+            return;
+        }
+
+        app(TokenDisplayService::class)->callPrevious($this->selectedQueue);
+    }
+
+    /**
      * Skip the currently serving token and call the next one.
      */
     public function skipCurrent(): void
     {
-        $this->ensureAuthenticated();
+        $this->ensurePinVerified();
 
         if ($this->selectedQueue === null) {
             return;
@@ -185,7 +188,7 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
      */
     public function recallCurrent(): void
     {
-        $this->ensureAuthenticated();
+        $this->ensurePinVerified();
     }
 
     /**
@@ -193,17 +196,17 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
      */
     public function toggleSidebar(): void
     {
-        $this->ensureAuthenticated();
+        $this->ensurePinVerified();
 
         $this->sidebarOpen = ! $this->sidebarOpen;
     }
 
     /**
-     * Ensure the user is authenticated before performing a control action.
+     * Ensure the PIN has been verified before performing a control action.
      */
-    private function ensureAuthenticated(): void
+    private function ensurePinVerified(): void
     {
-        abort_if(! auth()->check(), 403);
+        abort_if(! $this->pinVerified, 403);
     }
 }; ?>
 
@@ -230,18 +233,17 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
         <div class="flex items-center gap-2">
             @if ($this->selectedQueue)
-                @auth
+                @if ($pinVerified)
                     <flux:button
                         type="button"
                         variant="ghost"
-                        icon="adjustments-horizontal"
-                        :href="route('display.tokens.control', ['selectedQueueId' => $this->selectedQueue->id])"
-                        wire:navigate
+                        icon="lock-closed"
+                        wire:click="lock"
                         class="hidden sm:inline-flex"
                     >
-                        {{ __('Control') }}
+                        {{ __('Lock') }}
                     </flux:button>
-                @endauth
+                @endif
 
                 <flux:button
                     type="button"
@@ -334,7 +336,7 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                             {{ __('Upcoming') }}
                         </flux:heading>
 
-                        @auth
+                        @if ($pinVerified)
                             <flux:button
                                 type="button"
                                 variant="ghost"
@@ -342,93 +344,76 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                                 wire:click="toggleSidebar"
                                 title="{{ __('Collapse sidebar') }}"
                             />
-                        @endauth
+                        @endif
                     </div>
 
-                    <div class="flex flex-1 flex-col gap-4 overflow-y-auto sm:gap-6">
-                        <div>
-                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                {{ __('Reserved') }}
-                            </h4>
-
-                            @forelse ($this->reservedTokens as $token)
-                                <div
-                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
-                                    wire:key="reserved-token-{{ $token->id }}"
-                                >
-                                    <div>
-                                        <div class="text-xl font-bold text-white sm:text-2xl">
-                                            {{ $token->token_number }}
-                                        </div>
-                                        <div class="text-sm text-zinc-400">
-                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                                        </div>
+                    <div class="flex flex-1 flex-col gap-3 overflow-y-auto sm:gap-4">
+                        @forelse ($this->upcomingTokens as $token)
+                            <div
+                                class="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
+                                wire:key="upcoming-token-{{ $token->id }}"
+                            >
+                                <div>
+                                    <div class="text-xl font-bold text-white sm:text-2xl">
+                                        {{ $token->token_number }}
                                     </div>
-                                </div>
-                            @empty
-                                <p class="text-sm text-zinc-500">
-                                    {{ __('No reserved tokens.') }}
-                                </p>
-                            @endforelse
-                        </div>
-
-                        <div>
-                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                {{ __('Arrived') }}
-                            </h4>
-
-                            @forelse ($this->arrivedTokens as $token)
-                                <div
-                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
-                                    wire:key="arrived-token-{{ $token->id }}"
-                                >
-                                    <div>
-                                        <div class="text-xl font-bold text-white sm:text-2xl">
-                                            {{ $token->token_number }}
-                                        </div>
-                                        <div class="text-sm text-zinc-400">
-                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                                        </div>
+                                    <div class="text-sm text-zinc-400">
+                                        {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
                                     </div>
+                                    @if ($token->status === 'reserved')
+                                        <flux:badge variant="danger" size="sm" class="mt-2">{{ __('Not Arrived') }}</flux:badge>
+                                    @else
+                                        <flux:badge variant="success" size="sm" class="mt-2">{{ __('Arrived') }}</flux:badge>
+                                    @endif
                                 </div>
-                            @empty
-                                <p class="text-sm text-zinc-500">
-                                    {{ __('No arrived tokens.') }}
-                                </p>
-                            @endforelse
-                        </div>
+                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500">
+                                {{ __('No upcoming tokens.') }}
+                            </p>
+                        @endforelse
+                    </div>
+                </div>
+            @endif
 
-                        <div>
-                            <h4 class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                {{ __('Waiting') }}
-                            </h4>
+            {{-- PIN prompt --}}
+            @if (! $pinVerified)
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">
+                    <div class="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+                        <flux:heading level="2" size="lg" class="text-center">
+                            {{ __('Enter PIN') }}
+                        </flux:heading>
 
-                            @forelse ($this->walkInTokens as $token)
-                                <div
-                                    class="mb-3 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:p-4"
-                                    wire:key="walk-in-token-{{ $token->id }}"
-                                >
-                                    <div>
-                                        <div class="text-xl font-bold text-white sm:text-2xl">
-                                            {{ $token->token_number }}
-                                        </div>
-                                        <div class="text-sm text-zinc-400">
-                                            {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                                        </div>
-                                    </div>
-                                </div>
-                            @empty
-                                <p class="text-sm text-zinc-500">
-                                    {{ __('No waiting tokens.') }}
-                                </p>
-                            @endforelse
-                        </div>
+                        <flux:text class="mt-2 text-center text-zinc-500">
+                            {{ __('Enter the 4-digit PIN to unlock the controls.') }}
+                        </flux:text>
+
+                        <form wire:submit="verifyPin" class="mt-6 space-y-4">
+                            <flux:input
+                                type="password"
+                                wire:model="pin"
+                                inputmode="numeric"
+                                pattern="[0-9]{4}"
+                                maxlength="4"
+                                placeholder="----"
+                                class="text-center text-2xl tracking-[0.5em]"
+                                autofocus
+                            />
+
+                            @error('pin')
+                                <flux:text variant="danger" class="text-center">{{ $message }}</flux:text>
+                            @enderror
+
+                            <flux:button type="submit" variant="primary" class="w-full">
+                                {{ __('Unlock') }}
+                            </flux:button>
+                        </form>
                     </div>
                 </div>
             @endif
 
             {{-- Controls --}}
-            @auth
+            @if ($pinVerified)
                 <div class="fixed bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 p-3 backdrop-blur sm:gap-3 lg:absolute lg:right-6 lg:bottom-6 lg:left-auto lg:w-auto lg:border-0 lg:bg-transparent lg:p-0">
                     @if (! $this->sidebarOpen)
                         <flux:button
@@ -441,6 +426,16 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                             {{ __('Show Upcoming') }}
                         </flux:button>
                     @endif
+
+                    <flux:button
+                        type="button"
+                        wire:click="callPrevious"
+                        icon="arrow-left"
+                        variant="primary"
+                        :disabled="! $this->currentToken"
+                    >
+                        {{ __('Back') }}
+                    </flux:button>
 
                     <flux:button
                         type="button"
@@ -471,7 +466,7 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                         {{ __('Next') }}
                     </flux:button>
                 </div>
-            @endauth
+            @endif
         </div>
     @endif
 </div>

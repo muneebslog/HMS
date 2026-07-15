@@ -6,12 +6,15 @@ use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 const TV_USER_AGENT = 'Mozilla/5.0 (Linux; Android 5.1.1; SMART_TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.90 Safari/537.36';
+
+beforeEach(function () {
+    config()->set('display.pin', '1234');
+});
 
 test('guests can view the tv display page', function () {
     $response = $this->get(route('display.tokens.tv'));
@@ -121,7 +124,7 @@ test('selecting a queue shows the current serving token', function () {
         ->assertSee($doctor->name);
 });
 
-test('upcoming waiting tokens are shown for the selected queue', function () {
+test('upcoming tokens are shown for the selected queue', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -149,12 +152,11 @@ test('upcoming waiting tokens are shown for the selected queue', function () {
         'created_at' => now(),
     ]);
 
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
+    $response = $this->withSession(['display_pin_verified' => true])
         ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
 
     $response->assertOk()
+        ->assertSee(__('Upcoming'))
         ->assertSee($firstToken->token_number)
         ->assertSee($firstPatient->name)
         ->assertSee($secondToken->token_number)
@@ -181,8 +183,7 @@ test('guests can select a queue on the tv display', function () {
     ]));
 });
 
-test('authenticated users can select a queue on the tv display', function () {
-    $user = User::factory()->create();
+test('selecting a queue opens the sidebar when the pin is verified', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -192,7 +193,7 @@ test('authenticated users can select a queue on the tv display', function () {
         'status' => 'open',
     ]);
 
-    $response = $this->actingAs($user)
+    $response = $this->withSession(['display_pin_verified' => true])
         ->post(route('display.tokens.tv.select'), [
             'queue' => $queue->id,
         ]);
@@ -203,7 +204,7 @@ test('authenticated users can select a queue on the tv display', function () {
     ]));
 });
 
-test('guests cannot call the next token on the tv display', function () {
+test('guests cannot call the next token on the tv display without a pin', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -220,8 +221,7 @@ test('guests cannot call the next token on the tv display', function () {
     $response->assertForbidden();
 });
 
-test('authenticated users can call the next token on the tv display', function () {
-    $user = User::factory()->create();
+test('verified users can call the next token on the tv display', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -249,7 +249,7 @@ test('authenticated users can call the next token on the tv display', function (
         'created_at' => now(),
     ]);
 
-    $this->actingAs($user)
+    $this->withSession(['display_pin_verified' => true])
         ->post(route('display.tokens.tv.next'), [
             'queue' => $queue->id,
         ]);
@@ -258,8 +258,7 @@ test('authenticated users can call the next token on the tv display', function (
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('authenticated users can skip the current token on the tv display', function () {
-    $user = User::factory()->create();
+test('verified users can skip the current token on the tv display', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -287,13 +286,48 @@ test('authenticated users can skip the current token on the tv display', functio
         'created_at' => now(),
     ]);
 
-    $this->actingAs($user)
+    $this->withSession(['display_pin_verified' => true])
         ->post(route('display.tokens.tv.skip'), [
             'queue' => $queue->id,
         ]);
 
     expect($currentToken->fresh()->status)->toBe('skipped')
         ->and($nextToken->fresh()->status)->toBe('serving');
+});
+
+test('verified users can call the previous token on the tv display', function () {
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $previousToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'served',
+    ]);
+
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'serving',
+    ]);
+
+    $this->withSession(['display_pin_verified' => true])
+        ->post(route('display.tokens.tv.back'), [
+            'queue' => $queue->id,
+        ]);
+
+    expect($currentToken->fresh()->status)->toBe('waiting')
+        ->and($previousToken->fresh()->status)->toBe('serving');
 });
 
 test('guests cannot skip the current token on the tv display', function () {
@@ -330,8 +364,7 @@ test('guests cannot recall a token on the tv display', function () {
     $response->assertForbidden();
 });
 
-test('authenticated users can toggle the upcoming tokens sidebar on the tv display', function () {
-    $user = User::factory()->create();
+test('verified users can toggle the upcoming tokens sidebar on the tv display', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -341,7 +374,7 @@ test('authenticated users can toggle the upcoming tokens sidebar on the tv displ
         'status' => 'open',
     ]);
 
-    $response = $this->actingAs($user)
+    $response = $this->withSession(['display_pin_verified' => true])
         ->get(route('display.tokens.tv.toggle-sidebar', [
             'queue' => $queue->id,
             'sidebar' => '1',
@@ -360,7 +393,7 @@ test('the tv display page includes an auto refresh meta tag', function () {
         ->assertSee('http-equiv="refresh"', false);
 });
 
-test('tv display shows arrived reservation tokens in the arrived section', function () {
+test('tv display shows arrived reservation tokens in the upcoming section', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
@@ -381,18 +414,17 @@ test('tv display shows arrived reservation tokens in the arrived section', funct
         'origin' => 'reservation',
     ]);
 
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
+    $response = $this->withSession(['display_pin_verified' => true])
         ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
 
     $response->assertOk()
+        ->assertSee(__('Upcoming'))
         ->assertSee(__('Arrived'))
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
 });
 
-test('tv display shows walk-in tokens in the waiting section', function () {
+test('tv display shows walk-in tokens in the upcoming section', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
@@ -413,19 +445,48 @@ test('tv display shows walk-in tokens in the waiting section', function () {
         'origin' => 'walk_in',
     ]);
 
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
+    $response = $this->withSession(['display_pin_verified' => true])
         ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
 
     $response->assertOk()
-        ->assertSee(__('Waiting'))
+        ->assertSee(__('Upcoming'))
+        ->assertSee(__('Arrived'))
+        ->assertSee($token->token_number)
+        ->assertSee($patient->name);
+});
+
+test('tv display shows reserved tokens in the upcoming section with not arrived badge', function () {
+    $patient = Patient::factory()->create();
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 4,
+        'status' => 'reserved',
+        'origin' => 'reservation',
+    ]);
+
+    $response = $this->withSession(['display_pin_verified' => true])
+        ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
+
+    $response->assertOk()
+        ->assertSee(__('Upcoming'))
+        ->assertSee(__('Not Arrived'))
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
 });
 
 test('tv display calls the lowest waiting token number on next', function () {
-    $user = User::factory()->create();
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -451,7 +512,7 @@ test('tv display calls the lowest waiting token number on next', function () {
         'status' => 'waiting',
     ]);
 
-    $this->actingAs($user)
+    $this->withSession(['display_pin_verified' => true])
         ->post(route('display.tokens.tv.next'), [
             'queue' => $queue->id,
         ]);
@@ -460,34 +521,60 @@ test('tv display calls the lowest waiting token number on next', function () {
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('tv display shows reserved tokens in the reserved section', function () {
-    $patient = Patient::factory()->create();
+test('entering the correct pin unlocks the tv controls', function () {
     $service = Service::factory()->create();
-    $doctor = Doctor::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
-        'doctor_id' => $doctor->id,
         'date' => today(),
         'reset_type' => TokenResetType::Shift,
         'status' => 'open',
     ]);
 
-    $token = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'patient_id' => $patient->id,
-        'token_number' => 4,
-        'status' => 'reserved',
-        'origin' => 'reservation',
+    $response = $this->post(route('display.tokens.tv.verify-pin'), [
+        'queue' => $queue->id,
+        'pin' => '1234',
     ]);
 
-    $user = User::factory()->create();
+    $response->assertRedirect(route('display.tokens.tv', [
+        'queue' => $queue->id,
+        'sidebar' => '1',
+    ]))
+        ->assertSessionHas('display_pin_verified', true);
+});
 
-    $response = $this->actingAs($user)
-        ->get(route('display.tokens.tv', ['queue' => $queue->id, 'sidebar' => '1']));
+test('entering an incorrect pin does not unlock the tv controls', function () {
+    $service = Service::factory()->create();
 
-    $response->assertOk()
-        ->assertSee(__('Reserved'))
-        ->assertSee($token->token_number)
-        ->assertSee($patient->name);
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $response = $this->post(route('display.tokens.tv.verify-pin'), [
+        'queue' => $queue->id,
+        'pin' => '0000',
+    ]);
+
+    $response->assertSessionHasErrors('pin')
+        ->assertSessionMissing('display_pin_verified');
+});
+
+test('locking the tv controls clears the verified pin session', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $response = $this->withSession(['display_pin_verified' => true])
+        ->get(route('display.tokens.tv.lock', ['queue' => $queue->id]));
+
+    $response->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]))
+        ->assertSessionMissing('display_pin_verified');
 });

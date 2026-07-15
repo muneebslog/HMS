@@ -6,11 +6,14 @@ use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    config()->set('display.pin', '1234');
+});
 
 test('guests can view the display page', function () {
     $response = $this->get(route('display.tokens'));
@@ -90,8 +93,7 @@ test('selecting a queue shows the current serving token', function () {
         ->assertSee($doctor->name);
 });
 
-test('upcoming waiting tokens are shown for the selected queue', function () {
-    $user = User::factory()->create();
+test('upcoming tokens are shown for the selected queue', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -119,16 +121,18 @@ test('upcoming waiting tokens are shown for the selected queue', function () {
         'created_at' => now(),
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
+        ->assertSee(__('Upcoming'))
         ->assertSee($firstToken->token_number)
         ->assertSee($firstPatient->name)
         ->assertSee($secondToken->token_number)
         ->assertSee($secondPatient->name);
 });
 
-test('guests cannot call the next token', function () {
+test('guests cannot call the next token without verifying the pin', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -144,8 +148,7 @@ test('guests cannot call the next token', function () {
         ->assertStatus(403);
 });
 
-test('authenticated users can call the next token', function () {
-    $user = User::factory()->create();
+test('verified users can call the next token', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -173,8 +176,9 @@ test('authenticated users can call the next token', function () {
         'created_at' => now(),
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('callNext');
 
@@ -183,7 +187,6 @@ test('authenticated users can call the next token', function () {
 });
 
 test('calling next with no serving token marks the oldest waiting token as serving', function () {
-    $user = User::factory()->create();
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
 
@@ -201,16 +204,16 @@ test('calling next with no serving token marks the oldest waiting token as servi
         'status' => 'waiting',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('callNext');
 
     expect($token->fresh()->status)->toBe('serving');
 });
 
-test('authenticated users can skip the current token', function () {
-    $user = User::factory()->create();
+test('verified users can skip the current token', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -238,8 +241,9 @@ test('authenticated users can skip the current token', function () {
         'created_at' => now(),
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('skipCurrent');
 
@@ -247,8 +251,43 @@ test('authenticated users can skip the current token', function () {
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
+test('verified users can call the previous token', function () {
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $previousToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'served',
+    ]);
+
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'serving',
+    ]);
+
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->call('callPrevious');
+
+    expect($currentToken->fresh()->status)->toBe('waiting')
+        ->and($previousToken->fresh()->status)->toBe('serving');
+});
+
 test('recalling a token does not change its status', function () {
-    $user = User::factory()->create();
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
 
@@ -266,8 +305,9 @@ test('recalling a token does not change its status', function () {
         'status' => 'serving',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('recallCurrent');
 
@@ -306,7 +346,7 @@ test('guests cannot recall a token', function () {
         ->assertStatus(403);
 });
 
-test('upcoming tokens sidebar is hidden for guests by default', function () {
+test('upcoming tokens sidebar is hidden until the pin is verified', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -338,8 +378,7 @@ test('guests cannot toggle the upcoming tokens sidebar', function () {
         ->assertStatus(403);
 });
 
-test('authenticated users can collapse and reopen the upcoming tokens sidebar', function () {
-    $user = User::factory()->create();
+test('verified users can collapse and reopen the upcoming tokens sidebar', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -349,21 +388,20 @@ test('authenticated users can collapse and reopen the upcoming tokens sidebar', 
         'status' => 'open',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->assertSet('sidebarOpen', true)
         ->assertSee(__('Upcoming'))
         ->call('toggleSidebar')
         ->assertSet('sidebarOpen', false)
-        ->assertDontSee(__('No waiting tokens.'))
         ->call('toggleSidebar')
         ->assertSet('sidebarOpen', true)
         ->assertSee(__('Upcoming'));
 });
 
 test('call next selects the lowest waiting token number regardless of creation order', function () {
-    $user = User::factory()->create();
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -389,8 +427,9 @@ test('call next selects the lowest waiting token number regardless of creation o
         'status' => 'waiting',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('callNext');
 
@@ -398,8 +437,7 @@ test('call next selects the lowest waiting token number regardless of creation o
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('arrived reservation tokens are shown in the arrived sidebar section', function () {
-    $user = User::factory()->create();
+test('arrived reservation tokens are shown in the upcoming section', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
 
@@ -418,16 +456,17 @@ test('arrived reservation tokens are shown in the arrived sidebar section', func
         'origin' => 'reservation',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
+        ->assertSee(__('Upcoming'))
         ->assertSee(__('Arrived'))
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
 });
 
-test('walk-in tokens are shown in the waiting sidebar section', function () {
-    $user = User::factory()->create();
+test('walk-in tokens are shown in the upcoming section', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
 
@@ -446,16 +485,17 @@ test('walk-in tokens are shown in the waiting sidebar section', function () {
         'origin' => 'walk_in',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
-        ->assertSee(__('Waiting'))
+        ->assertSee(__('Upcoming'))
+        ->assertSee(__('Arrived'))
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
 });
 
-test('reserved tokens are shown in the reserved sidebar section', function () {
-    $user = User::factory()->create();
+test('reserved tokens are shown in the upcoming section with not arrived badge', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
 
@@ -474,10 +514,67 @@ test('reserved tokens are shown in the reserved sidebar section', function () {
         'origin' => 'reservation',
     ]);
 
-    Livewire::actingAs($user)
-        ->test('pages::display.token-display')
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
-        ->assertSee(__('Reserved'))
+        ->assertSee(__('Upcoming'))
+        ->assertSee(__('Not Arrived'))
         ->assertSee($token->token_number)
         ->assertSee($patient->name);
+});
+
+test('entering the correct pin unlocks the display controls', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->assertSet('pinVerified', true)
+        ->assertHasNoErrors('pin');
+});
+
+test('entering an incorrect pin does not unlock the display controls', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->set('pin', '0000')
+        ->call('verifyPin')
+        ->assertSet('pinVerified', false)
+        ->assertHasErrors('pin');
+});
+
+test('locking the controls clears the verified pin session', function () {
+    $service = Service::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $this->withSession(['display_pin_verified' => true]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSet('pinVerified', true)
+        ->call('lock')
+        ->assertSet('pinVerified', false);
 });
