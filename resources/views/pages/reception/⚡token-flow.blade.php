@@ -14,6 +14,10 @@ new #[Title('Token Flow')] class extends Component
 {
     public ?int $selectedDoctorId = null;
 
+    public string $sortColumn = 'token_number';
+
+    public string $sortDirection = 'asc';
+
     /**
      * Get the currently open shift for the user.
      */
@@ -79,6 +83,15 @@ new #[Title('Token Flow')] class extends Component
     }
 
     /**
+     * Sort the table by the given column in ascending order.
+     */
+    public function sortBy(string $column): void
+    {
+        $this->sortColumn = $column;
+        $this->sortDirection = 'asc';
+    }
+
+    /**
      * Get the tokens for the selected doctor's current queue with flow timestamps.
      *
      * @return Collection<int, QueueToken>
@@ -94,6 +107,7 @@ new #[Title('Token Flow')] class extends Component
 
         return QueueToken::with(['patient', 'serviceQueue.doctor', 'invoiceItem.invoice.patient'])
             ->where('service_queue_id', $queue->id)
+            ->orderBy($this->sortColumn, $this->sortDirection)
             ->orderBy('token_number')
             ->get();
     }
@@ -155,11 +169,25 @@ new #[Title('Token Flow')] class extends Component
                         <table class="w-full text-left text-sm">
                             <thead class="border-b border-zinc-200 dark:border-zinc-700">
                                 <tr>
-                                    <th class="py-3 pr-4 font-semibold">{{ __('Token #') }}</th>
+                                    <th class="cursor-pointer py-3 pr-4 font-semibold" wire:click="sortBy('token_number')">
+                                        <span class="flex items-center gap-1">
+                                            {{ __('Token #') }}
+                                            @if ($this->sortColumn === 'token_number')
+                                                <flux:icon name="chevron-up" class="h-4 w-4" />
+                                            @endif
+                                        </span>
+                                    </th>
                                     <th class="py-3 pr-4 font-semibold">{{ __('Patient') }}</th>
                                     <th class="py-3 pr-4 font-semibold">{{ __('Origin') }}</th>
                                     <th class="py-3 pr-4 font-semibold">{{ __('Reserved At') }}</th>
-                                    <th class="py-3 pr-4 font-semibold">{{ __('Arrived At') }}</th>
+                                    <th class="cursor-pointer py-3 pr-4 font-semibold" wire:click="sortBy('arrived_at')">
+                                        <span class="flex items-center gap-1">
+                                            {{ __('Arrived At') }}
+                                            @if ($this->sortColumn === 'arrived_at')
+                                                <flux:icon name="chevron-up" class="h-4 w-4" />
+                                            @endif
+                                        </span>
+                                    </th>
                                     <th class="py-3 pr-4 font-semibold">{{ __('Served / On TV At') }}</th>
                                     <th class="py-3 font-semibold">{{ __('Status') }}</th>
                                 </tr>

@@ -137,6 +137,95 @@ test('calling the next token records the displayed at timestamp', function () {
     expect($token->fresh()->displayed_at)->not->toBeNull();
 });
 
+test('clicking arrived at header sorts tokens by arrival time', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = tokenFlowConsultationService();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'shift_id' => $shift->id,
+        'date' => $shift->opened_at,
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+
+    $tokenTwo = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now()->subMinutes(10),
+    ]);
+
+    $tokenOne = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'waiting',
+        'arrived_at' => now()->subMinutes(30),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.token-flow')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('sortBy', 'arrived_at')
+        ->assertSeeInOrder([
+            (string) $tokenOne->token_number,
+            (string) $tokenTwo->token_number,
+        ]);
+});
+
+test('clicking token number header sorts tokens by token number', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = tokenFlowConsultationService();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'shift_id' => $shift->id,
+        'date' => $shift->opened_at,
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $firstPatient = Patient::factory()->create();
+    $secondPatient = Patient::factory()->create();
+
+    $tokenTwo = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $secondPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now()->subMinutes(10),
+    ]);
+
+    $tokenOne = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $firstPatient->id,
+        'token_number' => 1,
+        'status' => 'waiting',
+        'arrived_at' => now()->subMinutes(30),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.token-flow')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('sortBy', 'arrived_at')
+        ->call('sortBy', 'token_number')
+        ->assertSeeInOrder([
+            (string) $tokenOne->token_number,
+            (string) $tokenTwo->token_number,
+        ]);
+});
+
 test('calling the previous token records the displayed at timestamp', function () {
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
