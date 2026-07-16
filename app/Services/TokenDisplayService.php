@@ -89,7 +89,10 @@ class TokenDisplayService
                 return null;
             }
 
-            $previous->update(['status' => 'serving']);
+            $previous->update([
+                'status' => 'serving',
+                'displayed_at' => now(),
+            ]);
 
             return $previous->fresh();
         });
@@ -111,7 +114,10 @@ class TokenDisplayService
             return null;
         }
 
-        $next->update(['status' => 'serving']);
+        $next->update([
+            'status' => 'serving',
+            'displayed_at' => now(),
+        ]);
 
         return $next->fresh();
     }

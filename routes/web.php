@@ -61,6 +61,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
+            Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');
         });
 
         Route::livewire('daily-payout', 'pages::payout.daily')->name('payout.daily');

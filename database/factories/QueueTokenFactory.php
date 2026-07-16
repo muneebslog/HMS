@@ -27,6 +27,7 @@ class QueueTokenFactory extends Factory
             'status' => 'waiting',
             'origin' => 'walk_in',
             'arrived_at' => now(),
+            'displayed_at' => null,
         ];
     }
 
@@ -39,6 +40,7 @@ class QueueTokenFactory extends Factory
             'status' => 'reserved',
             'origin' => 'reservation',
             'arrived_at' => null,
+            'displayed_at' => null,
         ]);
     }
 }

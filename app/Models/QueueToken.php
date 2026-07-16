@@ -26,6 +26,7 @@ class QueueToken extends Model
         'status',
         'origin',
         'arrived_at',
+        'displayed_at',
     ];
 
     /**
@@ -37,6 +38,7 @@ class QueueToken extends Model
     {
         return [
             'arrived_at' => 'datetime',
+            'displayed_at' => 'datetime',
         ];
     }
 
