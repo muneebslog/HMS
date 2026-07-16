@@ -172,7 +172,7 @@ new #[Title('Token Flow')] class extends Component
                                             {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
                                         </td>
                                         <td class="py-3 pr-4">
-                                            @if ($token->origin === 'reservation')
+                                            @if ($token->arrived_at === null || $token->created_at->diffInMinutes($token->arrived_at) > 1)
                                                 <flux:badge size="sm" color="purple">{{ __('Reservation') }}</flux:badge>
                                             @else
                                                 <flux:badge size="sm" color="zinc">{{ __('Walk-in') }}</flux:badge>

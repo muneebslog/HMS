@@ -59,7 +59,6 @@ test('token flow page shows tokens for the selected doctor', function () {
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'waiting',
-        'origin' => 'walk_in',
         'arrived_at' => now(),
     ]);
 
@@ -96,7 +95,6 @@ test('token flow page shows reservation and arrival timestamps', function () {
         'patient_id' => $patient->id,
         'token_number' => 1,
         'status' => 'waiting',
-        'origin' => 'reservation',
         'arrived_at' => $arrivedAt,
         'created_at' => $reservedAt,
     ]);
