@@ -95,7 +95,7 @@ class LabInvoice extends Model
     {
         $sequence = LabInvoiceNumberSequence::firstOrCreate(
             ['date' => '2000-01-01'],
-            ['last_number' => 8000]
+            ['last_number' => 928000]
         );
 
         $sequence->increment('last_number');
