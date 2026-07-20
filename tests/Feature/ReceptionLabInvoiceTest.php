@@ -207,7 +207,7 @@ test('saving a lab invoice uses a predictable invoice number and queues two rece
     expect($copyTypes)->toContain('patient', 'lab');
 
     $patientCopy = $printJobs->firstWhere('payload.copy_for', 'patient');
-    expect($patientCopy->payload['qr_url'])->toBe(rtrim(config('services.lab.url'), '/').'/public/invoice/'.$invoice->invoice_number);
+    expect($patientCopy->payload['qr_url'])->toBe(rtrim(config('services.lab.url'), '/').'/my-visit/'.$invoice->invoice_number);
 
     Bus::assertDispatched(SendLabCaseToLab::class, fn ($job) => $job->labInvoiceId === $invoice->id);
 });

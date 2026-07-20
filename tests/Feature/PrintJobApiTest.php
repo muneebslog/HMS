@@ -116,7 +116,7 @@ test('pending lab invoice jobs include qr url copy type and time required', func
             'type' => 'lab_invoice',
             'source' => 'web',
             'copy_for' => 'patient',
-            'qr_url' => 'https://lab.mohsinmedicalcomplex.com/public/invoice/'.$labInvoice->invoice_number,
+            'qr_url' => 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$labInvoice->invoice_number,
         ],
     ]);
 
@@ -124,6 +124,6 @@ test('pending lab invoice jobs include qr url copy type and time required', func
 
     $response->assertOk()
         ->assertJsonPath('data.0.invoice.copy_for', 'patient')
-        ->assertJsonPath('data.0.invoice.qr_url', 'https://lab.mohsinmedicalcomplex.com/public/invoice/'.$labInvoice->invoice_number)
+        ->assertJsonPath('data.0.invoice.qr_url', 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$labInvoice->invoice_number)
         ->assertJsonPath('data.0.invoice.items.0.time_required', '1 hour');
 });

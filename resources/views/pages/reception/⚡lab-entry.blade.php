@@ -194,7 +194,7 @@ new #[Title('Lab Entry')] class extends Component
             return $invoice;
         });
 
-        $qrUrl = rtrim((string) config('services.lab.url'), '/').'/public/invoice/'.$invoice->invoice_number;
+        $qrUrl = rtrim((string) config('services.lab.url'), '/').'/my-visit/'.$invoice->invoice_number;
 
         app(CreatePrintJob::class)->createLabInvoiceReceipts($invoice, $qrUrl);
         SendLabCaseToLab::dispatch($invoice->id);
