@@ -330,6 +330,7 @@ new #[Title('Doctor Payout')] class extends Component
 
                 <flux:table>
                     <flux:table.columns>
+                        <flux:table.column>{{ __('Id') }}</flux:table.column>
                         <flux:table.column>{{ __('Service') }}</flux:table.column>
                         <flux:table.column>{{ __('Date') }}</flux:table.column>
                         <flux:table.column>{{ __('Price') }}</flux:table.column>
@@ -340,6 +341,7 @@ new #[Title('Doctor Payout')] class extends Component
                     <flux:table.rows>
                         @forelse ($this->items as $item)
                             <flux:table.row wire:key="item-{{ $item->id }}">
+                                <flux:table.cell>{{ $item->id }}</flux:table.cell>
                                 <flux:table.cell>{{ $item->service_name }}</flux:table.cell>
                                 <flux:table.cell>{{ $item->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                                 <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
