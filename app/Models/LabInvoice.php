@@ -89,20 +89,18 @@ class LabInvoice extends Model
     /**
      * Generate a unique lab invoice number.
      *
-     * Format: ddmmyy + daily sequential number starting at 1001.
+     * Format: auto-incrementing number starting at 8001.
      */
     public static function generateNumber(): string
     {
-        $today = now()->startOfDay();
-
         $sequence = LabInvoiceNumberSequence::firstOrCreate(
-            ['date' => $today],
-            ['last_number' => 1000]
+            ['date' => '2000-01-01'],
+            ['last_number' => 8000]
         );
 
         $sequence->increment('last_number');
         $sequence->refresh();
 
-        return $today->format('dmY').$sequence->last_number;
+        return (string) $sequence->last_number;
     }
 }
