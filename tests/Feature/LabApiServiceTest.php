@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\LabApiStatus;
 use App\Jobs\SendLabCaseToLab;
 use App\Models\AdminNotification;
+use App\Models\LabApiLog;
 use App\Models\LabInvoice;
 use App\Models\LabTest;
 use App\Models\Patient;
@@ -45,6 +47,14 @@ test('only in-house tests with numeric codes are sent to the lab api', function 
     });
 
     expect(AdminNotification::where('type', 'lab_test_missing_code')->count())->toBe(1);
+
+    $log = LabApiLog::where('lab_invoice_id', $invoice->id)->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(LabApiStatus::Sent)
+        ->and($log->http_status)->toBe(201)
+        ->and($log->request_payload['invoice_number'])->toBe($invoice->invoice_number)
+        ->and($log->request_payload['test_codes'])->toBe(['1300', '2704'])
+        ->and($log->lab_case_url)->toBe('https://lab.mohsinmedicalcomplex.com/my-visit/'.$invoice->invoice_number);
 });
 
 test('service returns true when lab api integration is disabled', function () {
@@ -56,6 +66,10 @@ test('service returns true when lab api integration is disabled', function () {
 
     expect($service->sendLabCase($invoice))->toBeTrue();
     Http::assertNothingSent();
+
+    $log = LabApiLog::where('lab_invoice_id', $invoice->id)->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(LabApiStatus::Skipped);
 });
 
 test('service returns false on lab api failure', function () {
@@ -68,6 +82,27 @@ test('service returns false on lab api failure', function () {
     $service = app(LabApiService::class);
 
     expect($service->sendLabCase($invoice))->toBeFalse();
+
+    $log = LabApiLog::where('lab_invoice_id', $invoice->id)->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(LabApiStatus::Failed)
+        ->and($log->http_status)->toBe(500);
+});
+
+test('service logs a skipped status when there are no sendable in-house tests', function () {
+    $invoice = createLabInvoice([
+        ['test_code' => 'EXT-01', 'is_in_house' => false],
+        ['test_code' => 'ABC', 'is_in_house' => true],
+    ]);
+
+    $service = app(LabApiService::class);
+
+    expect($service->sendLabCase($invoice))->toBeTrue();
+    Http::assertNothingSent();
+
+    $log = LabApiLog::where('lab_invoice_id', $invoice->id)->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(LabApiStatus::Skipped);
 });
 
 test('queued job retries on lab api failure and notifies admins after final failure', function () {
@@ -84,6 +119,11 @@ test('queued job retries on lab api failure and notifies admins after final fail
     $job->failed(new RuntimeException('Lab API unavailable'));
 
     expect(AdminNotification::where('type', 'lab_case_sync_failed')->count())->toBe(1);
+
+    $log = LabApiLog::where('lab_invoice_id', $invoice->id)->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe(LabApiStatus::Failed)
+        ->and($log->http_status)->toBe(500);
 });
 
 function createLabInvoice(array $itemsConfig): LabInvoice

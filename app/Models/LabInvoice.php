@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LabInvoice extends Model
 {
@@ -75,6 +76,14 @@ class LabInvoice extends Model
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    /**
+     * Get the latest lab API log for this invoice.
+     */
+    public function labApiLog(): HasOne
+    {
+        return $this->hasOne(LabApiLog::class)->latestOfMany();
     }
 
     /**

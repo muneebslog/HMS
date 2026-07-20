@@ -66,6 +66,9 @@
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+                        <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                            {{ __('Lab Entries') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                             {{ __('Invoices') }}
                         </flux:sidebar.item>

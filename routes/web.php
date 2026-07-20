@@ -55,6 +55,10 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
     });
 
+    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
+        Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
+    });
+
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {
         Route::middleware('open.shift')->group(function () {
             Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
