@@ -2,14 +2,12 @@
   "apiBaseUrl": "https://hms.example.com",
   "apiToken": "your-print-agent-token-here",
   "pollIntervalMs": 2000,
-  "headerText": "Your Clinic Name",
-  "subHeaderText": "Invoice Receipt",
-  "footerText": "Thank you for visiting!",
   "printer": {
     "mode": "escpos",
-    "interface": "epson-port",
-    "port": "ESDPRT001",
+    "interface": "windows-spooler",
+    "name": "EPSON TM-T90 Receipt",
     "width": 48,
+    "leftPadding": 0,
     "characterSet": "SLOVENIA",
     "removeSpecialCharacters": false,
     "lineCharacter": "-"

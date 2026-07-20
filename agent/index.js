@@ -1,6 +1,9 @@
 const axios = require('axios');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
 
 function toWindowsDevicePath(port) {
@@ -8,6 +11,15 @@ function toWindowsDevicePath(port) {
     return `\\\\.\\${port}`;
   }
   return port;
+}
+
+function setLeftMargin(printer, columns) {
+  // ESC/POS GS L nL nH: set left margin in dots.
+  // Approximate 12 dots per Font-A character column.
+  const dots = Math.max(0, Math.round((columns || 0) * 12));
+  const nL = dots & 0xff;
+  const nH = (dots >> 8) & 0xff;
+  printer.append(Buffer.from([0x1d, 0x4c, nL, nH]));
 }
 
 function writeRawToPort(buffer, port) {
@@ -37,6 +49,41 @@ function writeRawToPort(buffer, port) {
         return;
       }
       stream.end();
+    });
+  });
+}
+
+function sendRawToWindowsSpooler(buffer, printerName) {
+  const tmpFile = path.join(os.tmpdir(), `hms-print-${crypto.randomBytes(8).toString('hex')}.bin`);
+  fs.writeFileSync(tmpFile, buffer);
+
+  const psScriptPath = path.join(__dirname, 'print-raw.ps1');
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy', 'Bypass',
+      '-File', psScriptPath,
+      '-PrinterName', printerName,
+      '-FilePath', tmpFile,
+    ], { windowsHide: true });
+
+    let stderr = '';
+    child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    child.on('error', (error) => {
+      try { fs.unlinkSync(tmpFile); } catch (e) { /* ignore */ }
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      try { fs.unlinkSync(tmpFile); } catch (e) { /* ignore */ }
+
+      if (code !== 0) {
+        reject(new Error(`Windows spooler print failed (exit ${code}): ${stderr.trim() || 'unknown error'}`));
+      } else {
+        resolve();
+      }
     });
   });
 }
@@ -80,9 +127,20 @@ function buildPrinter() {
       // but we will send the raw bytes ourselves via the virtual port.
       interfaceValue = toWindowsDevicePath(printerConfig.port || 'ESDPRT001');
       break;
+    case 'windows-spooler':
+      printerType = PrinterTypes.EPSON;
+      // We build the ESC/POS buffer with node-thermal-printer and then send it
+      // as a RAW job through the Windows print spooler using the printer name.
+      // Pass a dummy interface so node-thermal-printer doesn't try to load a
+      // third-party printer driver; we handle the actual spooler write ourselves.
+      interfaceValue = {
+        execute: () => Promise.resolve(),
+        isPrinterConnected: () => Promise.resolve(true),
+      };
+      break;
     case 'usb':
       printerType = PrinterTypes.EPSON;
-      interfaceValue = printerConfig.name;
+      interfaceValue = `printer:${printerConfig.name}`;
       break;
     case 'network':
       printerType = PrinterTypes.EPSON;
@@ -109,6 +167,10 @@ function buildPrinter() {
 async function printReceipt(printer, job) {
   const invoice = job.invoice;
 
+  // Shift the whole receipt to the right so the printer does not clip
+  // the leftmost characters.
+  setLeftMargin(printer, config.printer?.leftPadding);
+
   printer.alignCenter();
   printer.bold(true);
   printer.setTextSize(1, 1);
@@ -116,12 +178,29 @@ async function printReceipt(printer, job) {
   printer.setTextNormal();
   printer.bold(false);
   printer.println(config.subHeaderText || 'Invoice Receipt');
+
+  const copyFor = invoice.copy_for;
+  if (copyFor) {
+    printer.newLine();
+    printer.alignCenter();
+    printer.bold(true);
+    printer.setTextSize(1, 1);
+    printer.println(`${copyFor.toUpperCase()} COPY`);
+    printer.setTextNormal();
+    printer.bold(false);
+  }
+
   printer.drawLine();
 
   printer.alignLeft();
   printer.println(`Invoice #: ${invoice.invoice_number}`);
   printer.println(`Date: ${invoice.created_at}`);
-  printer.println(`Patient: ${invoice.patient.name}`);
+  printer.println('Patient:');
+  printer.bold(true);
+  printer.setTextSize(1, 1);
+  printer.println(invoice.patient.name);
+  printer.setTextNormal();
+  printer.bold(false);
   printer.newLine();
 
   const tokenItem = invoice.items.find((item) => item.token_number);
@@ -135,14 +214,41 @@ async function printReceipt(printer, job) {
     printer.newLine();
   }
 
+  const isLabInvoice = job.payload?.type === 'lab_invoice';
+
   printer.alignLeft();
   invoice.items.forEach((item) => {
-    const name = item.service_name.padEnd(24, ' ').substring(0, 24);
-    const price = item.price.toFixed(2).padStart(8, ' ');
-    printer.println(`${name}${price}`);
+    if (isLabInvoice) {
+      printer.bold(true);
+      printer.println(item.service_name);
+      printer.bold(false);
 
-    if (item.doctor_name) {
-      printer.println(`  Dr. ${item.doctor_name}`);
+      const details = [];
+      if (item.test_code) {
+        details.push(`Code: ${item.test_code}`);
+      }
+      if (item.time_required) {
+        const displayTime = item.time_required.toLowerCase() === 'same day'
+          ? 'Next day'
+          : item.time_required;
+        details.push(`Time: ${displayTime}`);
+      }
+      if (details.length > 0) {
+        printer.println(`  ${details.join(' | ')}`);
+      }
+
+      const priceLabel = '  Price:';
+      const priceValue = item.price.toFixed(2);
+      const pricePadding = Math.max(0, printer.getWidth() - priceLabel.length - priceValue.length);
+      printer.println(`${priceLabel}${' '.repeat(pricePadding)}${priceValue}`);
+    } else {
+      const name = item.service_name.padEnd(24, ' ').substring(0, 24);
+      const price = item.price.toFixed(2).padStart(8, ' ');
+      printer.println(`${name}${price}`);
+
+      if (item.doctor_name) {
+        printer.println(`  Dr. ${item.doctor_name}`);
+      }
     }
   });
 
@@ -153,6 +259,16 @@ async function printReceipt(printer, job) {
   const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
   printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
   printer.bold(false);
+
+  if (invoice.qr_url) {
+    printer.newLine();
+    printer.alignCenter();
+    printer.println('Scan for invoice details');
+    printer.printQR(invoice.qr_url, { cellSize: 5, correction: 'M' });
+    printer.setTextNormal();
+    printer.alignCenter();
+    printer.println(invoice.qr_url);
+  }
 
   printer.newLine();
   printer.alignCenter();
@@ -165,73 +281,9 @@ async function printReceipt(printer, job) {
     const buffer = printer.getBuffer();
     await writeRawToPort(buffer, config.printer.port);
     printer.clear();
-  } else {
-    const result = await printer.execute();
-
-    if (!result) {
-      throw new Error('Printer returned false.');
-    }
-  }
-}
-
-async function printLabReceipt(printer, job) {
-  const invoice = job.invoice;
-  const copyFor = job.payload?.copy_for || 'patient';
-  const isPatientCopy = copyFor === 'patient';
-
-  printer.alignCenter();
-  printer.bold(true);
-  printer.setTextSize(1, 1);
-  printer.println(config.headerText || 'HMS');
-  printer.setTextNormal();
-  printer.bold(false);
-  printer.println(isPatientCopy ? 'PATIENT COPY' : 'LAB COPY');
-  printer.println(config.subHeaderText || 'Lab Receipt');
-  printer.drawLine();
-
-  printer.alignLeft();
-  printer.println(`Invoice #: ${invoice.invoice_number}`);
-  printer.println(`Date: ${invoice.created_at}`);
-  printer.println(`Patient: ${invoice.patient.name}`);
-  printer.newLine();
-
-  printer.alignLeft();
-  invoice.items.forEach((item) => {
-    const name = item.service_name.padEnd(24, ' ').substring(0, 24);
-    const price = item.price.toFixed(2).padStart(8, ' ');
-    printer.println(`${name}${price}`);
-    printer.println(`  Code: ${item.test_code || '-'}`);
-
-    if (item.time_required) {
-      printer.println(`  Time: ${item.time_required}`);
-    }
-  });
-
-  printer.drawLine();
-  printer.bold(true);
-  const totalLabel = 'TOTAL';
-  const totalValue = invoice.total.toFixed(2);
-  const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
-  printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
-  printer.bold(false);
-
-  if (isPatientCopy && invoice.qr_url) {
-    printer.newLine();
-    printer.alignCenter();
-    printer.println('Scan for report:');
-    printer.printQR(invoice.qr_url, { cellSize: 4, correction: 'M', model: 2 });
-  }
-
-  printer.newLine();
-  printer.alignCenter();
-  printer.println(config.footerText || 'Thank you!');
-  printer.newLine();
-  printer.newLine();
-  printer.cut();
-
-  if (config.printer?.interface === 'epson-port') {
+  } else if (config.printer?.interface === 'windows-spooler') {
     const buffer = printer.getBuffer();
-    await writeRawToPort(buffer, config.printer.port);
+    await sendRawToWindowsSpooler(buffer, config.printer.name);
     printer.clear();
   } else {
     const result = await printer.execute();
@@ -264,10 +316,10 @@ async function poll() {
 
     const printer = buildPrinter();
 
-    // Epson virtual ports (\\.\ESDPRT001) are raw Windows device paths.
-    // fs.existsSync is unreliable for them, so skip the connectivity probe
-    // and let the actual write attempt surface any errors.
-    if (config.printer?.interface !== 'epson-port') {
+    // Epson virtual ports (\\.\ESDPRT001) and the Windows spooler are not
+    // reliably probe-able from Node. Skip the connectivity check for those
+    // interfaces and let the actual print attempt surface real errors.
+    if (!['epson-port', 'windows-spooler'].includes(config.printer?.interface)) {
       const isConnected = await printer.isPrinterConnected();
 
       if (!isConnected) {
@@ -278,11 +330,7 @@ async function poll() {
 
     for (const job of jobs) {
       try {
-        if (job.payload?.type === 'lab_invoice') {
-          await printLabReceipt(printer, job);
-        } else {
-          await printReceipt(printer, job);
-        }
+        await printReceipt(printer, job);
         await markPrinted(job);
       } catch (error) {
         await markFailed(job, error);
@@ -301,6 +349,10 @@ function start() {
 
   if (config.printer?.interface === 'epson-port') {
     console.log(`[${new Date().toISOString()}] Printer port: ${toWindowsDevicePath(config.printer.port)}`);
+  }
+
+  if (config.printer?.interface === 'windows-spooler') {
+    console.log(`[${new Date().toISOString()}] Windows spooler printer: ${config.printer.name}`);
   }
 
   poll();
