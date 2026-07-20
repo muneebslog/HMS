@@ -34,6 +34,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
         Route::livewire('admin/sms-logs', 'pages::admin.sms-logs')->name('admin.sms-logs');
+        Route::livewire('admin/sql-runner', 'pages::admin.sql-runner')->name('admin.sql-runner');
     });
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
@@ -61,8 +62,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
-            Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');
         });
+
+        Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');
 
         Route::livewire('daily-payout', 'pages::payout.daily')->name('payout.daily');
     });

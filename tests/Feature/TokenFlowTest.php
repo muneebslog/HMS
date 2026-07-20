@@ -6,7 +6,6 @@ use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
-use App\Models\Shift;
 use App\Models\User;
 use App\Services\TokenDisplayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,9 +27,16 @@ test('guests are redirected to the login page', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('receptionists can visit the token flow page with an open shift', function () {
+test('receptionists can visit the token flow page', function () {
     $user = User::factory()->create();
-    Shift::factory()->for($user)->open()->create();
+
+    $response = $this->actingAs($user)->get(route('reception.token-flow'));
+
+    $response->assertOk();
+});
+
+test('token flow page does not require an open shift', function () {
+    $user = User::factory()->create();
 
     $response = $this->actingAs($user)->get(route('reception.token-flow'));
 
@@ -39,15 +45,13 @@ test('receptionists can visit the token flow page with an open shift', function 
 
 test('token flow page shows tokens for the selected doctor', function () {
     $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
     $service = tokenFlowConsultationService();
     $doctor = Doctor::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
         'doctor_id' => $doctor->id,
-        'shift_id' => $shift->id,
-        'date' => $shift->opened_at,
+        'date' => today(),
         'reset_type' => TokenResetType::Shift,
         'status' => 'open',
     ]);
@@ -73,15 +77,13 @@ test('token flow page shows tokens for the selected doctor', function () {
 
 test('token flow page shows reservation and arrival timestamps', function () {
     $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
     $service = tokenFlowConsultationService();
     $doctor = Doctor::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
         'doctor_id' => $doctor->id,
-        'shift_id' => $shift->id,
-        'date' => $shift->opened_at,
+        'date' => today(),
         'reset_type' => TokenResetType::Shift,
         'status' => 'open',
     ]);
@@ -108,11 +110,12 @@ test('token flow page shows reservation and arrival timestamps', function () {
         ->assertSee($arrivedAt->format('Y-m-d H:i'));
 });
 
-test('calling the next token records the displayed at timestamp', function () {
-    $service = Service::factory()->create();
+test('token flow page filters tokens by selected date', function () {
+    $user = User::factory()->create();
+    $service = tokenFlowConsultationService();
     $doctor = Doctor::factory()->create();
 
-    $queue = ServiceQueue::factory()->create([
+    $todayQueue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
         'doctor_id' => $doctor->id,
         'date' => today(),
@@ -120,34 +123,50 @@ test('calling the next token records the displayed at timestamp', function () {
         'status' => 'open',
     ]);
 
-    $token = QueueToken::factory()->create([
-        'service_queue_id' => $queue->id,
-        'token_number' => 1,
-        'status' => 'waiting',
+    $yesterdayQueue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today()->subDay(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'closed',
     ]);
 
-    $displayService = app(TokenDisplayService::class);
+    $todayPatient = Patient::factory()->create();
+    $yesterdayPatient = Patient::factory()->create();
 
-    $calledToken = $displayService->callNext($queue);
+    QueueToken::factory()->create([
+        'service_queue_id' => $todayQueue->id,
+        'patient_id' => $todayPatient->id,
+        'token_number' => 1,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
 
-    expect($calledToken)->not->toBeNull()
-        ->id->toBe($token->id)
-        ->status->toBe('serving');
+    QueueToken::factory()->create([
+        'service_queue_id' => $yesterdayQueue->id,
+        'patient_id' => $yesterdayPatient->id,
+        'token_number' => 1,
+        'status' => 'served',
+        'arrived_at' => now()->subDay(),
+    ]);
 
-    expect($token->fresh()->displayed_at)->not->toBeNull();
+    Livewire::actingAs($user)
+        ->test('pages::reception.token-flow')
+        ->set('selectedDoctorId', $doctor->id)
+        ->set('selectedDate', today()->toDateString())
+        ->assertSee($todayPatient->name)
+        ->assertDontSee($yesterdayPatient->name);
 });
 
 test('clicking arrived at header sorts tokens by arrival time', function () {
     $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
     $service = tokenFlowConsultationService();
     $doctor = Doctor::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
         'doctor_id' => $doctor->id,
-        'shift_id' => $shift->id,
-        'date' => $shift->opened_at,
+        'date' => today(),
         'reset_type' => TokenResetType::Shift,
         'status' => 'open',
     ]);
@@ -183,15 +202,13 @@ test('clicking arrived at header sorts tokens by arrival time', function () {
 
 test('clicking token number header sorts tokens by token number', function () {
     $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
     $service = tokenFlowConsultationService();
     $doctor = Doctor::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
         'doctor_id' => $doctor->id,
-        'shift_id' => $shift->id,
-        'date' => $shift->opened_at,
+        'date' => today(),
         'reset_type' => TokenResetType::Shift,
         'status' => 'open',
     ]);
@@ -224,6 +241,35 @@ test('clicking token number header sorts tokens by token number', function () {
             (string) $tokenOne->token_number,
             (string) $tokenTwo->token_number,
         ]);
+});
+
+test('calling the next token records the displayed at timestamp', function () {
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 1,
+        'status' => 'waiting',
+    ]);
+
+    $displayService = app(TokenDisplayService::class);
+
+    $calledToken = $displayService->callNext($queue);
+
+    expect($calledToken)->not->toBeNull()
+        ->id->toBe($token->id)
+        ->status->toBe('serving');
+
+    expect($token->fresh()->displayed_at)->not->toBeNull();
 });
 
 test('calling the previous token records the displayed at timestamp', function () {

@@ -4,8 +4,9 @@ use App\Models\Doctor;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
-use App\Models\Shift;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -14,17 +15,18 @@ new #[Title('Token Flow')] class extends Component
 {
     public ?int $selectedDoctorId = null;
 
+    public string $selectedDate = '';
+
     public string $sortColumn = 'token_number';
 
     public string $sortDirection = 'asc';
 
     /**
-     * Get the currently open shift for the user.
+     * Initialize the component state.
      */
-    #[Computed]
-    public function currentShift(): ?Shift
+    public function mount(): void
     {
-        return Shift::current();
+        $this->selectedDate = now()->toDateString();
     }
 
     /**
@@ -60,26 +62,23 @@ new #[Title('Token Flow')] class extends Component
     }
 
     /**
-     * Get the current open queue for the selected doctor and consultation service.
+     * Get the queue IDs for the selected doctor, consultation service, and date.
+     *
+     * @return SupportCollection<int, int>
      */
     #[Computed]
-    public function currentQueue(): ?ServiceQueue
+    public function queueIds(): SupportCollection
     {
         $service = $this->consultationService;
-        $shift = $this->currentShift;
 
-        if ($service === null || $shift === null || $this->selectedDoctorId === null) {
-            return null;
+        if ($service === null || $this->selectedDoctorId === null || blank($this->selectedDate)) {
+            return collect();
         }
 
-        $query = ServiceQueue::where('service_id', $service->id)
+        return ServiceQueue::where('service_id', $service->id)
             ->where('doctor_id', $this->selectedDoctorId)
-            ->where('status', 'open');
-
-        return match ($service->token_reset_type->value) {
-            'shift' => $query->where('shift_id', $shift->id)->first(),
-            default => $query->whereDate('date', $shift->opened_at)->first(),
-        };
+            ->whereDate('date', Carbon::parse($this->selectedDate))
+            ->pluck('id');
     }
 
     /**
@@ -92,21 +91,21 @@ new #[Title('Token Flow')] class extends Component
     }
 
     /**
-     * Get the tokens for the selected doctor's current queue with flow timestamps.
+     * Get the tokens for the selected doctor and date with flow timestamps.
      *
      * @return Collection<int, QueueToken>
      */
     #[Computed]
     public function tokens(): Collection
     {
-        $queue = $this->currentQueue;
+        $queueIds = $this->queueIds;
 
-        if ($queue === null) {
+        if ($queueIds->isEmpty()) {
             return new Collection();
         }
 
         return QueueToken::with(['patient', 'serviceQueue.doctor', 'invoiceItem.invoice.patient'])
-            ->where('service_queue_id', $queue->id)
+            ->whereIn('service_queue_id', $queueIds)
             ->orderBy($this->sortColumn, $this->sortDirection)
             ->orderBy('token_number')
             ->get();
@@ -119,19 +118,7 @@ new #[Title('Token Flow')] class extends Component
             <flux:heading level="1">{{ __('Token Flow') }}</flux:heading>
         </div>
 
-        @if (! $this->currentShift)
-            <flux:card>
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <flux:heading level="2">{{ __('No Open Shift') }}</flux:heading>
-                        <flux:text class="text-zinc-500">{{ __('Open a shift to view token flow.') }}</flux:text>
-                    </div>
-                    <flux:button variant="primary" icon="lock-open" :href="route('reception.shift')" wire:navigate>
-                        {{ __('Open Shift') }}
-                    </flux:button>
-                </div>
-            </flux:card>
-        @elseif ($this->consultationService === null)
+        @if ($this->consultationService === null)
             <flux:card>
                 <flux:heading level="2">{{ __('Consultation Service Missing') }}</flux:heading>
                 <flux:text class="text-zinc-500">
@@ -140,7 +127,7 @@ new #[Title('Token Flow')] class extends Component
             </flux:card>
         @else
             <flux:card>
-                <div class="grid grid-cols-1 items-end gap-6 md:grid-cols-2">
+                <div class="grid grid-cols-1 items-end gap-6 md:grid-cols-3">
                     <flux:field>
                         <flux:label>{{ __('Service') }}</flux:label>
                         <flux:input type="text" value="{{ $this->consultationService->name }}" disabled />
@@ -154,6 +141,11 @@ new #[Title('Token Flow')] class extends Component
                                 <option value="{{ $doctor->id }}">{{ $doctor->name }}</option>
                             @endforeach
                         </flux:select>
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Date') }}</flux:label>
+                        <flux:input wire:model.live="selectedDate" type="date" />
                     </flux:field>
                 </div>
             </flux:card>
@@ -234,7 +226,7 @@ new #[Title('Token Flow')] class extends Component
                                 @empty
                                     <tr>
                                         <td colspan="7" class="py-6 text-center text-zinc-500">
-                                            {{ __('No tokens found for this doctor.') }}
+                                            {{ __('No tokens found for this doctor on the selected date.') }}
                                         </td>
                                     </tr>
                                 @endforelse

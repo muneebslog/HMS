@@ -36,6 +36,9 @@
                         <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
                             {{ __('SMS Logs') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
+                            {{ __('SQL Runner') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
@@ -53,6 +56,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                             {{ __('Procedures') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="list-bullet" :href="route('reception.token-flow')" :current="request()->routeIs('reception.token-flow')" wire:navigate>
+                            {{ __('Token Flow') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
                             {{ __('Daily Payout') }}
