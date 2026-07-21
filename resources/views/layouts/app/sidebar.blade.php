@@ -54,6 +54,9 @@
                         <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                             {{ __('Lab Entry') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
+                            {{ __('Ultrasound') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                             {{ __('Procedures') }}
                         </flux:sidebar.item>

@@ -206,7 +206,7 @@ new #[Title('Management')] class extends Component
         $labTest = LabTest::findOrFail($id);
 
         $this->labTestName = $labTest->test_name;
-        $this->labTestCode = $labTest->test_code;
+        $this->labTestCode = $labTest->test_code ?? '';
         $this->labTestPrice = (string) $labTest->test_price;
         $this->labTestTimeRequired = $labTest->time_required;
         $this->labTestIsInHouse = $labTest->is_in_house;

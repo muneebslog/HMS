@@ -5,6 +5,7 @@ use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
+use App\Models\UltrasoundReport;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -65,7 +66,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
+            Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
+            Route::get('reception/ultrasound/{report}/print', fn (UltrasoundReport $report) => view('ultrasound.print', compact('report')))->name('reception.ultrasound.print');
         });
 
         Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');

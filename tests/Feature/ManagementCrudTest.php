@@ -239,6 +239,32 @@ test('authenticated users can update a lab test', function () {
     ]);
 });
 
+test('authenticated users can update a lab test with null test code', function () {
+    $user = User::factory()->admin()->create();
+    $labTest = LabTest::factory()->create(['test_code' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('edit', $labTest->id)
+        ->set('labTestName', 'Updated Blood Count')
+        ->set('labTestCode', 'UBC-002')
+        ->set('labTestPrice', '1500.00')
+        ->set('labTestTimeRequired', '2 hours')
+        ->set('labTestIsInHouse', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('lab_tests', [
+        'id' => $labTest->id,
+        'test_name' => 'Updated Blood Count',
+        'test_code' => 'UBC-002',
+        'test_price' => 1500.00,
+        'time_required' => '2 hours',
+        'is_in_house' => false,
+    ]);
+});
+
 test('authenticated users can delete a lab test', function () {
     $user = User::factory()->admin()->create();
     $labTest = LabTest::factory()->create();
