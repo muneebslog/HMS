@@ -121,7 +121,7 @@ new #[Title('Management')] class extends Component
             ],
             'labTests' => [
                 'labTestName' => ['required', 'string', 'max:255'],
-                'labTestCode' => ['required', 'string', 'max:255', Rule::unique('lab_tests', 'test_code')->ignore($this->editingId)],
+                'labTestCode' => ['string', 'max:255', Rule::unique('lab_tests', 'test_code')->ignore($this->editingId)],
                 'labTestPrice' => ['required', 'numeric', 'min:0'],
                 'labTestTimeRequired' => ['required', 'string', 'max:255'],
                 'labTestIsInHouse' => ['boolean'],
