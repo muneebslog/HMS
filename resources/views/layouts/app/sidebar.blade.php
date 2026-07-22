@@ -39,6 +39,9 @@
                         <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
                             {{ __('SQL Runner') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
+                            {{ __('Kanban') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())

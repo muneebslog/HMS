@@ -36,6 +36,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
         Route::livewire('admin/sms-logs', 'pages::admin.sms-logs')->name('admin.sms-logs');
         Route::livewire('admin/sql-runner', 'pages::admin.sql-runner')->name('admin.sql-runner');
+        Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
     });
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
