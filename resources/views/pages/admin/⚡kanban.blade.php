@@ -271,9 +271,15 @@ new #[Title('Kanban Board')] class extends Component
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <flux:heading level="1">{{ __('Kanban Board') }}</flux:heading>
 
-            <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
-                {{ __('Add Task') }}
-            </flux:button>
+            <div class="flex gap-2">
+                <flux:button variant="outline" icon="arrow-path" wire:click="$refresh">
+                    {{ __('Refresh') }}
+                </flux:button>
+
+                <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
+                    {{ __('Add Task') }}
+                </flux:button>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
