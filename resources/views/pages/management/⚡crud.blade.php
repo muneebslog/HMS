@@ -64,7 +64,7 @@ new #[Title('Management')] class extends Component
     public string $labTestName = '';
 
     #[Validate]
-    public string $labTestCode = '';
+    public ?string $labTestCode = null;
 
     #[Validate]
     public string $labTestPrice = '';
@@ -121,7 +121,7 @@ new #[Title('Management')] class extends Component
             ],
             'labTests' => [
                 'labTestName' => ['required', 'string', 'max:255'],
-                'labTestCode' => ['string', 'max:255', Rule::unique('lab_tests', 'test_code')->ignore($this->editingId)],
+                'labTestCode' => ['nullable', 'string', 'max:255', Rule::unique('lab_tests', 'test_code')->ignore($this->editingId)],
                 'labTestPrice' => ['required', 'numeric', 'min:0'],
                 'labTestTimeRequired' => ['required', 'string', 'max:255'],
                 'labTestIsInHouse' => ['boolean'],
@@ -206,7 +206,7 @@ new #[Title('Management')] class extends Component
         $labTest = LabTest::findOrFail($id);
 
         $this->labTestName = $labTest->test_name;
-        $this->labTestCode = $labTest->test_code ?? '';
+        $this->labTestCode = $labTest->test_code;
         $this->labTestPrice = (string) $labTest->test_price;
         $this->labTestTimeRequired = $labTest->time_required;
         $this->labTestIsInHouse = $labTest->is_in_house;
@@ -246,6 +246,10 @@ new #[Title('Management')] class extends Component
      */
     public function save(): void
     {
+        if ($this->activeTab === 'labTests' && $this->labTestCode === '') {
+            $this->labTestCode = null;
+        }
+
         $validated = $this->validate();
 
         match ($this->activeTab) {

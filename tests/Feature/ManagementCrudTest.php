@@ -213,6 +213,30 @@ test('authenticated users can create a lab test', function () {
     ]);
 });
 
+test('authenticated users can create a lab test with empty test code', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('create')
+        ->set('labTestName', 'Basic Metabolic Panel')
+        ->set('labTestCode', '')
+        ->set('labTestPrice', '800.00')
+        ->set('labTestTimeRequired', '30 minutes')
+        ->set('labTestIsInHouse', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('lab_tests', [
+        'test_name' => 'Basic Metabolic Panel',
+        'test_code' => null,
+        'test_price' => 800.00,
+        'time_required' => '30 minutes',
+        'is_in_house' => true,
+    ]);
+});
+
 test('authenticated users can update a lab test', function () {
     $user = User::factory()->admin()->create();
     $labTest = LabTest::factory()->create();
