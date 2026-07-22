@@ -326,7 +326,7 @@ test('opening a shift with zero balance creates an admin notification', function
 
     $notification = AdminNotification::where('type', 'shift_opened_without_balance')->first();
     expect($notification)->not->toBeNull()
-        ->title->toBe(__('Shift opened without opening balance'))
+        ->title->toBe(__('💰 Shift Opened Without Opening Balance'))
         ->user_id->toBe($user->id);
 });
 
@@ -356,7 +356,7 @@ test('closing a shift without expenses creates a zero expenses notification', fu
 
     $notification = AdminNotification::where('type', 'shift_closed_without_expenses')->first();
     expect($notification)->not->toBeNull()
-        ->title->toBe(__('Shift closed without expenses'))
+        ->title->toBe(__('🧾 Shift Closed Without Expenses'))
         ->user_id->toBe($user->id);
 });
 
@@ -393,7 +393,7 @@ test('closing a shift without doctor payouts creates a payout notification', fun
 
     $notification = AdminNotification::where('type', 'shift_closed_without_doctor_payouts')->first();
     expect($notification)->not->toBeNull()
-        ->title->toBe(__('Shift closed without doctor share payments'))
+        ->title->toBe(__('👨‍⚕️ Shift Closed Without Doctor Share Payments'))
         ->user_id->toBe($user->id);
 });
 

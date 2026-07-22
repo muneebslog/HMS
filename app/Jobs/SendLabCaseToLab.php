@@ -2,9 +2,9 @@
 
 namespace App\Jobs;
 
-use App\Models\AdminNotification;
 use App\Models\LabInvoice;
 use App\Services\LabApiService;
+use App\Services\NotificationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -62,27 +62,6 @@ class SendLabCaseToLab implements ShouldQueue
             return;
         }
 
-        $alreadyNotified = AdminNotification::where('type', 'lab_case_sync_failed')
-            ->whereJsonContains('metadata', ['lab_invoice_id' => $invoice->id])
-            ->exists();
-
-        if ($alreadyNotified) {
-            return;
-        }
-
-        AdminNotification::create([
-            'user_id' => $invoice->created_by,
-            'type' => 'lab_case_sync_failed',
-            'title' => __('Lab case sync failed'),
-            'message' => __('Lab invoice :invoice could not be sent to the lab app after multiple attempts: :error', [
-                'invoice' => $invoice->invoice_number,
-                'error' => $exception->getMessage(),
-            ]),
-            'actionable_url' => route('reception.invoices'),
-            'metadata' => [
-                'lab_invoice_id' => $invoice->id,
-                'error' => $exception->getMessage(),
-            ],
-        ]);
+        app(NotificationService::class)->notifyLabCaseSyncFailed($invoice, $exception);
     }
 }

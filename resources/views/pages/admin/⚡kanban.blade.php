@@ -2,6 +2,7 @@
 
 use App\Enums\KanbanStatus;
 use App\Models\KanbanItem;
+use App\Services\NotificationService;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -85,7 +86,7 @@ new #[Title('Kanban Board')] class extends Component
         if ($this->editingItemId === null) {
             $maxPosition = KanbanItem::where('status', KanbanStatus::Todo)->max('position') ?? -1;
 
-            KanbanItem::create([
+            $item = KanbanItem::create([
                 'title' => $this->title,
                 'description' => $this->description,
                 'status' => KanbanStatus::Todo,
@@ -93,7 +94,10 @@ new #[Title('Kanban Board')] class extends Component
                 'created_by' => auth()->id(),
             ]);
 
+            app(NotificationService::class)->notifyKanbanItemCreated($item, auth()->user());
+
             $this->dispatch('item-created');
+            $this->dispatch('flux-toast', message: __('Task added successfully 🎉'));
         } else {
             $item = KanbanItem::findOrFail($this->editingItemId);
             $item->update([
@@ -101,7 +105,10 @@ new #[Title('Kanban Board')] class extends Component
                 'description' => $this->description,
             ]);
 
+            app(NotificationService::class)->notifyKanbanItemUpdated($item, auth()->user());
+
             $this->dispatch('item-updated');
+            $this->dispatch('flux-toast', message: __('Task updated successfully ✨'));
         }
 
         $this->closeModal();
@@ -126,7 +133,10 @@ new #[Title('Kanban Board')] class extends Component
             'position' => $maxPosition + 1,
         ]);
 
+        app(NotificationService::class)->notifyKanbanItemMoved($item, auth()->user());
+
         $this->dispatch('item-moved');
+        $this->dispatch('flux-toast', message: __('Task moved to :column 🚀', ['column' => $status->label()]));
     }
 
     /**
@@ -190,10 +200,15 @@ new #[Title('Kanban Board')] class extends Component
             return;
         }
 
-        KanbanItem::findOrFail($this->deletingItemId)->delete();
+        $item = KanbanItem::findOrFail($this->deletingItemId);
+        $title = $item->title;
+        $item->delete();
         $this->deletingItemId = null;
 
+        app(NotificationService::class)->notifyKanbanItemDeleted($title, auth()->user());
+
         $this->dispatch('item-deleted');
+        $this->dispatch('flux-toast', message: __('Task deleted successfully 🗑️'));
     }
 
     /**

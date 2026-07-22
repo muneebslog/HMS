@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\SmsStatus;
 use App\Jobs\SendAppointmentConfirmationSms;
-use App\Models\AdminNotification;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Patient;
@@ -74,28 +73,13 @@ class ReservationService
                 ));
             }
 
-            if (blank($patientPhone)) {
-                AdminNotification::create([
-                    'user_id' => auth()->id(),
-                    'type' => 'reservation_without_phone',
-                    'title' => __('Token issued without contact number'),
-                    'message' => __(
-                        'Receptionist :name issued token :number for :patient without a contact number.',
-                        [
-                            'name' => auth()->user()?->name ?? __('Unknown'),
-                            'number' => $tokenNumber,
-                            'patient' => $patientName,
-                        ]
-                    ),
-                    'actionable_url' => route('reception.reservation'),
-                    'metadata' => [
-                        'token_id' => $token->id,
-                        'token_number' => $tokenNumber,
-                        'patient_id' => $patient->id,
-                        'patient_name' => $patientName,
-                        'queue_id' => $lockedQueue->id,
-                    ],
-                ]);
+            if (blank($patientPhone) && auth()->user() !== null) {
+                app(NotificationService::class)->notifyReservationWithoutPhone(
+                    auth()->user(),
+                    $token,
+                    $patientName,
+                    $tokenNumber
+                );
             }
 
             return $token;

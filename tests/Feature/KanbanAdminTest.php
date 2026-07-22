@@ -2,6 +2,7 @@
 
 use App\Enums\KanbanStatus;
 use App\Enums\UserRole;
+use App\Models\AdminNotification;
 use App\Models\KanbanItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +61,25 @@ test('admin can create a kanban item', function () {
         ->and($item->description)->toBe('Task description')
         ->and($item->status)->toBe(KanbanStatus::Todo)
         ->and($item->created_by)->toBe($admin->id);
+});
+
+test('creating a kanban item creates an admin notification', function () {
+    $admin = User::factory()->admin()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->set('title', 'New Task')
+        ->set('description', 'Task description')
+        ->call('saveItem')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::first();
+
+    expect($notification)->not->toBeNull()
+        ->and($notification->user_id)->toBe($admin->id)
+        ->and($notification->type)->toBe('kanban_item_created')
+        ->and($notification->title)->toBe(__('🎯 New Kanban Task Added'))
+        ->and($notification->actionable_url)->toBe(route('admin.kanban'));
 });
 
 test('admin cannot create a kanban item without a title', function () {

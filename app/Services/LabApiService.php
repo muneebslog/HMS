@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\LabApiStatus;
-use App\Models\AdminNotification;
 use App\Models\LabApiLog;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
@@ -137,21 +136,6 @@ class LabApiService
      */
     private function notifySkippedItems(LabInvoice $invoice, $items): void
     {
-        $testNames = $items->map(fn ($item) => $item->test_name)->implode(', ');
-
-        AdminNotification::create([
-            'user_id' => $invoice->created_by,
-            'type' => 'lab_test_missing_code',
-            'title' => __('Lab test missing code'),
-            'message' => __('Invoice :invoice has in-house tests without numeric codes and were not sent to the lab: :tests.', [
-                'invoice' => $invoice->invoice_number,
-                'tests' => $testNames,
-            ]),
-            'actionable_url' => route('reception.invoices'),
-            'metadata' => [
-                'lab_invoice_id' => $invoice->id,
-                'test_names' => $items->map(fn ($item) => $item->test_name)->all(),
-            ],
-        ]);
+        app(NotificationService::class)->notifyLabTestMissingCode($invoice, $items);
     }
 }

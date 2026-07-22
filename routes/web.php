@@ -59,6 +59,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
     Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
+        Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

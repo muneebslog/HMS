@@ -233,11 +233,17 @@ new #[Title('Dashboard')] class extends Component
                         @endif
                     </div>
 
-                    @if ($this->unreadNotificationCount > 0)
-                        <flux:button size="sm" variant="ghost" wire:click="markAllNotificationsAsRead">
-                            {{ __('Mark all as read') }}
+                    <div class="flex items-center gap-2">
+                        <flux:button size="sm" variant="ghost" :href="route('admin.notifications')" wire:navigate>
+                            {{ __('View all') }}
                         </flux:button>
-                    @endif
+
+                        @if ($this->unreadNotificationCount > 0)
+                            <flux:button size="sm" variant="ghost" wire:click="markAllNotificationsAsRead">
+                                {{ __('Mark all as read') }}
+                            </flux:button>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="mt-4 space-y-3">

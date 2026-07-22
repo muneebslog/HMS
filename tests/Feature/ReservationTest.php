@@ -496,6 +496,7 @@ test('reserving without a phone number logs an admin notification', function () 
     expect($notification)->not->toBeNull()
         ->user_id->toBe($user->id)
         ->type->toBe('reservation_without_phone')
+        ->title->toBe(__('📵 Token Issued Without Contact Number'))
         ->read_at->toBeNull();
 
     expect($notification->message)->toContain('No Phone Patient');
