@@ -25,26 +25,10 @@
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
                         {{ __('Lab') }}
                     </flux:sidebar.item>
+                </flux:sidebar.group>
 
-                    @if (auth()->user()->isAdmin())
-                        <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
-                            {{ __('Management') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
-                            {{ __('Users') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
-                            {{ __('SMS Logs') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
-                            {{ __('SQL Runner') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
-                            {{ __('Kanban') }}
-                        </flux:sidebar.item>
-                    @endif
-
-                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
+                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
+                    <flux:sidebar.group :heading="__('Reception')" class="grid">
                         <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
                             {{ __('Walk-in') }}
                         </flux:sidebar.item>
@@ -69,12 +53,11 @@
                         <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
                             {{ __('Daily Payout') }}
                         </flux:sidebar.item>
-                    @endif
+                    </flux:sidebar.group>
+                @endif
 
-                    @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
-                        <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                            {{ __('Lab Entries') }}
-                        </flux:sidebar.item>
+                @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+                    <flux:sidebar.group :heading="__('Management')" class="grid">
                         <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                             {{ __('Invoices') }}
                         </flux:sidebar.item>
@@ -87,20 +70,45 @@
                         <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
                             {{ __('Shift History') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                            {{ __('Lab Entries') }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
+
+                @if (auth()->user()->isAdmin())
+                    <flux:sidebar.group :heading="__('Administration')" class="grid">
+                        <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
+                            {{ __('Management CRUD') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
+                            {{ __('Users') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
+                            {{ __('SMS Logs') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
+                            {{ __('SQL Runner') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
+                            {{ __('Kanban') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
                             {{ __('Notifications') }}
                         </flux:sidebar.item>
-                    @endif
+                    </flux:sidebar.group>
+                @endif
 
-                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                    <flux:sidebar.group :heading="__('System')" class="grid">
                         <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
                             {{ __('Token Display') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                             {{ __('Shift') }}
                         </flux:sidebar.item>
-                    @endif
-                </flux:sidebar.group>
+                    </flux:sidebar.group>
+                @endif
             </flux:sidebar.nav>
 
             <flux:spacer />

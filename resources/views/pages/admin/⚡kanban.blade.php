@@ -238,6 +238,32 @@ new #[Title('Kanban Board')] class extends Component
         $this->description = null;
         $this->resetValidation();
     }
+
+    /**
+     * Get the color theme for the given status column.
+     */
+    public function columnColor(KanbanStatus $status): string
+    {
+        return match ($status) {
+            KanbanStatus::Todo => 'blue',
+            KanbanStatus::InProgress => 'amber',
+            KanbanStatus::Done => 'green',
+            KanbanStatus::AppliedInSystem => 'purple',
+        };
+    }
+
+    /**
+     * Get the icon for the given status column.
+     */
+    public function columnIcon(KanbanStatus $status): string
+    {
+        return match ($status) {
+            KanbanStatus::Todo => 'clipboard-document-list',
+            KanbanStatus::InProgress => 'bolt',
+            KanbanStatus::Done => 'check-circle',
+            KanbanStatus::AppliedInSystem => 'server',
+        };
+    }
 }; ?>
 
 <div>
@@ -252,17 +278,53 @@ new #[Title('Kanban Board')] class extends Component
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             @foreach (App\Enums\KanbanStatus::ordered() as $status)
-                <flux:card class="flex h-full flex-col">
-                    <div class="mb-4 flex items-center justify-between">
-                        <flux:heading level="2">{{ $status->label() }}</flux:heading>
-                        <flux:badge size="sm" color="zinc">{{ $this->columns[$status->value]->count() }}</flux:badge>
+                @php
+                    $color = $this->columnColor($status);
+                    $icon = $this->columnIcon($status);
+                    $colorClasses = match ($color) {
+                        'blue' => 'border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20',
+                        'amber' => 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20',
+                        'green' => 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20',
+                        'purple' => 'border-purple-200 bg-purple-50/50 dark:border-purple-800 dark:bg-purple-950/20',
+                        default => 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900',
+                    };
+                    $headerClasses = match ($color) {
+                        'blue' => 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                        'amber' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                        'green' => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+                        'purple' => 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+                        default => 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+                    };
+                    $cardBorderClasses = match ($color) {
+                        'blue' => 'border-blue-200 dark:border-blue-800/60',
+                        'amber' => 'border-amber-200 dark:border-amber-800/60',
+                        'green' => 'border-green-200 dark:border-green-800/60',
+                        'purple' => 'border-purple-200 dark:border-purple-800/60',
+                        default => 'border-zinc-200 dark:border-zinc-700',
+                    };
+                    $leftBorderClasses = match ($color) {
+                        'blue' => 'border-l-blue-400',
+                        'amber' => 'border-l-amber-400',
+                        'green' => 'border-l-green-400',
+                        'purple' => 'border-l-purple-400',
+                        default => 'border-l-zinc-400',
+                    };
+                @endphp
+
+                <flux:card class="flex h-full flex-col {{ $colorClasses }}">
+                    <div class="mb-4 flex items-center justify-between rounded-lg px-3 py-2 {{ $headerClasses }}">
+                        <div class="flex items-center gap-2">
+                            <flux:icon name="{{ $icon }}" class="size-5" />
+                            <flux:heading level="2">{{ $status->label() }}</flux:heading>
+                        </div>
+                        <flux:badge size="sm" color="{{ $color }}">{{ $this->columns[$status->value]->count() }}</flux:badge>
                     </div>
 
                     <div class="flex flex-1 flex-col gap-3">
                         @forelse ($this->columns[$status->value] as $item)
                             <div
                                 wire:key="kanban-item-{{ $item->id }}"
-                                class="group flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
+                                class="group flex flex-col gap-2 rounded-lg border border-l-4 bg-white p-3 shadow-sm transition hover:shadow-md dark:bg-zinc-800 {{ $cardBorderClasses }} {{ $leftBorderClasses }}"
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <flux:heading level="3" class="text-sm font-semibold">{{ $item->title }}</flux:heading>
@@ -332,7 +394,8 @@ new #[Title('Kanban Board')] class extends Component
                                 </div>
                             </div>
                         @empty
-                            <div class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 p-4 text-center dark:border-zinc-700">
+                            <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center {{ $cardBorderClasses }}">
+                                <flux:icon name="{{ $icon }}" class="size-8 opacity-40" />
                                 <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">
                                     {{ __('No tasks yet') }}
                                 </flux:text>
