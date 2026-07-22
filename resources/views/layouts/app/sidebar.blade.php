@@ -11,7 +11,12 @@
             </flux:sidebar.header>
 
             <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Platform')" class="grid">
+                <flux:sidebar.group class="grid">
+                    <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                        <span class="size-2 rounded-full bg-blue-500"></span>
+                        {{ __('Platform') }}
+                    </div>
+
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
@@ -28,7 +33,12 @@
                 </flux:sidebar.group>
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
-                    <flux:sidebar.group :heading="__('Reception')" class="grid">
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+                            <span class="size-2 rounded-full bg-teal-500"></span>
+                            {{ __('Reception') }}
+                        </div>
+
                         <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
                             {{ __('Walk-in') }}
                         </flux:sidebar.item>
@@ -57,7 +67,12 @@
                 @endif
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
-                    <flux:sidebar.group :heading="__('Management')" class="grid">
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                            <span class="size-2 rounded-full bg-amber-500"></span>
+                            {{ __('Management') }}
+                        </div>
+
                         <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                             {{ __('Invoices') }}
                         </flux:sidebar.item>
@@ -77,7 +92,12 @@
                 @endif
 
                 @if (auth()->user()->isAdmin())
-                    <flux:sidebar.group :heading="__('Administration')" class="grid">
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                            <span class="size-2 rounded-full bg-purple-500"></span>
+                            {{ __('Administration') }}
+                        </div>
+
                         <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
                             {{ __('Management CRUD') }}
                         </flux:sidebar.item>
@@ -100,7 +120,12 @@
                 @endif
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
-                    <flux:sidebar.group :heading="__('System')" class="grid">
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                            <span class="size-2 rounded-full bg-rose-500"></span>
+                            {{ __('System') }}
+                        </div>
+
                         <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
                             {{ __('Token Display') }}
                         </flux:sidebar.item>
