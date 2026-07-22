@@ -734,7 +734,7 @@ new #[Title('Management')] class extends Component
 
                 <flux:field>
                     <flux:label>{{ __('Test Code') }}</flux:label>
-                    <flux:input wire:model="labTestCode" type="text" required />
+                    <flux:input wire:model="labTestCode" type="text"  />
                     <flux:error name="labTestCode" />
                 </flux:field>
 
