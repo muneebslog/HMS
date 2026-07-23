@@ -86,7 +86,7 @@
                             {{ __('Shift History') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                            {{ __('Lab Entries') }}
+                            {{ __('Lab Entries Listings') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

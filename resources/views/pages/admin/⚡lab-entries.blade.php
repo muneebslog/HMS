@@ -7,7 +7,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Lab Entries')] class extends Component
+new #[Title('Lab Entries Listings')] class extends Component
 {
     public string $statusFilter = 'all';
 
@@ -78,7 +78,7 @@ new #[Title('Lab Entries')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Lab Entries') }}</flux:heading>
+            <flux:heading level="1">{{ __('Lab Entries Listings') }}</flux:heading>
         </div>
 
         <flux:card>
@@ -106,6 +106,8 @@ new #[Title('Lab Entries')] class extends Component
                     <flux:table.column>{{ __('Invoice #') }}</flux:table.column>
                     <flux:table.column>{{ __('Patient') }}</flux:table.column>
                     <flux:table.column>{{ __('Phone') }}</flux:table.column>
+                    <flux:table.column>{{ __('Age') }}</flux:table.column>
+                    <flux:table.column>{{ __('Gender') }}</flux:table.column>
                     <flux:table.column>{{ __('Total') }}</flux:table.column>
                     <flux:table.column>{{ __('Invoice Status') }}</flux:table.column>
                     <flux:table.column>{{ __('API Status') }}</flux:table.column>
@@ -123,6 +125,8 @@ new #[Title('Lab Entries')] class extends Component
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient?->name ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient?->phone ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $invoice->patient?->age ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $invoice->patient?->gender ? ucfirst($invoice->patient->gender) : '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge size="sm" color="zinc">{{ ucfirst($invoice->status) }}</flux:badge>
@@ -169,7 +173,7 @@ new #[Title('Lab Entries')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="8" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="10" class="text-center text-zinc-500">
                                 {{ __('No lab entries found.') }}
                             </flux:table.cell>
                         </flux:table.row>
@@ -204,6 +208,16 @@ new #[Title('Lab Entries')] class extends Component
                 <div class="grid grid-cols-3 gap-2">
                     <flux:text class="text-zinc-500">{{ __('Phone') }}</flux:text>
                     <flux:text class="col-span-2">{{ $this->selectedInvoice->patient?->phone ?? '-' }}</flux:text>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <flux:text class="text-zinc-500">{{ __('Age') }}</flux:text>
+                    <flux:text class="col-span-2">{{ $this->selectedInvoice->patient?->age ?? '-' }}</flux:text>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <flux:text class="text-zinc-500">{{ __('Gender') }}</flux:text>
+                    <flux:text class="col-span-2">{{ $this->selectedInvoice->patient?->gender ? ucfirst($this->selectedInvoice->patient->gender) : '-' }}</flux:text>
                 </div>
 
                 <div class="grid grid-cols-3 gap-2">

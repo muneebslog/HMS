@@ -323,26 +323,11 @@ new #[Title('Lab Entry')] class extends Component
             </form>
 
             @if ($patientName)
-                <flux:card variant="outline" class="mt-4">
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
-                        <div>
-                            <flux:text class="text-zinc-500">{{ __('Patient name') }}</flux:text>
-                            <flux:text class="font-medium">{{ $patientName }}</flux:text>
-                        </div>
-                        <div>
-                            <flux:text class="text-zinc-500">{{ __('Phone number') }}</flux:text>
-                            <flux:text class="font-medium">{{ $patientPhone ?: '-' }}</flux:text>
-                        </div>
-                        <div>
-                            <flux:text class="text-zinc-500">{{ __('Age') }}</flux:text>
-                            <flux:text class="font-medium">{{ $patientAge ?? '-' }}</flux:text>
-                        </div>
-                        <div>
-                            <flux:text class="text-zinc-500">{{ __('Gender') }}</flux:text>
-                            <flux:text class="font-medium">{{ $patientGender ? ucfirst($patientGender) : '-' }}</flux:text>
-                        </div>
-                    </div>
-                </flux:card>
+                <div class="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    <flux:text>{{ __('Patient') }}: {{ $patientName }}</flux:text>
+                    <flux:text>{{ __('Phone') }}: {{ $patientPhone }}</flux:text>
+                    <flux:text>{{ __('Age') }}: {{ $patientAge }} | {{ __('Gender') }}: {{ ucfirst($patientGender) }}</flux:text>
+                </div>
             @endif
 
             <flux:table class="mt-4">
