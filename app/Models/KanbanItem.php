@@ -7,6 +7,7 @@ use Database\Factories\KanbanItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class KanbanItem extends Model
 {
@@ -56,5 +57,15 @@ class KanbanItem extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The comments on this kanban item.
+     *
+     * @return HasMany<KanbanItemComment, $this>
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(KanbanItemComment::class, 'kanban_item_id')->orderBy('created_at');
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Enums\KanbanStatus;
 use App\Models\KanbanItem;
+use App\Models\KanbanItemComment;
 use App\Services\NotificationService;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -22,6 +23,10 @@ new #[Title('Kanban Board')] class extends Component
     public bool $showModal = false;
 
     public ?int $deletingItemId = null;
+
+    public ?int $viewingItemId = null;
+
+    public ?string $newComment = null;
 
     /**
      * Restrict the page to admin users.
@@ -52,6 +57,19 @@ new #[Title('Kanban Board')] class extends Component
         }
 
         return $columns;
+    }
+
+    /**
+     * Get the kanban item currently being viewed with its comments.
+     */
+    #[Computed]
+    public function viewedItem(): ?KanbanItem
+    {
+        if ($this->viewingItemId === null) {
+            return null;
+        }
+
+        return KanbanItem::with('comments.user', 'creator')->find($this->viewingItemId);
     }
 
     /**
@@ -220,6 +238,67 @@ new #[Title('Kanban Board')] class extends Component
     }
 
     /**
+     * Open the view modal for the given item.
+     */
+    public function viewItem(int $id): void
+    {
+        $this->viewingItemId = $id;
+        $this->newComment = null;
+        $this->resetValidation();
+    }
+
+    /**
+     * Close the view modal and reset the reply form.
+     */
+    public function closeViewModal(): void
+    {
+        $this->viewingItemId = null;
+        $this->newComment = null;
+        $this->resetValidation();
+    }
+
+    /**
+     * Open the currently viewed item in the edit modal.
+     */
+    public function editViewedItem(): void
+    {
+        $item = $this->viewedItem;
+
+        if ($item === null) {
+            return;
+        }
+
+        $this->closeViewModal();
+        $this->editingItemId = $item->id;
+        $this->title = $item->title;
+        $this->description = $item->description;
+        $this->showModal = true;
+    }
+
+    /**
+     * Add a comment to the currently viewed kanban item.
+     */
+    public function addComment(): void
+    {
+        $validated = $this->validate([
+            'newComment' => 'required|string|max:2000',
+        ]);
+
+        if ($this->viewingItemId === null) {
+            return;
+        }
+
+        KanbanItemComment::create([
+            'kanban_item_id' => $this->viewingItemId,
+            'user_id' => auth()->id(),
+            'content' => $validated['newComment'],
+        ]);
+
+        $this->newComment = null;
+        $this->dispatch('flux-toast', message: __('Reply added successfully 💬'));
+    }
+
+    /**
      * Close the create/edit modal and reset the form.
      */
     public function closeModal(): void
@@ -330,7 +409,8 @@ new #[Title('Kanban Board')] class extends Component
                         @forelse ($this->columns[$status->value] as $item)
                             <div
                                 wire:key="kanban-item-{{ $item->id }}"
-                                class="group flex flex-col gap-2 rounded-lg border border-l-4 bg-white p-3 shadow-sm transition hover:shadow-md dark:bg-zinc-800 {{ $cardBorderClasses }} {{ $leftBorderClasses }}"
+                                wire:click="viewItem({{ $item->id }})"
+                                class="group flex cursor-pointer flex-col gap-2 rounded-lg border border-l-4 bg-white p-3 shadow-sm transition hover:shadow-md dark:bg-zinc-800 {{ $cardBorderClasses }} {{ $leftBorderClasses }}"
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <flux:heading level="3" class="text-sm font-semibold">{{ $item->title }}</flux:heading>
@@ -355,7 +435,7 @@ new #[Title('Kanban Board')] class extends Component
                                             size="xs"
                                             variant="ghost"
                                             icon="arrow-left"
-                                            wire:click="moveToColumn({{ $item->id }}, '{{ $previousStatus->value }}')"
+                                            wire:click.stop="moveToColumn({{ $item->id }}, '{{ $previousStatus->value }}')"
                                         />
                                     @endif
 
@@ -364,7 +444,7 @@ new #[Title('Kanban Board')] class extends Component
                                             size="xs"
                                             variant="ghost"
                                             icon="arrow-right"
-                                            wire:click="moveToColumn({{ $item->id }}, '{{ $nextStatus->value }}')"
+                                            wire:click.stop="moveToColumn({{ $item->id }}, '{{ $nextStatus->value }}')"
                                         />
                                     @endif
 
@@ -372,29 +452,36 @@ new #[Title('Kanban Board')] class extends Component
                                         size="xs"
                                         variant="ghost"
                                         icon="arrow-up"
-                                        wire:click="moveUp({{ $item->id }})"
+                                        wire:click.stop="moveUp({{ $item->id }})"
                                     />
 
                                     <flux:button
                                         size="xs"
                                         variant="ghost"
                                         icon="arrow-down"
-                                        wire:click="moveDown({{ $item->id }})"
+                                        wire:click.stop="moveDown({{ $item->id }})"
                                     />
 
                                     <div class="ms-auto flex items-center gap-1">
                                         <flux:button
                                             size="xs"
                                             variant="ghost"
+                                            icon="eye"
+                                            wire:click.stop="viewItem({{ $item->id }})"
+                                        />
+
+                                        <flux:button
+                                            size="xs"
+                                            variant="ghost"
                                             icon="pencil-square"
-                                            wire:click="editItem({{ $item->id }})"
+                                            wire:click.stop="editItem({{ $item->id }})"
                                         />
 
                                         <flux:button
                                             size="xs"
                                             variant="ghost"
                                             icon="trash"
-                                            wire:click="confirmDelete({{ $item->id }})"
+                                            wire:click.stop="confirmDelete({{ $item->id }})"
                                         />
                                     </div>
                                 </div>
@@ -459,5 +546,85 @@ new #[Title('Kanban Board')] class extends Component
                 {{ __('Delete') }}
             </flux:button>
         </div>
+    </flux:modal>
+
+    <flux:modal wire:model="viewingItemId" class="w-full max-w-2xl">
+        @if ($this->viewedItem !== null)
+            @php
+                $item = $this->viewedItem;
+                $viewColor = $this->columnColor($item->status);
+            @endphp
+
+            <div class="space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="space-y-1">
+                        <flux:heading level="2">{{ $item->title }}</flux:heading>
+
+                        <div class="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                            <flux:badge size="sm" color="{{ $viewColor }}">{{ $item->status->label() }}</flux:badge>
+
+                            <span>{{ __('Created by :name', ['name' => $item->creator->name]) }}</span>
+
+                            <span>·</span>
+
+                            <span>{{ $item->created_at->diffForHumans() }}</span>
+                        </div>
+                    </div>
+
+                    <flux:button type="button" variant="ghost" icon="pencil-square" wire:click="editViewedItem" size="sm">
+                        {{ __('Edit') }}
+                    </flux:button>
+                </div>
+
+                @if (filled($item->description))
+                    <flux:text class="whitespace-pre-wrap">{{ $item->description }}</flux:text>
+                @endif
+
+                <flux:separator />
+
+                <div class="space-y-3">
+                    <flux:heading level="3">{{ __('Replies') }}</flux:heading>
+
+                    @if ($item->comments->isEmpty())
+                        <flux:text class="text-sm text-zinc-500 dark:text-zinc-400">
+                            {{ __('No replies yet. Be the first to respond.') }}
+                        </flux:text>
+                    @else
+                        <div class="max-h-80 space-y-3 overflow-y-auto">
+                            @foreach ($item->comments as $comment)
+                                <div wire:key="kanban-comment-{{ $comment->id }}" class="flex gap-3">
+                                    <flux:avatar size="sm" class="shrink-0">
+                                        {{ $comment->user->initials() }}
+                                    </flux:avatar>
+
+                                    <div class="flex-1 space-y-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm font-medium">{{ $comment->user->name }}</span>
+                                            <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ $comment->created_at->diffForHumans() }}</span>
+                                        </div>
+
+                                        <flux:text class="text-sm">{{ $comment->content }}</flux:text>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+
+                <form wire:submit="addComment" class="space-y-3">
+                    <flux:field>
+                        <flux:label>{{ __('Add a reply') }}</flux:label>
+                        <flux:textarea wire:model="newComment" placeholder="{{ __('Write your reply...') }}" rows="3" />
+                        <flux:error name="newComment" />
+                    </flux:field>
+
+                    <div class="flex justify-end">
+                        <flux:button type="submit" variant="primary" icon="paper-airplane">
+                            {{ __('Reply') }}
+                        </flux:button>
+                    </div>
+                </form>
+            </div>
+        @endif
     </flux:modal>
 </div>

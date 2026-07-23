@@ -4,6 +4,7 @@ use App\Enums\KanbanStatus;
 use App\Enums\UserRole;
 use App\Models\AdminNotification;
 use App\Models\KanbanItem;
+use App\Models\KanbanItemComment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -201,4 +202,83 @@ test('kanban page displays items grouped by status', function () {
         ->assertSee($doneItem->title)
         ->assertSee(KanbanStatus::Todo->label())
         ->assertSee(KanbanStatus::Done->label());
+});
+
+test('admin can view a kanban item in the view modal', function () {
+    $admin = User::factory()->admin()->create();
+    $item = KanbanItem::factory()->for($admin, 'creator')->create([
+        'title' => 'Viewable Task',
+        'description' => 'A detailed description',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->call('viewItem', $item->id)
+        ->assertSet('viewingItemId', $item->id)
+        ->assertSee('Viewable Task')
+        ->assertSee('A detailed description');
+});
+
+test('admin can add a reply to a kanban item', function () {
+    $admin = User::factory()->admin()->create();
+    $item = KanbanItem::factory()->for($admin, 'creator')->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->call('viewItem', $item->id)
+        ->set('newComment', 'This is a reply')
+        ->call('addComment')
+        ->assertHasNoErrors();
+
+    $comment = KanbanItemComment::first();
+
+    expect($comment)->not->toBeNull()
+        ->and($comment->kanban_item_id)->toBe($item->id)
+        ->and($comment->user_id)->toBe($admin->id)
+        ->and($comment->content)->toBe('This is a reply');
+});
+
+test('admin cannot add an empty reply to a kanban item', function () {
+    $admin = User::factory()->admin()->create();
+    $item = KanbanItem::factory()->for($admin, 'creator')->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->call('viewItem', $item->id)
+        ->set('newComment', '')
+        ->call('addComment')
+        ->assertHasErrors(['newComment']);
+
+    expect(KanbanItemComment::count())->toBe(0);
+});
+
+test('view modal displays existing replies for a kanban item', function () {
+    $admin = User::factory()->admin()->create();
+    $item = KanbanItem::factory()->for($admin, 'creator')->create();
+    $comment = KanbanItemComment::factory()->for($item, 'item')->for($admin, 'user')->create([
+        'content' => 'Existing reply',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->call('viewItem', $item->id)
+        ->assertSee('Existing reply')
+        ->assertSee($admin->name);
+});
+
+test('admin can open edit modal from the view modal', function () {
+    $admin = User::factory()->admin()->create();
+    $item = KanbanItem::factory()->for($admin, 'creator')->create([
+        'title' => 'Editable Task',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.kanban')
+        ->call('viewItem', $item->id)
+        ->assertSet('viewingItemId', $item->id)
+        ->call('editViewedItem')
+        ->assertSet('viewingItemId', null)
+        ->assertSet('showModal', true)
+        ->assertSet('editingItemId', $item->id)
+        ->assertSet('title', 'Editable Task');
 });
