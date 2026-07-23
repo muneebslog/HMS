@@ -19,10 +19,23 @@ class Patient extends Model
      */
     protected $fillable = [
         'name',
+        'mrn',
         'phone',
         'age',
         'gender',
     ];
+
+    /**
+     * Boot the model and generate an MRN for new patients.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Patient $patient) {
+            if (blank($patient->mrn)) {
+                $patient->update(['mrn' => 'MRN'.str_pad((string) $patient->id, 6, '0', STR_PAD_LEFT)]);
+            }
+        });
+    }
 
     /**
      * Get the queue tokens associated with this patient.

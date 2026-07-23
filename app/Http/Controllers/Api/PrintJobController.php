@@ -121,6 +121,9 @@ class PrintJobController extends Controller
                     'created_at' => $labInvoice->created_at->format('Y-m-d H:i'),
                     'patient' => [
                         'name' => $labInvoice->patient->name,
+                        'mrn' => $labInvoice->patient->mrn,
+                        'age' => $labInvoice->patient->age,
+                        'gender' => $labInvoice->patient->gender,
                     ],
                     'items' => $labInvoice->items->map(fn ($item) => [
                         'service_name' => $item->test_name,

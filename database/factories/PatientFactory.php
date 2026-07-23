@@ -19,6 +19,7 @@ class PatientFactory extends Factory
     {
         return [
             'name' => fake()->name(),
+            'mrn' => null,
             'phone' => fake()->optional()->phoneNumber(),
             'age' => fake()->optional()->numberBetween(1, 100),
             'gender' => fake()->optional()->randomElement(['male', 'female', 'other']),

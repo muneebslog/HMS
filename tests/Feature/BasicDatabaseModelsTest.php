@@ -23,6 +23,7 @@ test('patients table can store patient records', function () {
 
     expect($patient->fresh())
         ->name->toBe('John Doe')
+        ->mrn->toBe('MRN000001')
         ->phone->toBe('1234567890')
         ->age->toBe(30)
         ->gender->toBe('male');
@@ -36,6 +37,7 @@ test('patient nullable fields can be null', function () {
     ]);
 
     expect($patient->fresh())
+        ->mrn->toBe('MRN000001')
         ->phone->toBeNull()
         ->age->toBeNull()
         ->gender->toBeNull();

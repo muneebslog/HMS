@@ -127,3 +127,34 @@ test('pending lab invoice jobs include qr url copy type and time required', func
         ->assertJsonPath('data.0.invoice.qr_url', 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$labInvoice->invoice_number)
         ->assertJsonPath('data.0.invoice.items.0.time_required', '1 hour');
 });
+
+test('pending lab invoice jobs include patient mrn age and gender', function () {
+    $labTest = LabTest::factory()->create();
+    $labInvoice = LabInvoice::factory()->create();
+    $labInvoice->items()->create([
+        'lab_test_id' => $labTest->id,
+        'test_name' => 'CBC',
+        'test_code' => '1300',
+        'time_required' => '1 hour',
+        'is_in_house' => true,
+        'price' => 500.00,
+    ]);
+
+    PrintJob::factory()->create([
+        'invoice_id' => null,
+        'lab_invoice_id' => $labInvoice->id,
+        'payload' => [
+            'type' => 'lab_invoice',
+            'source' => 'web',
+            'copy_for' => 'patient',
+            'qr_url' => 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$labInvoice->invoice_number,
+        ],
+    ]);
+
+    $response = $this->getJson(route('api.print-jobs.pending'), agentHeaders());
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.invoice.patient.mrn', $labInvoice->patient->mrn)
+        ->assertJsonPath('data.0.invoice.patient.age', $labInvoice->patient->age)
+        ->assertJsonPath('data.0.invoice.patient.gender', $labInvoice->patient->gender);
+});

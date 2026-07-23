@@ -166,6 +166,7 @@ function buildPrinter() {
 
 async function printReceipt(printer, job) {
   const invoice = job.invoice;
+  const isLabInvoice = job.payload?.type === 'lab_invoice';
 
   // Shift the whole receipt to the right so the printer does not clip
   // the leftmost characters.
@@ -198,9 +199,27 @@ async function printReceipt(printer, job) {
   printer.println('Patient:');
   printer.bold(true);
   printer.setTextSize(1, 1);
-  printer.println(invoice.patient.name);
+  printer.println(invoice.patient.name.toUpperCase());
   printer.setTextNormal();
   printer.bold(false);
+
+  if (isLabInvoice) {
+    const patient = invoice.patient;
+    const demographics = [];
+    if (patient.mrn) {
+      demographics.push(`MRN: ${patient.mrn}`);
+    }
+    if (patient.age) {
+      demographics.push(`Age: ${patient.age}`);
+    }
+    if (patient.gender) {
+      demographics.push(`Gender: ${patient.gender.toUpperCase()}`);
+    }
+    if (demographics.length > 0) {
+      printer.println(demographics.join(' | '));
+    }
+  }
+
   printer.newLine();
 
   const tokenItem = invoice.items.find((item) => item.token_number);
@@ -214,8 +233,6 @@ async function printReceipt(printer, job) {
     printer.newLine();
   }
 
-  const isLabInvoice = job.payload?.type === 'lab_invoice';
-
   printer.alignLeft();
   invoice.items.forEach((item) => {
     if (isLabInvoice) {
@@ -223,24 +240,28 @@ async function printReceipt(printer, job) {
       printer.println(item.service_name);
       printer.bold(false);
 
-      const details = [];
-      if (item.test_code) {
-        details.push(`Code: ${item.test_code}`);
-      }
-      if (item.time_required) {
-        const displayTime = item.time_required.toLowerCase() === 'same day'
-          ? 'Next day'
-          : item.time_required;
-        details.push(`Time: ${displayTime}`);
-      }
-      if (details.length > 0) {
-        printer.println(`  ${details.join(' | ')}`);
+      if (copyFor !== 'patient') {
+        const details = [];
+        if (item.test_code) {
+          details.push(`Code: ${item.test_code}`);
+        }
+        if (item.time_required) {
+          const displayTime = item.time_required.toLowerCase() === 'same day'
+            ? 'Next day'
+            : item.time_required;
+          details.push(`Time: ${displayTime}`);
+        }
+        if (details.length > 0) {
+          printer.println(`  ${details.join(' | ')}`);
+        }
       }
 
-      const priceLabel = '  Price:';
-      const priceValue = item.price.toFixed(2);
-      const pricePadding = Math.max(0, printer.getWidth() - priceLabel.length - priceValue.length);
-      printer.println(`${priceLabel}${' '.repeat(pricePadding)}${priceValue}`);
+      if (copyFor !== 'lab') {
+        const priceLabel = '  Price:';
+        const priceValue = item.price.toFixed(2);
+        const pricePadding = Math.max(0, printer.getWidth() - priceLabel.length - priceValue.length);
+        printer.println(`${priceLabel}${' '.repeat(pricePadding)}${priceValue}`);
+      }
     } else {
       const name = item.service_name.padEnd(24, ' ').substring(0, 24);
       const price = item.price.toFixed(2).padStart(8, ' ');

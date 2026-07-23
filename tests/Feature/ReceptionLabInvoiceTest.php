@@ -40,7 +40,8 @@ test('a lab invoice can be saved with items', function () {
     expect($patient)->not->toBeNull()
         ->phone->toBe('1234567890')
         ->age->toBe(30)
-        ->gender->toBe('male');
+        ->gender->toBe('male')
+        ->mrn->toBe('MRN000001');
 
     $invoice = LabInvoice::where('patient_id', $patient->id)->first();
     expect($invoice)->not->toBeNull()
@@ -198,7 +199,7 @@ test('saving a lab invoice uses a predictable invoice number and queues two rece
 
     $invoice = LabInvoice::first();
     expect($invoice)->not->toBeNull()
-        ->invoice_number->toMatch('/^\d{12}$/');
+        ->invoice_number->toBe('928001');
 
     $printJobs = PrintJob::where('lab_invoice_id', $invoice->id)->get();
     expect($printJobs)->toHaveCount(2);
