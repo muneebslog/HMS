@@ -88,7 +88,8 @@ test('submitting a role request creates an admin notification', function () {
     $notification = AdminNotification::first();
     expect($notification->type)->toBe('role_request_submitted')
         ->and($notification->metadata)->toHaveKey('role_request_id')
-        ->and($notification->metadata)->toHaveKey('requested_role', UserRole::Supervisor->value);
+        ->and($notification->metadata)->toHaveKey('requested_role', UserRole::Supervisor->value)
+        ->and($notification->actionable_url)->toBe(route('admin.users'));
 });
 
 test('user role users cannot request the admin or user role', function () {

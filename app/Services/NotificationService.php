@@ -386,7 +386,7 @@ class NotificationService
             'metadata' => $metadata,
         ]);
 
-        $this->sendNtfyPush($title, $message);
+        $this->sendNtfyPush($title, $message, $actionableUrl);
 
         return $notification;
     }
@@ -394,13 +394,19 @@ class NotificationService
     /**
      * Send a push notification via ntfy.sh.
      */
-    private function sendNtfyPush(string $title, string $message): void
+    private function sendNtfyPush(string $title, string $message, string $actionUrl): void
     {
         try {
+            $headers = [
+                'Content-Type: text/plain',
+                "Title: {$title}",
+                "Actions: view, Open, {$actionUrl}",
+            ];
+
             $context = stream_context_create([
                 'http' => [
                     'method' => 'POST',
-                    'header' => "Content-Type: text/plain\nTitle: {$title}",
+                    'header' => implode("\n", $headers),
                     'content' => $message,
                     'timeout' => 10,
                 ],
