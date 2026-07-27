@@ -24,7 +24,7 @@ new #[Title('Daily Payout')] class extends Component
     #[Computed]
     public function doctors(): Collection
     {
-        return Doctor::where('payout_daily', true)->orderBy('name')->get();
+        return Doctor::where('payout_daily', true)->active()->orderBy('name')->get();
     }
 
     /**

@@ -23,6 +23,16 @@ class LabTest extends Model
         'sample',
         'time_required',
         'is_in_house',
+        'is_active',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     /**
@@ -35,6 +45,15 @@ class LabTest extends Model
         return [
             'test_price' => 'float',
             'is_in_house' => 'boolean',
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Scope the query to only active lab tests.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

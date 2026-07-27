@@ -27,6 +27,16 @@ class Doctor extends Model
         'full_slips_count',
         'duty_start_time',
         'user_id',
+        'is_active',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     /**
@@ -41,7 +51,16 @@ class Doctor extends Model
             'get_full_slips' => 'boolean',
             'full_slips_count' => 'integer',
             'duty_start_time' => 'datetime:H:i',
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Scope the query to only active doctors.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 
     /**

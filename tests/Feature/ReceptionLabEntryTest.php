@@ -177,3 +177,15 @@ test('gender other is not allowed for lab entry', function () {
         ->call('add')
         ->assertHasErrors(['patientGender']);
 });
+test('inactive lab tests are not available in lab entry', function () {
+    $user = User::factory()->create();
+    $activeLabTest = LabTest::factory()->create(['is_active' => true]);
+    $inactiveLabTest = LabTest::factory()->create(['is_active' => false]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->assertSet('labTests', function ($labTests) use ($activeLabTest, $inactiveLabTest) {
+            return $labTests->contains('id', $activeLabTest->id)
+                && ! $labTests->contains('id', $inactiveLabTest->id);
+        });
+});

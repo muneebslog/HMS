@@ -22,6 +22,17 @@ class ServiceFactory extends Factory
             'name' => fake()->words(3, true),
             'is_standalone' => fake()->boolean(),
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Indicate that the service is inactive.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
     }
 }

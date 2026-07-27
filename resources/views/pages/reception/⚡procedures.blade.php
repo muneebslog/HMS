@@ -380,7 +380,7 @@ new #[Title('Procedures')] class extends Component
     #[Computed]
     public function doctors(): Collection
     {
-        return Doctor::orderBy('name')->get();
+        return Doctor::active()->orderBy('name')->get();
     }
 }; ?>
 

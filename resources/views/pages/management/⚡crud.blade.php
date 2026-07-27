@@ -40,6 +40,9 @@ new #[Title('Management')] class extends Component
     public ?string $doctorDutyStartTime = null;
 
     #[Validate]
+    public bool $doctorIsActive = true;
+
+    #[Validate]
     public string $serviceName = '';
 
     #[Validate]
@@ -47,6 +50,9 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public string $serviceTokenResetType = 'shift';
+
+    #[Validate]
+    public bool $serviceIsActive = true;
 
     #[Validate]
     public ?int $priceServiceId = null;
@@ -75,6 +81,9 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public bool $labTestIsInHouse = true;
 
+    #[Validate]
+    public bool $labTestIsActive = true;
+
     /**
      * Get the validation rules for the current tab.
      *
@@ -90,6 +99,7 @@ new #[Title('Management')] class extends Component
                 'doctorGetFullSlips' => ['boolean'],
                 'doctorFullSlipsCount' => ['required', 'integer', 'min:0'],
                 'doctorDutyStartTime' => ['nullable', 'date_format:H:i'],
+                'doctorIsActive' => ['boolean'],
             ],
             'services' => [
                 'serviceName' => [
@@ -112,6 +122,7 @@ new #[Title('Management')] class extends Component
                 ],
                 'serviceIsStandalone' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
+                'serviceIsActive' => ['boolean'],
             ],
             'servicePrices' => [
                 'priceServiceId' => ['required', 'integer', 'exists:services,id'],
@@ -125,6 +136,7 @@ new #[Title('Management')] class extends Component
                 'labTestPrice' => ['required', 'numeric', 'min:0'],
                 'labTestTimeRequired' => ['required', 'string', 'max:255'],
                 'labTestIsInHouse' => ['boolean'],
+                'labTestIsActive' => ['boolean'],
             ],
             default => [],
         };
@@ -171,6 +183,7 @@ new #[Title('Management')] class extends Component
         $this->doctorGetFullSlips = $doctor->get_full_slips;
         $this->doctorFullSlipsCount = (string) $doctor->full_slips_count;
         $this->doctorDutyStartTime = $doctor->duty_start_time?->format('H:i');
+        $this->doctorIsActive = $doctor->is_active;
     }
 
     /**
@@ -183,6 +196,7 @@ new #[Title('Management')] class extends Component
         $this->serviceName = $service->name;
         $this->serviceIsStandalone = $service->is_standalone;
         $this->serviceTokenResetType = $service->token_reset_type->value;
+        $this->serviceIsActive = $service->is_active;
     }
 
     /**
@@ -210,6 +224,7 @@ new #[Title('Management')] class extends Component
         $this->labTestPrice = (string) $labTest->test_price;
         $this->labTestTimeRequired = $labTest->time_required;
         $this->labTestIsInHouse = $labTest->is_in_house;
+        $this->labTestIsActive = $labTest->is_active;
     }
 
     /**
@@ -224,9 +239,11 @@ new #[Title('Management')] class extends Component
             'doctorGetFullSlips',
             'doctorFullSlipsCount',
             'doctorDutyStartTime',
+            'doctorIsActive',
             'serviceName',
             'serviceIsStandalone',
             'serviceTokenResetType',
+            'serviceIsActive',
             'priceServiceId',
             'priceDoctorId',
             'priceAmount',
@@ -236,6 +253,7 @@ new #[Title('Management')] class extends Component
             'labTestPrice',
             'labTestTimeRequired',
             'labTestIsInHouse',
+            'labTestIsActive',
         ]);
 
         $this->resetErrorBag();
@@ -277,6 +295,7 @@ new #[Title('Management')] class extends Component
             'get_full_slips' => $validated['doctorGetFullSlips'],
             'full_slips_count' => $validated['doctorFullSlipsCount'],
             'duty_start_time' => $validated['doctorDutyStartTime'] ? $validated['doctorDutyStartTime'].':00' : null,
+            'is_active' => $validated['doctorIsActive'],
         ];
 
         if ($this->editingId) {
@@ -299,6 +318,7 @@ new #[Title('Management')] class extends Component
             'name' => $validated['serviceName'],
             'is_standalone' => $validated['serviceIsStandalone'],
             'token_reset_type' => $validated['serviceTokenResetType'],
+            'is_active' => $validated['serviceIsActive'],
         ];
 
         if ($this->editingId) {
@@ -346,6 +366,7 @@ new #[Title('Management')] class extends Component
             'test_price' => $validated['labTestPrice'],
             'time_required' => $validated['labTestTimeRequired'],
             'is_in_house' => $validated['labTestIsInHouse'],
+            'is_active' => $validated['labTestIsActive'],
         ];
 
         if ($this->editingId) {
@@ -485,6 +506,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Price') }}</flux:table.column>
                             <flux:table.column>{{ __('Time Required') }}</flux:table.column>
                             <flux:table.column>{{ __('In House') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -502,6 +524,13 @@ new #[Title('Management')] class extends Component
                                             <flux:badge size="sm" color="zinc">{{ __('Send out') }}</flux:badge>
                                         @endif
                                     </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($labTest->is_active)
+                                            <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('Inactive') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $labTest->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $labTest->id }})" wire:confirm="{{ __('Are you sure you want to delete this lab test?') }}" />
@@ -509,7 +538,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
                                         {{ __('No lab tests found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -524,6 +553,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Daily Payout') }}</flux:table.column>
                             <flux:table.column>{{ __('Full Slips') }}</flux:table.column>
                             <flux:table.column>{{ __('Duty Start') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -549,6 +579,13 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>
                                         {{ $doctor->duty_start_time?->format('g:i A') ?? '-' }}
                                     </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($doctor->is_active)
+                                            <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('Inactive') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $doctor->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $doctor->id }})" wire:confirm="{{ __('Are you sure you want to delete this doctor?') }}" />
@@ -556,7 +593,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                         {{ __('No doctors found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -569,6 +606,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Standalone') }}</flux:table.column>
                             <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -584,6 +622,13 @@ new #[Title('Management')] class extends Component
                                         @endif
                                     </flux:table.cell>
                                     <flux:table.cell>{{ $service->token_reset_type->label() }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->is_active)
+                                            <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('Inactive') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $service->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $service->id }})" wire:confirm="{{ __('Are you sure you want to delete this service?') }}" />
@@ -591,7 +636,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -674,6 +719,11 @@ new #[Title('Management')] class extends Component
                     <flux:input wire:model="doctorDutyStartTime" type="time" />
                     <flux:error name="doctorDutyStartTime" />
                 </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="doctorIsActive" :label="__('Active')" />
+                    <flux:error name="doctorIsActive" />
+                </flux:field>
             @elseif ($activeTab === 'services')
                 <flux:field>
                     <flux:label>{{ __('Name') }}</flux:label>
@@ -694,6 +744,11 @@ new #[Title('Management')] class extends Component
                         @endforeach
                     </flux:select>
                     <flux:error name="serviceTokenResetType" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceIsActive" :label="__('Active')" />
+                    <flux:error name="serviceIsActive" />
                 </flux:field>
             @elseif ($activeTab === 'servicePrices')
                 <flux:field>
@@ -757,6 +812,11 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="labTestIsInHouse" :label="__('In house test')" />
                     <flux:error name="labTestIsInHouse" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="labTestIsActive" :label="__('Active')" />
+                    <flux:error name="labTestIsActive" />
                 </flux:field>
             @endif
 

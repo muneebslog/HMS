@@ -303,3 +303,95 @@ test('authenticated users can delete a lab test', function () {
         'id' => $labTest->id,
     ]);
 });
+test('authenticated users can deactivate and reactivate a doctor', function () {
+    $user = User::factory()->admin()->create();
+    $doctor = Doctor::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'doctors')
+        ->call('edit', $doctor->id)
+        ->set('doctorIsActive', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('doctors', [
+        'id' => $doctor->id,
+        'is_active' => false,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'doctors')
+        ->call('edit', $doctor->id)
+        ->set('doctorIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('doctors', [
+        'id' => $doctor->id,
+        'is_active' => true,
+    ]);
+});
+
+test('authenticated users can deactivate and reactivate a service', function () {
+    $user = User::factory()->admin()->create();
+    $service = Service::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'services')
+        ->call('edit', $service->id)
+        ->set('serviceIsActive', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('services', [
+        'id' => $service->id,
+        'is_active' => false,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'services')
+        ->call('edit', $service->id)
+        ->set('serviceIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('services', [
+        'id' => $service->id,
+        'is_active' => true,
+    ]);
+});
+
+test('authenticated users can deactivate and reactivate a lab test', function () {
+    $user = User::factory()->admin()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('edit', $labTest->id)
+        ->set('labTestIsActive', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('lab_tests', [
+        'id' => $labTest->id,
+        'is_active' => false,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('edit', $labTest->id)
+        ->set('labTestIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('lab_tests', [
+        'id' => $labTest->id,
+        'is_active' => true,
+    ]);
+});

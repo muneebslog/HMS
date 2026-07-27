@@ -24,6 +24,17 @@ class LabTestFactory extends Factory
             'sample' => fake()->optional()->sentence(),
             'time_required' => fake()->randomElement(['30 minutes', '1 hour', '2 hours', '1 day', '3 days']),
             'is_in_house' => fake()->boolean(),
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Indicate that the lab test is inactive.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
     }
 }

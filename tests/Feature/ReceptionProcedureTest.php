@@ -302,3 +302,15 @@ test('procedure payment ledger can be viewed from the list', function () {
 
     $payment->delete();
 });
+test('inactive doctors are not available in procedures', function () {
+    $user = User::factory()->create();
+    $activeDoctor = Doctor::factory()->create(['is_active' => true]);
+    $inactiveDoctor = Doctor::factory()->create(['is_active' => false]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertSet('doctors', function ($doctors) use ($activeDoctor, $inactiveDoctor) {
+            return $doctors->contains('id', $activeDoctor->id)
+                && ! $doctors->contains('id', $inactiveDoctor->id);
+        });
+});

@@ -213,6 +213,7 @@ new #[Title('Lab Entry')] class extends Component
     public function labTests(): Collection
     {
         return LabTest::query()
+            ->active()
             ->when(trim($this->search) !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('test_name', 'like', '%'.$this->search.'%')

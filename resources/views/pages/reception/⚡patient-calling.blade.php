@@ -48,10 +48,10 @@ new #[Title('Patient Calling')] class extends Component
         }
 
         if ($service->is_standalone) {
-            return Doctor::orderBy('name')->get();
+            return Doctor::active()->orderBy('name')->get();
         }
 
-        return Doctor::whereHas('servicePrices', function ($query) use ($service) {
+        return Doctor::active()->whereHas('servicePrices', function ($query) use ($service) {
             $query->where('service_id', $service->id);
         })->orderBy('name')->get();
     }

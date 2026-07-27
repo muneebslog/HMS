@@ -268,3 +268,40 @@ test('saving a walk-in invoice clears the form', function () {
         ->assertSet('patientName', '')
         ->assertCount('items', 0);
 });
+test('inactive services are not available in walk-in', function () {
+    $user = User::factory()->create();
+    $activeService = Service::factory()->create(['is_standalone' => true, 'is_active' => true]);
+    $inactiveService = Service::factory()->create(['is_standalone' => true, 'is_active' => false]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->assertSet('services', function ($services) use ($activeService, $inactiveService) {
+            return $services->contains('id', $activeService->id)
+                && ! $services->contains('id', $inactiveService->id);
+        });
+});
+
+test('inactive doctors are not available for non-standalone services', function () {
+    $user = User::factory()->create();
+    $service = Service::factory()->create(['is_standalone' => false]);
+    $activeDoctor = Doctor::factory()->create(['is_active' => true]);
+    $inactiveDoctor = Doctor::factory()->create(['is_active' => false]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $activeDoctor->id,
+        'price' => 150.00,
+    ]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $inactiveDoctor->id,
+        'price' => 200.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('selectedServiceId', $service->id)
+        ->assertSet('availableDoctors', function ($doctors) use ($activeDoctor, $inactiveDoctor) {
+            return $doctors->contains('id', $activeDoctor->id)
+                && ! $doctors->contains('id', $inactiveDoctor->id);
+        });
+});

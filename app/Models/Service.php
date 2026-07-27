@@ -25,6 +25,16 @@ class Service extends Model
         'name',
         'is_standalone',
         'token_reset_type',
+        'is_active',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
     ];
 
     /**
@@ -37,7 +47,16 @@ class Service extends Model
         return [
             'is_standalone' => 'boolean',
             'token_reset_type' => TokenResetType::class,
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Scope the query to only active services.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 
     /**

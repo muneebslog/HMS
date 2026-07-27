@@ -285,11 +285,11 @@ new #[Title('Walk-in')] class extends Component
     #[Computed]
     public function services(): Collection
     {
-        return Service::orderBy('name')->get();
+        return Service::active()->orderBy('name')->get();
     }
 
     /**
-     * Get the doctors related to the selected service.
+     * Get the active doctors related to the selected service.
      *
      * @return Collection<int, Doctor>
      */
@@ -300,7 +300,7 @@ new #[Title('Walk-in')] class extends Component
             return new Collection();
         }
 
-        return Doctor::whereHas('servicePrices', function ($query) {
+        return Doctor::active()->whereHas('servicePrices', function ($query) {
             $query->where('service_id', $this->currentService->id);
         })->orderBy('name')->get();
     }

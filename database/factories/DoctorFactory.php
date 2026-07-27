@@ -23,7 +23,18 @@ class DoctorFactory extends Factory
             'specialization' => fake()->jobTitle(),
             'payout_daily' => false,
             'duty_start_time' => null,
+            'is_active' => true,
         ];
+    }
+
+    /**
+     * Indicate that the doctor is inactive.
+     */
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
     }
 
     /**
