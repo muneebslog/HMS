@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AdminNotification;
+use App\Models\EmployeeTodo;
 use App\Models\Shift;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -81,6 +82,42 @@ new #[Title('Dashboard')] class extends Component
     public function markAllNotificationsAsRead(): void
     {
         AdminNotification::whereNull('read_at')->update(['read_at' => now()]);
+    }
+
+    /**
+     * Get pending employee todos ordered by due date.
+     *
+     * @return Collection<int, EmployeeTodo>
+     */
+    #[Computed]
+    public function pendingEmployeeTodos(): Collection
+    {
+        return EmployeeTodo::with('employee')
+            ->pending()
+            ->orderBy('due_date')
+            ->limit(10)
+            ->get();
+    }
+
+    /**
+     * Get the count of pending employee todos.
+     */
+    #[Computed]
+    public function pendingEmployeeTodoCount(): int
+    {
+        return EmployeeTodo::pending()->count();
+    }
+
+    /**
+     * Mark the given employee todo as done.
+     */
+    public function markEmployeeTodoDone(int $todoId): void
+    {
+        $todo = EmployeeTodo::find($todoId);
+
+        if ($todo !== null && auth()->user()?->isAdmin()) {
+            $todo->markAsDone(auth()->user());
+        }
     }
 }; ?>
 
@@ -220,6 +257,61 @@ new #[Title('Dashboard')] class extends Component
                     <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
                 </div>
             </div>
+        @endif
+
+        @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+            <flux:card wire:poll.10s>
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-3">
+                        <flux:heading level="2">{{ __('Staff Todos') }}</flux:heading>
+
+                        @if ($this->pendingEmployeeTodoCount > 0)
+                            <flux:badge size="sm" color="red">{{ $this->pendingEmployeeTodoCount }}</flux:badge>
+                        @endif
+                    </div>
+
+                    <flux:button size="sm" variant="ghost" :href="route('admin.employees')" wire:navigate>
+                        {{ __('View all staff') }}
+                    </flux:button>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    @forelse ($this->pendingEmployeeTodos as $todo)
+                        <div wire:key="employee-todo-{{ $todo->id }}" class="flex items-start gap-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+                            <div class="mt-1 shrink-0">
+                                <flux:icon name="clipboard-document-list" class="size-5 {{ $todo->isOverdue() ? 'text-red-500' : 'text-amber-500' }}" />
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <flux:heading level="3" class="text-base">{{ $todo->title }}</flux:heading>
+                                    @if ($todo->isOverdue())
+                                        <flux:badge size="sm" color="red">{{ __('Overdue') }}</flux:badge>
+                                    @endif
+                                </div>
+
+                                <flux:text class="mt-1 text-sm text-zinc-500">
+                                    {{ $todo->employee->name }}
+                                    &middot; {{ __('Due') }} {{ $todo->due_date->format('Y-m-d') }}
+                                </flux:text>
+                            </div>
+
+                            <div class="flex shrink-0 flex-col gap-2">
+                                <flux:button size="sm" variant="primary" icon="check" wire:click="markEmployeeTodoDone({{ $todo->id }})">
+                                    {{ __('Done') }}
+                                </flux:button>
+                                <flux:button size="sm" variant="ghost" icon="eye" :href="route('admin.employees.profile', $todo->employee)" wire:navigate>
+                                    {{ __('View') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-6 text-center dark:border-zinc-700 dark:bg-zinc-800/50">
+                            <flux:text class="text-zinc-500">{{ __('No pending staff todos.') }}</flux:text>
+                        </div>
+                    @endforelse
+                </div>
+            </flux:card>
         @endif
 
         @if (auth()->user()->isAdmin() || auth()->user()->isManagement())

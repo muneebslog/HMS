@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
+use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
@@ -39,6 +40,12 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
         Route::livewire('admin/supervisor-questions', 'pages::admin.supervisor-questions')->name('admin.supervisor-questions');
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
+        Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
+        Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
+    });
+
+    Route::middleware('role:'.UserRole::Admin->value)->group(function () {
+        Route::get('employee-documents/{document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
     });
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AdminNotification;
+use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
@@ -319,6 +320,82 @@ class NotificationService
             [
                 'role_request_id' => $request->id,
                 'requested_role' => $request->requested_role->value,
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that a new employee todo has been created.
+     */
+    public function notifyEmployeeTodoCreated(EmployeeTodo $todo, User $user): AdminNotification
+    {
+        $title = __('📝 New Staff Todo: :name', ['name' => $todo->employee->name]);
+        $message = __("':todo' has been added for :name with due date :due.", [
+            'todo' => $todo->title,
+            'name' => $todo->employee->name,
+            'due' => $todo->due_date->format('Y-m-d'),
+        ]);
+
+        return $this->createAdminNotification(
+            $user,
+            'employee_todo_created',
+            $title,
+            $message,
+            route('admin.employees.profile', $todo->employee),
+            [
+                'employee_todo_id' => $todo->id,
+                'employee_id' => $todo->employee_id,
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an employee todo is due or overdue.
+     */
+    public function notifyEmployeeTodoDue(EmployeeTodo $todo): ?AdminNotification
+    {
+        $alreadyNotified = AdminNotification::where('type', 'employee_todo_due')
+            ->whereJsonContains('metadata', ['employee_todo_id' => $todo->id])
+            ->exists();
+
+        if ($alreadyNotified) {
+            return null;
+        }
+
+        $employee = $todo->employee;
+        $creator = $todo->creator;
+
+        if ($employee === null || $creator === null) {
+            return null;
+        }
+
+        $isOverdue = $todo->due_date->isPast();
+
+        $title = $isOverdue
+            ? __('⏰ Staff Todo Overdue: :name', ['name' => $employee->name])
+            : __('⏰ Staff Todo Due Today: :name', ['name' => $employee->name]);
+
+        $message = $isOverdue
+            ? __("':todo' for :name was due on :due and is now overdue.", [
+                'todo' => $todo->title,
+                'name' => $employee->name,
+                'due' => $todo->due_date->format('Y-m-d'),
+            ])
+            : __("':todo' for :name is due today (:due).", [
+                'todo' => $todo->title,
+                'name' => $employee->name,
+                'due' => $todo->due_date->format('Y-m-d'),
+            ]);
+
+        return $this->createAdminNotification(
+            $creator,
+            'employee_todo_due',
+            $title,
+            $message,
+            route('admin.employees.profile', $employee),
+            [
+                'employee_todo_id' => $todo->id,
+                'employee_id' => $employee->id,
             ]
         );
     }
