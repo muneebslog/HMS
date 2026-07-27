@@ -3,6 +3,7 @@
 use App\Enums\RoleRequestStatus;
 use App\Enums\UserRole;
 use App\Models\RoleRequest;
+use App\Services\NotificationService;
 use Flux\Flux;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -97,12 +98,14 @@ new #[Layout('layouts::pending')] #[Title('Pending Role Assignment')] class exte
 
         $role = UserRole::from($validated['requestedRole']);
 
-        RoleRequest::create([
+        $request = RoleRequest::create([
             'user_id' => auth()->id(),
             'requested_role' => $role,
             'status' => RoleRequestStatus::Pending,
             'message' => $validated['message'] ?: null,
         ]);
+
+        app(NotificationService::class)->notifyRoleRequestSubmitted($request, auth()->user());
 
         $this->closeRequestModal();
 

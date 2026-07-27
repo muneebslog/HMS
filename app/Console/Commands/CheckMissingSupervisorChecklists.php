@@ -11,7 +11,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('supervisor:check-missing-checklists')]
-#[Description('Notify admins when supervisors have not submitted a checklist for the previous two-hour block.')]
+#[Description('Notify admins when supervisors have not submitted a checklist for the previous hour block.')]
 class CheckMissingSupervisorChecklists extends Command
 {
     /**

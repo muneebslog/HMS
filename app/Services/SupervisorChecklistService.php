@@ -15,15 +15,15 @@ class SupervisorChecklistService
     /**
      * The duration of each checklist block in hours.
      */
-    private const int BLOCK_HOURS = 2;
+    private const int BLOCK_HOURS = 1;
 
     /**
      * The number of blocks in a day.
      */
-    private const int BLOCKS_PER_DAY = 12;
+    private const int BLOCKS_PER_DAY = 24;
 
     /**
-     * Get the fixed two-hour block that contains the given moment.
+     * Get the fixed one-hour block that contains the given moment.
      *
      * @return array<string, Carbon>
      */
@@ -38,7 +38,7 @@ class SupervisorChecklistService
     }
 
     /**
-     * Get the current two-hour block.
+     * Get the current one-hour block.
      *
      * @return array<string, Carbon>
      */

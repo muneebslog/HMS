@@ -7,6 +7,7 @@ use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\QueueToken;
+use App\Models\RoleRequest;
 use App\Models\Shift;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -292,6 +293,33 @@ class NotificationService
             $notificationTitle,
             $message,
             route('admin.kanban')
+        );
+    }
+
+    /**
+     * Notify admins that a user has submitted a role request.
+     */
+    public function notifyRoleRequestSubmitted(RoleRequest $request, User $user): AdminNotification
+    {
+        $title = __('📝 New Role Request');
+        $message = __(
+            ':name has requested the :role role.',
+            [
+                'name' => $user->name,
+                'role' => $request->requested_role->label(),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $user,
+            'role_request_submitted',
+            $title,
+            $message,
+            route('admin.users'),
+            [
+                'role_request_id' => $request->id,
+                'requested_role' => $request->requested_role->value,
+            ]
         );
     }
 

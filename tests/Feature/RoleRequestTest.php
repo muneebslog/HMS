@@ -2,6 +2,7 @@
 
 use App\Enums\RoleRequestStatus;
 use App\Enums\UserRole;
+use App\Models\AdminNotification;
 use App\Models\Doctor;
 use App\Models\RoleRequest;
 use App\Models\User;
@@ -69,6 +70,25 @@ test('user role users can request the supervisor role', function () {
         ->and($request->user_id)->toBe($user->id)
         ->and($request->requested_role)->toBe(UserRole::Supervisor)
         ->and($request->status)->toBe(RoleRequestStatus::Pending);
+});
+
+test('submitting a role request creates an admin notification', function () {
+    $user = User::factory()->user()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::pending-role')
+        ->call('requestRole')
+        ->set('requestedRole', UserRole::Supervisor->value)
+        ->set('message', 'I need supervisor access.')
+        ->call('submitRequest')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::count())->toBe(1);
+
+    $notification = AdminNotification::first();
+    expect($notification->type)->toBe('role_request_submitted')
+        ->and($notification->metadata)->toHaveKey('role_request_id')
+        ->and($notification->metadata)->toHaveKey('requested_role', UserRole::Supervisor->value);
 });
 
 test('user role users cannot request the admin or user role', function () {

@@ -47,8 +47,8 @@ test('page lists daily blocks for a selected supervisor', function () {
         ->test('pages::admin.supervisor-checklist')
         ->set('selectedSupervisorId', $supervisor->id)
         ->assertSee($supervisor->name)
-        ->assertSee('00:00 - 02:00')
-        ->assertSee('02:00 - 04:00');
+        ->assertSee('00:00 - 01:00')
+        ->assertSee('01:00 - 02:00');
 });
 
 test('page shows submitted and missing block statuses', function () {
