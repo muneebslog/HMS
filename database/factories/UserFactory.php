@@ -89,6 +89,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user is a supervisor.
+     */
+    public function supervisor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Supervisor,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

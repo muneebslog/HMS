@@ -37,10 +37,16 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/sms-logs', 'pages::admin.sms-logs')->name('admin.sms-logs');
         Route::livewire('admin/sql-runner', 'pages::admin.sql-runner')->name('admin.sql-runner');
         Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
+        Route::livewire('admin/supervisor-questions', 'pages::admin.supervisor-questions')->name('admin.supervisor-questions');
+        Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
     });
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
+    });
+
+    Route::middleware('role:'.UserRole::Supervisor->value)->group(function () {
+        Route::livewire('supervisor/checklist', 'pages::supervisor.checklist')->name('supervisor.checklist');
     });
 
     Route::middleware('role:'.UserRole::Management->value)->group(function () {

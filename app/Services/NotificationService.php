@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Models\AdminNotification;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
+use App\Models\LabInvoiceItem;
 use App\Models\QueueToken;
 use App\Models\Shift;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -56,7 +58,7 @@ class NotificationService
     /**
      * Notify that a lab invoice has in-house tests missing numeric codes.
      *
-     * @param  Collection<int, \App\Models\LabInvoiceItem>  $items
+     * @param  Collection<int, LabInvoiceItem>  $items
      */
     public function notifyLabTestMissingCode(LabInvoice $invoice, $items): AdminNotification
     {
@@ -290,6 +292,47 @@ class NotificationService
             $notificationTitle,
             $message,
             route('admin.kanban')
+        );
+    }
+
+    /**
+     * Notify admins that a supervisor has not submitted a checklist for a block.
+     */
+    public function notifySupervisorChecklistMissing(
+        User $supervisor,
+        CarbonInterface $blockStart,
+        CarbonInterface $blockEnd
+    ): ?AdminNotification {
+        $alreadyNotified = AdminNotification::where('type', 'supervisor_checklist_missing')
+            ->whereJsonContains('metadata', ['supervisor_id' => $supervisor->id])
+            ->whereJsonContains('metadata', ['block_starts_at' => $blockStart->toDateTimeString()])
+            ->exists();
+
+        if ($alreadyNotified) {
+            return null;
+        }
+
+        $title = __('⏰ Supervisor Checklist Missing');
+        $message = __(
+            'Supervisor :name has not submitted the checklist for the :start - :end block.',
+            [
+                'name' => $supervisor->name,
+                'start' => $blockStart->format('H:i'),
+                'end' => $blockEnd->format('H:i'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $supervisor,
+            'supervisor_checklist_missing',
+            $title,
+            $message,
+            route('admin.supervisor-checklist'),
+            [
+                'supervisor_id' => $supervisor->id,
+                'block_starts_at' => $blockStart->toDateTimeString(),
+                'block_ends_at' => $blockEnd->toDateTimeString(),
+            ]
         );
     }
 

@@ -91,6 +91,19 @@
                     </flux:sidebar.group>
                 @endif
 
+                @if (auth()->user()->isSupervisor())
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                            <span class="size-2 rounded-full bg-indigo-500"></span>
+                            {{ __('Supervisor') }}
+                        </div>
+
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.checklist')" :current="request()->routeIs('supervisor.checklist')" wire:navigate>
+                            {{ __('Checklist') }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
+
                 @if (auth()->user()->isAdmin())
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
@@ -115,6 +128,12 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
                             {{ __('Notifications') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
+                            {{ __('Supervisor Questions') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
+                            {{ __('Supervisor Checklist') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

@@ -96,6 +96,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is a supervisor.
+     */
+    public function isSupervisor(): bool
+    {
+        return $this->role === UserRole::Supervisor;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool
