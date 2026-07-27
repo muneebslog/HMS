@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('option_id')->constrained('supervisor_checklist_options')->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['response_id', 'option_id']);
+            $table->unique(['response_id', 'option_id'], 'scr_response_option_unique');
         });
     }
 
