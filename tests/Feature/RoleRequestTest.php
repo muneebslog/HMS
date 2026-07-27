@@ -51,6 +51,26 @@ test('user role users can request the doctor role', function () {
         ->and($request->status)->toBe(RoleRequestStatus::Pending);
 });
 
+test('user role users can request the supervisor role', function () {
+    $user = User::factory()->user()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::pending-role')
+        ->call('requestRole')
+        ->assertSet('showRequestModal', true)
+        ->set('requestedRole', UserRole::Supervisor->value)
+        ->set('message', 'I need supervisor access.')
+        ->call('submitRequest')
+        ->assertHasNoErrors();
+
+    $request = RoleRequest::first();
+
+    expect($request)->not->toBeNull()
+        ->and($request->user_id)->toBe($user->id)
+        ->and($request->requested_role)->toBe(UserRole::Supervisor)
+        ->and($request->status)->toBe(RoleRequestStatus::Pending);
+});
+
 test('user role users cannot request the admin or user role', function () {
     $user = User::factory()->user()->create();
 
