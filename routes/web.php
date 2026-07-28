@@ -42,6 +42,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
+        Route::livewire('admin/leave-calendar', 'pages::admin.leave-calendar')->name('admin.leave-calendar');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {

@@ -120,6 +120,9 @@
                         <flux:sidebar.item icon="identification" :href="route('admin.employees')" :current="request()->routeIs('admin.employees*')" wire:navigate>
                             {{ __('Staff Profiles') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
+                            {{ __('Leave Calendar') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
                             {{ __('SMS Logs') }}
                         </flux:sidebar.item>
