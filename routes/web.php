@@ -3,6 +3,7 @@
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
@@ -43,6 +44,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/leave-calendar', 'pages::admin.leave-calendar')->name('admin.leave-calendar');
+        Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
+        Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])
+            ->name('admin.policy-journals.download');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {

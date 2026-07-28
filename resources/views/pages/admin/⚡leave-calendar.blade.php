@@ -196,7 +196,9 @@ new #[Title('Leave Calendar')] class extends Component
         if ($this->editingId === null) {
             $data['created_by'] = auth()->id();
 
-            EmployeeLeave::create($data);
+            $leave = EmployeeLeave::create($data);
+
+            app(\App\Services\NotificationService::class)->notifyEmployeeLeaveCreated($leave, auth()->user());
 
             Flux::toast(variant: 'success', text: __('Leave entry added successfully.'));
         } else {

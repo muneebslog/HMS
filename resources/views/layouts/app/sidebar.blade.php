@@ -132,6 +132,9 @@
                         <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
                             {{ __('Kanban') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="book-open" :href="route('admin.policy-journal')" :current="request()->routeIs('admin.policy-journal')" wire:navigate>
+                            {{ __('Policy Journal') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
                             {{ __('Notifications') }}
                         </flux:sidebar.item>

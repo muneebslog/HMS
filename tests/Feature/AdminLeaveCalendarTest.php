@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\AdminNotification;
 use App\Models\EmployeeLeave;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,6 +72,26 @@ test('admin can create a leave entry for a date', function () {
         ->and($leave->informed_by)->toBe('Manager A')
         ->and($leave->notes)->toBe('Covering morning shift')
         ->and($leave->created_by)->toBe($admin->id);
+});
+
+test('creating a leave entry creates an admin notification', function () {
+    $admin = User::factory()->admin()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.leave-calendar')
+        ->call('selectDate', '2026-07-15')
+        ->set('employeeName', 'Ali Khan')
+        ->set('replacementName', 'Sara Ahmed')
+        ->call('saveLeave')
+        ->assertHasNoErrors();
+
+    $notification = AdminNotification::first();
+
+    expect($notification)->not->toBeNull()
+        ->and($notification->user_id)->toBe($admin->id)
+        ->and($notification->type)->toBe('employee_leave_created')
+        ->and($notification->title)->toBe(__('📅 New Leave Recorded'))
+        ->and($notification->actionable_url)->toBe(route('admin.leave-calendar'));
 });
 
 test('admin cannot create duplicate leave entries for the same employee and date', function () {
