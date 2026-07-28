@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\AdminNotification;
 use App\Models\SupervisorChecklistEntry;
 use App\Models\SupervisorChecklistOption;
 use App\Models\SupervisorChecklistQuestion;
@@ -55,9 +56,9 @@ test('supervisor can submit the checklist for the current block', function () {
     $question = SupervisorChecklistQuestion::factory()->create();
     $option = SupervisorChecklistOption::factory()->create(['question_id' => $question->id]);
 
-    $component = Livewire::actingAs($supervisor)
+    Livewire::actingAs($supervisor)
         ->test('pages::supervisor.checklist')
-        ->set("selectedOptions.{$question->id}", [$option->id])
+        ->set("selectedOptions.{$question->id}", $option->id)
         ->set("remarks.{$question->id}", 'All good')
         ->call('submit')
         ->assertHasNoErrors();
@@ -93,4 +94,40 @@ test('already submitted block shows saved responses and prevents re-submission',
         ->assertHasNoErrors();
 
     expect(SupervisorChecklistEntry::count())->toBe(1);
+});
+
+test('submitting a checklist with no answers creates an admin notification', function () {
+    $supervisor = User::factory()->supervisor()->create();
+    $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Is the ward clean?']);
+    $noOption = SupervisorChecklistOption::factory()->no()->create(['question_id' => $question->id]);
+    $yesOption = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Yes']);
+
+    Livewire::actingAs($supervisor)
+        ->test('pages::supervisor.checklist')
+        ->set("selectedOptions.{$question->id}", $noOption->id)
+        ->set("remarks.{$question->id}", 'Needs cleaning')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::count())->toBe(1);
+
+    $notification = AdminNotification::first();
+    expect($notification->type)->toBe('supervisor_checklist_no_answers');
+    expect($notification->message)->toContain('Is the ward clean?');
+    expect($notification->message)->toContain('Needs cleaning');
+    expect($notification->metadata)->toHaveKey('entry_id');
+});
+
+test('submitting a checklist without no answers does not create a notification', function () {
+    $supervisor = User::factory()->supervisor()->create();
+    $question = SupervisorChecklistQuestion::factory()->create();
+    $yesOption = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Yes']);
+
+    Livewire::actingAs($supervisor)
+        ->test('pages::supervisor.checklist')
+        ->set("selectedOptions.{$question->id}", $yesOption->id)
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(AdminNotification::count())->toBe(0);
 });

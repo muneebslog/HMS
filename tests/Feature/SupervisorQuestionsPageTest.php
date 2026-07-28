@@ -50,6 +50,8 @@ test('admin can create a question', function () {
 
     expect(SupervisorChecklistQuestion::count())->toBe(1);
     expect(SupervisorChecklistQuestion::first()->question_text)->toBe('Is the lab running?');
+    expect(SupervisorChecklistOption::count())->toBe(2);
+    expect(SupervisorChecklistOption::where('is_no', true)->exists())->toBeTrue();
 });
 
 test('admin can edit a question', function () {
@@ -89,6 +91,7 @@ test('admin can add an option to a question', function () {
         ->test('pages::admin.supervisor-questions')
         ->call('manageOptions', $question->id)
         ->set('optionText', 'Yes')
+        ->set('optionIsNo', false)
         ->set('optionSortOrder', 1)
         ->set('optionIsActive', true)
         ->call('saveOption')
@@ -107,12 +110,14 @@ test('admin can edit an option', function () {
         ->call('manageOptions', $option->question_id)
         ->call('editOption', $option->id)
         ->set('optionText', 'Updated option')
+        ->set('optionIsNo', true)
         ->set('optionSortOrder', 2)
         ->set('optionIsActive', false)
         ->call('saveOption')
         ->assertHasNoErrors();
 
     expect($option->fresh()->option_text)->toBe('Updated option');
+    expect($option->fresh()->is_no)->toBeTrue();
     expect($option->fresh()->is_active)->toBeFalse();
 });
 

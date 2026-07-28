@@ -32,6 +32,7 @@ class SupervisorChecklistOption extends Model
     protected $fillable = [
         'question_id',
         'option_text',
+        'is_no',
         'sort_order',
         'is_active',
     ];
@@ -44,6 +45,7 @@ class SupervisorChecklistOption extends Model
     protected function casts(): array
     {
         return [
+            'is_no' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

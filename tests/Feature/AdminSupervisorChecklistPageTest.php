@@ -94,3 +94,30 @@ test('expanding a submitted block shows question option and remark details', fun
         ->assertSee('Normal')
         ->assertSee('Room was cool');
 });
+
+test('expanding a submitted block highlights no answers in red', function () {
+    $admin = User::factory()->admin()->create();
+    $supervisor = User::factory()->supervisor()->create();
+    $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Is equipment working?']);
+    $noOption = SupervisorChecklistOption::factory()->no()->create(['question_id' => $question->id]);
+    $block = app(SupervisorChecklistService::class)->currentBlock();
+    $entry = SupervisorChecklistEntry::factory()
+        ->forSupervisor($supervisor)
+        ->forBlock($block['start'], $block['end'])
+        ->create();
+
+    $response = $entry->responses()->create([
+        'entry_id' => $entry->id,
+        'question_id' => $question->id,
+        'remarks' => 'Broken',
+    ]);
+    $response->options()->attach($noOption->id);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.supervisor-checklist')
+        ->set('selectedSupervisorId', $supervisor->id)
+        ->call('toggleBlock', $block['start']->format('H:i'))
+        ->assertSee('Is equipment working?')
+        ->assertSeeHtml('bg-red-50')
+        ->assertSee('Broken');
+});

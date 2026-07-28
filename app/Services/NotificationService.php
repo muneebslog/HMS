@@ -11,6 +11,8 @@ use App\Models\LabInvoiceItem;
 use App\Models\QueueToken;
 use App\Models\RoleRequest;
 use App\Models\Shift;
+use App\Models\SupervisorChecklistEntry;
+use App\Models\SupervisorChecklistResponse;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -466,6 +468,52 @@ class NotificationService
                 'supervisor_id' => $supervisor->id,
                 'block_starts_at' => $blockStart->toDateTimeString(),
                 'block_ends_at' => $blockEnd->toDateTimeString(),
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that a supervisor submitted a checklist with "No" answers.
+     *
+     * @param  Collection<int, SupervisorChecklistResponse>  $noResponses
+     */
+    public function notifySupervisorChecklistSubmitted(
+        User $supervisor,
+        SupervisorChecklistEntry $entry,
+        Collection $noResponses
+    ): AdminNotification {
+        $title = __('⚠️ Supervisor Checklist Submitted With No Answers');
+
+        $items = $noResponses->map(function (SupervisorChecklistResponse $response): string {
+            $text = $response->question->question_text;
+
+            return $response->remarks
+                ? "- {$text} ({$response->remarks})"
+                : "- {$text}";
+        })->implode("\n");
+
+        $message = __(
+            "Supervisor :name submitted the checklist for :start - :end with the following No answers:\n:items",
+            [
+                'name' => $supervisor->name,
+                'start' => $entry->block_starts_at->format('H:i'),
+                'end' => $entry->block_ends_at->format('H:i'),
+                'items' => $items,
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $supervisor,
+            'supervisor_checklist_no_answers',
+            $title,
+            $message,
+            route('admin.supervisor-checklist'),
+            [
+                'supervisor_id' => $supervisor->id,
+                'entry_id' => $entry->id,
+                'block_starts_at' => $entry->block_starts_at->toDateTimeString(),
+                'block_ends_at' => $entry->block_ends_at->toDateTimeString(),
+                'no_response_ids' => $noResponses->pluck('id')->all(),
             ]
         );
     }

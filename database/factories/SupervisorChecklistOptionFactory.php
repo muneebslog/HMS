@@ -34,6 +34,17 @@ class SupervisorChecklistOptionFactory extends Factory
     }
 
     /**
+     * Indicate that the option represents a "No" answer.
+     */
+    public function no(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'option_text' => 'No',
+            'is_no' => true,
+        ]);
+    }
+
+    /**
      * Indicate that the option is inactive.
      */
     public function inactive(): static

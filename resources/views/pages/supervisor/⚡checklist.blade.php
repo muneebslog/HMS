@@ -2,6 +2,7 @@
 
 use App\Models\SupervisorChecklistEntry;
 use App\Models\SupervisorChecklistResponse;
+use App\Services\NotificationService;
 use App\Services\SupervisorChecklistService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -13,9 +14,9 @@ use Livewire\Component;
 new #[Title('Supervisor Checklist')] class extends Component
 {
     /**
-     * Selected option IDs keyed by question ID.
+     * Selected option ID keyed by question ID.
      *
-     * @var array<int, list<int>>
+     * @var array<int, int|null>
      */
     public array $selectedOptions = [];
 
@@ -73,7 +74,7 @@ new #[Title('Supervisor Checklist')] class extends Component
         }
 
         foreach ($this->questions as $question) {
-            $this->selectedOptions[$question->id] = [];
+            $this->selectedOptions[$question->id] = null;
             $this->remarks[$question->id] = '';
         }
     }
@@ -91,8 +92,7 @@ new #[Title('Supervisor Checklist')] class extends Component
 
         $rules = [];
         foreach ($this->questions as $question) {
-            $rules["selectedOptions.{$question->id}"] = ['nullable', 'array'];
-            $rules["selectedOptions.{$question->id}.*"] = ['integer', 'exists:supervisor_checklist_options,id'];
+            $rules["selectedOptions.{$question->id}"] = ['nullable', 'integer', 'exists:supervisor_checklist_options,id'];
             $rules["remarks.{$question->id}"] = ['nullable', 'string', 'max:2000'];
         }
 
@@ -113,10 +113,20 @@ new #[Title('Supervisor Checklist')] class extends Component
                 'remarks' => $validated['remarks'][$question->id] ?? null,
             ]);
 
-            $optionIds = $validated['selectedOptions'][$question->id] ?? [];
-            if ($optionIds !== []) {
-                $response->options()->attach($optionIds);
+            $optionId = $validated['selectedOptions'][$question->id] ?? null;
+            if ($optionId !== null) {
+                $response->options()->attach($optionId);
             }
+        }
+
+        $entry->load(['responses.question', 'responses.options']);
+
+        $noResponses = $entry->responses->filter(
+            fn (SupervisorChecklistResponse $response) => $response->options->contains('is_no', true)
+        );
+
+        if ($noResponses->isNotEmpty()) {
+            app(NotificationService::class)->notifySupervisorChecklistSubmitted(auth()->user(), $entry, $noResponses);
         }
 
         Flux::toast(variant: 'success', text: __('Checklist submitted for :start - :end.', [
@@ -213,10 +223,10 @@ new #[Title('Supervisor Checklist')] class extends Component
                                                 @foreach ($question->options->where('is_active', true) as $option)
                                                     <label class="flex items-center gap-2">
                                                         <input
-                                                            type="checkbox"
+                                                            type="radio"
                                                             wire:model="selectedOptions.{{ $question->id }}"
                                                             value="{{ $option->id }}"
-                                                            class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+                                                            class="border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
                                                         />
                                                         <span>{{ $option->option_text }}</span>
                                                     </label>

@@ -180,7 +180,10 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
                                                     </thead>
                                                     <tbody>
                                                         @foreach ($entry->responses as $response)
-                                                            <tr class="border-b border-zinc-100 dark:border-zinc-800" wire:key="response-{{ $response->id }}">
+                                                            @php
+                                                                $isNoResponse = $response->options->contains('is_no', true);
+                                                            @endphp
+                                                            <tr class="border-b border-zinc-100 dark:border-zinc-800 {{ $isNoResponse ? 'bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-100' : '' }}" wire:key="response-{{ $response->id }}">
                                                                 <td class="py-2 pe-4 align-top">{{ $response->question->question_text }}</td>
                                                                 <td class="py-2 pe-4 align-top">
                                                                     @if ($response->options->isEmpty())
@@ -188,7 +191,7 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
                                                                     @else
                                                                         <div class="flex flex-wrap gap-1">
                                                                             @foreach ($response->options as $option)
-                                                                                <flux:badge size="sm" color="blue">{{ $option->option_text }}</flux:badge>
+                                                                                <flux:badge size="sm" color="{{ $option->is_no ? 'red' : 'blue' }}">{{ $option->option_text }}</flux:badge>
                                                                             @endforeach
                                                                         </div>
                                                                     @endif

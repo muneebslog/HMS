@@ -28,6 +28,8 @@ new #[Title('Supervisor Questions')] class extends Component
 
     public string $optionText = '';
 
+    public bool $optionIsNo = false;
+
     public int $optionSortOrder = 0;
 
     public bool $optionIsActive = true;
@@ -102,8 +104,14 @@ new #[Title('Supervisor Questions')] class extends Component
             SupervisorChecklistQuestion::findOrFail($this->editingQuestionId)->update($data);
             Flux::toast(variant: 'success', text: __('Question updated.'));
         } else {
-            SupervisorChecklistQuestion::create($data);
-            Flux::toast(variant: 'success', text: __('Question created.'));
+            $question = SupervisorChecklistQuestion::create($data);
+
+            $question->options()->createMany([
+                ['option_text' => __('Yes'), 'is_no' => false, 'sort_order' => 0, 'is_active' => true],
+                ['option_text' => __('No'), 'is_no' => true, 'sort_order' => 1, 'is_active' => true],
+            ]);
+
+            Flux::toast(variant: 'success', text: __('Question created with Yes/No options.'));
         }
 
         $this->closeQuestionModal();
@@ -168,6 +176,7 @@ new #[Title('Supervisor Questions')] class extends Component
 
         $this->editingOptionId = $option->id;
         $this->optionText = $option->option_text;
+        $this->optionIsNo = $option->is_no;
         $this->optionSortOrder = $option->sort_order;
         $this->optionIsActive = $option->is_active;
     }
@@ -179,6 +188,7 @@ new #[Title('Supervisor Questions')] class extends Component
     {
         $validated = $this->validate([
             'optionText' => ['required', 'string', 'max:1000'],
+            'optionIsNo' => ['boolean'],
             'optionSortOrder' => ['required', 'integer', 'min:0'],
             'optionIsActive' => ['boolean'],
         ]);
@@ -186,6 +196,7 @@ new #[Title('Supervisor Questions')] class extends Component
         $data = [
             'question_id' => $this->managingQuestionId,
             'option_text' => $validated['optionText'],
+            'is_no' => $validated['optionIsNo'],
             'sort_order' => $validated['optionSortOrder'],
             'is_active' => $validated['optionIsActive'],
         ];
@@ -228,6 +239,7 @@ new #[Title('Supervisor Questions')] class extends Component
     {
         $this->editingOptionId = null;
         $this->optionText = '';
+        $this->optionIsNo = false;
         $this->optionSortOrder = 0;
         $this->optionIsActive = true;
         $this->resetErrorBag();
@@ -328,7 +340,7 @@ new #[Title('Supervisor Questions')] class extends Component
                 <form wire:submit="saveOption" class="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                     <flux:heading level="3">{{ $editingOptionId ? __('Edit Option') : __('Add Option') }}</flux:heading>
 
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-4 sm:grid-cols-3">
                         <flux:field>
                             <flux:label>{{ __('Option Text') }}</flux:label>
                             <flux:input wire:model="optionText" type="text" required />
@@ -339,6 +351,11 @@ new #[Title('Supervisor Questions')] class extends Component
                             <flux:label>{{ __('Sort Order') }}</flux:label>
                             <flux:input wire:model="optionSortOrder" type="number" min="0" step="1" required />
                             <flux:error name="optionSortOrder" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:switch wire:model="optionIsNo" :label="__('Is No answer')" />
+                            <flux:error name="optionIsNo" />
                         </flux:field>
                     </div>
 
@@ -362,6 +379,7 @@ new #[Title('Supervisor Questions')] class extends Component
                 <flux:table>
                     <flux:table.columns>
                         <flux:table.column>{{ __('Option') }}</flux:table.column>
+                        <flux:table.column>{{ __('Is No') }}</flux:table.column>
                         <flux:table.column>{{ __('Sort Order') }}</flux:table.column>
                         <flux:table.column>{{ __('Active') }}</flux:table.column>
                         <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -371,6 +389,13 @@ new #[Title('Supervisor Questions')] class extends Component
                         @forelse ($this->managingQuestion->options as $option)
                             <flux:table.row wire:key="option-{{ $option->id }}">
                                 <flux:table.cell>{{ $option->option_text }}</flux:table.cell>
+                                <flux:table.cell>
+                                    @if ($option->is_no)
+                                        <flux:badge size="sm" color="red">{{ __('Yes') }}</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                    @endif
+                                </flux:table.cell>
                                 <flux:table.cell>{{ $option->sort_order }}</flux:table.cell>
                                 <flux:table.cell>
                                     @if ($option->is_active)
@@ -386,7 +411,7 @@ new #[Title('Supervisor Questions')] class extends Component
                             </flux:table.row>
                         @empty
                             <flux:table.row>
-                                <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                     {{ __('No options found.') }}
                                 </flux:table.cell>
                             </flux:table.row>
