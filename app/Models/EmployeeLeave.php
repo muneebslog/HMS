@@ -18,9 +18,9 @@ class EmployeeLeave extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'employee_id',
+        'employee_name',
         'leave_date',
-        'replacement_employee_id',
+        'replacement_name',
         'duty_start_time',
         'duty_end_time',
         'is_informed',
@@ -42,26 +42,6 @@ class EmployeeLeave extends Model
             'duty_end_time' => 'datetime:H:i',
             'is_informed' => 'boolean',
         ];
-    }
-
-    /**
-     * The employee who is on leave.
-     *
-     * @return BelongsTo<Employee, $this>
-     */
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class);
-    }
-
-    /**
-     * The employee replacing the person on leave.
-     *
-     * @return BelongsTo<Employee, $this>
-     */
-    public function replacementEmployee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'replacement_employee_id');
     }
 
     /**

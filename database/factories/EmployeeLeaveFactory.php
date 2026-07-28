@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Employee;
 use App\Models\EmployeeLeave;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,9 +19,9 @@ class EmployeeLeaveFactory extends Factory
     public function definition(): array
     {
         return [
-            'employee_id' => Employee::factory(),
+            'employee_name' => fake()->name(),
             'leave_date' => fake()->date(),
-            'replacement_employee_id' => null,
+            'replacement_name' => null,
             'duty_start_time' => null,
             'duty_end_time' => null,
             'is_informed' => false,

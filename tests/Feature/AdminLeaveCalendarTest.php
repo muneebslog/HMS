@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\UserRole;
-use App\Models\Employee;
 use App\Models\EmployeeLeave;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,14 +45,12 @@ test('guests are redirected to the login page', function () {
 
 test('admin can create a leave entry for a date', function () {
     $admin = User::factory()->admin()->create();
-    $employee = Employee::factory()->create();
-    $replacement = Employee::factory()->create();
 
     Livewire::actingAs($admin)
         ->test('pages::admin.leave-calendar')
         ->call('selectDate', '2026-07-15')
-        ->set('employeeId', $employee->id)
-        ->set('replacementEmployeeId', $replacement->id)
+        ->set('employeeName', 'Ali Khan')
+        ->set('replacementName', 'Sara Ahmed')
         ->set('dutyStartTime', '09:00')
         ->set('dutyEndTime', '17:00')
         ->set('isInformed', true)
@@ -65,9 +62,9 @@ test('admin can create a leave entry for a date', function () {
     $leave = EmployeeLeave::first();
 
     expect($leave)->not->toBeNull()
-        ->and($leave->employee_id)->toBe($employee->id)
+        ->and($leave->employee_name)->toBe('Ali Khan')
         ->and($leave->leave_date->format('Y-m-d'))->toBe('2026-07-15')
-        ->and($leave->replacement_employee_id)->toBe($replacement->id)
+        ->and($leave->replacement_name)->toBe('Sara Ahmed')
         ->and($leave->duty_start_time->format('H:i:s'))->toBe('09:00:00')
         ->and($leave->duty_end_time->format('H:i:s'))->toBe('17:00:00')
         ->and($leave->is_informed)->toBeTrue()
@@ -78,38 +75,35 @@ test('admin can create a leave entry for a date', function () {
 
 test('admin cannot create duplicate leave entries for the same employee and date', function () {
     $admin = User::factory()->admin()->create();
-    $employee = Employee::factory()->create();
 
     EmployeeLeave::factory()->create([
-        'employee_id' => $employee->id,
+        'employee_name' => 'Ali Khan',
         'leave_date' => '2026-07-15',
     ]);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.leave-calendar')
         ->call('selectDate', '2026-07-15')
-        ->set('employeeId', $employee->id)
+        ->set('employeeName', 'Ali Khan')
         ->call('saveLeave')
-        ->assertHasErrors(['employeeId']);
+        ->assertHasErrors(['employeeName']);
 
     expect(EmployeeLeave::count())->toBe(1);
 });
 
 test('admin can update a leave entry', function () {
     $admin = User::factory()->admin()->create();
-    $employee = Employee::factory()->create();
-    $replacement = Employee::factory()->create();
     $leave = EmployeeLeave::factory()->create([
-        'employee_id' => $employee->id,
+        'employee_name' => 'Ali Khan',
         'leave_date' => '2026-07-15',
-        'replacement_employee_id' => null,
+        'replacement_name' => null,
     ]);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.leave-calendar')
         ->call('selectDate', '2026-07-15')
         ->call('editLeave', $leave->id)
-        ->set('replacementEmployeeId', $replacement->id)
+        ->set('replacementName', 'Sara Ahmed')
         ->set('isInformed', true)
         ->set('informedBy', 'HR')
         ->call('saveLeave')
@@ -117,7 +111,7 @@ test('admin can update a leave entry', function () {
 
     $leave->refresh();
 
-    expect($leave->replacement_employee_id)->toBe($replacement->id)
+    expect($leave->replacement_name)->toBe('Sara Ahmed')
         ->and($leave->is_informed)->toBeTrue()
         ->and($leave->informed_by)->toBe('HR');
 });
@@ -138,9 +132,8 @@ test('admin can delete a leave entry', function () {
 
 test('calendar displays leave entries for the selected date', function () {
     $admin = User::factory()->admin()->create();
-    $employee = Employee::factory()->create(['name' => 'Ali Khan']);
     EmployeeLeave::factory()->create([
-        'employee_id' => $employee->id,
+        'employee_name' => 'Ali Khan',
         'leave_date' => '2026-07-15',
     ]);
 
@@ -152,15 +145,14 @@ test('calendar displays leave entries for the selected date', function () {
 
 test('leave entry cannot be replaced by the same employee', function () {
     $admin = User::factory()->admin()->create();
-    $employee = Employee::factory()->create();
 
     Livewire::actingAs($admin)
         ->test('pages::admin.leave-calendar')
         ->call('selectDate', '2026-07-15')
-        ->set('employeeId', $employee->id)
-        ->set('replacementEmployeeId', $employee->id)
+        ->set('employeeName', 'Ali Khan')
+        ->set('replacementName', 'Ali Khan')
         ->call('saveLeave')
-        ->assertHasErrors(['replacementEmployeeId']);
+        ->assertHasErrors(['replacementName']);
 
     expect(EmployeeLeave::count())->toBe(0);
 });

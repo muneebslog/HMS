@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Employee;
 use App\Models\EmployeeLeave;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,9 +21,9 @@ new #[Title('Leave Calendar')] class extends Component
 
     public ?int $editingId = null;
 
-    public ?int $employeeId = null;
+    public string $employeeName = '';
 
-    public ?int $replacementEmployeeId = null;
+    public string $replacementName = '';
 
     public ?string $dutyStartTime = null;
 
@@ -49,17 +48,6 @@ new #[Title('Leave Calendar')] class extends Component
 
         $this->currentMonth = now()->month;
         $this->currentYear = now()->year;
-    }
-
-    /**
-     * Get all active employees for the selectors.
-     *
-     * @return Collection<int, Employee>
-     */
-    #[Computed]
-    public function activeEmployees(): Collection
-    {
-        return Employee::active()->orderBy('name')->get();
     }
 
     /**
@@ -130,7 +118,7 @@ new #[Title('Leave Calendar')] class extends Component
             return new Collection();
         }
 
-        return EmployeeLeave::with(['employee', 'replacementEmployee', 'creator'])
+        return EmployeeLeave::with('creator')
             ->whereDate('leave_date', $this->selectedDate)
             ->orderBy('duty_start_time')
             ->get();
@@ -162,8 +150,8 @@ new #[Title('Leave Calendar')] class extends Component
         $leave = EmployeeLeave::findOrFail($id);
 
         $this->editingId = $leave->id;
-        $this->employeeId = $leave->employee_id;
-        $this->replacementEmployeeId = $leave->replacement_employee_id;
+        $this->employeeName = $leave->employee_name;
+        $this->replacementName = $leave->replacement_name ?? '';
         $this->dutyStartTime = $leave->duty_start_time?->format('H:i');
         $this->dutyEndTime = $leave->duty_end_time?->format('H:i');
         $this->isInformed = $leave->is_informed;
@@ -178,15 +166,15 @@ new #[Title('Leave Calendar')] class extends Component
     public function saveLeave(): void
     {
         $validated = $this->validate([
-            'employeeId' => [
+            'employeeName' => [
                 'required',
-                'integer',
-                'exists:employees,id',
-                Rule::unique('employee_leaves', 'employee_id')
+                'string',
+                'max:255',
+                Rule::unique('employee_leaves', 'employee_name')
                     ->where(fn ($query) => $query->whereDate('leave_date', $this->selectedDate))
                     ->ignore($this->editingId),
             ],
-            'replacementEmployeeId' => ['nullable', 'integer', 'exists:employees,id', 'different:employeeId'],
+            'replacementName' => ['nullable', 'string', 'max:255', 'different:employeeName'],
             'dutyStartTime' => ['nullable', 'date_format:H:i'],
             'dutyEndTime' => ['nullable', 'date_format:H:i', 'after:dutyStartTime'],
             'isInformed' => ['boolean'],
@@ -195,9 +183,9 @@ new #[Title('Leave Calendar')] class extends Component
         ]);
 
         $data = [
-            'employee_id' => $validated['employeeId'],
+            'employee_name' => $validated['employeeName'],
             'leave_date' => $this->selectedDate,
-            'replacement_employee_id' => $validated['replacementEmployeeId'],
+            'replacement_name' => $validated['replacementName'] ?: null,
             'duty_start_time' => $validated['dutyStartTime'] ? $validated['dutyStartTime'].':00' : null,
             'duty_end_time' => $validated['dutyEndTime'] ? $validated['dutyEndTime'].':00' : null,
             'is_informed' => $validated['isInformed'],
@@ -287,8 +275,8 @@ new #[Title('Leave Calendar')] class extends Component
     private function resetForm(): void
     {
         $this->editingId = null;
-        $this->employeeId = null;
-        $this->replacementEmployeeId = null;
+        $this->employeeName = '';
+        $this->replacementName = '';
         $this->dutyStartTime = null;
         $this->dutyEndTime = null;
         $this->isInformed = false;
@@ -388,7 +376,7 @@ new #[Title('Leave Calendar')] class extends Component
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
-                                    <flux:heading level="3" class="text-base">{{ $leave->employee->name }}</flux:heading>
+                                    <flux:heading level="3" class="text-base">{{ $leave->employee_name }}</flux:heading>
                                     <flux:badge size="sm" color="{{ $leave->is_informed ? 'green' : 'amber' }}">
                                         {{ $leave->is_informed ? __('Informed') : __('Not informed') }}
                                     </flux:badge>
@@ -396,7 +384,7 @@ new #[Title('Leave Calendar')] class extends Component
 
                                 <div class="text-sm text-zinc-600 dark:text-zinc-400">
                                     <span class="font-medium">{{ __('Replaced by:') }}</span>
-                                    {{ $leave->replacementEmployee?->name ?? '-' }}
+                                    {{ $leave->replacement_name ?? '-' }}
                                 </div>
 
                                 <div class="text-sm text-zinc-600 dark:text-zinc-400">
@@ -439,24 +427,14 @@ new #[Title('Leave Calendar')] class extends Component
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <flux:field>
                     <flux:label>{{ __('Who is on leave') }}</flux:label>
-                    <flux:select wire:model="employeeId" required>
-                        <option value="">{{ __('Select employee') }}</option>
-                        @foreach ($this->activeEmployees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}</option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="employeeId" />
+                    <flux:input wire:model="employeeName" placeholder="{{ __('Employee name') }}" required />
+                    <flux:error name="employeeName" />
                 </flux:field>
 
                 <flux:field>
                     <flux:label>{{ __('Replaced by') }}</flux:label>
-                    <flux:select wire:model="replacementEmployeeId">
-                        <option value="">{{ __('No replacement') }}</option>
-                        @foreach ($this->activeEmployees as $employee)
-                            <option value="{{ $employee->id }}">{{ $employee->name }}</option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="replacementEmployeeId" />
+                    <flux:input wire:model="replacementName" placeholder="{{ __('Replacement name') }}" />
+                    <flux:error name="replacementName" />
                 </flux:field>
 
                 <flux:field>

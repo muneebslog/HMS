@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('employee_leaves', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employee_id')->constrained()->cascadeOnDelete();
+            $table->string('employee_name');
             $table->date('leave_date');
-            $table->foreignId('replacement_employee_id')->nullable()->constrained('employees')->nullOnDelete();
+            $table->string('replacement_name')->nullable();
             $table->time('duty_start_time')->nullable();
             $table->time('duty_end_time')->nullable();
             $table->boolean('is_informed')->default(false);
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('created_by')->constrained('users');
             $table->timestamps();
 
-            $table->unique(['employee_id', 'leave_date']);
+            $table->unique(['employee_name', 'leave_date']);
         });
     }
 
