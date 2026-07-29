@@ -21,6 +21,7 @@ use App\Models\SupervisorChecklistResponse;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -736,14 +737,24 @@ class NotificationService
      */
     private function broadcastSafely(object $event): void
     {
-        try {
-            event($event);
-        } catch (\Throwable $e) {
-            Log::error('Failed to broadcast realtime notification.', [
-                'event' => $event::class,
-                'exception' => $e->getMessage(),
-            ]);
+        $dispatch = function () use ($event): void {
+            try {
+                broadcast($event);
+            } catch (\Throwable $e) {
+                Log::error('Failed to broadcast realtime notification.', [
+                    'event' => $event::class,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($dispatch);
+
+            return;
         }
+
+        $dispatch();
     }
 
     /**

@@ -47,13 +47,18 @@ if (currentUserId && window.Echo) {
  * Show an in-app toast and, when permitted, a native desktop notification.
  */
 function notifyBrowser(title, body, tag) {
-    if (window.Flux?.toast) {
-        window.Flux.toast({
-            heading: title,
-            text: body,
-            variant: 'warning',
-        });
-    }
+    document.dispatchEvent(new CustomEvent('toast-show', {
+        detail: {
+            duration: 8000,
+            slots: {
+                heading: title,
+                text: body,
+            },
+            dataset: {
+                variant: 'warning',
+            },
+        },
+    }));
 
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
