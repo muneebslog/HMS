@@ -40,6 +40,11 @@ class NotificationService
     private const RECEPTION_PRIORITY = 4;
 
     /**
+     * ntfy priority for reception memo alerts.
+     */
+    private const MEMO_PRIORITY = 5;
+
+    /**
      * Notify that a token was reserved without a patient phone number.
      */
     public function notifyReservationWithoutPhone(
@@ -638,7 +643,7 @@ class NotificationService
             $title,
             $body,
             route('dashboard'),
-            self::RECEPTION_PRIORITY,
+            self::MEMO_PRIORITY,
             $this->receptionTopic()
         );
     }

@@ -19,7 +19,7 @@ beforeEach(function () {
     ]);
 });
 
-test('receptionist can create a memo and notifies reception at priority 4', function () {
+test('receptionist can create a memo and notifies reception at priority 5', function () {
     $receptionist = User::factory()->receptionist()->create();
 
     Livewire::actingAs($receptionist)
@@ -36,12 +36,12 @@ test('receptionist can create a memo and notifies reception at priority 4', func
 
     Http::assertSent(function ($request) {
         return $request->url() === 'https://ntfy.sh/mmc-hms-reception'
-            && $request->header('Priority')[0] === '4'
+            && $request->header('Priority')[0] === '5'
             && $request->header('Title')[0] === 'New Reception Memo';
     });
 });
 
-test('admin can create a memo and notifies reception at priority 4', function () {
+test('admin can create a memo and notifies reception at priority 5', function () {
     $admin = User::factory()->admin()->create();
 
     Livewire::actingAs($admin)
@@ -56,7 +56,7 @@ test('admin can create a memo and notifies reception at priority 4', function ()
 
     Http::assertSent(function ($request) {
         return $request->url() === 'https://ntfy.sh/mmc-hms-reception'
-            && $request->header('Priority')[0] === '4';
+            && $request->header('Priority')[0] === '5';
     });
 });
 
