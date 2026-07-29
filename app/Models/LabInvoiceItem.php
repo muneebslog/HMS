@@ -22,6 +22,7 @@ class LabInvoiceItem extends Model
         'lab_test_id',
         'test_name',
         'test_code',
+        'sample',
         'time_required',
         'is_in_house',
         'price',

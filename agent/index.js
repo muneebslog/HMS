@@ -5,6 +5,11 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
+const {
+  buildLabItemDetails,
+  shouldPrintLabItemPrice,
+  shouldPrintInvoiceTotal,
+} = require('./receipt-format');
 
 function toWindowsDevicePath(port) {
   if (/^(COM|ESDPRT)\d+$/i.test(port)) {
@@ -240,23 +245,12 @@ async function printReceipt(printer, job) {
       printer.println(item.service_name);
       printer.bold(false);
 
-      if (copyFor !== 'patient') {
-        const details = [];
-        if (item.test_code) {
-          details.push(`Code: ${item.test_code}`);
-        }
-        if (item.time_required) {
-          const displayTime = item.time_required.toLowerCase() === 'same day'
-            ? 'Next day'
-            : item.time_required;
-          details.push(`Time: ${displayTime}`);
-        }
-        if (details.length > 0) {
-          printer.println(`  ${details.join(' | ')}`);
-        }
+      const details = buildLabItemDetails(item, copyFor);
+      if (details.length > 0) {
+        printer.println(`  ${details.join(' | ')}`);
       }
 
-      if (copyFor !== 'lab') {
+      if (shouldPrintLabItemPrice(copyFor)) {
         const priceLabel = '  Price:';
         const priceValue = item.price.toFixed(2);
         const pricePadding = Math.max(0, printer.getWidth() - priceLabel.length - priceValue.length);
@@ -273,13 +267,17 @@ async function printReceipt(printer, job) {
     }
   });
 
-  printer.drawLine();
-  printer.bold(true);
-  const totalLabel = 'TOTAL';
-  const totalValue = invoice.total.toFixed(2);
-  const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
-  printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
-  printer.bold(false);
+  if (shouldPrintInvoiceTotal(copyFor)) {
+    printer.drawLine();
+    printer.bold(true);
+    const totalLabel = 'TOTAL';
+    const totalValue = invoice.total.toFixed(2);
+    const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
+    printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
+    printer.bold(false);
+  } else {
+    printer.drawLine();
+  }
 
   if (invoice.qr_url) {
     printer.newLine();

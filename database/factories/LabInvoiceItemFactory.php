@@ -26,6 +26,7 @@ class LabInvoiceItemFactory extends Factory
             'lab_test_id' => $labTest->id,
             'test_name' => $labTest->test_name,
             'test_code' => $labTest->test_code,
+            'sample' => $labTest->sample,
             'time_required' => $labTest->time_required,
             'is_in_house' => $labTest->is_in_house,
             'price' => $labTest->test_price,

@@ -104,6 +104,7 @@ test('pending lab invoice jobs include qr url copy type and time required', func
         'lab_test_id' => $labTest->id,
         'test_name' => 'CBC',
         'test_code' => '1300',
+        'sample' => 'E.D.T.A 2cc',
         'time_required' => '1 hour',
         'is_in_house' => true,
         'price' => 500.00,
@@ -125,7 +126,8 @@ test('pending lab invoice jobs include qr url copy type and time required', func
     $response->assertOk()
         ->assertJsonPath('data.0.invoice.copy_for', 'patient')
         ->assertJsonPath('data.0.invoice.qr_url', 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$labInvoice->invoice_number)
-        ->assertJsonPath('data.0.invoice.items.0.time_required', '1 hour');
+        ->assertJsonPath('data.0.invoice.items.0.time_required', '1 hour')
+        ->assertJsonPath('data.0.invoice.items.0.sample', 'E.D.T.A 2cc');
 });
 
 test('pending lab invoice jobs include patient mrn age and gender', function () {
@@ -135,6 +137,7 @@ test('pending lab invoice jobs include patient mrn age and gender', function () 
         'lab_test_id' => $labTest->id,
         'test_name' => 'CBC',
         'test_code' => '1300',
+        'sample' => 'E.D.T.A 2cc',
         'time_required' => '1 hour',
         'is_in_house' => true,
         'price' => 500.00,

@@ -199,6 +199,7 @@ test('authenticated users can create a lab test', function () {
         ->call('create')
         ->set('labTestName', 'Complete Blood Count')
         ->set('labTestCode', 'CBC-001')
+        ->set('labTestSample', 'E.D.T.A 2cc')
         ->set('labTestPrice', '1200.00')
         ->set('labTestTimeRequired', '1 hour')
         ->set('labTestIsInHouse', true)
@@ -208,10 +209,43 @@ test('authenticated users can create a lab test', function () {
     $this->assertDatabaseHas('lab_tests', [
         'test_name' => 'Complete Blood Count',
         'test_code' => 'CBC-001',
+        'sample' => 'E.D.T.A 2cc',
         'test_price' => 1200.00,
         'time_required' => '1 hour',
         'is_in_house' => true,
     ]);
+});
+
+test('authenticated users can create two lab tests with the same code', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('create')
+        ->set('labTestName', 'CBC In House')
+        ->set('labTestCode', '1300')
+        ->set('labTestSample', 'E.D.T.A 2cc')
+        ->set('labTestPrice', '700.00')
+        ->set('labTestTimeRequired', 'Same day')
+        ->set('labTestIsInHouse', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
+        ->call('create')
+        ->set('labTestName', 'CBC Send Out')
+        ->set('labTestCode', '1300')
+        ->set('labTestSample', 'E.D.T.A 2cc')
+        ->set('labTestPrice', '900.00')
+        ->set('labTestTimeRequired', 'Next day')
+        ->set('labTestIsInHouse', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(LabTest::where('test_code', '1300')->count())->toBe(2);
 });
 
 test('authenticated users can create a lab test with empty test code', function () {
@@ -248,6 +282,7 @@ test('authenticated users can update a lab test', function () {
         ->call('edit', $labTest->id)
         ->set('labTestName', 'Updated Blood Count')
         ->set('labTestCode', 'UBC-002')
+        ->set('labTestSample', 'Clotted 2cc')
         ->set('labTestPrice', '1500.00')
         ->set('labTestTimeRequired', '2 hours')
         ->set('labTestIsInHouse', false)
@@ -258,10 +293,24 @@ test('authenticated users can update a lab test', function () {
         'id' => $labTest->id,
         'test_name' => 'Updated Blood Count',
         'test_code' => 'UBC-002',
+        'sample' => 'Clotted 2cc',
         'test_price' => 1500.00,
         'time_required' => '2 hours',
         'is_in_house' => false,
     ]);
+});
+
+test('management lab tests table displays specimen values', function () {
+    $user = User::factory()->admin()->create();
+    LabTest::factory()->create([
+        'test_name' => 'CBC',
+        'sample' => 'E.D.T.A 2cc',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('management.crud'))
+        ->assertOk()
+        ->assertSee('E.D.T.A 2cc');
 });
 
 test('authenticated users can update a lab test with null test code', function () {

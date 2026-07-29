@@ -7,7 +7,7 @@
     "start": "node index.js",
     "service:install": "node service-install.js",
     "service:uninstall": "node service-uninstall.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test receipt-format.test.js"
   },
   "keywords": [
     "thermal-printing",

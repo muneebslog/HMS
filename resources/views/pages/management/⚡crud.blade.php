@@ -77,6 +77,9 @@ new #[Title('Management')] class extends Component
     public string $labTestPrice = '';
 
     #[Validate]
+    public ?string $labTestSample = null;
+
+    #[Validate]
     public string $labTestTimeRequired = '';
 
     #[Validate]
@@ -139,8 +142,9 @@ new #[Title('Management')] class extends Component
             ],
             'labTests' => [
                 'labTestName' => ['required', 'string', 'max:255'],
-                'labTestCode' => ['nullable', 'string', 'max:255', Rule::unique('lab_tests', 'test_code')->ignore($this->editingId)],
+                'labTestCode' => ['nullable', 'string', 'max:255'],
                 'labTestPrice' => ['required', 'numeric', 'min:0'],
+                'labTestSample' => ['nullable', 'string', 'max:255'],
                 'labTestTimeRequired' => ['required', 'string', 'max:255'],
                 'labTestIsInHouse' => ['boolean'],
                 'labTestIsActive' => ['boolean'],
@@ -234,7 +238,8 @@ new #[Title('Management')] class extends Component
         $this->labTestName = $labTest->test_name;
         $this->labTestCode = $labTest->test_code;
         $this->labTestPrice = (string) $labTest->test_price;
-        $this->labTestTimeRequired = $labTest->time_required;
+        $this->labTestSample = $labTest->sample;
+        $this->labTestTimeRequired = $labTest->time_required ?? '';
         $this->labTestIsInHouse = $labTest->is_in_house;
         $this->labTestIsActive = $labTest->is_active;
     }
@@ -274,6 +279,7 @@ new #[Title('Management')] class extends Component
             'labTestName',
             'labTestCode',
             'labTestPrice',
+            'labTestSample',
             'labTestTimeRequired',
             'labTestIsInHouse',
             'labTestIsActive',
@@ -289,8 +295,14 @@ new #[Title('Management')] class extends Component
      */
     public function save(): void
     {
-        if ($this->activeTab === 'labTests' && $this->labTestCode === '') {
-            $this->labTestCode = null;
+        if ($this->activeTab === 'labTests') {
+            if ($this->labTestCode === '') {
+                $this->labTestCode = null;
+            }
+
+            if ($this->labTestSample === '') {
+                $this->labTestSample = null;
+            }
         }
 
         $validated = $this->validate();
@@ -390,6 +402,7 @@ new #[Title('Management')] class extends Component
             'test_name' => $validated['labTestName'],
             'test_code' => $validated['labTestCode'],
             'test_price' => $validated['labTestPrice'],
+            'sample' => $validated['labTestSample'],
             'time_required' => $validated['labTestTimeRequired'],
             'is_in_house' => $validated['labTestIsInHouse'],
             'is_active' => $validated['labTestIsActive'],
@@ -602,6 +615,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Test Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Test Code') }}</flux:table.column>
+                            <flux:table.column>{{ __('Specimen') }}</flux:table.column>
                             <flux:table.column>{{ __('Price') }}</flux:table.column>
                             <flux:table.column>{{ __('Time Required') }}</flux:table.column>
                             <flux:table.column>{{ __('In House') }}</flux:table.column>
@@ -614,6 +628,7 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row wire:key="lab-test-{{ $labTest->id }}">
                                     <flux:table.cell>{{ $labTest->test_name }}</flux:table.cell>
                                     <flux:table.cell>{{ $labTest->test_code }}</flux:table.cell>
+                                    <flux:table.cell>{{ $labTest->sample }}</flux:table.cell>
                                     <flux:table.cell>{{ number_format($labTest->test_price, 2) }}</flux:table.cell>
                                     <flux:table.cell>{{ $labTest->time_required }}</flux:table.cell>
                                     <flux:table.cell>
@@ -637,7 +652,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                         {{ __('No lab tests found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -905,6 +920,12 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Test Code') }}</flux:label>
                     <flux:input wire:model="labTestCode" type="text"  />
                     <flux:error name="labTestCode" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Specimen') }}</flux:label>
+                    <flux:input wire:model="labTestSample" type="text" />
+                    <flux:error name="labTestSample" />
                 </flux:field>
 
                 <flux:field>

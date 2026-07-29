@@ -28,6 +28,7 @@ test('a lab test can be added to the bill', function () {
     $labTest = LabTest::factory()->create([
         'test_name' => 'Complete Blood Count',
         'test_code' => 'CBC-001',
+        'sample' => 'E.D.T.A 2cc',
         'test_price' => 1200.00,
     ]);
 
@@ -44,6 +45,7 @@ test('a lab test can be added to the bill', function () {
             return count($items) === 1
                 && $items[0]['lab_test_id'] === $labTest->id
                 && $items[0]['test_name'] === 'Complete Blood Count'
+                && $items[0]['sample'] === 'E.D.T.A 2cc'
                 && $items[0]['test_price'] == 1200.00;
         })
         ->assertSet('subtotal', 1200.00);

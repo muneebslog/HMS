@@ -21,6 +21,7 @@ test('a lab invoice can be saved with items', function () {
         'test_name' => 'Complete Blood Count',
         'test_code' => 'CBC-001',
         'test_price' => 1200.00,
+        'sample' => 'E.D.T.A 2cc',
         'time_required' => '1 hour',
         'is_in_house' => true,
     ]);
@@ -57,6 +58,7 @@ test('a lab invoice can be saved with items', function () {
         ->lab_test_id->toBe($labTest->id)
         ->test_name->toBe('Complete Blood Count')
         ->test_code->toBe('CBC-001')
+        ->sample->toBe('E.D.T.A 2cc')
         ->time_required->toBe('1 hour')
         ->is_in_house->toBeTrue()
         ->price->toBe(1200.00);

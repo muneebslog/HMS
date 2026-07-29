@@ -128,6 +128,7 @@ class PrintJobController extends Controller
                     'items' => $labInvoice->items->map(fn ($item) => [
                         'service_name' => $item->test_name,
                         'test_code' => $item->test_code,
+                        'sample' => $item->sample,
                         'time_required' => $item->time_required,
                         'price' => $item->price,
                         'doctor_name' => null,
