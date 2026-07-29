@@ -7,6 +7,7 @@ use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 new class extends Component
@@ -29,6 +30,15 @@ new class extends Component
     public function mount(): void
     {
         $this->ensureAuthorized();
+    }
+
+    /**
+     * Refresh report threads when a new message is broadcast.
+     */
+    #[On('echo-private:hms.reception,.report.posted')]
+    public function refreshReports(): void
+    {
+        unset($this->reports, $this->selectedReport);
     }
 
     /**
@@ -208,7 +218,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="space-y-4" wire:poll.10s>
+<div class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <flux:heading level="2">{{ __('Report to Admin') }}</flux:heading>
 

@@ -13,6 +13,7 @@
         "laravel/chisel": "^0.1.0",
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.7",
+        "laravel/reverb": "^1.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "livewire/blaze": "^1.0",
@@ -57,7 +58,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names='server,queue,vite'"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74,#f87171\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" \"php artisan reverb:start\" --names='server,queue,vite,reverb'"
         ],
         "lint": [
             "pint --parallel"
@@ -100,7 +101,9 @@
     },
     "extra": {
         "laravel": {
-            "dont-discover": [],
+            "dont-discover": [
+                "laravel/reverb"
+            ],
             "installer": {
                 "post-create-project": []
             }

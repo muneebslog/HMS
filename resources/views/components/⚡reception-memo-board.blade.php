@@ -6,6 +6,7 @@ use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 new class extends Component
@@ -29,6 +30,15 @@ new class extends Component
     public function mount(): void
     {
         $this->ensureAuthorized();
+    }
+
+    /**
+     * Refresh the memo list when a new memo is broadcast.
+     */
+    #[On('echo-private:hms.reception,.memo.posted')]
+    public function refreshMemos(): void
+    {
+        unset($this->memos);
     }
 
     /**
@@ -156,7 +166,7 @@ new class extends Component
     }
 }; ?>
 
-<div class="space-y-4" wire:poll.10s>
+<div class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
             <flux:heading level="2">{{ __('Memo Board') }}</flux:heading>

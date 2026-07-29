@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Events\AdminReportMessagePosted;
+use App\Events\ReceptionMemoPosted;
 use App\Models\AdminNotification;
 use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
@@ -566,10 +568,12 @@ class NotificationService
                 $this->receptionTopic()
             );
 
+            $this->broadcastSafely(new AdminReportMessagePosted($report, $user, true));
+
             return null;
         }
 
-        return $this->createAdminNotification(
+        $notification = $this->createAdminNotification(
             $user,
             'admin_report_created',
             $title,
@@ -579,6 +583,10 @@ class NotificationService
             self::ADMIN_PRIORITY,
             $this->adminTopic()
         );
+
+        $this->broadcastSafely(new AdminReportMessagePosted($report, $user, true));
+
+        return $notification;
     }
 
     /**
@@ -610,10 +618,12 @@ class NotificationService
                 $this->receptionTopic()
             );
 
+            $this->broadcastSafely(new AdminReportMessagePosted($report, $user, false));
+
             return null;
         }
 
-        return $this->createAdminNotification(
+        $notification = $this->createAdminNotification(
             $user,
             'admin_report_replied',
             $title,
@@ -623,6 +633,10 @@ class NotificationService
             self::ADMIN_PRIORITY,
             $this->adminTopic()
         );
+
+        $this->broadcastSafely(new AdminReportMessagePosted($report, $user, false));
+
+        return $notification;
     }
 
     /**
@@ -646,6 +660,8 @@ class NotificationService
             self::MEMO_PRIORITY,
             $this->receptionTopic()
         );
+
+        $this->broadcastSafely(new ReceptionMemoPosted($memo, $user));
     }
 
     /**
@@ -710,6 +726,21 @@ class NotificationService
             Log::error('Failed to send ntfy.sh push notification.', [
                 'endpoint' => $endpoint,
                 'title' => $title,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Dispatch a broadcast event without letting transport failures break the request.
+     */
+    private function broadcastSafely(object $event): void
+    {
+        try {
+            event($event);
+        } catch (\Throwable $e) {
+            Log::error('Failed to broadcast realtime notification.', [
+                'event' => $event::class,
                 'exception' => $e->getMessage(),
             ]);
         }
