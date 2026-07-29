@@ -6,15 +6,21 @@ use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\Shift;
 use Flux\Flux;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Title('Procedures')] class extends Component
 {
+    use WithPagination;
+
+    public string $search = '';
+
     public bool $showProcedureModal = false;
 
     public bool $showPaymentModal = false;
@@ -32,7 +38,7 @@ new #[Title('Procedures')] class extends Component
     public string $patientPhone = '';
 
     #[Validate]
-    public string $patientGender = '';
+    public string $husbandName = '';
 
     #[Validate]
     public ?int $patientAge = null;
@@ -41,13 +47,15 @@ new #[Title('Procedures')] class extends Component
     public string $procedureName = '';
 
     #[Validate]
+    public ?string $expectedDeliveryDate = null;
+
+    #[Validate]
     public string $fullAmount = '';
 
     #[Validate]
-    public string $roomNumber = '';
-
-    #[Validate]
     public ?int $doctorId = null;
+
+    public bool $hasAdvancePayment = false;
 
     #[Validate]
     public string $advancePayment = '';
@@ -65,16 +73,18 @@ new #[Title('Procedures')] class extends Component
         return [
             'patientName' => ['required', 'string', 'max:255'],
             'patientPhone' => ['required', 'string', 'max:255'],
-            'patientGender' => ['required', 'string', 'in:male,female,other'],
+            'husbandName' => ['required', 'string', 'max:255'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'procedureName' => ['required', 'string', 'max:255'],
+            'expectedDeliveryDate' => ['required', 'date'],
             'fullAmount' => ['required', 'numeric', 'min:0'],
-            'roomNumber' => ['required', 'string', 'max:255'],
             'doctorId' => ['nullable', 'integer', 'exists:doctors,id'],
+            'hasAdvancePayment' => ['boolean'],
             'advancePayment' => [
+                'exclude_unless:hasAdvancePayment,true',
                 'required',
                 'numeric',
-                'min:0',
+                'min:0.01',
                 function ($attribute, $value, $fail) {
                     if ((float) $value > (float) $this->fullAmount) {
                         $fail(__('Advance payment cannot exceed the full amount.'));
@@ -83,6 +93,14 @@ new #[Title('Procedures')] class extends Component
             ],
             'paymentAmount' => ['required', 'numeric', 'min:0'],
         ];
+    }
+
+    /**
+     * Reset pagination when the search term changes.
+     */
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
     }
 
     /**
@@ -102,18 +120,20 @@ new #[Title('Procedures')] class extends Component
     {
         $this->resetProcedureForm();
         $this->editingProcedureId = $id;
+        $this->showViewModal = false;
 
         $procedure = Procedure::with('patient')->findOrFail($id);
 
         $this->patientName = $procedure->patient->name;
         $this->patientPhone = $procedure->patient->phone ?? '';
-        $this->patientGender = $procedure->patient->gender ?? '';
+        $this->husbandName = $procedure->patient->husband_name ?? '';
         $this->patientAge = $procedure->patient->age;
         $this->procedureName = $procedure->name;
+        $this->expectedDeliveryDate = $procedure->expected_delivery_date?->format('Y-m-d');
         $this->fullAmount = (string) $procedure->full_amount;
-        $this->roomNumber = $procedure->room_number;
         $this->doctorId = $procedure->doctor_id;
-        $this->advancePayment = '0';
+        $this->hasAdvancePayment = false;
+        $this->advancePayment = '';
 
         $this->showProcedureModal = true;
     }
@@ -125,6 +145,7 @@ new #[Title('Procedures')] class extends Component
     {
         $this->resetPaymentForm();
         $this->editingProcedureId = $id;
+        $this->showViewModal = false;
         $this->showPaymentModal = true;
     }
 
@@ -154,12 +175,13 @@ new #[Title('Procedures')] class extends Component
         $this->reset([
             'patientName',
             'patientPhone',
-            'patientGender',
+            'husbandName',
             'patientAge',
             'procedureName',
+            'expectedDeliveryDate',
             'fullAmount',
-            'roomNumber',
             'doctorId',
+            'hasAdvancePayment',
             'advancePayment',
         ]);
         $this->resetErrorBag();
@@ -196,8 +218,6 @@ new #[Title('Procedures')] class extends Component
 
     /**
      * Get the procedure currently being viewed with its ledger.
-     *
-     * @return Procedure|null
      */
     #[Computed]
     public function viewedProcedure(): ?Procedure
@@ -206,7 +226,9 @@ new #[Title('Procedures')] class extends Component
             return null;
         }
 
-        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift'])->find($this->viewingProcedureId);
+        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift'])
+            ->withSum('payments as payments_sum_amount', 'amount')
+            ->find($this->viewingProcedureId);
     }
 
     /**
@@ -214,17 +236,23 @@ new #[Title('Procedures')] class extends Component
      */
     public function saveProcedure(): void
     {
-        $validated = $this->validate([
+        $rules = [
             'patientName' => $this->rules()['patientName'],
             'patientPhone' => $this->rules()['patientPhone'],
-            'patientGender' => $this->rules()['patientGender'],
+            'husbandName' => $this->rules()['husbandName'],
             'patientAge' => $this->rules()['patientAge'],
             'procedureName' => $this->rules()['procedureName'],
+            'expectedDeliveryDate' => $this->rules()['expectedDeliveryDate'],
             'fullAmount' => $this->rules()['fullAmount'],
-            'roomNumber' => $this->rules()['roomNumber'],
             'doctorId' => $this->rules()['doctorId'],
-            'advancePayment' => $this->editingProcedureId === null ? $this->rules()['advancePayment'] : ['nullable'],
-        ]);
+        ];
+
+        if ($this->editingProcedureId === null) {
+            $rules['hasAdvancePayment'] = $this->rules()['hasAdvancePayment'];
+            $rules['advancePayment'] = $this->rules()['advancePayment'];
+        }
+
+        $validated = $this->validate($rules);
 
         $shift = Shift::current();
 
@@ -244,31 +272,32 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Store a new procedure with patient and advance payment.
+     * Store a new procedure with patient and optional advance payment.
      *
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      */
     private function storeProcedure(array $validated, Shift $shift): void
     {
         DB::transaction(function () use ($validated, $shift) {
             $patient = Patient::create([
                 'name' => $validated['patientName'],
+                'husband_name' => $validated['husbandName'],
                 'phone' => $validated['patientPhone'],
                 'age' => $validated['patientAge'],
-                'gender' => $validated['patientGender'],
+                'gender' => 'female',
             ]);
 
             $procedure = Procedure::create([
                 'patient_id' => $patient->id,
                 'name' => $validated['procedureName'],
+                'expected_delivery_date' => $validated['expectedDeliveryDate'],
                 'full_amount' => $validated['fullAmount'],
-                'room_number' => $validated['roomNumber'],
-                'doctor_id' => $validated['doctorId'],
+                'doctor_id' => $validated['doctorId'] ?: null,
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
             ]);
 
-            if ((float) $validated['advancePayment'] > 0) {
+            if ($this->hasAdvancePayment && (float) ($validated['advancePayment'] ?? 0) > 0) {
                 ProcedurePayment::create([
                     'procedure_id' => $procedure->id,
                     'amount' => $validated['advancePayment'],
@@ -284,7 +313,7 @@ new #[Title('Procedures')] class extends Component
     /**
      * Update an existing procedure.
      *
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      */
     private function updateProcedure(array $validated): void
     {
@@ -299,16 +328,16 @@ new #[Title('Procedures')] class extends Component
         DB::transaction(function () use ($procedure, $validated) {
             $procedure->patient->update([
                 'name' => $validated['patientName'],
+                'husband_name' => $validated['husbandName'],
                 'phone' => $validated['patientPhone'],
                 'age' => $validated['patientAge'],
-                'gender' => $validated['patientGender'],
             ]);
 
             $procedure->update([
                 'name' => $validated['procedureName'],
+                'expected_delivery_date' => $validated['expectedDeliveryDate'],
                 'full_amount' => $validated['fullAmount'],
-                'room_number' => $validated['roomNumber'],
-                'doctor_id' => $validated['doctorId'],
+                'doctor_id' => $validated['doctorId'] ?: null,
             ]);
         });
 
@@ -362,14 +391,24 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Get the list of procedures with relations.
-     *
-     * @return Collection<int, Procedure>
+     * Get the paginated list of procedures filtered by patient name or MRN.
      */
     #[Computed]
-    public function procedures(): Collection
+    public function procedures(): LengthAwarePaginator
     {
-        return Procedure::with(['patient', 'doctor', 'payments'])->latest()->get();
+        return Procedure::query()
+            ->with(['patient', 'doctor'])
+            ->withSum('payments as payments_sum_amount', 'amount')
+            ->when(trim($this->search) !== '', function ($query) {
+                $term = '%'.trim($this->search).'%';
+
+                $query->whereHas('patient', function ($patientQuery) use ($term) {
+                    $patientQuery->where('name', 'like', $term)
+                        ->orWhere('mrn', 'like', $term);
+                });
+            })
+            ->latest()
+            ->paginate(11);
     }
 
     /**
@@ -386,12 +425,7 @@ new #[Title('Procedures')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Procedures') }}</flux:heading>
-            <flux:button variant="primary" icon="plus" wire:click="create">
-                {{ __('Add new procedure') }}
-            </flux:button>
-        </div>
+        <flux:heading level="1">{{ __('Procedures') }}</flux:heading>
 
         @if (! $this->currentShift)
             <flux:card>
@@ -408,52 +442,93 @@ new #[Title('Procedures')] class extends Component
         @endif
 
         <flux:card>
-            <flux:table>
-                <flux:table.columns>
-                    <flux:table.column>{{ __('Procedure') }}</flux:table.column>
-                    <flux:table.column>{{ __('Patient') }}</flux:table.column>
-                    <flux:table.column>{{ __('Room') }}</flux:table.column>
-                    <flux:table.column>{{ __('Doctor') }}</flux:table.column>
-                    <flux:table.column>{{ __('Full Amount') }}</flux:table.column>
-                    <flux:table.column>{{ __('Paid') }}</flux:table.column>
-                    <flux:table.column>{{ __('Balance') }}</flux:table.column>
-                    <flux:table.column>{{ __('Status') }}</flux:table.column>
-                    <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                </flux:table.columns>
-
-                <flux:table.rows>
-                    @forelse ($this->procedures as $procedure)
-                        <flux:table.row wire:key="procedure-{{ $procedure->id }}">
-                            <flux:table.cell>{{ $procedure->name }}</flux:table.cell>
-                            <flux:table.cell>{{ $procedure->patient->name }}</flux:table.cell>
-                            <flux:table.cell>{{ $procedure->room_number }}</flux:table.cell>
-                            <flux:table.cell>{{ $procedure->doctor?->name ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>{{ number_format($procedure->full_amount, 2) }}</flux:table.cell>
-                            <flux:table.cell>{{ number_format($procedure->totalPaid(), 2) }}</flux:table.cell>
-                            <flux:table.cell>{{ number_format($procedure->balance(), 2) }}</flux:table.cell>
-                            <flux:table.cell>
-                                @if ($procedure->isPaid())
-                                    <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
-                                @else
-                                    <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
-                                @endif
-                            </flux:table.cell>
-                            <flux:table.cell class="text-right">
-                                <flux:button size="sm" variant="ghost" icon="eye" wire:click="viewProcedure({{ $procedure->id }})" />
-                                <flux:button size="sm" variant="ghost" icon="banknotes" wire:click="addPayment({{ $procedure->id }})" />
-                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $procedure->id }})" />
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @empty
-                        <flux:table.row>
-                            <flux:table.cell colspan="9" class="text-center text-zinc-500">
-                                {{ __('No procedures found.') }}
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @endforelse
-                </flux:table.rows>
-            </flux:table>
+            <flux:field>
+                <flux:label>{{ __('Search by name or MR number') }}</flux:label>
+                <flux:input
+                    wire:model.live.debounce.300ms="search"
+                    type="search"
+                    placeholder="{{ __('Patient name or MRN...') }}"
+                    icon="magnifying-glass"
+                />
+            </flux:field>
         </flux:card>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <button
+                type="button"
+                wire:click="create"
+                class="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-zinc-500 transition hover:border-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+                <flux:icon name="plus" class="size-10" />
+                <flux:text class="font-medium">{{ __('Add new procedure') }}</flux:text>
+            </button>
+
+            @forelse ($this->procedures as $procedure)
+                @php
+                    $paid = (float) ($procedure->payments_sum_amount ?? 0);
+                    $balance = $procedure->full_amount - $paid;
+                    $isPaid = $balance <= 0;
+                @endphp
+                <div
+                    wire:key="procedure-{{ $procedure->id }}"
+                    wire:click="viewProcedure({{ $procedure->id }})"
+                    class="group flex cursor-pointer flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <flux:heading level="3" class="truncate text-base font-semibold">
+                                {{ $procedure->patient->name }}
+                            </flux:heading>
+                            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ $procedure->patient->mrn ?? __('No MRN') }}
+                            </flux:text>
+                        </div>
+                        @if ($isPaid)
+                            <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                        @else
+                            <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
+                        @endif
+                    </div>
+
+                    <div class="space-y-1 text-sm">
+                        <flux:text class="font-medium">{{ $procedure->name }}</flux:text>
+                        <flux:text class="text-zinc-500 dark:text-zinc-400">
+                            {{ __('Doctor') }}: {{ $procedure->doctor?->name ?? '-' }}
+                        </flux:text>
+                        <flux:text class="text-zinc-500 dark:text-zinc-400">
+                            {{ __('EDD') }}:
+                            {{ $procedure->expected_delivery_date?->format('M j, Y') ?? '-' }}
+                        </flux:text>
+                    </div>
+
+                    <div class="mt-auto grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 text-xs dark:border-zinc-700">
+                        <div>
+                            <flux:text class="text-zinc-400">{{ __('Package') }}</flux:text>
+                            <flux:text class="font-medium">{{ number_format($procedure->full_amount, 2) }}</flux:text>
+                        </div>
+                        <div>
+                            <flux:text class="text-zinc-400">{{ __('Paid') }}</flux:text>
+                            <flux:text class="font-medium">{{ number_format($paid, 2) }}</flux:text>
+                        </div>
+                        <div>
+                            <flux:text class="text-zinc-400">{{ __('Balance') }}</flux:text>
+                            <flux:text class="font-medium">{{ number_format($balance, 2) }}</flux:text>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="col-span-full flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 py-16 md:col-span-1 xl:col-span-2 dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:icon name="clipboard-document-list" class="size-10 text-zinc-400" />
+                    <flux:text class="text-zinc-500 dark:text-zinc-400">
+                        {{ filled($search) ? __('No procedures match your search.') : __('No procedures yet. Use the + card to add one.') }}
+                    </flux:text>
+                </div>
+            @endforelse
+        </div>
+
+        <div class="mt-2">
+            {{ $this->procedures->links() }}
+        </div>
     </div>
 
     <flux:modal wire:model="showProcedureModal" class="w-full max-w-2xl">
@@ -464,15 +539,21 @@ new #[Title('Procedures')] class extends Component
         <form wire:submit="saveProcedure" class="mt-6 space-y-6">
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <flux:field>
-                    <flux:label>{{ __('Patient name') }}</flux:label>
+                    <flux:label>{{ __('Name') }}</flux:label>
                     <flux:input wire:model="patientName" type="text" required />
                     <flux:error name="patientName" />
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Phone number') }}</flux:label>
+                    <flux:label>{{ __('Cell') }}</flux:label>
                     <flux:input wire:model="patientPhone" type="text" required />
                     <flux:error name="patientPhone" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Husband') }}</flux:label>
+                    <flux:input wire:model="husbandName" type="text" required />
+                    <flux:error name="husbandName" />
                 </flux:field>
 
                 <flux:field>
@@ -482,36 +563,9 @@ new #[Title('Procedures')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Gender') }}</flux:label>
-                    <flux:select wire:model="patientGender" required>
-                        <option value="">{{ __('Select') }}</option>
-                        <option value="male">{{ __('Male') }}</option>
-                        <option value="female">{{ __('Female') }}</option>
-                        <option value="other">{{ __('Other') }}</option>
-                    </flux:select>
-                    <flux:error name="patientGender" />
-                </flux:field>
-            </div>
-
-            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <flux:field>
                     <flux:label>{{ __('Procedure name') }}</flux:label>
                     <flux:input wire:model="procedureName" type="text" required />
                     <flux:error name="procedureName" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Room number') }}</flux:label>
-                    <flux:input wire:model="roomNumber" type="text" required />
-                    <flux:error name="roomNumber" />
-                </flux:field>
-            </div>
-
-            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <flux:field>
-                    <flux:label>{{ __('Full amount') }}</flux:label>
-                    <flux:input wire:model="fullAmount" type="number" step="0.01" min="0" required />
-                    <flux:error name="fullAmount" />
                 </flux:field>
 
                 <flux:field>
@@ -524,14 +578,32 @@ new #[Title('Procedures')] class extends Component
                     </flux:select>
                     <flux:error name="doctorId" />
                 </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Expected date of delivery') }}</flux:label>
+                    <flux:input wire:model="expectedDeliveryDate" type="date" required />
+                    <flux:error name="expectedDeliveryDate" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Total package') }}</flux:label>
+                    <flux:input wire:model="fullAmount" type="number" step="0.01" min="0" required />
+                    <flux:error name="fullAmount" />
+                </flux:field>
             </div>
 
             @if ($editingProcedureId === null)
-                <flux:field>
-                    <flux:label>{{ __('Advance payment') }}</flux:label>
-                    <flux:input wire:model="advancePayment" type="number" step="0.01" min="0" required />
-                    <flux:error name="advancePayment" />
-                </flux:field>
+                <div class="space-y-4">
+                    <flux:checkbox wire:model.live="hasAdvancePayment" label="{{ __('Advance payment') }}" />
+
+                    @if ($hasAdvancePayment)
+                        <flux:field>
+                            <flux:label>{{ __('Advance amount') }}</flux:label>
+                            <flux:input wire:model="advancePayment" type="number" step="0.01" min="0" required />
+                            <flux:error name="advancePayment" />
+                        </flux:field>
+                    @endif
+                </div>
             @endif
 
             <div class="flex justify-end gap-3">
@@ -568,32 +640,56 @@ new #[Title('Procedures')] class extends Component
 
     <flux:modal wire:model="showViewModal" class="w-full max-w-2xl">
         @if ($this->viewedProcedure)
-            <flux:heading level="2">{{ $this->viewedProcedure->name }}</flux:heading>
+            @php
+                $viewedPaid = (float) ($this->viewedProcedure->payments_sum_amount ?? $this->viewedProcedure->totalPaid());
+                $viewedBalance = $this->viewedProcedure->full_amount - $viewedPaid;
+            @endphp
+
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <flux:heading level="2">{{ $this->viewedProcedure->patient->name }}</flux:heading>
+                    <flux:text class="text-zinc-500">
+                        {{ $this->viewedProcedure->patient->mrn ?? __('No MRN') }} · {{ $this->viewedProcedure->name }}
+                    </flux:text>
+                </div>
+                <div class="flex gap-2">
+                    <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $this->viewedProcedure->id }})">
+                        {{ __('Edit') }}
+                    </flux:button>
+                    <flux:button size="sm" variant="primary" icon="banknotes" wire:click="addPayment({{ $this->viewedProcedure->id }})">
+                        {{ __('Add Payment') }}
+                    </flux:button>
+                </div>
+            </div>
 
             <div class="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
-                    <flux:text class="text-zinc-500">{{ __('Patient') }}</flux:text>
-                    <flux:text>{{ $this->viewedProcedure->patient->name }}</flux:text>
-                </div>
-                <div>
-                    <flux:text class="text-zinc-500">{{ __('Phone') }}</flux:text>
+                    <flux:text class="text-zinc-500">{{ __('Cell') }}</flux:text>
                     <flux:text>{{ $this->viewedProcedure->patient->phone ?? '-' }}</flux:text>
                 </div>
                 <div>
-                    <flux:text class="text-zinc-500">{{ __('Room') }}</flux:text>
-                    <flux:text>{{ $this->viewedProcedure->room_number }}</flux:text>
+                    <flux:text class="text-zinc-500">{{ __('Husband') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->patient->husband_name ?? '-' }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Age') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->patient->age ?? '-' }}</flux:text>
                 </div>
                 <div>
                     <flux:text class="text-zinc-500">{{ __('Doctor') }}</flux:text>
                     <flux:text>{{ $this->viewedProcedure->doctor?->name ?? '-' }}</flux:text>
                 </div>
                 <div>
-                    <flux:text class="text-zinc-500">{{ __('Full Amount') }}</flux:text>
+                    <flux:text class="text-zinc-500">{{ __('Expected date of delivery') }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->expected_delivery_date?->format('M j, Y') ?? '-' }}</flux:text>
+                </div>
+                <div>
+                    <flux:text class="text-zinc-500">{{ __('Total package') }}</flux:text>
                     <flux:text>{{ number_format($this->viewedProcedure->full_amount, 2) }}</flux:text>
                 </div>
                 <div>
                     <flux:text class="text-zinc-500">{{ __('Balance') }}</flux:text>
-                    <flux:text>{{ number_format($this->viewedProcedure->balance(), 2) }}</flux:text>
+                    <flux:text>{{ number_format($viewedBalance, 2) }}</flux:text>
                 </div>
             </div>
 
@@ -628,7 +724,7 @@ new #[Title('Procedures')] class extends Component
             <div class="mt-4 flex justify-end border-t pt-4 text-sm">
                 <div class="text-right">
                     <flux:text class="text-zinc-500">{{ __('Total Paid') }}</flux:text>
-                    <flux:text class="text-lg font-semibold">{{ number_format($this->viewedProcedure->totalPaid(), 2) }}</flux:text>
+                    <flux:text class="text-lg font-semibold">{{ number_format($viewedPaid, 2) }}</flux:text>
                 </div>
             </div>
         @endif

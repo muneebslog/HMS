@@ -35,12 +35,13 @@ test('a procedure with patient details and advance payment can be created', func
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
         ->set('patientPhone', '1234567890')
-        ->set('patientGender', 'male')
+        ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
-        ->set('procedureName', 'Appendectomy')
+        ->set('procedureName', 'Normal Delivery')
+        ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
-        ->set('roomNumber', 'Room 101')
         ->set('doctorId', $doctor->id)
+        ->set('hasAdvancePayment', true)
         ->set('advancePayment', '2000')
         ->call('saveProcedure')
         ->assertHasNoErrors();
@@ -48,15 +49,16 @@ test('a procedure with patient details and advance payment can be created', func
     $patient = Patient::where('name', 'John Doe')->first();
     expect($patient)->not->toBeNull()
         ->phone->toBe('1234567890')
+        ->husband_name->toBe('James Doe')
         ->age->toBe(30)
-        ->gender->toBe('male');
+        ->gender->toBe('female');
 
     $procedure = Procedure::where('patient_id', $patient->id)->first();
     expect($procedure)->not->toBeNull()
-        ->name->toBe('Appendectomy')
+        ->name->toBe('Normal Delivery')
         ->full_amount->toBe(5000.0)
-        ->room_number->toBe('Room 101')
-        ->doctor_id->toBe($doctor->id);
+        ->doctor_id->toBe($doctor->id)
+        ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-12-15');
 
     expect($procedure->payments)->toHaveCount(1)
         ->and($procedure->payments->first())
@@ -67,6 +69,31 @@ test('a procedure with patient details and advance payment can be created', func
         ->and($procedure->isPaid())->toBeFalse();
 });
 
+test('a procedure can be created without advance payment when checkbox is unchecked', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('patientName', 'Jane Doe')
+        ->set('patientPhone', '0987654321')
+        ->set('husbandName', 'John Doe')
+        ->set('patientAge', 25)
+        ->set('procedureName', 'C-Section Package')
+        ->set('expectedDeliveryDate', '2026-11-01')
+        ->set('fullAmount', '1000')
+        ->set('doctorId', '')
+        ->set('hasAdvancePayment', false)
+        ->call('saveProcedure')
+        ->assertHasNoErrors();
+
+    $procedure = Procedure::first();
+    expect($procedure)->doctor_id->toBeNull()
+        ->and($procedure->payments)->toHaveCount(0)
+        ->and($procedure->balance())->toBe(1000.0)
+        ->and($procedure->patient->husband_name)->toBe('John Doe');
+});
+
 test('a procedure can be created without a doctor', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
@@ -75,13 +102,13 @@ test('a procedure can be created without a doctor', function () {
         ->test('pages::reception.procedures')
         ->set('patientName', 'Jane Doe')
         ->set('patientPhone', '0987654321')
-        ->set('patientGender', 'female')
+        ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
         ->set('procedureName', 'General Checkup')
+        ->set('expectedDeliveryDate', '2026-10-01')
         ->set('fullAmount', '1000')
-        ->set('roomNumber', 'Room 202')
         ->set('doctorId', '')
-        ->set('advancePayment', '0')
+        ->set('hasAdvancePayment', false)
         ->call('saveProcedure')
         ->assertHasNoErrors();
 
@@ -98,11 +125,12 @@ test('an open shift is required to create a procedure', function () {
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
         ->set('patientPhone', '1234567890')
-        ->set('patientGender', 'male')
+        ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureName', 'Appendectomy')
+        ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
-        ->set('roomNumber', 'Room 101')
+        ->set('hasAdvancePayment', true)
         ->set('advancePayment', '2000')
         ->call('saveProcedure')
         ->assertHasNoErrors();
@@ -163,12 +191,14 @@ test('the full amount can be edited when a discount is given', function () {
     $shift = Shift::factory()->for($user)->open()->create();
     $patient = Patient::factory()->create([
         'name' => 'John Doe',
+        'husband_name' => 'James Doe',
         'phone' => '1234567890',
         'age' => 30,
-        'gender' => 'male',
+        'gender' => 'female',
     ]);
     $procedure = Procedure::factory()->for($shift)->for($patient)->create([
         'full_amount' => 5000,
+        'expected_delivery_date' => '2026-12-15',
     ]);
     ProcedurePayment::factory()->for($procedure)->create([
         'amount' => 3000,
@@ -189,17 +219,49 @@ test('the full amount can be edited when a discount is given', function () {
         ->and($procedure->isPaid())->toBeFalse();
 });
 
+test('procedure maternity fields can be updated', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->create([
+        'name' => 'Jane Doe',
+        'husband_name' => 'John Doe',
+        'phone' => '0987654321',
+        'age' => 28,
+    ]);
+    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'name' => 'Normal Delivery',
+        'full_amount' => 8000,
+        'expected_delivery_date' => '2026-10-01',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('edit', $procedure->id)
+        ->set('husbandName', 'Robert Doe')
+        ->set('expectedDeliveryDate', '2026-11-20')
+        ->set('procedureName', 'C-Section Package')
+        ->call('saveProcedure')
+        ->assertHasNoErrors();
+
+    $procedure->refresh();
+    expect($procedure->name)->toBe('C-Section Package')
+        ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-11-20')
+        ->and($procedure->patient->fresh()->husband_name)->toBe('Robert Doe');
+});
+
 test('full amount cannot be reduced below total paid', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $patient = Patient::factory()->create([
         'name' => 'Jane Doe',
+        'husband_name' => 'John Doe',
         'phone' => '0987654321',
         'age' => 25,
         'gender' => 'female',
     ]);
     $procedure = Procedure::factory()->for($shift)->for($patient)->create([
         'full_amount' => 5000,
+        'expected_delivery_date' => '2026-12-01',
     ]);
     ProcedurePayment::factory()->for($procedure)->create([
         'amount' => 4000,
@@ -243,11 +305,12 @@ test('advance payment cannot exceed the full amount', function () {
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
         ->set('patientPhone', '1234567890')
-        ->set('patientGender', 'male')
+        ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureName', 'Appendectomy')
+        ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
-        ->set('roomNumber', 'Room 101')
+        ->set('hasAdvancePayment', true)
         ->set('advancePayment', '6000')
         ->call('saveProcedure')
         ->assertHasErrors(['advancePayment']);
@@ -255,12 +318,35 @@ test('advance payment cannot exceed the full amount', function () {
     expect(Procedure::count())->toBe(0);
 });
 
-test('procedures are listed with correct totals', function () {
+test('advance amount is required when advance checkbox is checked', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '1234567890')
+        ->set('husbandName', 'James Doe')
+        ->set('patientAge', 30)
+        ->set('procedureName', 'Normal Delivery')
+        ->set('expectedDeliveryDate', '2026-12-15')
+        ->set('fullAmount', '5000')
+        ->set('hasAdvancePayment', true)
+        ->set('advancePayment', '')
+        ->call('saveProcedure')
+        ->assertHasErrors(['advancePayment']);
+
+    expect(Procedure::count())->toBe(0);
+});
+
+test('procedures are listed with correct totals and status', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
-    $procedure = Procedure::factory()->for($shift)->create([
+    $patient = Patient::factory()->create(['name' => 'Sara Khan']);
+    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
         'name' => 'Knee Surgery',
         'full_amount' => 10000,
+        'expected_delivery_date' => '2026-12-01',
     ]);
     ProcedurePayment::factory()->for($procedure)->create([
         'amount' => 4000,
@@ -271,13 +357,38 @@ test('procedures are listed with correct totals', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->assertSee('Knee Surgery')
-        ->assertSee($procedure->patient->name)
+        ->assertSee('Sara Khan')
+        ->assertSee($patient->mrn)
         ->assertSee('10,000.00')
         ->assertSee('4,000.00')
-        ->assertSee('6,000.00');
+        ->assertSee('6,000.00')
+        ->assertSee('Pending');
 });
 
-test('procedure payment ledger can be viewed from the list', function () {
+test('procedures can be searched by patient name and mrn', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    $matchingPatient = Patient::factory()->create(['name' => 'Ayesha Ali']);
+    $otherPatient = Patient::factory()->create(['name' => 'Fatima Noor']);
+
+    Procedure::factory()->for($shift)->for($matchingPatient)->create(['name' => 'Delivery A']);
+    Procedure::factory()->for($shift)->for($otherPatient)->create(['name' => 'Delivery B']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('search', 'Ayesha')
+        ->assertSee('Delivery A')
+        ->assertDontSee('Delivery B');
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('search', $matchingPatient->mrn)
+        ->assertSee('Delivery A')
+        ->assertDontSee('Delivery B');
+});
+
+test('procedure payment ledger can be viewed from a card', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $procedure = Procedure::factory()->for($shift)->create([
@@ -298,10 +409,13 @@ test('procedure payment ledger can be viewed from the list', function () {
         ->assertSee('Payment Ledger')
         ->assertSee('4,000.00')
         ->assertSee($user->name)
-        ->assertSee($shift->opened_at->format('Y-m-d H:i'));
+        ->assertSee($shift->opened_at->format('Y-m-d H:i'))
+        ->assertSee('Edit')
+        ->assertSee('Add Payment');
 
     $payment->delete();
 });
+
 test('inactive doctors are not available in procedures', function () {
     $user = User::factory()->create();
     $activeDoctor = Doctor::factory()->create(['is_active' => true]);

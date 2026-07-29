@@ -21,6 +21,7 @@ class Procedure extends Model
     protected $fillable = [
         'patient_id',
         'name',
+        'expected_delivery_date',
         'full_amount',
         'room_number',
         'doctor_id',
@@ -37,6 +38,7 @@ class Procedure extends Model
     {
         return [
             'full_amount' => 'float',
+            'expected_delivery_date' => 'date',
         ];
     }
 

@@ -24,8 +24,9 @@ class ProcedureFactory extends Factory
         return [
             'patient_id' => Patient::factory(),
             'name' => $this->faker->words(3, true),
+            'expected_delivery_date' => $this->faker->optional()->dateTimeBetween('+1 month', '+9 months')?->format('Y-m-d'),
             'full_amount' => $this->faker->randomFloat(2, 100, 5000),
-            'room_number' => $this->faker->bothify('Room ##'),
+            'room_number' => null,
             'doctor_id' => null,
             'created_by' => User::factory(),
             'shift_id' => Shift::factory(),
