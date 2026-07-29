@@ -453,12 +453,20 @@ test('procedure payment ledger can be viewed from a card', function () {
         ->call('viewProcedure', $procedure->id)
         ->assertSet('viewingProcedureId', $procedure->id)
         ->assertSet('showViewModal', true)
+        ->assertSet('showPaymentLedger', false)
+        ->assertSee('1. Add Admission')
+        ->assertSee('2. Print File')
+        ->assertSee('3. Payment Ledger')
+        ->call('togglePaymentLedger')
+        ->assertSet('showPaymentLedger', true)
         ->assertSee('Payment Ledger')
         ->assertSee('4,000.00')
         ->assertSee($user->name)
         ->assertSee($shift->opened_at->format('Y-m-d H:i'))
         ->assertSee('Edit')
-        ->assertSee('Add Payment');
+        ->assertSee('Add Payment')
+        ->call('togglePaymentLedger')
+        ->assertSet('showPaymentLedger', false);
 
     $payment->delete();
 });
@@ -552,7 +560,21 @@ test('procedures not admitted show the add admission action', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('viewProcedure', $procedure->id)
-        ->assertSee('Add Admission');
+        ->assertSee('1. Add Admission')
+        ->assertSee('2. Print File')
+        ->assertSee('3. Payment Ledger');
+});
+
+test('print file step shows a coming soon toast', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->call('printFile')
+        ->assertHasNoErrors();
 });
 
 test('inactive doctors are not available in procedures', function () {
