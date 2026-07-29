@@ -4,10 +4,13 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\ProcedureType;
+use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -513,6 +516,117 @@ test('procedure type names must be unique', function () {
         ->assertHasErrors(['procedureTypeName']);
 
     expect(ProcedureType::where('name', 'Normal Delivery')->count())->toBe(1);
+});
+
+test('admins can upload multiple documents to a procedure type', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+
+    $pdf = TemporaryUploadedFile::fake()->create('consent.pdf', 100, 'application/pdf');
+    $image = TemporaryUploadedFile::fake()->image('form.png');
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('openDocuments', $procedureType->id)
+        ->assertSet('showDocumentsModal', true)
+        ->set('documentUploads', [$pdf, $image])
+        ->call('uploadDocuments')
+        ->assertHasNoErrors();
+
+    expect($procedureType->documents()->count())->toBe(2);
+
+    $documents = $procedureType->documents()->orderBy('sort_order')->get();
+
+    expect($documents[0]->original_name)->toBe('consent.pdf')
+        ->and($documents[0]->sort_order)->toBe(1)
+        ->and($documents[1]->original_name)->toBe('form.png')
+        ->and($documents[1]->sort_order)->toBe(2);
+
+    Storage::disk('local')->assertExists($documents[0]->path);
+    Storage::disk('local')->assertExists($documents[1]->path);
+});
+
+test('procedure type document uploads reject invalid files', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $file = TemporaryUploadedFile::fake()->create('notes.txt', 10, 'text/plain');
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->set('documentUploads', [$file])
+        ->call('uploadDocuments')
+        ->assertHasErrors(['documentUploads.0']);
+
+    expect($procedureType->documents()->count())->toBe(0);
+});
+
+test('admins can reorder and delete procedure type documents', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $first = ProcedureTypeDocument::factory()->for($procedureType)->create([
+        'original_name' => 'first.pdf',
+        'sort_order' => 1,
+        'path' => "procedure-types/{$procedureType->id}/documents/first.pdf",
+    ]);
+    $second = ProcedureTypeDocument::factory()->for($procedureType)->create([
+        'original_name' => 'second.pdf',
+        'sort_order' => 2,
+        'path' => "procedure-types/{$procedureType->id}/documents/second.pdf",
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->call('moveDocumentUp', $second->id)
+        ->assertHasNoErrors();
+
+    expect($first->fresh()->sort_order)->toBe(2)
+        ->and($second->fresh()->sort_order)->toBe(1);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->call('moveDocumentDown', $second->id)
+        ->assertHasNoErrors();
+
+    expect($first->fresh()->sort_order)->toBe(1)
+        ->and($second->fresh()->sort_order)->toBe(2);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->call('deleteDocument', $first->id)
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseMissing('procedure_type_documents', ['id' => $first->id]);
+    Storage::disk('local')->assertMissing($first->path);
+    Storage::disk('local')->assertExists($second->path);
+});
+
+test('deleting a procedure type removes its documents and stored files', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $document = ProcedureTypeDocument::factory()->for($procedureType)->create([
+        'path' => "procedure-types/{$procedureType->id}/documents/consent.pdf",
+    ]);
+
+    Storage::disk('local')->assertExists($document->path);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('delete', $procedureType->id)
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseMissing('procedure_types', ['id' => $procedureType->id]);
+    $this->assertDatabaseMissing('procedure_type_documents', ['id' => $document->id]);
+    Storage::disk('local')->assertMissing($document->path);
 });
 
 test('authenticated users can create a room', function () {

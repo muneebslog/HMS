@@ -4,6 +4,7 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\ProcedureType;
+use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -14,14 +15,21 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Management')] class extends Component
 {
+    use WithFileUploads;
+
     public string $activeTab = 'doctors';
 
     public bool $showModal = false;
 
+    public bool $showDocumentsModal = false;
+
     public ?int $editingId = null;
+
+    public ?int $documentsProcedureTypeId = null;
 
     #[Validate]
     public string $doctorName = '';
@@ -100,6 +108,11 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $roomIsActive = true;
+
+    /**
+     * @var list<\Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
+     */
+    public array $documentUploads = [];
 
     /**
      * Get the validation rules for the current tab.
@@ -486,6 +499,148 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Open the documents modal for a procedure type.
+     */
+    public function openDocuments(int $procedureTypeId): void
+    {
+        ProcedureType::findOrFail($procedureTypeId);
+
+        $this->documentsProcedureTypeId = $procedureTypeId;
+        $this->documentUploads = [];
+        $this->resetValidation();
+        $this->showDocumentsModal = true;
+    }
+
+    /**
+     * Close the documents modal.
+     */
+    public function closeDocumentsModal(): void
+    {
+        $this->showDocumentsModal = false;
+        $this->documentsProcedureTypeId = null;
+        $this->documentUploads = [];
+        $this->resetValidation();
+    }
+
+    /**
+     * Upload one or more documents for the selected procedure type.
+     */
+    public function uploadDocuments(): void
+    {
+        $this->validate([
+            'documentUploads' => ['required', 'array', 'min:1', 'max:20'],
+            'documentUploads.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+        ]);
+
+        $procedureType = ProcedureType::findOrFail($this->documentsProcedureTypeId);
+        $nextOrder = (int) $procedureType->documents()->max('sort_order') + 1;
+
+        foreach ($this->documentUploads as $file) {
+            $path = $file->store("procedure-types/{$procedureType->id}/documents", 'local');
+
+            ProcedureTypeDocument::create([
+                'procedure_type_id' => $procedureType->id,
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
+                'sort_order' => $nextOrder++,
+            ]);
+        }
+
+        $this->documentUploads = [];
+        $this->resetValidation();
+        unset($this->documentsProcedureType, $this->procedureTypes);
+
+        Flux::toast(variant: 'success', text: __('Documents uploaded.'));
+    }
+
+    /**
+     * Move a document one position up in the sort order.
+     */
+    public function moveDocumentUp(int $documentId): void
+    {
+        $document = ProcedureTypeDocument::query()
+            ->where('procedure_type_id', $this->documentsProcedureTypeId)
+            ->findOrFail($documentId);
+
+        $previous = ProcedureTypeDocument::query()
+            ->where('procedure_type_id', $document->procedure_type_id)
+            ->where(function ($query) use ($document) {
+                $query->where('sort_order', '<', $document->sort_order)
+                    ->orWhere(function ($nested) use ($document) {
+                        $nested->where('sort_order', $document->sort_order)
+                            ->where('id', '<', $document->id);
+                    });
+            })
+            ->orderByDesc('sort_order')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($previous === null) {
+            return;
+        }
+
+        $this->swapDocumentOrder($document, $previous);
+        unset($this->documentsProcedureType);
+    }
+
+    /**
+     * Move a document one position down in the sort order.
+     */
+    public function moveDocumentDown(int $documentId): void
+    {
+        $document = ProcedureTypeDocument::query()
+            ->where('procedure_type_id', $this->documentsProcedureTypeId)
+            ->findOrFail($documentId);
+
+        $next = ProcedureTypeDocument::query()
+            ->where('procedure_type_id', $document->procedure_type_id)
+            ->where(function ($query) use ($document) {
+                $query->where('sort_order', '>', $document->sort_order)
+                    ->orWhere(function ($nested) use ($document) {
+                        $nested->where('sort_order', $document->sort_order)
+                            ->where('id', '>', $document->id);
+                    });
+            })
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->first();
+
+        if ($next === null) {
+            return;
+        }
+
+        $this->swapDocumentOrder($document, $next);
+        unset($this->documentsProcedureType);
+    }
+
+    /**
+     * Swap the sort order of two documents.
+     */
+    private function swapDocumentOrder(ProcedureTypeDocument $first, ProcedureTypeDocument $second): void
+    {
+        $firstOrder = $first->sort_order;
+        $first->update(['sort_order' => $second->sort_order]);
+        $second->update(['sort_order' => $firstOrder]);
+    }
+
+    /**
+     * Delete a procedure type document and its stored file.
+     */
+    public function deleteDocument(int $documentId): void
+    {
+        $document = ProcedureTypeDocument::query()
+            ->where('procedure_type_id', $this->documentsProcedureTypeId)
+            ->findOrFail($documentId);
+
+        $document->delete();
+
+        unset($this->documentsProcedureType, $this->procedureTypes);
+
+        Flux::toast(variant: 'success', text: __('Document deleted.'));
+    }
+
+    /**
      * Delete the current record.
      */
     public function delete(int $id): void
@@ -511,6 +666,7 @@ new #[Title('Management')] class extends Component
         $this->resetForm();
         $this->editingId = null;
         $this->showModal = false;
+        $this->closeDocumentsModal();
     }
 
     /**
@@ -565,7 +721,23 @@ new #[Title('Management')] class extends Component
     #[Computed]
     public function procedureTypes(): Collection
     {
-        return ProcedureType::orderBy('name')->get();
+        return ProcedureType::query()
+            ->withCount('documents')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Get the procedure type currently managing documents.
+     */
+    #[Computed]
+    public function documentsProcedureType(): ?ProcedureType
+    {
+        if ($this->documentsProcedureTypeId === null) {
+            return null;
+        }
+
+        return ProcedureType::with('documents')->find($this->documentsProcedureTypeId);
     }
 
     /**
@@ -678,6 +850,7 @@ new #[Title('Management')] class extends Component
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Documents') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -686,6 +859,7 @@ new #[Title('Management')] class extends Component
                             @forelse ($this->procedureTypes as $procedureType)
                                 <flux:table.row wire:key="procedure-type-{{ $procedureType->id }}">
                                     <flux:table.cell>{{ $procedureType->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $procedureType->documents_count }}</flux:table.cell>
                                     <flux:table.cell>
                                         @if ($procedureType->is_active)
                                             <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
@@ -694,13 +868,14 @@ new #[Title('Management')] class extends Component
                                         @endif
                                     </flux:table.cell>
                                     <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="document-text" wire:click="openDocuments({{ $procedureType->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $procedureType->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $procedureType->id }})" wire:confirm="{{ __('Are you sure you want to delete this procedure type?') }}" />
                                     </flux:table.cell>
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
                                         {{ __('No procedure types found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -1068,5 +1243,78 @@ new #[Title('Management')] class extends Component
                 </flux:button>
             </div>
             </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showDocumentsModal" class="w-full max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
+                <flux:text class="mt-1">
+                    {{ $this->documentsProcedureType?->name ?? __('Procedure type documents') }}
+                </flux:text>
+            </div>
+
+            <form wire:submit="uploadDocuments" class="space-y-4">
+                <flux:field>
+                    <flux:label>{{ __('Upload files') }}</flux:label>
+                    <flux:input type="file" wire:model="documentUploads" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
+                    <flux:description>{{ __('PDF, JPG, or PNG up to 10 MB each.') }}</flux:description>
+                    <flux:error name="documentUploads" />
+                    <flux:error name="documentUploads.*" />
+                </flux:field>
+
+                <div class="flex justify-end">
+                    <flux:button type="submit" variant="primary" icon="arrow-up-tray">
+                        {{ __('Upload') }}
+                    </flux:button>
+                </div>
+            </form>
+
+            <div class="space-y-3">
+                <flux:heading size="sm">{{ __('Linked documents') }}</flux:heading>
+
+                @forelse ($this->documentsProcedureType?->documents ?? [] as $document)
+                    <div
+                        wire:key="procedure-type-document-{{ $document->id }}"
+                        class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700"
+                    >
+                        <div class="min-w-0">
+                            <flux:text class="truncate font-medium">{{ $document->original_name }}</flux:text>
+                            <flux:text class="text-xs text-zinc-500">{{ $document->mime_type }}</flux:text>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-1">
+                            <flux:button
+                                size="sm"
+                                variant="ghost"
+                                icon="arrow-up"
+                                wire:click="moveDocumentUp({{ $document->id }})"
+                            />
+                            <flux:button
+                                size="sm"
+                                variant="ghost"
+                                icon="arrow-down"
+                                wire:click="moveDocumentDown({{ $document->id }})"
+                            />
+                            <flux:button
+                                size="sm"
+                                variant="ghost"
+                                icon="trash"
+                                wire:click="deleteDocument({{ $document->id }})"
+                                wire:confirm="{{ __('Are you sure you want to delete this document?') }}"
+                            />
+                        </div>
+                    </div>
+                @empty
+                    <flux:text class="text-zinc-500">{{ __('No documents linked yet.') }}</flux:text>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeDocumentsModal">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
     </flux:modal>
 </div>

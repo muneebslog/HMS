@@ -5,10 +5,12 @@ use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
+use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -572,16 +574,36 @@ test('procedures not admitted show the add admission action', function () {
         ->assertSee('3. Payment Ledger');
 });
 
-test('print file step shows a coming soon toast', function () {
+test('print file step is disabled when the procedure type has no documents', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
-    $procedure = Procedure::factory()->for($shift)->create();
+    $procedureType = ProcedureType::factory()->create();
+    $procedure = Procedure::factory()->for($shift)->for($procedureType)->create();
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('viewProcedure', $procedure->id)
-        ->call('printFile')
-        ->assertHasNoErrors();
+        ->assertSee('2. Print File')
+        ->assertSee('No documents linked')
+        ->assertDontSee(route('reception.procedures.file', $procedure), false);
+});
+
+test('print file step links to the combined pdf when documents exist', function () {
+    Storage::fake('local');
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create();
+    ProcedureTypeDocument::factory()->for($procedureType)->create([
+        'path' => "procedure-types/{$procedureType->id}/documents/consent.pdf",
+    ]);
+    $procedure = Procedure::factory()->for($shift)->for($procedureType)->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSee('2. Print File')
+        ->assertDontSee('No documents linked')
+        ->assertSee(route('reception.procedures.file', $procedure), false);
 });
 
 test('only active rooms are available for admission', function () {

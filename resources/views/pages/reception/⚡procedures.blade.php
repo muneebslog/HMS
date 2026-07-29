@@ -185,14 +185,6 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Placeholder for printing the procedure file.
-     */
-    public function printFile(): void
-    {
-        Flux::toast(variant: 'success', text: __('Print file coming soon.'));
-    }
-
-    /**
      * Open the admission modal for the selected procedure.
      */
     public function addAdmission(int $id): void
@@ -326,7 +318,7 @@ new #[Title('Procedures')] class extends Component
             return null;
         }
 
-        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift'])
+        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift', 'procedureType.documents'])
             ->withSum('payments as payments_sum_amount', 'amount')
             ->find($this->viewingProcedureId);
     }
@@ -846,14 +838,35 @@ new #[Title('Procedures')] class extends Component
                         {{ $this->viewedProcedure->isAdmitted() ? __('1. Admission') : __('1. Add Admission') }}
                     </flux:button>
 
-                    <flux:button
-                        variant="filled"
-                        icon="printer"
-                        wire:click="printFile"
-                        class="w-full"
-                    >
-                        {{ __('2. Print File') }}
-                    </flux:button>
+                    @php
+                        $hasPrintDocuments = ($this->viewedProcedure->procedureType?->documents?->isNotEmpty()) ?? false;
+                    @endphp
+
+                    @if ($hasPrintDocuments)
+                        <flux:button
+                            variant="filled"
+                            icon="printer"
+                            :href="route('reception.procedures.file', $this->viewedProcedure)"
+                            target="_blank"
+                            class="w-full"
+                        >
+                            {{ __('2. Print File') }}
+                        </flux:button>
+                    @else
+                        <div class="space-y-1">
+                            <flux:button
+                                variant="filled"
+                                icon="printer"
+                                disabled
+                                class="w-full"
+                            >
+                                {{ __('2. Print File') }}
+                            </flux:button>
+                            <flux:text class="text-center text-xs text-zinc-500">
+                                {{ __('No documents linked') }}
+                            </flux:text>
+                        </div>
+                    @endif
 
                     <flux:button
                         variant="{{ $showPaymentLedger ? 'primary' : 'filled' }}"

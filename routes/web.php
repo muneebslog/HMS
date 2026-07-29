@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\PolicyJournalController;
+use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
@@ -88,6 +89,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
+            Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');
             Route::get('reception/ultrasound/{report}/print', fn (UltrasoundReport $report) => view('ultrasound.print', compact('report')))->name('reception.ultrasound.print');
         });
 

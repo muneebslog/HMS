@@ -6,6 +6,7 @@ use Database\Factories\ProcedureTypeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class ProcedureType extends Model
 {
@@ -30,6 +31,20 @@ class ProcedureType extends Model
     protected $attributes = [
         'is_active' => true,
     ];
+
+    /**
+     * Delete private document files before the type is removed.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (ProcedureType $procedureType): void {
+            foreach ($procedureType->documents()->get() as $document) {
+                $document->delete();
+            }
+
+            Storage::disk('local')->deleteDirectory("procedure-types/{$procedureType->id}");
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -59,5 +74,15 @@ class ProcedureType extends Model
     public function procedures(): HasMany
     {
         return $this->hasMany(Procedure::class);
+    }
+
+    /**
+     * Get the print documents associated with this type.
+     *
+     * @return HasMany<ProcedureTypeDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ProcedureTypeDocument::class)->orderBy('sort_order')->orderBy('id');
     }
 }
