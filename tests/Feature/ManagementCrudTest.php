@@ -307,9 +307,9 @@ test('management lab tests table displays specimen values', function () {
         'sample' => 'E.D.T.A 2cc',
     ]);
 
-    $this->actingAs($user)
-        ->get(route('management.crud'))
-        ->assertOk()
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'labTests')
         ->assertSee('E.D.T.A 2cc');
 });
 
