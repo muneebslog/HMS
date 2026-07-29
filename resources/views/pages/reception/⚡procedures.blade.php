@@ -28,9 +28,19 @@ new #[Title('Procedures')] class extends Component
 
     public bool $showViewModal = false;
 
+    public bool $showAdmissionModal = false;
+
     public ?int $editingProcedureId = null;
 
     public ?int $viewingProcedureId = null;
+
+    public ?int $admittingProcedureId = null;
+
+    #[Validate]
+    public string $admissionCnic = '';
+
+    #[Validate]
+    public string $admissionRoomNumber = '';
 
     #[Validate]
     public string $patientName = '';
@@ -93,6 +103,8 @@ new #[Title('Procedures')] class extends Component
                 },
             ],
             'paymentAmount' => ['required', 'numeric', 'min:0'],
+            'admissionCnic' => ['required', 'string', 'max:20'],
+            'admissionRoomNumber' => ['required', 'string', 'max:255'],
         ];
     }
 
@@ -158,6 +170,68 @@ new #[Title('Procedures')] class extends Component
     {
         $this->viewingProcedureId = $id;
         $this->showViewModal = true;
+    }
+
+    /**
+     * Open the admission modal for the selected procedure.
+     */
+    public function addAdmission(int $id): void
+    {
+        $procedure = Procedure::with('patient')->findOrFail($id);
+
+        $this->resetAdmissionForm();
+        $this->admittingProcedureId = $id;
+        $this->admissionCnic = $procedure->patient->cnic ?? '';
+        $this->admissionRoomNumber = $procedure->room_number ?? '';
+        $this->showViewModal = false;
+        $this->showAdmissionModal = true;
+    }
+
+    /**
+     * Reset the admission form fields.
+     */
+    private function resetAdmissionForm(): void
+    {
+        $this->reset(['admissionCnic', 'admissionRoomNumber']);
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Close the admission modal.
+     */
+    public function closeAdmissionModal(): void
+    {
+        $this->showAdmissionModal = false;
+        $this->admittingProcedureId = null;
+        $this->resetAdmissionForm();
+    }
+
+    /**
+     * Admit the patient for the selected procedure.
+     */
+    public function admitPatient(): void
+    {
+        $validated = $this->validate([
+            'admissionCnic' => $this->rules()['admissionCnic'],
+            'admissionRoomNumber' => $this->rules()['admissionRoomNumber'],
+        ]);
+
+        $procedure = Procedure::with('patient')->findOrFail($this->admittingProcedureId);
+
+        DB::transaction(function () use ($procedure, $validated) {
+            $procedure->patient->update([
+                'cnic' => $validated['admissionCnic'],
+            ]);
+
+            $procedure->update([
+                'room_number' => $validated['admissionRoomNumber'],
+                'admitted_at' => $procedure->admitted_at ?? now(),
+            ]);
+        });
+
+        $this->closeAdmissionModal();
+
+        Flux::toast(variant: 'success', text: __('Patient admitted.'));
     }
 
     /**
@@ -502,11 +576,16 @@ new #[Title('Procedures')] class extends Component
                                 {{ $procedure->patient->mrn ?? __('No MRN') }}
                             </flux:text>
                         </div>
-                        @if ($isPaid)
-                            <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
-                        @else
-                            <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
-                        @endif
+                        <div class="flex shrink-0 flex-col items-end gap-1">
+                            @if ($isPaid)
+                                <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
+                            @endif
+                            @if ($procedure->isAdmitted())
+                                <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
+                            @endif
+                        </div>
                     </div>
 
                     <div class="space-y-1 text-sm">
@@ -518,6 +597,11 @@ new #[Title('Procedures')] class extends Component
                             {{ __('EDD') }}:
                             {{ $procedure->expected_delivery_date?->format('M j, Y') ?? '-' }}
                         </flux:text>
+                        @if ($procedure->isAdmitted())
+                            <flux:text class="text-zinc-500 dark:text-zinc-400">
+                                {{ __('Room') }}: {{ $procedure->room_number ?? '-' }}
+                            </flux:text>
+                        @endif
                     </div>
 
                     <div class="mt-auto grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 text-xs dark:border-zinc-700">
@@ -751,6 +835,33 @@ new #[Title('Procedures')] class extends Component
                     <flux:text class="text-lg font-semibold">{{ number_format($viewedPaid, 2) }}</flux:text>
                 </div>
             </div>
+
+            <div class="mt-6 border-t pt-6">
+                @if ($this->viewedProcedure->isAdmitted())
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="space-y-1 text-sm">
+                            <div class="flex items-center gap-2">
+                                <flux:heading level="3" class="text-base">{{ __('Admission') }}</flux:heading>
+                                <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
+                            </div>
+                            <flux:text class="text-zinc-500 dark:text-zinc-400">
+                                {{ __('Room') }}: {{ $this->viewedProcedure->room_number ?? '-' }} ·
+                                {{ __('CNIC') }}: {{ $this->viewedProcedure->patient->cnic ?? '-' }}
+                            </flux:text>
+                            <flux:text class="text-zinc-500 dark:text-zinc-400">
+                                {{ __('Admitted on :date', ['date' => $this->viewedProcedure->admitted_at->format('M j, Y g:i A')]) }}
+                            </flux:text>
+                        </div>
+                        <flux:button variant="ghost" icon="pencil-square" wire:click="addAdmission({{ $this->viewedProcedure->id }})">
+                            {{ __('Edit admission') }}
+                        </flux:button>
+                    </div>
+                @else
+                    <flux:button variant="primary" icon="home-modern" wire:click="addAdmission({{ $this->viewedProcedure->id }})" class="w-full">
+                        {{ __('Add Admission') }}
+                    </flux:button>
+                @endif
+            </div>
         @endif
 
         <div class="mt-6 flex justify-end gap-3">
@@ -758,5 +869,32 @@ new #[Title('Procedures')] class extends Component
                 {{ __('Close') }}
             </flux:button>
         </div>
+    </flux:modal>
+
+    <flux:modal wire:model="showAdmissionModal" class="w-full max-w-sm">
+        <flux:heading level="2">{{ __('Add Admission') }}</flux:heading>
+
+        <form wire:submit="admitPatient" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('CNIC') }}</flux:label>
+                <flux:input wire:model="admissionCnic" type="text" required autofocus />
+                <flux:error name="admissionCnic" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Room number') }}</flux:label>
+                <flux:input wire:model="admissionRoomNumber" type="text" required />
+                <flux:error name="admissionRoomNumber" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeAdmissionModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Admit') }}
+                </flux:button>
+            </div>
+        </form>
     </flux:modal>
 </div>

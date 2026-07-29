@@ -25,6 +25,7 @@ class Procedure extends Model
         'expected_delivery_date',
         'full_amount',
         'room_number',
+        'admitted_at',
         'doctor_id',
         'created_by',
         'shift_id',
@@ -40,6 +41,7 @@ class Procedure extends Model
         return [
             'full_amount' => 'float',
             'expected_delivery_date' => 'date',
+            'admitted_at' => 'datetime',
         ];
     }
 
@@ -115,5 +117,13 @@ class Procedure extends Model
     public function isPaid(): bool
     {
         return $this->balance() <= 0;
+    }
+
+    /**
+     * Determine whether the patient has been admitted for this procedure.
+     */
+    public function isAdmitted(): bool
+    {
+        return $this->admitted_at !== null;
     }
 }

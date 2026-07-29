@@ -463,6 +463,98 @@ test('procedure payment ledger can be viewed from a card', function () {
     $payment->delete();
 });
 
+test('a patient can be admitted with cnic and room number', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->call('addAdmission', $procedure->id)
+        ->assertSet('showViewModal', false)
+        ->assertSet('showAdmissionModal', true)
+        ->set('admissionCnic', '35202-1234567-1')
+        ->set('admissionRoomNumber', 'Room 12')
+        ->call('admitPatient')
+        ->assertHasNoErrors()
+        ->assertSet('showAdmissionModal', false);
+
+    $procedure->refresh();
+    expect($procedure->room_number)->toBe('Room 12')
+        ->and($procedure->admitted_at)->not->toBeNull()
+        ->and($procedure->isAdmitted())->toBeTrue()
+        ->and($procedure->patient->fresh()->cnic)->toBe('35202-1234567-1');
+});
+
+test('cnic and room number are required to admit a patient', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addAdmission', $procedure->id)
+        ->set('admissionCnic', '')
+        ->set('admissionRoomNumber', '')
+        ->call('admitPatient')
+        ->assertHasErrors(['admissionCnic', 'admissionRoomNumber']);
+
+    expect($procedure->refresh()->isAdmitted())->toBeFalse();
+});
+
+test('an existing admission can be edited without changing the admission time', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $admittedAt = now()->subDay();
+    $patient = Patient::factory()->create(['cnic' => '35202-1111111-1']);
+    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'room_number' => 'Room 1',
+        'admitted_at' => $admittedAt,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addAdmission', $procedure->id)
+        ->assertSet('admissionCnic', '35202-1111111-1')
+        ->assertSet('admissionRoomNumber', 'Room 1')
+        ->set('admissionRoomNumber', 'Room 9')
+        ->call('admitPatient')
+        ->assertHasNoErrors();
+
+    $procedure->refresh();
+    expect($procedure->room_number)->toBe('Room 9')
+        ->and($procedure->admitted_at->format('Y-m-d H:i'))->toBe($admittedAt->format('Y-m-d H:i'));
+});
+
+test('admission details are shown in the procedure detail modal', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->create(['cnic' => '35202-7654321-9']);
+    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'room_number' => 'Room 7',
+        'admitted_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSee('Admitted')
+        ->assertSee('Room 7')
+        ->assertSee('35202-7654321-9');
+});
+
+test('procedures not admitted show the add admission action', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['admitted_at' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSee('Add Admission');
+});
+
 test('inactive doctors are not available in procedures', function () {
     $user = User::factory()->create();
     $activeDoctor = Doctor::factory()->create(['is_active' => true]);
