@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Procedure;
 use App\Services\ProcedureFileBuilder;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -20,7 +21,14 @@ class ProcedureFileController extends Controller
 
         try {
             $pdf = $builder->build($procedure);
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            Log::warning('Unable to build the combined procedure file.', [
+                'procedure_id' => $procedure->id,
+                'procedure_type_id' => $procedure->procedure_type_id,
+                'documents' => $procedure->procedureType?->documents->count() ?? 0,
+                'reason' => $exception->getMessage(),
+            ]);
+
             abort(404);
         }
 

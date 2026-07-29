@@ -15,6 +15,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
 new #[Title('Management')] class extends Component
@@ -537,12 +538,13 @@ new #[Title('Management')] class extends Component
 
         foreach ($this->documentUploads as $file) {
             $path = $file->store("procedure-types/{$procedureType->id}/documents", 'local');
+            $originalName = $file->getClientOriginalName();
 
             ProcedureTypeDocument::create([
                 'procedure_type_id' => $procedureType->id,
                 'path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
+                'original_name' => $originalName,
+                'mime_type' => $this->resolveDocumentMimeType($file, $originalName),
                 'sort_order' => $nextOrder++,
             ]);
         }
@@ -552,6 +554,25 @@ new #[Title('Management')] class extends Component
         unset($this->documentsProcedureType, $this->procedureTypes);
 
         Flux::toast(variant: 'success', text: __('Documents uploaded.'));
+    }
+
+    /**
+     * Resolve a usable mime type, falling back to the original file extension.
+     */
+    private function resolveDocumentMimeType(TemporaryUploadedFile $file, string $originalName): string
+    {
+        $mimeType = $file->getMimeType();
+
+        if (filled($mimeType) && $mimeType !== 'application/octet-stream') {
+            return $mimeType;
+        }
+
+        return match (strtolower(pathinfo($originalName, PATHINFO_EXTENSION))) {
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'application/octet-stream',
+        };
     }
 
     /**

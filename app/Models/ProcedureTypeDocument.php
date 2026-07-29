@@ -66,7 +66,7 @@ class ProcedureTypeDocument extends Model
     public function isPdf(): bool
     {
         return $this->mime_type === 'application/pdf'
-            || str_ends_with(strtolower($this->original_name), '.pdf');
+            || $this->extension() === 'pdf';
     }
 
     /**
@@ -74,6 +74,23 @@ class ProcedureTypeDocument extends Model
      */
     public function isImage(): bool
     {
-        return str_starts_with($this->mime_type, 'image/');
+        return str_starts_with((string) $this->mime_type, 'image/')
+            || in_array($this->extension(), ['jpg', 'jpeg', 'png'], true);
+    }
+
+    /**
+     * Get the lowercase file extension, preferring the original upload name.
+     */
+    public function extension(): string
+    {
+        foreach ([$this->original_name, $this->path] as $candidate) {
+            $extension = strtolower(pathinfo((string) $candidate, PATHINFO_EXTENSION));
+
+            if ($extension !== '') {
+                return $extension;
+            }
+        }
+
+        return '';
     }
 }

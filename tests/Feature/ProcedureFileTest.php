@@ -73,6 +73,37 @@ test('the procedure file route returns an inline combined pdf', function () {
         ->and($response->getContent())->toStartWith('%PDF');
 });
 
+test('documents stored with a generic mime type are merged using the file extension', function () {
+    Storage::fake('local');
+
+    $procedureType = ProcedureType::factory()->create();
+    $procedure = Procedure::factory()->for($procedureType)->create();
+
+    ProcedureTypeDocument::factory()->jpeg()->for($procedureType)->create([
+        'mime_type' => 'application/octet-stream',
+    ]);
+
+    $pdf = app(ProcedureFileBuilder::class)->build($procedure->fresh(['procedureType.documents']));
+
+    expect($pdf)->toStartWith('%PDF');
+});
+
+test('the procedure file route returns 404 when a stored file is missing', function () {
+    Storage::fake('local');
+
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $procedure = Procedure::factory()->for($procedureType)->create();
+
+    $document = ProcedureTypeDocument::factory()->for($procedureType)->create();
+    Storage::disk('local')->delete($document->path);
+
+    $this->actingAs($user)
+        ->get(route('reception.procedures.file', $procedure))
+        ->assertNotFound();
+});
+
 test('the procedure file builder merges documents in sort order', function () {
     Storage::fake('local');
 

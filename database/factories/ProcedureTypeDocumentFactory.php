@@ -41,27 +41,15 @@ class ProcedureTypeDocumentFactory extends Factory
                 return;
             }
 
-            if ($document->isPdf()) {
-                $pdf = new FPDF;
-                $pdf->AddPage();
-                $pdf->SetFont('Helvetica', '', 12);
-                $pdf->Cell(40, 10, 'Procedure document');
-                Storage::disk('local')->put($document->path, $pdf->Output('S'));
+            $contents = match ($document->extension()) {
+                'pdf' => $this->fakePdfContents(),
+                'png' => $this->fakeImageContents('png'),
+                'jpg', 'jpeg' => $this->fakeImageContents('jpeg'),
+                default => null,
+            };
 
-                return;
-            }
-
-            if ($document->isImage()) {
-                $image = imagecreatetruecolor(200, 300);
-                $background = imagecolorallocate($image, 240, 240, 240);
-                imagefill($image, 0, 0, $background);
-
-                ob_start();
-                imagepng($image);
-                $contents = ob_get_clean();
-                imagedestroy($image);
-
-                Storage::disk('local')->put($document->path, $contents ?: '');
+            if ($contents !== null) {
+                Storage::disk('local')->put($document->path, $contents);
             }
         });
     }
@@ -71,14 +59,65 @@ class ProcedureTypeDocumentFactory extends Factory
      */
     public function image(): static
     {
-        return $this->state(function (): array {
-            $name = fake()->unique()->words(2, true).'.png';
+        return $this->imageState('png', 'image/png');
+    }
+
+    /**
+     * Indicate that the document is a JPEG image.
+     */
+    public function jpeg(): static
+    {
+        return $this->imageState('jpg', 'image/jpeg');
+    }
+
+    /**
+     * Build an image state for the given extension and mime type.
+     */
+    private function imageState(string $extension, string $mimeType): static
+    {
+        return $this->state(function () use ($extension, $mimeType): array {
+            $name = fake()->unique()->words(2, true).'.'.$extension;
 
             return [
                 'path' => 'procedure-types/tmp/'.$name,
                 'original_name' => $name,
-                'mime_type' => 'image/png',
+                'mime_type' => $mimeType,
             ];
         });
+    }
+
+    /**
+     * Generate a single page PDF document.
+     */
+    private function fakePdfContents(): string
+    {
+        $pdf = new FPDF;
+        $pdf->AddPage();
+        $pdf->SetFont('Helvetica', '', 12);
+        $pdf->Cell(40, 10, 'Procedure document');
+
+        return $pdf->Output('S');
+    }
+
+    /**
+     * Generate image contents in the given format.
+     */
+    private function fakeImageContents(string $format): string
+    {
+        $image = imagecreatetruecolor(200, 300);
+        imagefill($image, 0, 0, imagecolorallocate($image, 240, 240, 240));
+
+        ob_start();
+
+        if ($format === 'jpeg') {
+            imagejpeg($image);
+        } else {
+            imagepng($image);
+        }
+
+        $contents = ob_get_clean();
+        imagedestroy($image);
+
+        return $contents ?: '';
     }
 }
