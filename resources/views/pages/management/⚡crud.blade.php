@@ -22,6 +22,12 @@ new #[Title('Management')] class extends Component
 {
     use WithFileUploads;
 
+    private const MAX_DOCUMENT_UPLOADS = 20;
+
+    private const MAX_DOCUMENT_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+    private const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
+
     public string $activeTab = 'doctors';
 
     public bool $showModal = false;
@@ -507,8 +513,7 @@ new #[Title('Management')] class extends Component
         ProcedureType::findOrFail($procedureTypeId);
 
         $this->documentsProcedureTypeId = $procedureTypeId;
-        $this->documentUploads = [];
-        $this->resetValidation();
+        $this->clearDocumentUploads();
         $this->showDocumentsModal = true;
     }
 
@@ -519,8 +524,23 @@ new #[Title('Management')] class extends Component
     {
         $this->showDocumentsModal = false;
         $this->documentsProcedureTypeId = null;
+        $this->clearDocumentUploads();
+    }
+
+    /**
+     * Discard every staged upload without saving it.
+     */
+    public function clearDocumentUploads(): void
+    {
+        foreach ($this->documentUploads as $file) {
+            if ($file instanceof TemporaryUploadedFile && $file->exists()) {
+                $file->delete();
+            }
+        }
+
         $this->documentUploads = [];
         $this->resetValidation();
+        $this->dispatch('document-uploads-reset');
     }
 
     /**
@@ -528,41 +548,151 @@ new #[Title('Management')] class extends Component
      */
     public function uploadDocuments(): void
     {
-        $this->validate([
-            'documentUploads' => ['required', 'array', 'min:1', 'max:20'],
-            'documentUploads.*' => [
-                'file',
-                'max:10240',
-                'extensions:pdf,jpg,jpeg,png',
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (! $value instanceof TemporaryUploadedFile || ! $this->hasSupportedDocumentContents($value)) {
-                        $fail(__('Each document must be a valid PDF, JPG, JPEG, or PNG file.'));
-                    }
-                },
-            ],
-        ]);
+        $this->validate(
+            $this->documentUploadRules(),
+            $this->documentUploadMessages(),
+            $this->documentUploadAttributes(),
+        );
 
         $procedureType = ProcedureType::findOrFail($this->documentsProcedureTypeId);
         $nextOrder = (int) $procedureType->documents()->max('sort_order') + 1;
+        $savedCount = count($this->documentUploads);
 
         foreach ($this->documentUploads as $file) {
-            $path = $file->store("procedure-types/{$procedureType->id}/documents", 'local');
+            // Read the metadata before storing: on a shared disk the store moves
+            // the temporary file, leaving nothing left to inspect afterwards.
             $originalName = $file->getClientOriginalName();
+            $mimeType = $this->resolveDocumentMimeType($file, $originalName);
 
             ProcedureTypeDocument::create([
                 'procedure_type_id' => $procedureType->id,
-                'path' => $path,
+                'path' => $file->store("procedure-types/{$procedureType->id}/documents", 'local'),
                 'original_name' => $originalName,
-                'mime_type' => $this->resolveDocumentMimeType($file, $originalName),
+                'mime_type' => $mimeType,
                 'sort_order' => $nextOrder++,
             ]);
         }
 
         $this->documentUploads = [];
         $this->resetValidation();
+        $this->dispatch('document-uploads-reset');
         unset($this->documentsProcedureType, $this->procedureTypes);
 
-        Flux::toast(variant: 'success', text: __('Documents uploaded.'));
+        Flux::toast(variant: 'success', text: __(':count document(s) uploaded.', ['count' => $savedCount]));
+    }
+
+    /**
+     * Get the validation rules for the staged document uploads.
+     *
+     * @return array<string, mixed>
+     */
+    private function documentUploadRules(): array
+    {
+        $rules = [
+            'documentUploads' => ['required', 'array', 'min:1', 'max:'.self::MAX_DOCUMENT_UPLOADS],
+        ];
+
+        foreach (array_keys($this->documentUploads) as $index) {
+            $rules["documentUploads.{$index}"] = [
+                'file',
+                'max:'.intdiv(self::MAX_DOCUMENT_UPLOAD_BYTES, 1024),
+                'extensions:'.implode(',', self::ALLOWED_DOCUMENT_EXTENSIONS),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! $value instanceof TemporaryUploadedFile || ! $this->hasSupportedDocumentContents($value)) {
+                        $fail(__(':attribute is not a readable PDF, JPG, JPEG, or PNG file.'));
+                    }
+                },
+            ];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Get the validation messages for the staged document uploads.
+     *
+     * @return array<string, string>
+     */
+    private function documentUploadMessages(): array
+    {
+        return [
+            'documentUploads.required' => __('Add at least one file before saving.'),
+            'documentUploads.min' => __('Add at least one file before saving.'),
+            'documentUploads.max' => __('You can only save :max files at a time.'),
+            'documentUploads.*.file' => __(':attribute could not be read. Please add it again.'),
+            'documentUploads.*.max' => __(':attribute is too large. Each file must be :size or smaller.', ['size' => $this->maxDocumentUploadSizeForHumans()]),
+            'documentUploads.*.extensions' => __(':attribute must be a PDF, JPG, JPEG, or PNG file.'),
+        ];
+    }
+
+    /**
+     * Name each staged upload after its original filename so messages are specific.
+     *
+     * @return array<string, string>
+     */
+    private function documentUploadAttributes(): array
+    {
+        $attributes = ['documentUploads' => __('files')];
+
+        foreach ($this->documentUploads as $index => $file) {
+            $attributes["documentUploads.{$index}"] = $file instanceof TemporaryUploadedFile
+                ? $file->getClientOriginalName()
+                : __('File :number', ['number' => $index + 1]);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Get the upload limits and messages the browser needs to pre-check files.
+     *
+     * @return array{maxFiles: int, maxBytes: int, maxSize: string, extensions: list<string>, messages: array<string, string>}
+     */
+    #[Computed]
+    public function documentUploadConfig(): array
+    {
+        return [
+            'maxFiles' => self::MAX_DOCUMENT_UPLOADS,
+            'maxBytes' => self::MAX_DOCUMENT_UPLOAD_BYTES,
+            'maxSize' => $this->maxDocumentUploadSizeForHumans(),
+            'extensions' => self::ALLOWED_DOCUMENT_EXTENSIONS,
+            'messages' => [
+                'tooMany' => __('Only :max files can be staged at once. Remove one first.', ['max' => self::MAX_DOCUMENT_UPLOADS]),
+                'badExtension' => __('Unsupported file type. Use PDF, JPG, JPEG, or PNG.'),
+                'tooLarge' => __('Too large. Each file must be :size or smaller.', ['size' => $this->maxDocumentUploadSizeForHumans()]),
+                'rejected' => __('The web server rejected this file. It is most likely bigger than the upload size the server allows.'),
+                'cancelled' => __('Upload cancelled.'),
+                'nothingToSave' => __('Nothing to save yet'),
+                'stillUploading' => __('Waiting for uploads...'),
+                'saving' => __('Saving...'),
+                'save' => __('Save :count file(s)'),
+            ],
+        ];
+    }
+
+    /**
+     * Get every validation message tied to the staged document uploads.
+     *
+     * @return list<string>
+     */
+    #[Computed]
+    public function documentUploadErrors(): array
+    {
+        $errors = $this->getErrorBag();
+
+        return collect($errors->get('documentUploads'))
+            ->merge(collect($errors->get('documentUploads.*'))->flatten())
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the maximum upload size in a form that reads well in messages.
+     */
+    private function maxDocumentUploadSizeForHumans(): string
+    {
+        return intdiv(self::MAX_DOCUMENT_UPLOAD_BYTES, 1024 * 1024).' MB';
     }
 
     /**
@@ -1318,60 +1448,275 @@ new #[Title('Management')] class extends Component
                 </flux:text>
             </div>
 
-            <form wire:submit="uploadDocuments" class="space-y-4" x-data="{ files: [] }">
-                <flux:field>
-                    <flux:label>{{ __('Upload files') }}</flux:label>
-                    <flux:input
+            <form
+                class="space-y-4"
+                x-data="{
+                    config: @js($this->documentUploadConfig),
+                    items: [],
+                    lastKey: 0,
+                    dragging: false,
+                    saving: false,
+
+                    get uploading() { return this.items.filter((item) => item.status === 'uploading') },
+                    get ready() { return this.items.filter((item) => item.status === 'ready') },
+                    get failed() { return this.items.filter((item) => item.status === 'failed') },
+
+                    get saveLabel() {
+                        if (this.saving) return this.config.messages.saving
+                        if (this.uploading.length) return this.config.messages.stillUploading
+                        if (! this.ready.length) return this.config.messages.nothingToSave
+
+                        return this.config.messages.save.replace(':count', this.ready.length)
+                    },
+
+                    forget() {
+                        this.items.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl))
+                        this.items = []
+                    },
+
+                    readableSize(bytes) {
+                        if (bytes < 1024) return bytes + ' B'
+                        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
+
+                        return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+                    },
+
+                    stage(file, wire) {
+                        let extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : ''
+
+                        let item = {
+                            key: ++this.lastKey,
+                            name: file.name,
+                            size: this.readableSize(file.size),
+                            isImage: ['jpg', 'jpeg', 'png'].includes(extension),
+                            isPdf: extension === 'pdf',
+                            previewUrl: null,
+                            tmpFilename: null,
+                            progress: 0,
+                            status: 'failed',
+                            error: null,
+                        }
+
+                        if (this.items.length >= this.config.maxFiles) {
+                            return this.items.push({ ...item, error: this.config.messages.tooMany })
+                        }
+
+                        if (! this.config.extensions.includes(extension)) {
+                            return this.items.push({ ...item, error: this.config.messages.badExtension })
+                        }
+
+                        if (file.size > this.config.maxBytes) {
+                            return this.items.push({ ...item, error: this.config.messages.tooLarge })
+                        }
+
+                        this.items.push({
+                            ...item,
+                            status: 'uploading',
+                            previewUrl: URL.createObjectURL(file),
+                        })
+
+                        let key = item.key
+                        let patch = (changes) => {
+                            let staged = this.items.find((candidate) => candidate.key === key)
+
+                            if (staged) Object.assign(staged, changes)
+                        }
+
+                        wire.$upload(
+                            'documentUploads',
+                            file,
+                            (tmpFilename) => patch({ status: 'ready', progress: 100, tmpFilename }),
+                            () => patch({ status: 'failed', progress: 0, error: this.config.messages.rejected }),
+                            (event) => patch({ progress: event.total ? Math.round((event.loaded / event.total) * 100) : 0 }),
+                            () => patch({ status: 'failed', progress: 0, error: this.config.messages.cancelled }),
+                        )
+                    },
+
+                    discard(item, wire) {
+                        let drop = () => {
+                            if (item.previewUrl) URL.revokeObjectURL(item.previewUrl)
+
+                            this.items = this.items.filter((candidate) => candidate.key !== item.key)
+                        }
+
+                        if (item.tmpFilename) {
+                            return wire.$removeUpload('documentUploads', item.tmpFilename, drop)
+                        }
+
+                        drop()
+                    },
+
+                    async save(wire) {
+                        this.saving = true
+
+                        try {
+                            await wire.uploadDocuments()
+                        } finally {
+                            this.saving = false
+                        }
+                    },
+                }"
+                x-on:document-uploads-reset.window="forget()"
+                x-on:submit.prevent="save($wire)"
+            >
+                <label
+                    class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors"
+                    x-bind:class="dragging
+                        ? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/30'
+                        : 'border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500'"
+                    x-on:dragover.prevent="dragging = true"
+                    x-on:dragleave.prevent="dragging = false"
+                    x-on:drop.prevent="
+                        dragging = false;
+                        Array.from($event.dataTransfer.files).forEach((file) => stage(file, $wire));
+                    "
+                >
+                    <flux:icon icon="arrow-up-tray" class="size-6 text-zinc-400" />
+
+                    <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                        {{ __('Click to choose files, or drop them here') }}
+                    </span>
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ __('PDF, JPG, JPEG or PNG. Up to :size each, :max files at a time.', [
+                            'size' => $this->documentUploadConfig['maxSize'],
+                            'max' => $this->documentUploadConfig['maxFiles'],
+                        ]) }}
+                    </span>
+
+                    <input
                         type="file"
-                        wire:model="documentUploads"
+                        class="sr-only"
                         multiple
                         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                         x-on:change="
-                            files.forEach((file) => URL.revokeObjectURL(file.url));
-                            files = Array.from($event.target.files).map((file) => ({
-                                name: file.name,
-                                url: URL.createObjectURL(file),
-                                isImage: /\.(jpe?g|png)$/i.test(file.name),
-                                isPdf: /\.pdf$/i.test(file.name),
-                            }));
+                            Array.from($event.target.files).forEach((file) => stage(file, $wire));
+                            $event.target.value = '';
                         "
                     />
-                    <flux:description>{{ __('Select up to 20 PDF, JPG, JPEG, or PNG files, up to 10 MB each.') }}</flux:description>
-                    <flux:error name="documentUploads" />
-                    <flux:error name="documentUploads.*" />
-                </flux:field>
+                </label>
 
-                <div x-show="files.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <template x-for="file in files" :key="file.name + file.url">
-                        <div class="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+                @if ($this->documentUploadErrors !== [])
+                    <flux:callout variant="danger" icon="exclamation-triangle">
+                        <flux:callout.heading>{{ __('Nothing was saved') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            <ul class="list-inside list-disc space-y-1">
+                                @foreach ($this->documentUploadErrors as $message)
+                                    <li>{{ $message }}</li>
+                                @endforeach
+                            </ul>
+                        </flux:callout.text>
+                    </flux:callout>
+                @endif
+
+                <div x-show="items.length" style="display: none" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <template x-for="item in items" :key="item.key">
+                        <div
+                            class="overflow-hidden rounded-lg border bg-zinc-50 dark:bg-zinc-900"
+                            x-bind:class="item.status === 'failed'
+                                ? 'border-red-300 dark:border-red-800'
+                                : 'border-zinc-200 dark:border-zinc-700'"
+                        >
                             <img
-                                x-show="file.isImage"
-                                :src="file.url"
-                                :alt="file.name"
+                                x-show="item.isImage && item.previewUrl"
+                                x-bind:src="item.previewUrl"
+                                x-bind:alt="item.name"
                                 class="h-36 w-full object-contain"
                             />
                             <iframe
-                                x-show="file.isPdf"
-                                :src="file.url"
-                                :title="file.name"
+                                x-show="item.isPdf && item.previewUrl"
+                                x-bind:src="item.previewUrl"
+                                x-bind:title="item.name"
                                 class="h-36 w-full bg-white"
                             ></iframe>
-                            <div class="border-t border-zinc-200 p-2 dark:border-zinc-700">
-                                <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200" x-text="file.name"></p>
+                            <div x-show="! item.previewUrl" class="flex h-36 w-full items-center justify-center">
+                                <flux:icon icon="document" class="size-8 text-zinc-400" />
+                            </div>
+
+                            <div class="space-y-2 border-t border-zinc-200 p-3 dark:border-zinc-700">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200" x-text="item.name"></p>
+                                        <p class="text-xs text-zinc-500" x-text="item.size"></p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        class="shrink-0 cursor-pointer rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                        x-bind:disabled="item.status === 'uploading'"
+                                        x-bind:aria-label="@js(__('Remove')) + ' ' + item.name"
+                                        x-on:click="discard(item, $wire)"
+                                    >
+                                        <flux:icon icon="x-mark" class="size-4" />
+                                    </button>
+                                </div>
+
+                                <div x-show="item.status === 'uploading'" class="space-y-1">
+                                    <div class="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                                        <div
+                                            class="h-full rounded-full bg-blue-500 transition-[width] duration-150"
+                                            x-bind:style="'width: ' + item.progress + '%'"
+                                        ></div>
+                                    </div>
+                                    <p class="text-xs text-zinc-500">
+                                        <span x-text="item.progress"></span>% &middot; {{ __('uploading') }}
+                                    </p>
+                                </div>
+
+                                <p x-show="item.status === 'ready'" class="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                                    <flux:icon icon="check-circle" class="size-4 shrink-0" />
+                                    {{ __('Uploaded, ready to save') }}
+                                </p>
+
+                                <p x-show="item.status === 'failed'" class="flex items-start gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                    <flux:icon icon="exclamation-triangle" class="size-4 shrink-0" />
+                                    <span x-text="item.error"></span>
+                                </p>
                             </div>
                         </div>
                     </template>
                 </div>
 
-                <div class="flex items-center justify-between gap-3">
-                    <flux:text x-show="files.length" class="text-sm text-zinc-500">
-                        <span x-text="files.length"></span> {{ __('file(s) selected') }}
-                    </flux:text>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span x-show="! items.length" class="text-zinc-500">{{ __('No files added yet.') }}</span>
+                        <span x-show="ready.length" style="display: none" class="text-green-600 dark:text-green-400">
+                            <span x-text="ready.length"></span> {{ __('ready') }}
+                        </span>
+                        <span x-show="uploading.length" style="display: none" class="text-zinc-500">
+                            <span x-text="uploading.length"></span> {{ __('uploading') }}
+                        </span>
+                        <span x-show="failed.length" style="display: none" class="text-red-600 dark:text-red-400">
+                            <span x-text="failed.length"></span> {{ __('failed') }}
+                        </span>
+                    </div>
 
-                    <flux:button type="submit" variant="primary" icon="arrow-up-tray" wire:loading.attr="disabled">
-                        <span wire:loading.remove wire:target="documentUploads,uploadDocuments">{{ __('Upload all') }}</span>
-                        <span wire:loading wire:target="documentUploads,uploadDocuments">{{ __('Uploading...') }}</span>
-                    </flux:button>
+                    <div class="flex items-center gap-2">
+                        <flux:button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            :loading="false"
+                            x-show="items.length"
+                            style="display: none"
+                            x-on:click="forget(); $wire.clearDocumentUploads()"
+                        >
+                            {{ __('Clear') }}
+                        </flux:button>
+
+                        <flux:button
+                            type="submit"
+                            variant="primary"
+                            :loading="false"
+                            disabled
+                            x-bind:disabled="saving || uploading.length > 0 || ready.length === 0"
+                        >
+                            <span class="flex items-center gap-2">
+                                <flux:icon icon="loading" class="size-4" x-show="saving" style="display: none" />
+                                <flux:icon icon="arrow-up-tray" class="size-4" x-show="! saving" />
+                                <span x-text="saveLabel">{{ __('Save') }}</span>
+                            </span>
+                        </flux:button>
+                    </div>
                 </div>
             </form>
 

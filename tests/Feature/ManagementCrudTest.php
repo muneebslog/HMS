@@ -546,12 +546,58 @@ test('admins can upload multiple documents to a procedure type', function () {
     $documents = $procedureType->documents()->orderBy('sort_order')->get();
 
     expect($documents[0]->original_name)->toBe('consent.pdf')
+        ->and($documents[0]->mime_type)->toBe('application/pdf')
         ->and($documents[0]->sort_order)->toBe(1)
         ->and($documents[1]->original_name)->toBe('form.png')
+        ->and($documents[1]->mime_type)->toBe('image/png')
         ->and($documents[1]->sort_order)->toBe(2);
 
     Storage::disk('local')->assertExists($documents[0]->path);
     Storage::disk('local')->assertExists($documents[1]->path);
+});
+
+test('procedure type document upload errors name the file that was rejected', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $file = TemporaryUploadedFile::fake()->create('patient-notes.txt', 10, 'text/plain');
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->set('documentUploads', [$file])
+        ->call('uploadDocuments')
+        ->assertHasErrors(['documentUploads.0'])
+        ->assertSee('patient-notes.txt must be a PDF, JPG, JPEG, or PNG file.');
+});
+
+test('admins can discard staged document uploads before saving them', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->set('documentUploads', [TemporaryUploadedFile::fake()->image('form.png')])
+        ->call('clearDocumentUploads')
+        ->assertSet('documentUploads', [])
+        ->assertDispatched('document-uploads-reset');
+
+    expect($procedureType->documents()->count())->toBe(0);
+});
+
+test('reopening the documents modal drops previously staged uploads', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->set('documentUploads', [TemporaryUploadedFile::fake()->image('form.png')])
+        ->call('openDocuments', $procedureType->id)
+        ->assertSet('documentUploads', []);
 });
 
 test('procedure type document uploads reject disguised unsupported files', function () {
