@@ -530,7 +530,16 @@ new #[Title('Management')] class extends Component
     {
         $this->validate([
             'documentUploads' => ['required', 'array', 'min:1', 'max:20'],
-            'documentUploads.*' => ['file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+            'documentUploads.*' => [
+                'file',
+                'max:10240',
+                'extensions:pdf,jpg,jpeg,png',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! $value instanceof TemporaryUploadedFile || ! $this->hasSupportedDocumentContents($value)) {
+                        $fail(__('Each document must be a valid PDF, JPG, JPEG, or PNG file.'));
+                    }
+                },
+            ],
         ]);
 
         $procedureType = ProcedureType::findOrFail($this->documentsProcedureTypeId);
@@ -572,6 +581,40 @@ new #[Title('Management')] class extends Component
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
             default => 'application/octet-stream',
+        };
+    }
+
+    /**
+     * Determine whether an uploaded file has supported document contents.
+     */
+    private function hasSupportedDocumentContents(TemporaryUploadedFile $file): bool
+    {
+        $extension = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+        $absolutePath = $file->getRealPath();
+
+        if ($extension === 'pdf') {
+            $handle = fopen($absolutePath, 'rb');
+
+            if ($handle === false) {
+                return false;
+            }
+
+            $header = fread($handle, 1024);
+            fclose($handle);
+
+            return is_string($header) && str_contains($header, '%PDF-');
+        }
+
+        $imageSize = @getimagesize($absolutePath);
+
+        if ($imageSize === false) {
+            return false;
+        }
+
+        return match ($extension) {
+            'jpg', 'jpeg' => $imageSize[2] === IMAGETYPE_JPEG,
+            'png' => $imageSize[2] === IMAGETYPE_PNG,
+            default => false,
         };
     }
 
@@ -1266,7 +1309,7 @@ new #[Title('Management')] class extends Component
             </form>
     </flux:modal>
 
-    <flux:modal wire:model="showDocumentsModal" class="w-full max-w-2xl">
+    <flux:modal wire:model="showDocumentsModal" class="w-full max-w-4xl">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
@@ -1275,18 +1318,59 @@ new #[Title('Management')] class extends Component
                 </flux:text>
             </div>
 
-            <form wire:submit="uploadDocuments" class="space-y-4">
+            <form wire:submit="uploadDocuments" class="space-y-4" x-data="{ files: [] }">
                 <flux:field>
                     <flux:label>{{ __('Upload files') }}</flux:label>
-                    <flux:input type="file" wire:model="documentUploads" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
-                    <flux:description>{{ __('PDF, JPG, or PNG up to 10 MB each.') }}</flux:description>
+                    <flux:input
+                        type="file"
+                        wire:model="documentUploads"
+                        multiple
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                        x-on:change="
+                            files.forEach((file) => URL.revokeObjectURL(file.url));
+                            files = Array.from($event.target.files).map((file) => ({
+                                name: file.name,
+                                url: URL.createObjectURL(file),
+                                isImage: /\.(jpe?g|png)$/i.test(file.name),
+                                isPdf: /\.pdf$/i.test(file.name),
+                            }));
+                        "
+                    />
+                    <flux:description>{{ __('Select up to 20 PDF, JPG, JPEG, or PNG files, up to 10 MB each.') }}</flux:description>
                     <flux:error name="documentUploads" />
                     <flux:error name="documentUploads.*" />
                 </flux:field>
 
-                <div class="flex justify-end">
-                    <flux:button type="submit" variant="primary" icon="arrow-up-tray">
-                        {{ __('Upload') }}
+                <div x-show="files.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <template x-for="file in files" :key="file.name + file.url">
+                        <div class="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+                            <img
+                                x-show="file.isImage"
+                                :src="file.url"
+                                :alt="file.name"
+                                class="h-36 w-full object-contain"
+                            />
+                            <iframe
+                                x-show="file.isPdf"
+                                :src="file.url"
+                                :title="file.name"
+                                class="h-36 w-full bg-white"
+                            ></iframe>
+                            <div class="border-t border-zinc-200 p-2 dark:border-zinc-700">
+                                <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200" x-text="file.name"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex items-center justify-between gap-3">
+                    <flux:text x-show="files.length" class="text-sm text-zinc-500">
+                        <span x-text="files.length"></span> {{ __('file(s) selected') }}
+                    </flux:text>
+
+                    <flux:button type="submit" variant="primary" icon="arrow-up-tray" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="documentUploads,uploadDocuments">{{ __('Upload all') }}</span>
+                        <span wire:loading wire:target="documentUploads,uploadDocuments">{{ __('Uploading...') }}</span>
                     </flux:button>
                 </div>
             </form>
@@ -1294,41 +1378,68 @@ new #[Title('Management')] class extends Component
             <div class="space-y-3">
                 <flux:heading size="sm">{{ __('Linked documents') }}</flux:heading>
 
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 @forelse ($this->documentsProcedureType?->documents ?? [] as $document)
                     <div
                         wire:key="procedure-type-document-{{ $document->id }}"
-                        class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700"
+                        class="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
                     >
-                        <div class="min-w-0">
-                            <flux:text class="truncate font-medium">{{ $document->original_name }}</flux:text>
-                            <flux:text class="text-xs text-zinc-500">{{ $document->mime_type }}</flux:text>
-                        </div>
+                        @if ($document->isImage())
+                            <img
+                                src="{{ route('management.procedure-type-documents.preview', $document) }}"
+                                alt="{{ $document->original_name }}"
+                                loading="lazy"
+                                class="h-40 w-full object-contain"
+                            />
+                        @elseif ($document->isPdf())
+                            <iframe
+                                src="{{ route('management.procedure-type-documents.preview', $document) }}#toolbar=0"
+                                title="{{ $document->original_name }}"
+                                loading="lazy"
+                                class="h-40 w-full bg-white"
+                            ></iframe>
+                        @endif
 
-                        <div class="flex shrink-0 items-center gap-1">
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                icon="arrow-up"
-                                wire:click="moveDocumentUp({{ $document->id }})"
-                            />
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                icon="arrow-down"
-                                wire:click="moveDocumentDown({{ $document->id }})"
-                            />
-                            <flux:button
-                                size="sm"
-                                variant="ghost"
-                                icon="trash"
-                                wire:click="deleteDocument({{ $document->id }})"
-                                wire:confirm="{{ __('Are you sure you want to delete this document?') }}"
-                            />
+                        <div class="flex items-center justify-between gap-3 border-t border-zinc-200 p-3 dark:border-zinc-700">
+                            <div class="min-w-0">
+                                <flux:text class="truncate font-medium">{{ $document->original_name }}</flux:text>
+                                <flux:text class="text-xs text-zinc-500">{{ $document->resolvedMimeType() }}</flux:text>
+                            </div>
+
+                            <div class="flex shrink-0 items-center gap-1">
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    icon="eye"
+                                    :href="route('management.procedure-type-documents.preview', $document)"
+                                    target="_blank"
+                                />
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    icon="arrow-up"
+                                    wire:click="moveDocumentUp({{ $document->id }})"
+                                />
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    icon="arrow-down"
+                                    wire:click="moveDocumentDown({{ $document->id }})"
+                                />
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    icon="trash"
+                                    wire:click="deleteDocument({{ $document->id }})"
+                                    wire:confirm="{{ __('Are you sure you want to delete this document?') }}"
+                                />
+                            </div>
                         </div>
                     </div>
                 @empty
                     <flux:text class="text-zinc-500">{{ __('No documents linked yet.') }}</flux:text>
                 @endforelse
+                </div>
             </div>
 
             <div class="flex justify-end">

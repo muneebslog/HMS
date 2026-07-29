@@ -3,6 +3,7 @@
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\QueueTvController;
@@ -36,6 +37,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
+        Route::get('management/procedure-type-documents/{document}/preview', ProcedureTypeDocumentPreviewController::class)
+            ->name('management.procedure-type-documents.preview');
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
         Route::livewire('admin/sms-logs', 'pages::admin.sms-logs')->name('admin.sms-logs');
         Route::livewire('admin/sql-runner', 'pages::admin.sql-runner')->name('admin.sql-runner');

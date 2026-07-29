@@ -93,4 +93,17 @@ class ProcedureTypeDocument extends Model
 
         return '';
     }
+
+    /**
+     * Get a browser-safe mime type for this document.
+     */
+    public function resolvedMimeType(): string
+    {
+        return match ($this->extension()) {
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'application/octet-stream',
+        };
+    }
 }

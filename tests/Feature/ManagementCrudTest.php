@@ -523,8 +523,14 @@ test('admins can upload multiple documents to a procedure type', function () {
     $user = User::factory()->admin()->create();
     $procedureType = ProcedureType::factory()->create();
 
-    $pdf = TemporaryUploadedFile::fake()->create('consent.pdf', 100, 'application/pdf');
-    $image = TemporaryUploadedFile::fake()->image('form.png');
+    $pdfContents = new FPDF;
+    $pdfContents->AddPage();
+    $pdf = TemporaryUploadedFile::fake()
+        ->createWithContent('consent.pdf', $pdfContents->Output('S'))
+        ->mimeType('application/octet-stream');
+    $image = TemporaryUploadedFile::fake()
+        ->image('form.png')
+        ->mimeType('application/octet-stream');
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -548,6 +554,24 @@ test('admins can upload multiple documents to a procedure type', function () {
     Storage::disk('local')->assertExists($documents[1]->path);
 });
 
+test('procedure type document uploads reject disguised unsupported files', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+    $file = TemporaryUploadedFile::fake()
+        ->createWithContent('malicious.jpg', '<?php echo "not an image";')
+        ->mimeType('application/octet-stream');
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('openDocuments', $procedureType->id)
+        ->set('documentUploads', [$file])
+        ->call('uploadDocuments')
+        ->assertHasErrors(['documentUploads.0']);
+
+    expect($procedureType->documents()->count())->toBe(0);
+});
+
 test('procedure type document uploads reject invalid files', function () {
     Storage::fake('local');
     $user = User::factory()->admin()->create();
@@ -562,6 +586,30 @@ test('procedure type document uploads reject invalid files', function () {
         ->assertHasErrors(['documentUploads.0']);
 
     expect($procedureType->documents()->count())->toBe(0);
+});
+
+test('admins can preview private procedure type documents inline', function () {
+    Storage::fake('local');
+    $user = User::factory()->admin()->create();
+    $document = ProcedureTypeDocument::factory()->jpeg()->create([
+        'mime_type' => 'application/octet-stream',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('management.procedure-type-documents.preview', $document))
+        ->assertOk()
+        ->assertHeader('content-type', 'image/jpeg')
+        ->assertHeader('content-disposition', 'inline; filename="'.$document->original_name.'"');
+});
+
+test('non admins cannot preview private procedure type documents', function () {
+    Storage::fake('local');
+    $user = User::factory()->receptionist()->create();
+    $document = ProcedureTypeDocument::factory()->jpeg()->create();
+
+    $this->actingAs($user)
+        ->get(route('management.procedure-type-documents.preview', $document))
+        ->assertForbidden();
 });
 
 test('admins can reorder and delete procedure type documents', function () {
