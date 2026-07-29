@@ -4,6 +4,7 @@ use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
+use App\Models\ProcedureType;
 use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -44,7 +45,7 @@ new #[Title('Procedures')] class extends Component
     public ?int $patientAge = null;
 
     #[Validate]
-    public string $procedureName = '';
+    public ?int $procedureTypeId = null;
 
     #[Validate]
     public ?string $expectedDeliveryDate = null;
@@ -75,7 +76,7 @@ new #[Title('Procedures')] class extends Component
             'patientPhone' => ['required', 'string', 'max:255'],
             'husbandName' => ['required', 'string', 'max:255'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
-            'procedureName' => ['required', 'string', 'max:255'],
+            'procedureTypeId' => ['required', 'integer', 'exists:procedure_types,id'],
             'expectedDeliveryDate' => ['required', 'date'],
             'fullAmount' => ['required', 'numeric', 'min:0'],
             'doctorId' => ['nullable', 'integer', 'exists:doctors,id'],
@@ -128,7 +129,8 @@ new #[Title('Procedures')] class extends Component
         $this->patientPhone = $procedure->patient->phone ?? '';
         $this->husbandName = $procedure->patient->husband_name ?? '';
         $this->patientAge = $procedure->patient->age;
-        $this->procedureName = $procedure->name;
+        $this->procedureTypeId = $procedure->procedure_type_id
+            ?? ProcedureType::query()->where('name', $procedure->name)->value('id');
         $this->expectedDeliveryDate = $procedure->expected_delivery_date?->format('Y-m-d');
         $this->fullAmount = (string) $procedure->full_amount;
         $this->doctorId = $procedure->doctor_id;
@@ -177,7 +179,7 @@ new #[Title('Procedures')] class extends Component
             'patientPhone',
             'husbandName',
             'patientAge',
-            'procedureName',
+            'procedureTypeId',
             'expectedDeliveryDate',
             'fullAmount',
             'doctorId',
@@ -241,7 +243,7 @@ new #[Title('Procedures')] class extends Component
             'patientPhone' => $this->rules()['patientPhone'],
             'husbandName' => $this->rules()['husbandName'],
             'patientAge' => $this->rules()['patientAge'],
-            'procedureName' => $this->rules()['procedureName'],
+            'procedureTypeId' => $this->rules()['procedureTypeId'],
             'expectedDeliveryDate' => $this->rules()['expectedDeliveryDate'],
             'fullAmount' => $this->rules()['fullAmount'],
             'doctorId' => $this->rules()['doctorId'],
@@ -279,6 +281,8 @@ new #[Title('Procedures')] class extends Component
     private function storeProcedure(array $validated, Shift $shift): void
     {
         DB::transaction(function () use ($validated, $shift) {
+            $procedureType = ProcedureType::findOrFail($validated['procedureTypeId']);
+
             $patient = Patient::create([
                 'name' => $validated['patientName'],
                 'husband_name' => $validated['husbandName'],
@@ -289,7 +293,8 @@ new #[Title('Procedures')] class extends Component
 
             $procedure = Procedure::create([
                 'patient_id' => $patient->id,
-                'name' => $validated['procedureName'],
+                'procedure_type_id' => $procedureType->id,
+                'name' => $procedureType->name,
                 'expected_delivery_date' => $validated['expectedDeliveryDate'],
                 'full_amount' => $validated['fullAmount'],
                 'doctor_id' => $validated['doctorId'] ?: null,
@@ -326,6 +331,8 @@ new #[Title('Procedures')] class extends Component
         }
 
         DB::transaction(function () use ($procedure, $validated) {
+            $procedureType = ProcedureType::findOrFail($validated['procedureTypeId']);
+
             $procedure->patient->update([
                 'name' => $validated['patientName'],
                 'husband_name' => $validated['husbandName'],
@@ -334,7 +341,8 @@ new #[Title('Procedures')] class extends Component
             ]);
 
             $procedure->update([
-                'name' => $validated['procedureName'],
+                'procedure_type_id' => $procedureType->id,
+                'name' => $procedureType->name,
                 'expected_delivery_date' => $validated['expectedDeliveryDate'],
                 'full_amount' => $validated['fullAmount'],
                 'doctor_id' => $validated['doctorId'] ?: null,
@@ -409,6 +417,17 @@ new #[Title('Procedures')] class extends Component
             })
             ->latest()
             ->paginate(11);
+    }
+
+    /**
+     * Get the list of active procedure types.
+     *
+     * @return Collection<int, ProcedureType>
+     */
+    #[Computed]
+    public function procedureTypes(): Collection
+    {
+        return ProcedureType::active()->orderBy('name')->get();
     }
 
     /**
@@ -564,8 +583,13 @@ new #[Title('Procedures')] class extends Component
 
                 <flux:field>
                     <flux:label>{{ __('Procedure name') }}</flux:label>
-                    <flux:input wire:model="procedureName" type="text" required />
-                    <flux:error name="procedureName" />
+                    <flux:select wire:model="procedureTypeId" required>
+                        <option value="">{{ __('Select') }}</option>
+                        @foreach ($this->procedureTypes as $procedureType)
+                            <option value="{{ $procedureType->id }}">{{ $procedureType->name }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="procedureTypeId" />
                 </flux:field>
 
                 <flux:field>

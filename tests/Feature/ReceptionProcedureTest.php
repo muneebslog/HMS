@@ -4,6 +4,7 @@ use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
+use App\Models\ProcedureType;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +31,7 @@ test('a procedure with patient details and advance payment can be created', func
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
     $doctor = Doctor::factory()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Normal Delivery']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -37,7 +39,7 @@ test('a procedure with patient details and advance payment can be created', func
         ->set('patientPhone', '1234567890')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
-        ->set('procedureName', 'Normal Delivery')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
         ->set('doctorId', $doctor->id)
@@ -56,6 +58,7 @@ test('a procedure with patient details and advance payment can be created', func
     $procedure = Procedure::where('patient_id', $patient->id)->first();
     expect($procedure)->not->toBeNull()
         ->name->toBe('Normal Delivery')
+        ->procedure_type_id->toBe($procedureType->id)
         ->full_amount->toBe(5000.0)
         ->doctor_id->toBe($doctor->id)
         ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-12-15');
@@ -72,6 +75,7 @@ test('a procedure with patient details and advance payment can be created', func
 test('a procedure can be created without advance payment when checkbox is unchecked', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'C-Section Package']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -79,7 +83,7 @@ test('a procedure can be created without advance payment when checkbox is unchec
         ->set('patientPhone', '0987654321')
         ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
-        ->set('procedureName', 'C-Section Package')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-11-01')
         ->set('fullAmount', '1000')
         ->set('doctorId', '')
@@ -89,6 +93,8 @@ test('a procedure can be created without advance payment when checkbox is unchec
 
     $procedure = Procedure::first();
     expect($procedure)->doctor_id->toBeNull()
+        ->and($procedure->name)->toBe('C-Section Package')
+        ->and($procedure->procedure_type_id)->toBe($procedureType->id)
         ->and($procedure->payments)->toHaveCount(0)
         ->and($procedure->balance())->toBe(1000.0)
         ->and($procedure->patient->husband_name)->toBe('John Doe');
@@ -97,6 +103,7 @@ test('a procedure can be created without advance payment when checkbox is unchec
 test('a procedure can be created without a doctor', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'General Checkup']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -104,7 +111,7 @@ test('a procedure can be created without a doctor', function () {
         ->set('patientPhone', '0987654321')
         ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
-        ->set('procedureName', 'General Checkup')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-10-01')
         ->set('fullAmount', '1000')
         ->set('doctorId', '')
@@ -118,8 +125,42 @@ test('a procedure can be created without a doctor', function () {
         ->and($procedure->balance())->toBe(1000.0);
 });
 
+test('procedure type is required when creating a procedure', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('patientName', 'Jane Doe')
+        ->set('patientPhone', '0987654321')
+        ->set('husbandName', 'John Doe')
+        ->set('patientAge', 25)
+        ->set('procedureTypeId', null)
+        ->set('expectedDeliveryDate', '2026-10-01')
+        ->set('fullAmount', '1000')
+        ->set('hasAdvancePayment', false)
+        ->call('saveProcedure')
+        ->assertHasErrors(['procedureTypeId']);
+
+    expect(Procedure::count())->toBe(0);
+});
+
+test('inactive procedure types are not available in procedures', function () {
+    $user = User::factory()->create();
+    $activeType = ProcedureType::factory()->create(['name' => 'Active Type']);
+    $inactiveType = ProcedureType::factory()->inactive()->create(['name' => 'Inactive Type']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertSet('procedureTypes', function ($types) use ($activeType, $inactiveType) {
+            return $types->contains('id', $activeType->id)
+                && ! $types->contains('id', $inactiveType->id);
+        });
+});
+
 test('an open shift is required to create a procedure', function () {
     $user = User::factory()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Appendectomy']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -127,7 +168,7 @@ test('an open shift is required to create a procedure', function () {
         ->set('patientPhone', '1234567890')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
-        ->set('procedureName', 'Appendectomy')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
         ->set('hasAdvancePayment', true)
@@ -228,7 +269,10 @@ test('procedure maternity fields can be updated', function () {
         'phone' => '0987654321',
         'age' => 28,
     ]);
+    $originalType = ProcedureType::factory()->create(['name' => 'Normal Delivery']);
+    $updatedType = ProcedureType::factory()->create(['name' => 'C-Section Package']);
     $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'procedure_type_id' => $originalType->id,
         'name' => 'Normal Delivery',
         'full_amount' => 8000,
         'expected_delivery_date' => '2026-10-01',
@@ -239,12 +283,13 @@ test('procedure maternity fields can be updated', function () {
         ->call('edit', $procedure->id)
         ->set('husbandName', 'Robert Doe')
         ->set('expectedDeliveryDate', '2026-11-20')
-        ->set('procedureName', 'C-Section Package')
+        ->set('procedureTypeId', $updatedType->id)
         ->call('saveProcedure')
         ->assertHasNoErrors();
 
     $procedure->refresh();
     expect($procedure->name)->toBe('C-Section Package')
+        ->and($procedure->procedure_type_id)->toBe($updatedType->id)
         ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-11-20')
         ->and($procedure->patient->fresh()->husband_name)->toBe('Robert Doe');
 });
@@ -300,6 +345,7 @@ test('payment amount cannot exceed the remaining balance', function () {
 test('advance payment cannot exceed the full amount', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Appendectomy']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -307,7 +353,7 @@ test('advance payment cannot exceed the full amount', function () {
         ->set('patientPhone', '1234567890')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
-        ->set('procedureName', 'Appendectomy')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
         ->set('hasAdvancePayment', true)
@@ -321,6 +367,7 @@ test('advance payment cannot exceed the full amount', function () {
 test('advance amount is required when advance checkbox is checked', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Normal Delivery']);
 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
@@ -328,7 +375,7 @@ test('advance amount is required when advance checkbox is checked', function () 
         ->set('patientPhone', '1234567890')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
-        ->set('procedureName', 'Normal Delivery')
+        ->set('procedureTypeId', $procedureType->id)
         ->set('expectedDeliveryDate', '2026-12-15')
         ->set('fullAmount', '5000')
         ->set('hasAdvancePayment', true)

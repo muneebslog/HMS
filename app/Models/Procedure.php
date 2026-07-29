@@ -20,6 +20,7 @@ class Procedure extends Model
      */
     protected $fillable = [
         'patient_id',
+        'procedure_type_id',
         'name',
         'expected_delivery_date',
         'full_amount',
@@ -48,6 +49,14 @@ class Procedure extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
+    }
+
+    /**
+     * Get the procedure type for this procedure.
+     */
+    public function procedureType(): BelongsTo
+    {
+        return $this->belongsTo(ProcedureType::class);
     }
 
     /**

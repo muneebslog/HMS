@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Procedure;
+use App\Models\ProcedureType;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -23,7 +24,9 @@ class ProcedureFactory extends Factory
     {
         return [
             'patient_id' => Patient::factory(),
-            'name' => $this->faker->words(3, true),
+            'procedure_type_id' => ProcedureType::factory(),
+            'name' => fn (array $attributes) => ProcedureType::find($attributes['procedure_type_id'])?->name
+                ?? $this->faker->words(3, true),
             'expected_delivery_date' => $this->faker->optional()->dateTimeBetween('+1 month', '+9 months')?->format('Y-m-d'),
             'full_amount' => $this->faker->randomFloat(2, 100, 5000),
             'room_number' => null,

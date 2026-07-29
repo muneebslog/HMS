@@ -3,6 +3,7 @@
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
+use App\Models\ProcedureType;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -394,4 +395,72 @@ test('authenticated users can deactivate and reactivate a lab test', function ()
         'id' => $labTest->id,
         'is_active' => true,
     ]);
+});
+
+test('authenticated users can create a procedure type', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('create')
+        ->set('procedureTypeName', 'Normal Delivery')
+        ->set('procedureTypeIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('procedure_types', [
+        'name' => 'Normal Delivery',
+        'is_active' => true,
+    ]);
+});
+
+test('authenticated users can update a procedure type', function () {
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Old Name']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('edit', $procedureType->id)
+        ->set('procedureTypeName', 'Updated Delivery')
+        ->set('procedureTypeIsActive', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('procedure_types', [
+        'id' => $procedureType->id,
+        'name' => 'Updated Delivery',
+        'is_active' => false,
+    ]);
+});
+
+test('authenticated users can delete a procedure type', function () {
+    $user = User::factory()->admin()->create();
+    $procedureType = ProcedureType::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('delete', $procedureType->id)
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseMissing('procedure_types', [
+        'id' => $procedureType->id,
+    ]);
+});
+
+test('procedure type names must be unique', function () {
+    $user = User::factory()->admin()->create();
+    ProcedureType::factory()->create(['name' => 'Normal Delivery']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'procedureTypes')
+        ->call('create')
+        ->set('procedureTypeName', 'Normal Delivery')
+        ->call('save')
+        ->assertHasErrors(['procedureTypeName']);
+
+    expect(ProcedureType::where('name', 'Normal Delivery')->count())->toBe(1);
 });

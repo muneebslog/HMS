@@ -3,6 +3,7 @@
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
+use App\Models\ProcedureType;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use Flux\Flux;
@@ -84,6 +85,12 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public bool $labTestIsActive = true;
 
+    #[Validate]
+    public string $procedureTypeName = '';
+
+    #[Validate]
+    public bool $procedureTypeIsActive = true;
+
     /**
      * Get the validation rules for the current tab.
      *
@@ -138,6 +145,10 @@ new #[Title('Management')] class extends Component
                 'labTestIsInHouse' => ['boolean'],
                 'labTestIsActive' => ['boolean'],
             ],
+            'procedureTypes' => [
+                'procedureTypeName' => ['required', 'string', 'max:255', Rule::unique('procedure_types', 'name')->ignore($this->editingId)],
+                'procedureTypeIsActive' => ['boolean'],
+            ],
             default => [],
         };
     }
@@ -165,6 +176,7 @@ new #[Title('Management')] class extends Component
             'services' => $this->loadService($id),
             'servicePrices' => $this->loadServicePrice($id),
             'labTests' => $this->loadLabTest($id),
+            'procedureTypes' => $this->loadProcedureType($id),
         };
 
         $this->showModal = true;
@@ -228,6 +240,17 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Load procedure type data into the form.
+     */
+    private function loadProcedureType(int $id): void
+    {
+        $procedureType = ProcedureType::findOrFail($id);
+
+        $this->procedureTypeName = $procedureType->name;
+        $this->procedureTypeIsActive = $procedureType->is_active;
+    }
+
+    /**
      * Reset all form fields.
      */
     private function resetForm(): void
@@ -254,6 +277,8 @@ new #[Title('Management')] class extends Component
             'labTestTimeRequired',
             'labTestIsInHouse',
             'labTestIsActive',
+            'procedureTypeName',
+            'procedureTypeIsActive',
         ]);
 
         $this->resetErrorBag();
@@ -275,6 +300,7 @@ new #[Title('Management')] class extends Component
             'services' => $this->saveService($validated),
             'servicePrices' => $this->saveServicePrice($validated),
             'labTests' => $this->saveLabTest($validated),
+            'procedureTypes' => $this->saveProcedureType($validated),
         };
 
         $this->showModal = false;
@@ -379,6 +405,27 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Persist procedure type data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveProcedureType(array $validated): void
+    {
+        $data = [
+            'name' => $validated['procedureTypeName'],
+            'is_active' => $validated['procedureTypeIsActive'],
+        ];
+
+        if ($this->editingId) {
+            ProcedureType::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Procedure type updated.'));
+        } else {
+            ProcedureType::create($data);
+            Flux::toast(variant: 'success', text: __('Procedure type created.'));
+        }
+    }
+
+    /**
      * Delete the current record.
      */
     public function delete(int $id): void
@@ -388,6 +435,7 @@ new #[Title('Management')] class extends Component
             'services' => Service::findOrFail($id)->delete(),
             'servicePrices' => ServicePrice::findOrFail($id)->delete(),
             'labTests' => LabTest::findOrFail($id)->delete(),
+            'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
         };
 
         Flux::toast(variant: 'success', text: __('Record deleted.'));
@@ -447,6 +495,17 @@ new #[Title('Management')] class extends Component
     {
         return LabTest::orderBy('test_name')->get();
     }
+
+    /**
+     * Get the list of procedure types.
+     *
+     * @return Collection<int, ProcedureType>
+     */
+    #[Computed]
+    public function procedureTypes(): Collection
+    {
+        return ProcedureType::orderBy('name')->get();
+    }
 }; ?>
 
 <div>
@@ -494,11 +553,51 @@ new #[Title('Management')] class extends Component
                         >
                             {{ __('Lab Tests') }}
                         </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('procedureTypes')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'procedureTypes' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Procedure Types') }}
+                        </button>
                     </nav>
                 </div>
 
                 <div class="mt-6">
-                @if ($activeTab === 'labTests')
+                @if ($activeTab === 'procedureTypes')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->procedureTypes as $procedureType)
+                                <flux:table.row wire:key="procedure-type-{{ $procedureType->id }}">
+                                    <flux:table.cell>{{ $procedureType->name }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($procedureType->is_active)
+                                            <flux:badge size="sm" color="green">{{ __('Active') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('Inactive') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $procedureType->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $procedureType->id }})" wire:confirm="{{ __('Are you sure you want to delete this procedure type?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                        {{ __('No procedure types found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'labTests')
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Test Name') }}</flux:table.column>
@@ -681,7 +780,7 @@ new #[Title('Management')] class extends Component
 
     <flux:modal wire:model="showModal" class="w-full max-w-lg">
         <flux:heading level="2">
-            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), default => __('Service Price') }]) }}
+            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), default => __('Service Price') }]) }}
         </flux:heading>
 
         <form wire:submit="save" class="mt-6 space-y-6">
@@ -783,6 +882,17 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Doctor Share (%)') }}</flux:label>
                     <flux:input wire:model="priceDoctorShare" type="number" step="0.01" min="0" max="100" />
                     <flux:error name="priceDoctorShare" />
+                </flux:field>
+            @elseif ($activeTab === 'procedureTypes')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="procedureTypeName" type="text" required />
+                    <flux:error name="procedureTypeName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="procedureTypeIsActive" :label="__('Active')" />
+                    <flux:error name="procedureTypeIsActive" />
                 </flux:field>
             @else
                 <flux:field>
