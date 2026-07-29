@@ -4,6 +4,7 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\ProcedureType;
+use App\Models\Room;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -512,4 +513,70 @@ test('procedure type names must be unique', function () {
         ->assertHasErrors(['procedureTypeName']);
 
     expect(ProcedureType::where('name', 'Normal Delivery')->count())->toBe(1);
+});
+
+test('authenticated users can create a room', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'rooms')
+        ->call('create')
+        ->set('roomNumber', 'Room 101')
+        ->set('roomIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('rooms', [
+        'number' => 'Room 101',
+        'is_active' => true,
+    ]);
+});
+
+test('authenticated users can update a room', function () {
+    $user = User::factory()->admin()->create();
+    $room = Room::factory()->create(['number' => 'Room 1']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'rooms')
+        ->call('edit', $room->id)
+        ->set('roomNumber', 'Room 2')
+        ->set('roomIsActive', false)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('rooms', [
+        'id' => $room->id,
+        'number' => 'Room 2',
+        'is_active' => false,
+    ]);
+});
+
+test('authenticated users can delete a room', function () {
+    $user = User::factory()->admin()->create();
+    $room = Room::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'rooms')
+        ->call('delete', $room->id)
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseMissing('rooms', ['id' => $room->id]);
+});
+
+test('room numbers must be unique', function () {
+    $user = User::factory()->admin()->create();
+    Room::factory()->create(['number' => 'Room 101']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'rooms')
+        ->call('create')
+        ->set('roomNumber', 'Room 101')
+        ->call('save')
+        ->assertHasErrors(['roomNumber']);
+
+    expect(Room::where('number', 'Room 101')->count())->toBe(1);
 });

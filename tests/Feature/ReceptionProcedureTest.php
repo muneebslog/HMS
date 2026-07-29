@@ -5,6 +5,7 @@ use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
+use App\Models\Room;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -474,6 +475,7 @@ test('procedure payment ledger can be viewed from a card', function () {
 test('a patient can be admitted with cnic and room number', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
+    $room = Room::factory()->create(['number' => 'Room 12']);
     $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
 
     Livewire::actingAs($user)
@@ -483,19 +485,20 @@ test('a patient can be admitted with cnic and room number', function () {
         ->assertSet('showViewModal', false)
         ->assertSet('showAdmissionModal', true)
         ->set('admissionCnic', '35202-1234567-1')
-        ->set('admissionRoomNumber', 'Room 12')
+        ->set('admissionRoomId', $room->id)
         ->call('admitPatient')
         ->assertHasNoErrors()
         ->assertSet('showAdmissionModal', false);
 
     $procedure->refresh();
     expect($procedure->room_number)->toBe('Room 12')
+        ->and($procedure->room_id)->toBe($room->id)
         ->and($procedure->admitted_at)->not->toBeNull()
         ->and($procedure->isAdmitted())->toBeTrue()
         ->and($procedure->patient->fresh()->cnic)->toBe('35202-1234567-1');
 });
 
-test('cnic and room number are required to admit a patient', function () {
+test('cnic and room are required to admit a patient', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
@@ -504,9 +507,9 @@ test('cnic and room number are required to admit a patient', function () {
         ->test('pages::reception.procedures')
         ->call('addAdmission', $procedure->id)
         ->set('admissionCnic', '')
-        ->set('admissionRoomNumber', '')
+        ->set('admissionRoomId', null)
         ->call('admitPatient')
-        ->assertHasErrors(['admissionCnic', 'admissionRoomNumber']);
+        ->assertHasErrors(['admissionCnic', 'admissionRoomId']);
 
     expect($procedure->refresh()->isAdmitted())->toBeFalse();
 });
@@ -516,7 +519,10 @@ test('an existing admission can be edited without changing the admission time', 
     $shift = Shift::factory()->for($user)->open()->create();
     $admittedAt = now()->subDay();
     $patient = Patient::factory()->create(['cnic' => '35202-1111111-1']);
+    $room = Room::factory()->create(['number' => 'Room 1']);
+    $updatedRoom = Room::factory()->create(['number' => 'Room 9']);
     $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'room_id' => $room->id,
         'room_number' => 'Room 1',
         'admitted_at' => $admittedAt,
     ]);
@@ -525,13 +531,14 @@ test('an existing admission can be edited without changing the admission time', 
         ->test('pages::reception.procedures')
         ->call('addAdmission', $procedure->id)
         ->assertSet('admissionCnic', '35202-1111111-1')
-        ->assertSet('admissionRoomNumber', 'Room 1')
-        ->set('admissionRoomNumber', 'Room 9')
+        ->assertSet('admissionRoomId', $room->id)
+        ->set('admissionRoomId', $updatedRoom->id)
         ->call('admitPatient')
         ->assertHasNoErrors();
 
     $procedure->refresh();
     expect($procedure->room_number)->toBe('Room 9')
+        ->and($procedure->room_id)->toBe($updatedRoom->id)
         ->and($procedure->admitted_at->format('Y-m-d H:i'))->toBe($admittedAt->format('Y-m-d H:i'));
 });
 
@@ -575,6 +582,19 @@ test('print file step shows a coming soon toast', function () {
         ->call('viewProcedure', $procedure->id)
         ->call('printFile')
         ->assertHasNoErrors();
+});
+
+test('only active rooms are available for admission', function () {
+    $user = User::factory()->create();
+    $activeRoom = Room::factory()->create(['number' => 'Room Active']);
+    $inactiveRoom = Room::factory()->inactive()->create(['number' => 'Room Inactive']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertSet('rooms', function ($rooms) use ($activeRoom, $inactiveRoom) {
+            return $rooms->contains('id', $activeRoom->id)
+                && ! $rooms->contains('id', $inactiveRoom->id);
+        });
 });
 
 test('inactive doctors are not available in procedures', function () {

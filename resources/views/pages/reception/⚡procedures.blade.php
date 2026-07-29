@@ -5,6 +5,7 @@ use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
+use App\Models\Room;
 use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -42,7 +43,7 @@ new #[Title('Procedures')] class extends Component
     public string $admissionCnic = '';
 
     #[Validate]
-    public string $admissionRoomNumber = '';
+    public ?int $admissionRoomId = null;
 
     #[Validate]
     public string $patientName = '';
@@ -106,7 +107,7 @@ new #[Title('Procedures')] class extends Component
             ],
             'paymentAmount' => ['required', 'numeric', 'min:0'],
             'admissionCnic' => ['required', 'string', 'max:20'],
-            'admissionRoomNumber' => ['required', 'string', 'max:255'],
+            'admissionRoomId' => ['required', 'integer', 'exists:rooms,id'],
         ];
     }
 
@@ -201,7 +202,8 @@ new #[Title('Procedures')] class extends Component
         $this->resetAdmissionForm();
         $this->admittingProcedureId = $id;
         $this->admissionCnic = $procedure->patient->cnic ?? '';
-        $this->admissionRoomNumber = $procedure->room_number ?? '';
+        $this->admissionRoomId = $procedure->room_id
+            ?? Room::query()->where('number', $procedure->room_number)->value('id');
         $this->showViewModal = false;
         $this->showAdmissionModal = true;
     }
@@ -211,7 +213,7 @@ new #[Title('Procedures')] class extends Component
      */
     private function resetAdmissionForm(): void
     {
-        $this->reset(['admissionCnic', 'admissionRoomNumber']);
+        $this->reset(['admissionCnic', 'admissionRoomId']);
         $this->resetErrorBag();
     }
 
@@ -232,18 +234,20 @@ new #[Title('Procedures')] class extends Component
     {
         $validated = $this->validate([
             'admissionCnic' => $this->rules()['admissionCnic'],
-            'admissionRoomNumber' => $this->rules()['admissionRoomNumber'],
+            'admissionRoomId' => $this->rules()['admissionRoomId'],
         ]);
 
         $procedure = Procedure::with('patient')->findOrFail($this->admittingProcedureId);
+        $room = Room::active()->findOrFail($validated['admissionRoomId']);
 
-        DB::transaction(function () use ($procedure, $validated) {
+        DB::transaction(function () use ($procedure, $room, $validated) {
             $procedure->patient->update([
                 'cnic' => $validated['admissionCnic'],
             ]);
 
             $procedure->update([
-                'room_number' => $validated['admissionRoomNumber'],
+                'room_id' => $room->id,
+                'room_number' => $room->number,
                 'admitted_at' => $procedure->admitted_at ?? now(),
             ]);
         });
@@ -522,6 +526,17 @@ new #[Title('Procedures')] class extends Component
     public function procedureTypes(): Collection
     {
         return ProcedureType::active()->orderBy('name')->get();
+    }
+
+    /**
+     * Get the list of active rooms.
+     *
+     * @return Collection<int, Room>
+     */
+    #[Computed]
+    public function rooms(): Collection
+    {
+        return Room::active()->orderBy('number')->get();
     }
 
     /**
@@ -930,8 +945,13 @@ new #[Title('Procedures')] class extends Component
 
             <flux:field>
                 <flux:label>{{ __('Room number') }}</flux:label>
-                <flux:input wire:model="admissionRoomNumber" type="text" required />
-                <flux:error name="admissionRoomNumber" />
+                <flux:select wire:model="admissionRoomId" required>
+                    <option value="">{{ __('Select a room') }}</option>
+                    @foreach ($this->rooms as $room)
+                        <option value="{{ $room->id }}">{{ $room->number }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="admissionRoomId" />
             </flux:field>
 
             <div class="flex justify-end gap-3">

@@ -25,6 +25,7 @@ class Procedure extends Model
         'expected_delivery_date',
         'full_amount',
         'room_number',
+        'room_id',
         'admitted_at',
         'doctor_id',
         'created_by',
@@ -67,6 +68,14 @@ class Procedure extends Model
     public function doctor(): BelongsTo
     {
         return $this->belongsTo(Doctor::class);
+    }
+
+    /**
+     * Get the room assigned to this procedure admission.
+     */
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(Room::class);
     }
 
     /**

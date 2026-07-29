@@ -4,6 +4,7 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\LabTest;
 use App\Models\ProcedureType;
+use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use Flux\Flux;
@@ -94,6 +95,12 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public bool $procedureTypeIsActive = true;
 
+    #[Validate]
+    public string $roomNumber = '';
+
+    #[Validate]
+    public bool $roomIsActive = true;
+
     /**
      * Get the validation rules for the current tab.
      *
@@ -153,6 +160,10 @@ new #[Title('Management')] class extends Component
                 'procedureTypeName' => ['required', 'string', 'max:255', Rule::unique('procedure_types', 'name')->ignore($this->editingId)],
                 'procedureTypeIsActive' => ['boolean'],
             ],
+            'rooms' => [
+                'roomNumber' => ['required', 'string', 'max:255', Rule::unique('rooms', 'number')->ignore($this->editingId)],
+                'roomIsActive' => ['boolean'],
+            ],
             default => [],
         };
     }
@@ -181,6 +192,7 @@ new #[Title('Management')] class extends Component
             'servicePrices' => $this->loadServicePrice($id),
             'labTests' => $this->loadLabTest($id),
             'procedureTypes' => $this->loadProcedureType($id),
+            'rooms' => $this->loadRoom($id),
         };
 
         $this->showModal = true;
@@ -256,6 +268,17 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Load room data into the form.
+     */
+    private function loadRoom(int $id): void
+    {
+        $room = Room::findOrFail($id);
+
+        $this->roomNumber = $room->number;
+        $this->roomIsActive = $room->is_active;
+    }
+
+    /**
      * Reset all form fields.
      */
     private function resetForm(): void
@@ -285,6 +308,8 @@ new #[Title('Management')] class extends Component
             'labTestIsActive',
             'procedureTypeName',
             'procedureTypeIsActive',
+            'roomNumber',
+            'roomIsActive',
         ]);
 
         $this->resetErrorBag();
@@ -313,6 +338,7 @@ new #[Title('Management')] class extends Component
             'servicePrices' => $this->saveServicePrice($validated),
             'labTests' => $this->saveLabTest($validated),
             'procedureTypes' => $this->saveProcedureType($validated),
+            'rooms' => $this->saveRoom($validated),
         };
 
         $this->showModal = false;
@@ -439,6 +465,27 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Persist room data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveRoom(array $validated): void
+    {
+        $data = [
+            'number' => $validated['roomNumber'],
+            'is_active' => $validated['roomIsActive'],
+        ];
+
+        if ($this->editingId) {
+            Room::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Room updated.'));
+        } else {
+            Room::create($data);
+            Flux::toast(variant: 'success', text: __('Room created.'));
+        }
+    }
+
+    /**
      * Delete the current record.
      */
     public function delete(int $id): void
@@ -449,6 +496,7 @@ new #[Title('Management')] class extends Component
             'servicePrices' => ServicePrice::findOrFail($id)->delete(),
             'labTests' => LabTest::findOrFail($id)->delete(),
             'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
+            'rooms' => Room::findOrFail($id)->delete(),
         };
 
         Flux::toast(variant: 'success', text: __('Record deleted.'));
@@ -519,6 +567,17 @@ new #[Title('Management')] class extends Component
     {
         return ProcedureType::orderBy('name')->get();
     }
+
+    /**
+     * Get the list of rooms.
+     *
+     * @return Collection<int, Room>
+     */
+    #[Computed]
+    public function rooms(): Collection
+    {
+        return Room::orderBy('number')->get();
+    }
 }; ?>
 
 <div>
@@ -573,11 +632,49 @@ new #[Title('Management')] class extends Component
                         >
                             {{ __('Procedure Types') }}
                         </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('rooms')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'rooms' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Rooms') }}
+                        </button>
                     </nav>
                 </div>
 
                 <div class="mt-6">
-                @if ($activeTab === 'procedureTypes')
+                @if ($activeTab === 'rooms')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Room Number') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->rooms as $room)
+                                <flux:table.row wire:key="room-{{ $room->id }}">
+                                    <flux:table.cell>{{ $room->number }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $room->is_active ? 'green' : 'zinc' }}">
+                                            {{ $room->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $room->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $room->id }})" wire:confirm="{{ __('Are you sure you want to delete this room?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                        {{ __('No rooms found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'procedureTypes')
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
@@ -795,7 +892,7 @@ new #[Title('Management')] class extends Component
 
     <flux:modal wire:model="showModal" class="w-full max-w-lg">
         <flux:heading level="2">
-            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), default => __('Service Price') }]) }}
+            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
         </flux:heading>
 
         <form wire:submit="save" class="mt-6 space-y-6">
@@ -908,6 +1005,17 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="procedureTypeIsActive" :label="__('Active')" />
                     <flux:error name="procedureTypeIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'rooms')
+                <flux:field>
+                    <flux:label>{{ __('Room Number') }}</flux:label>
+                    <flux:input wire:model="roomNumber" type="text" required />
+                    <flux:error name="roomNumber" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="roomIsActive" :label="__('Active')" />
+                    <flux:error name="roomIsActive" />
                 </flux:field>
             @else
                 <flux:field>
