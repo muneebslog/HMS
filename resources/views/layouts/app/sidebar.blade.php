@@ -138,6 +138,9 @@
                         <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
                             {{ __('Notifications') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="inbox-arrow-down" :href="route('admin.reports')" :current="request()->routeIs('admin.reports')" wire:navigate>
+                            {{ __('Reports to Admin') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
                             {{ __('Supervisor Questions') }}
                         </flux:sidebar.item>

@@ -51,4 +51,10 @@ return [
         'enabled' => env('LAB_API_ENABLED', true),
     ],
 
+    'ntfy' => [
+        'base_url' => env('NTFY_BASE_URL', 'https://ntfy.sh'),
+        'admin_topic' => env('NTFY_ADMIN_TOPIC', 'mmc-hms'),
+        'reception_topic' => env('NTFY_RECEPTION_TOPIC', 'mmc-hms-reception'),
+    ],
+
 ];

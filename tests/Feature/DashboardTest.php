@@ -144,3 +144,24 @@ test('all notifications can be marked as read from the dashboard', function () {
 
     expect(AdminNotification::whereNull('read_at')->count())->toBe(0);
 });
+
+test('receptionist dashboard shows memo board and report to admin widgets', function () {
+    $user = User::factory()->receptionist()->create();
+
+    $response = $this->actingAs($user)->get(route('dashboard'));
+
+    $response->assertOk()
+        ->assertSee('Memo Board')
+        ->assertSee('Report to Admin')
+        ->assertDontSee('Notifications');
+});
+
+test('admin dashboard shows memo board and report to admin widgets', function () {
+    $user = User::factory()->admin()->create();
+
+    $response = $this->actingAs($user)->get(route('dashboard'));
+
+    $response->assertOk()
+        ->assertSee('Memo Board')
+        ->assertSee('Report to Admin');
+});

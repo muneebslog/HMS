@@ -472,7 +472,7 @@ test('reservation does not send a confirmation sms when no phone number is provi
         ->assertHasNoErrors();
 
     Queue::assertNothingPushed();
-    Http::assertNothingSent();
+    Http::assertNotSent(fn ($request) => $request->url() === 'https://api.veevotech.com/v3/sendsms');
     expect(SmsLog::count())->toBe(0);
 });
 

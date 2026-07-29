@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\AdminNotification;
+use App\Models\AdminReport;
+use App\Models\AdminReportMessage;
 use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\QueueToken;
+use App\Models\ReceptionMemo;
 use App\Models\RoleRequest;
 use App\Models\Shift;
 use App\Models\SupervisorChecklistEntry;
@@ -16,14 +19,25 @@ use App\Models\SupervisorChecklistResponse;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
     /**
-     * The ntfy.sh topic endpoint.
+     * Default ntfy priority for existing admin alerts.
      */
-    private string $ntfyEndpoint = 'https://ntfy.sh/mmc-hms';
+    private const DEFAULT_PRIORITY = 3;
+
+    /**
+     * ntfy priority for admin-facing report alerts.
+     */
+    private const ADMIN_PRIORITY = 5;
+
+    /**
+     * ntfy priority for receptionist-facing alerts.
+     */
+    private const RECEPTION_PRIORITY = 4;
 
     /**
      * Notify that a token was reserved without a patient phone number.
@@ -519,6 +533,117 @@ class NotificationService
     }
 
     /**
+     * Notify that a report-to-admin thread was created.
+     */
+    public function notifyAdminReportCreated(AdminReport $report, AdminReportMessage $message, User $user): ?AdminNotification
+    {
+        $title = __('New Report to Admin');
+        $body = __(
+            ':name opened a report: :subject',
+            [
+                'name' => $user->name,
+                'subject' => $report->subject,
+            ]
+        );
+        $actionUrl = route('admin.reports');
+        $metadata = [
+            'admin_report_id' => $report->id,
+            'admin_report_message_id' => $message->id,
+            'subject' => $report->subject,
+        ];
+
+        if ($user->isAdmin()) {
+            $this->sendNtfyPush(
+                $title,
+                $body,
+                $actionUrl,
+                self::RECEPTION_PRIORITY,
+                $this->receptionTopic()
+            );
+
+            return null;
+        }
+
+        return $this->createAdminNotification(
+            $user,
+            'admin_report_created',
+            $title,
+            $body,
+            $actionUrl,
+            $metadata,
+            self::ADMIN_PRIORITY,
+            $this->adminTopic()
+        );
+    }
+
+    /**
+     * Notify that a report-to-admin thread received a reply.
+     */
+    public function notifyAdminReportReplied(AdminReport $report, AdminReportMessage $message, User $user): ?AdminNotification
+    {
+        $title = __('Report Reply');
+        $body = __(
+            ':name replied on: :subject',
+            [
+                'name' => $user->name,
+                'subject' => $report->subject,
+            ]
+        );
+        $actionUrl = route('admin.reports');
+        $metadata = [
+            'admin_report_id' => $report->id,
+            'admin_report_message_id' => $message->id,
+            'subject' => $report->subject,
+        ];
+
+        if ($user->isAdmin()) {
+            $this->sendNtfyPush(
+                $title,
+                $body,
+                $actionUrl,
+                self::RECEPTION_PRIORITY,
+                $this->receptionTopic()
+            );
+
+            return null;
+        }
+
+        return $this->createAdminNotification(
+            $user,
+            'admin_report_replied',
+            $title,
+            $body,
+            $actionUrl,
+            $metadata,
+            self::ADMIN_PRIORITY,
+            $this->adminTopic()
+        );
+    }
+
+    /**
+     * Notify reception that a memo was posted to the board.
+     */
+    public function notifyReceptionMemoCreated(ReceptionMemo $memo, User $user): void
+    {
+        $title = __('New Reception Memo');
+        $body = __(
+            ':name posted: :title',
+            [
+                'name' => $user->name,
+                'title' => $memo->title,
+            ]
+        );
+
+        $this->sendNtfyPush(
+            $title,
+            $body,
+            route('dashboard'),
+            self::RECEPTION_PRIORITY,
+            $this->receptionTopic()
+        );
+    }
+
+    /**
      * Create an in-app admin notification and send an ntfy.sh push.
      *
      * @param  array<string, mixed>  $metadata
@@ -529,7 +654,9 @@ class NotificationService
         string $title,
         string $message,
         string $actionableUrl,
-        array $metadata = []
+        array $metadata = [],
+        int $priority = self::DEFAULT_PRIORITY,
+        ?string $topic = null
     ): AdminNotification {
         $notification = AdminNotification::create([
             'user_id' => $user->id,
@@ -540,7 +667,7 @@ class NotificationService
             'metadata' => $metadata,
         ]);
 
-        $this->sendNtfyPush($title, $message, $actionableUrl);
+        $this->sendNtfyPush($title, $message, $actionableUrl, $priority, $topic ?? $this->adminTopic());
 
         return $notification;
     }
@@ -548,38 +675,65 @@ class NotificationService
     /**
      * Send a push notification via ntfy.sh.
      */
-    private function sendNtfyPush(string $title, string $message, string $actionUrl): void
-    {
+    private function sendNtfyPush(
+        string $title,
+        string $message,
+        string $actionUrl,
+        int $priority = self::DEFAULT_PRIORITY,
+        ?string $topic = null
+    ): void {
+        $endpoint = $this->ntfyEndpoint($topic);
+
         try {
-            $headers = [
-                'Content-Type: text/plain',
-                "Title: {$title}",
-                "Actions: view, Open, {$actionUrl}",
-            ];
+            $response = Http::timeout(10)
+                ->withHeaders([
+                    'Title' => $title,
+                    'Priority' => (string) $priority,
+                    'Actions' => "view, Open, {$actionUrl}",
+                ])
+                ->withBody($message, 'text/plain')
+                ->post($endpoint);
 
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => implode("\n", $headers),
-                    'content' => $message,
-                    'timeout' => 10,
-                ],
-            ]);
-
-            $result = @file_get_contents($this->ntfyEndpoint, false, $context);
-
-            if ($result === false) {
+            if ($response->failed()) {
                 Log::warning('ntfy.sh push notification failed to send.', [
-                    'endpoint' => $this->ntfyEndpoint,
+                    'endpoint' => $endpoint,
                     'title' => $title,
+                    'status' => $response->status(),
                 ]);
             }
         } catch (\Throwable $e) {
             Log::error('Failed to send ntfy.sh push notification.', [
-                'endpoint' => $this->ntfyEndpoint,
+                'endpoint' => $endpoint,
                 'title' => $title,
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Resolve the full ntfy endpoint for a topic.
+     */
+    private function ntfyEndpoint(?string $topic = null): string
+    {
+        $baseUrl = rtrim((string) config('services.ntfy.base_url', 'https://ntfy.sh'), '/');
+        $resolvedTopic = $topic ?? $this->adminTopic();
+
+        return "{$baseUrl}/{$resolvedTopic}";
+    }
+
+    /**
+     * The admin ntfy topic.
+     */
+    private function adminTopic(): string
+    {
+        return (string) config('services.ntfy.admin_topic', 'mmc-hms');
+    }
+
+    /**
+     * The reception ntfy topic.
+     */
+    private function receptionTopic(): string
+    {
+        return (string) config('services.ntfy.reception_topic', 'mmc-hms-reception');
     }
 }
