@@ -53,6 +53,12 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - You must only create documentation files if explicitly requested by the user.
 
+## Database Structure
+
+- Prefer `databasestructure.md` over reading migrations when you need the current schema (tables, columns, FKs, indexes).
+- Whenever you create a migration **or** run `php artisan migrate` (including migrate:fresh / migrate:refresh), update `databasestructure.md` in the same change so it reflects the final schema after that migration.
+- Document the resulting table state (not the migration steps). Keep the same section style and conventions already used in the file.
+
 ## Replies
 
 - Be concise in your explanations - focus on what's important rather than explaining obvious details.
