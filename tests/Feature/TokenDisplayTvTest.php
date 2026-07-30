@@ -302,7 +302,7 @@ test('tv display calls the next token number in order', function () {
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('tv display serves a reserved token in numeric order and shows not arrived badge', function () {
+test('tv display shows a reserved token in numeric order without changing its status', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -334,7 +334,8 @@ test('tv display serves a reserved token in numeric order and shows not arrived 
             'queue' => $queue->id,
         ]);
 
-    expect($nextToken->fresh()->status)->toBe('serving');
+    expect($nextToken->fresh()->status)->toBe('reserved')
+        ->and($nextToken->fresh()->displayed_at)->not->toBeNull();
 
     $response = $this->get(route('display.tokens.tv', ['queue' => $queue->id]));
 

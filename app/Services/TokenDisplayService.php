@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\QueueToken;
 use App\Models\ServiceQueue;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class TokenDisplayService
@@ -14,8 +15,14 @@ class TokenDisplayService
     public function currentToken(ServiceQueue $queue): ?QueueToken
     {
         return $queue->tokens()
-            ->where('status', 'serving')
-            ->orderBy('created_at')
+            ->where(function ($query) {
+                $query->where('status', 'serving')
+                    ->orWhere(function ($query) {
+                        $query->where('status', 'reserved')
+                            ->whereNotNull('displayed_at');
+                    });
+            })
+            ->orderByDesc('displayed_at')
             ->first();
     }
 
@@ -26,14 +33,23 @@ class TokenDisplayService
     {
         return DB::transaction(function () use ($queue) {
             $current = QueueToken::where('service_queue_id', $queue->id)
-                ->where('status', 'serving')
+                ->where(function ($query) {
+                    $query->where('status', 'serving')
+                        ->orWhere(function ($query) {
+                            $query->where('status', 'reserved')
+                                ->whereNotNull('displayed_at');
+                        });
+                })
+                ->orderByDesc('displayed_at')
                 ->lockForUpdate()
                 ->first();
 
             $currentNumber = $current?->token_number ?? 0;
 
-            if ($current !== null) {
+            if ($current?->status === 'serving') {
                 $current->update(['status' => 'served']);
+            } elseif ($current?->status === 'reserved') {
+                $current->update(['displayed_at' => null]);
             }
 
             return $this->callNextToken($queue, $currentNumber);
@@ -68,7 +84,14 @@ class TokenDisplayService
     {
         return DB::transaction(function () use ($queue) {
             $current = QueueToken::where('service_queue_id', $queue->id)
-                ->where('status', 'serving')
+                ->where(function ($query) {
+                    $query->where('status', 'serving')
+                        ->orWhere(function ($query) {
+                            $query->where('status', 'reserved')
+                                ->whereNotNull('displayed_at');
+                        });
+                })
+                ->orderByDesc('displayed_at')
                 ->lockForUpdate()
                 ->first();
 
@@ -76,9 +99,13 @@ class TokenDisplayService
                 return null;
             }
 
-            $current->update([
-                'status' => $current->arrived_at !== null ? 'waiting' : 'reserved',
-            ]);
+            if ($current->status === 'serving') {
+                $current->update([
+                    'status' => $current->arrived_at !== null ? 'waiting' : 'reserved',
+                ]);
+            } else {
+                $current->update(['displayed_at' => null]);
+            }
 
             $previous = QueueToken::where('service_queue_id', $queue->id)
                 ->where('token_number', $current->token_number - 1)
@@ -89,10 +116,7 @@ class TokenDisplayService
                 return null;
             }
 
-            $previous->update([
-                'status' => 'serving',
-                'displayed_at' => now(),
-            ]);
+            $previous->update($this->displayAttributes($previous));
 
             return $previous->fresh();
         });
@@ -114,11 +138,27 @@ class TokenDisplayService
             return null;
         }
 
-        $next->update([
-            'status' => 'serving',
-            'displayed_at' => now(),
-        ]);
+        $next->update($this->displayAttributes($next));
 
         return $next->fresh();
+    }
+
+    /**
+     * Get the attributes used when displaying a token.
+     *
+     * Unarrived reservations remain reserved while still appearing on the TV.
+     *
+     * @return array{status?: string, displayed_at: Carbon}
+     */
+    private function displayAttributes(QueueToken $token): array
+    {
+        if ($token->status === 'reserved') {
+            return ['displayed_at' => now()];
+        }
+
+        return [
+            'status' => 'serving',
+            'displayed_at' => now(),
+        ];
     }
 }

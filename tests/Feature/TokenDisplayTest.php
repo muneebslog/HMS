@@ -246,9 +246,10 @@ test('call next selects the next token number in order', function () {
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('call next serves a reserved token in numeric order and shows not arrived badge', function () {
+test('call next displays reserved tokens in order without changing their status', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
+    $thirdPatient = Patient::factory()->create();
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -271,14 +272,28 @@ test('call next serves a reserved token in numeric order and shows not arrived b
         'token_number' => 2,
     ]);
 
+    $followingToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $thirdPatient->id,
+        'token_number' => 3,
+        'status' => 'waiting',
+    ]);
+
     $this->withSession(['display_pin_verified' => true]);
 
-    Livewire::test('pages::display.token-display')
+    $display = Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('callNext');
 
     expect($currentToken->fresh()->status)->toBe('served')
-        ->and($nextToken->fresh()->status)->toBe('serving');
+        ->and($nextToken->fresh()->status)->toBe('reserved')
+        ->and($nextToken->fresh()->displayed_at)->not->toBeNull();
+
+    $display->call('callNext');
+
+    expect($nextToken->fresh()->status)->toBe('reserved')
+        ->and($nextToken->fresh()->displayed_at)->toBeNull()
+        ->and($followingToken->fresh()->status)->toBe('serving');
 });
 
 test('display shows arrived badge for the current serving token', function () {
