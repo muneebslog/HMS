@@ -161,6 +161,8 @@ new #[Title('Token Flow')] class extends Component
                         <table class="w-full text-left text-sm">
                             <thead class="border-b border-zinc-200 dark:border-zinc-700">
                                 <tr>
+                                    <th class="py-3 pr-4 font-semibold">{{ __('Id') }}</th>
+
                                     <th class="cursor-pointer py-3 pr-4 font-semibold" wire:click="sortBy('token_number')">
                                         <span class="flex items-center gap-1">
                                             {{ __('Token #') }}
@@ -187,6 +189,9 @@ new #[Title('Token Flow')] class extends Component
                             <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                                 @forelse ($this->tokens as $token)
                                     <tr wire:key="token-flow-{{ $token->id }}">
+                                         <td class="py-3 pr-4">
+                                            {{ $token->id }}
+                                        </td>
                                         <td class="py-3 pr-4 font-semibold">{{ $token->token_number }}</td>
                                         <td class="py-3 pr-4">
                                             {{ $token->patient?->name ?? $token->invoiceItem?->invoice?->patient?->name ?? '-' }}
