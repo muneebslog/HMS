@@ -121,7 +121,9 @@ class Shift extends Model
      */
     public function totalWalkInSales(): float
     {
-        return $this->invoices()->sum('total') ?: 0.0;
+        return $this->invoices()
+            ->where('status', '!=', 'cancelled')
+            ->sum('total') ?: 0.0;
     }
 
     /**

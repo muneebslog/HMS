@@ -57,6 +57,7 @@ new #[Title('Daily Payout')] class extends Component
         return InvoiceItem::with('invoice')
             ->where('doctor_id', $doctor->id)
             ->whereDate('created_at', today())
+            ->whereHas('invoice', fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->orderBy('created_at')
             ->get();
     }

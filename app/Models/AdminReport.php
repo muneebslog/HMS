@@ -79,4 +79,29 @@ class AdminReport extends Model
     {
         return $query->where('status', AdminReportStatus::Open);
     }
+
+    /**
+     * Scope a query to reports visible to the given user.
+     *
+     * Admins can see every thread. Other users only see threads they created.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->isAdmin()) {
+            return $query;
+        }
+
+        return $query->where('created_by', $user->id);
+    }
+
+    /**
+     * Determine whether the given user may access this report.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        return $user->isAdmin() || $this->created_by === $user->id;
+    }
 }

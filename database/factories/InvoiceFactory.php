@@ -51,4 +51,14 @@ class InvoiceFactory extends Factory
             'status' => 'pending',
         ]);
     }
+
+    /**
+     * Mark the invoice as cancelled.
+     */
+    public function cancelled(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'cancelled',
+        ]);
+    }
 }

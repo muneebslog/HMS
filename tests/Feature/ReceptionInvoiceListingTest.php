@@ -49,6 +49,20 @@ test('walk-in invoices are listed for the current shift', function () {
         ->assertSee('Pending');
 });
 
+test('cancelled walk-in invoices are listed as cancelled', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = Invoice::factory()->cancelled()->create([
+        'created_by' => $user->id,
+        'shift_id' => $shift->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.invoices')
+        ->assertSee($invoice->invoice_number)
+        ->assertSee(__('Cancelled'));
+});
+
 test('walk-in invoices from other shifts are not listed', function () {
     $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();

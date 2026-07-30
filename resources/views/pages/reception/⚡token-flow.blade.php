@@ -203,7 +203,7 @@ new #[Title('Token Flow')] class extends Component
                                                 <flux:badge size="sm" color="zinc">{{ __('Walk-in') }}</flux:badge>
                                             @endif
                                         </td>
-                                        <td class="py-3 pr-4">
+                                    \      <td class="py-3 pr-4">
                                             {{ $token->created_at->format('Y-m-d H:i') }}
                                         </td>
                                         <td class="py-3 pr-4">

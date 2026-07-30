@@ -49,7 +49,10 @@ new class extends Component
     #[Computed]
     public function reports(): Collection
     {
+        $user = auth()->user();
+
         return AdminReport::query()
+            ->visibleTo($user)
             ->with(['creator', 'messages' => fn ($query) => $query->latest()->limit(1)])
             ->withCount('messages')
             ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", [AdminReportStatus::Open->value])
@@ -68,7 +71,12 @@ new class extends Component
             return null;
         }
 
-        return AdminReport::with(['creator', 'messages.user'])->find($this->selectedReportId);
+        $user = auth()->user();
+
+        return AdminReport::query()
+            ->visibleTo($user)
+            ->with(['creator', 'messages.user'])
+            ->find($this->selectedReportId);
     }
 
     /**
@@ -77,6 +85,12 @@ new class extends Component
     public function selectReport(int $reportId): void
     {
         $this->ensureAuthorized();
+
+        $report = $this->findVisibleReport($reportId);
+
+        if ($report === null) {
+            abort(403);
+        }
 
         $this->selectedReportId = $reportId;
         $this->replyBody = '';
@@ -161,10 +175,10 @@ new class extends Component
             'replyBody' => ['required', 'string', 'max:5000'],
         ]);
 
-        $report = AdminReport::find($this->selectedReportId);
+        $report = $this->findVisibleReport($this->selectedReportId);
 
         if ($report === null) {
-            return;
+            abort(403);
         }
 
         $user = auth()->user();
@@ -195,10 +209,10 @@ new class extends Component
     {
         $this->ensureAuthorized();
 
-        $report = AdminReport::find($this->selectedReportId);
+        $report = $this->findVisibleReport($this->selectedReportId);
 
         if ($report === null) {
-            return;
+            abort(403);
         }
 
         $report->update(['status' => AdminReportStatus::Closed]);
@@ -215,6 +229,26 @@ new class extends Component
         if ($user === null || (! $user->isAdmin() && ! $user->isReceptionist())) {
             abort(403);
         }
+    }
+
+    /**
+     * Find a report that the current user is allowed to access.
+     */
+    private function findVisibleReport(?int $reportId): ?AdminReport
+    {
+        if ($reportId === null) {
+            return null;
+        }
+
+        $user = auth()->user();
+
+        if ($user === null) {
+            return null;
+        }
+
+        return AdminReport::query()
+            ->visibleTo($user)
+            ->find($reportId);
     }
 }; ?>
 

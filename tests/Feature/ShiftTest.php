@@ -253,6 +253,27 @@ test('shift summary reflects created invoices', function () {
         ->totalSales()->toBe(400.00);
 });
 
+test('cancelled walk-in invoices are excluded from shift sales totals', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 100.00,
+    ]);
+
+    Invoice::factory()->paid()->create([
+        'shift_id' => $shift->id,
+        'total' => 150.00,
+        'created_by' => $user->id,
+    ]);
+
+    Invoice::factory()->cancelled()->create([
+        'shift_id' => $shift->id,
+        'total' => 80.00,
+        'created_by' => $user->id,
+    ]);
+
+    expect($shift->fresh()->totalWalkInSales())->toBe(150.00);
+});
+
 test('user can add an expense to an open shift', function () {
     $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();

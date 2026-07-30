@@ -72,6 +72,51 @@ test('selecting a doctor shows services and calculated share for the date range'
         ->assertSee(number_format(60.00, 2));
 });
 
+test('cancelled invoices are excluded from doctor payout totals', function () {
+    $user = User::factory()->management()->create();
+    Shift::factory()->for($user)->open()->create();
+    $doctor = Doctor::factory()->create();
+    $service = Service::factory()->create(['name' => 'Consultation']);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'price' => 200.00,
+        'doctor_share' => 30.00,
+    ]);
+
+    $paidInvoice = Invoice::factory()->paid()->create(['created_by' => $user->id]);
+    InvoiceItem::factory()->create([
+        'invoice_id' => $paidInvoice->id,
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'service_name' => $service->name,
+        'doctor_name' => $doctor->name,
+        'price' => 200.00,
+        'doctor_share' => 30.00,
+        'created_at' => now()->subDay(),
+    ]);
+
+    $cancelledInvoice = Invoice::factory()->cancelled()->create(['created_by' => $user->id]);
+    InvoiceItem::factory()->create([
+        'invoice_id' => $cancelledInvoice->id,
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'service_name' => $service->name,
+        'doctor_name' => $doctor->name,
+        'price' => 500.00,
+        'doctor_share' => 30.00,
+        'created_at' => now()->subDay(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::payout.doctor')
+        ->set('fromDate', now()->subDays(2)->toDateString())
+        ->set('toDate', now()->toDateString())
+        ->call('viewDoctor', $doctor->id)
+        ->assertSee(number_format(200.00, 2))
+        ->assertDontSee(number_format(500.00, 2));
+});
+
 test('marking share paid creates a range payout record', function () {
     $user = User::factory()->management()->create();
     Shift::factory()->for($user)->open()->create();

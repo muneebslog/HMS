@@ -83,6 +83,146 @@ class NotificationService
     }
 
     /**
+     * Notify that an admin updated a queue token patient's details.
+     *
+     * @param  array{name: ?string, phone: ?string}  $before
+     * @param  array{name: ?string, phone: ?string}  $after
+     */
+    public function notifyTokenPatientUpdated(
+        User $admin,
+        QueueToken $token,
+        array $before,
+        array $after
+    ): AdminNotification {
+        $title = __('✏️ Token Patient Details Updated');
+        $message = __(
+            'Admin :name updated patient details for token :number.',
+            [
+                'name' => $admin->name,
+                'number' => $token->token_number,
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $admin,
+            'token_patient_updated',
+            $title,
+            $message,
+            route('reception.queue'),
+            [
+                'token_id' => $token->id,
+                'token_number' => $token->token_number,
+                'queue_id' => $token->service_queue_id,
+                'patient_id' => $token->patient_id,
+                'before' => $before,
+                'after' => $after,
+            ]
+        );
+    }
+
+    /**
+     * Notify that an admin reversed a queue token status.
+     */
+    public function notifyTokenStatusReversed(
+        User $admin,
+        QueueToken $token,
+        string $fromStatus,
+        string $toStatus
+    ): AdminNotification {
+        $title = __('↩️ Token Status Reversed');
+        $message = __(
+            'Admin :name changed token :number from :from to :to.',
+            [
+                'name' => $admin->name,
+                'number' => $token->token_number,
+                'from' => $fromStatus,
+                'to' => $toStatus,
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $admin,
+            'token_status_reversed',
+            $title,
+            $message,
+            route('reception.queue'),
+            [
+                'token_id' => $token->id,
+                'token_number' => $token->token_number,
+                'queue_id' => $token->service_queue_id,
+                'before' => ['status' => $fromStatus],
+                'after' => ['status' => $toStatus],
+            ]
+        );
+    }
+
+    /**
+     * Notify that an admin cancelled an invoice attached to a token.
+     */
+    public function notifyInvoiceCancelled(
+        User $admin,
+        QueueToken $token,
+        string $invoiceNumber
+    ): AdminNotification {
+        $title = __('🧾 Invoice Cancelled');
+        $message = __(
+            'Admin :name cancelled invoice :invoice for token :number.',
+            [
+                'name' => $admin->name,
+                'invoice' => $invoiceNumber,
+                'number' => $token->token_number,
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $admin,
+            'invoice_cancelled',
+            $title,
+            $message,
+            route('reception.invoices'),
+            [
+                'token_id' => $token->id,
+                'token_number' => $token->token_number,
+                'queue_id' => $token->service_queue_id,
+                'invoice_number' => $invoiceNumber,
+            ]
+        );
+    }
+
+    /**
+     * Notify that an admin reverted (removed) a reserved token.
+     *
+     * @param  array{token_id: int, token_number: int, queue_id: int, patient_id: ?int, patient_name: ?string}  $snapshot
+     */
+    public function notifyReservationReverted(User $admin, array $snapshot): AdminNotification
+    {
+        $title = __('🗑️ Reservation Reverted');
+        $message = __(
+            'Admin :name removed reserved token :number for :patient.',
+            [
+                'name' => $admin->name,
+                'number' => $snapshot['token_number'],
+                'patient' => $snapshot['patient_name'] ?? __('Unknown'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $admin,
+            'reservation_reverted',
+            $title,
+            $message,
+            route('reception.queue'),
+            [
+                'token_id' => $snapshot['token_id'],
+                'token_number' => $snapshot['token_number'],
+                'queue_id' => $snapshot['queue_id'],
+                'patient_id' => $snapshot['patient_id'],
+                'patient_name' => $snapshot['patient_name'],
+            ]
+        );
+    }
+
+    /**
      * Notify that a lab invoice has in-house tests missing numeric codes.
      *
      * @param  Collection<int, LabInvoiceItem>  $items

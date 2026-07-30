@@ -263,6 +263,8 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.cell>
                                 @if ($invoice->status === 'paid')
                                     <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                                @elseif ($invoice->status === 'cancelled')
+                                    <flux:badge size="sm" color="red">{{ __('Cancelled') }}</flux:badge>
                                 @else
                                     <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
                                 @endif
@@ -319,6 +321,8 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.cell>
                                 @if ($invoice->status === 'paid')
                                     <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                                @elseif ($invoice->status === 'cancelled')
+                                    <flux:badge size="sm" color="red">{{ __('Cancelled') }}</flux:badge>
                                 @else
                                     <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
                                 @endif

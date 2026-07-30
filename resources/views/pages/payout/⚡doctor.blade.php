@@ -88,6 +88,7 @@ new #[Title('Doctor Payout')] class extends Component
                 Carbon::parse($this->fromDate)->startOfDay(),
                 Carbon::parse($this->toDate)->endOfDay(),
             ])
+            ->whereHas('invoice', fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->orderBy('created_at')
             ->get();
     }
