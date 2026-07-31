@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_07_30_002459_create_reception_memo_reads_table`.
+> Last reviewed against migrations through `2026_07_31_221128_create_monthly_expenses_table`.
 
 Conventions used below:
 
@@ -265,6 +265,20 @@ Conventions used below:
 | amount | decimal(12,2) | |
 | timestamps | | |
 | | | IDX `(shift_id, user_id)` |
+
+### `monthly_expenses`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| user_id | FK → users | cascadeOnDelete |
+| name | string | |
+| amount | decimal(12,2) | |
+| expense_date | date | IDX |
+| notes | text | nullable |
+| timestamps | | |
+| | | IDX `(expense_date, user_id)` |
+
+Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to shifts and do not affect shift balances.
 
 ### `doctor_payouts`
 | Column | Type | Notes |
@@ -706,6 +720,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    └── ultrasound_reports
         │            └── print_jobs
         │
+        ├── monthly_expenses
         ├── doctors (optional user_id link)
         ├── employees ──┬── employee_documents
         │               └── employee_todos

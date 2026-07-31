@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])
             ->name('admin.policy-journals.download');
         Route::livewire('admin/reports', 'pages::admin.reports')->name('admin.reports');
+        Route::livewire('admin/monthly-report', 'pages::admin.monthly-report')->name('admin.monthly-report');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
