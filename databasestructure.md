@@ -634,17 +634,55 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 |--------|------|-------|
 | id | bigint | PK |
 | name | string | |
+| father_name | string | nullable |
+| cnic | string | nullable, UQ |
+| date_of_birth | date | nullable |
+| sex | string | nullable |
+| religion_sect | string | nullable |
+| caste | string | nullable |
+| marital_status | string | nullable |
 | email | string | nullable |
 | phone | string | nullable |
+| current_address | text | nullable |
+| permanent_address | text | nullable |
+| emergency_contact | string | nullable |
+| languages | string | nullable |
+| distance_time_from_hospital | string | nullable |
 | designation | string | nullable |
 | department | string | nullable, IDX |
 | joining_date | date | nullable |
 | employment_type | string | default `full_time` |
 | status | string | default `active`, IDX |
 | notes | text | nullable |
+| undertaking_accepted | boolean | default false |
+| undertaking_accepted_at | timestamp | nullable |
 | user_id | FK → users | nullable, nullOnDelete |
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | created_by | FK → users | |
+| timestamps | | |
+
+### `employee_qualifications`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| employee_id | FK → employees | cascadeOnDelete |
+| course | string | course / degree / specialization |
+| passing_year | unsignedSmallInteger | nullable |
+| institution | string | nullable |
+| document_path | string | nullable |
+| original_name | string | nullable |
+| created_by | FK → users | |
+| timestamps | | |
+
+### `employee_experiences`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| employee_id | FK → employees | cascadeOnDelete |
+| company | string | |
+| date_of_joining | date | |
+| date_of_leaving | date | nullable |
+| reason_for_leaving | text | nullable |
 | timestamps | | |
 
 ### `employee_documents`
@@ -723,7 +761,9 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         ├── monthly_expenses
         ├── doctors (optional user_id link)
         ├── employees ──┬── employee_documents
-        │               └── employee_todos
+        │               ├── employee_todos
+        │               ├── employee_qualifications
+        │               └── employee_experiences
         ├── role_requests
         ├── admin_notifications / admin_reports / reception_memos
         ├── kanban_items ── kanban_item_comments

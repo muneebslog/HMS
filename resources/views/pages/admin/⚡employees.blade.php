@@ -171,15 +171,21 @@ new #[Title('Staff Profiles')] class extends Component
         if ($this->editingId === null) {
             $data['created_by'] = auth()->id();
 
-            Employee::create($data);
+            $employee = Employee::create($data);
+
+            $this->closeModal();
 
             Flux::toast(variant: 'success', text: __('Staff profile created successfully.'));
-        } else {
-            $employee = Employee::findOrFail($this->editingId);
-            $employee->update($data);
 
-            Flux::toast(variant: 'success', text: __('Staff profile updated successfully.'));
+            $this->redirect(route('admin.employees.profile', $employee), navigate: true);
+
+            return;
         }
+
+        $employee = Employee::findOrFail($this->editingId);
+        $employee->update($data);
+
+        Flux::toast(variant: 'success', text: __('Staff profile updated successfully.'));
 
         $this->closeModal();
     }
@@ -264,62 +270,71 @@ new #[Title('Staff Profiles')] class extends Component
             </flux:select>
         </div>
 
-        <flux:card>
-            <flux:table>
-                <flux:table.columns>
-                    <flux:table.column>{{ __('Name') }}</flux:table.column>
-                    <flux:table.column>{{ __('Designation') }}</flux:table.column>
-                    <flux:table.column>{{ __('Department') }}</flux:table.column>
-                    <flux:table.column>{{ __('Type') }}</flux:table.column>
-                    <flux:table.column>{{ __('Status') }}</flux:table.column>
-                    <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                </flux:table.columns>
-
-                <flux:table.rows>
-                    @forelse ($this->employees as $employee)
-                        <flux:table.row wire:key="employee-{{ $employee->id }}">
-                            <flux:table.cell>
-                                <div class="flex flex-col">
-                                    <span class="font-medium">{{ $employee->name }}</span>
-                                    @if ($employee->email)
-                                        <span class="text-xs text-zinc-500">{{ $employee->email }}</span>
+        @if ($this->employees->isEmpty())
+            <flux:card>
+                <div class="py-8 text-center text-zinc-500">
+                    {{ __('No staff profiles found.') }}
+                </div>
+            </flux:card>
+        @else
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                @foreach ($this->employees as $employee)
+                    <flux:card wire:key="employee-{{ $employee->id }}" class="flex flex-col gap-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
+                                <flux:heading level="3" class="mt-1 truncate text-lg">{{ $employee->name }}</flux:heading>
+                                <flux:text class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                                    {{ $employee->designation ?: __('No post held') }}
+                                    @if ($employee->department)
+                                        &middot; {{ $employee->department }}
                                     @endif
-                                </div>
-                            </flux:table.cell>
-                            <flux:table.cell>{{ $employee->designation ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>{{ $employee->department ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>{{ $this->employmentTypeLabel($employee->employment_type) }}</flux:table.cell>
-                            <flux:table.cell>
-                                <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
-                                    {{ ucfirst($employee->status) }}
-                                </flux:badge>
-                            </flux:table.cell>
-                            <flux:table.cell class="text-right">
-                                <flux:button size="sm" variant="ghost" icon="eye" :href="route('admin.employees.profile', $employee)" wire:navigate class="me-2">
-                                    {{ __('View') }}
-                                </flux:button>
-                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editEmployee({{ $employee->id }})" class="me-2">
-                                    {{ __('Edit') }}
-                                </flux:button>
-                                <flux:button size="sm" variant="ghost" wire:click="toggleStatus({{ $employee->id }})" wire:confirm="{{ __('Are you sure you want to change the status?') }}">
-                                    {{ $employee->status === 'active' ? __('Deactivate') : __('Activate') }}
-                                </flux:button>
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @empty
-                        <flux:table.row>
-                            <flux:table.cell colspan="6" class="text-center text-zinc-500">
-                                {{ __('No staff profiles found.') }}
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @endforelse
-                </flux:table.rows>
-            </flux:table>
+                                </flux:text>
+                            </div>
 
-            <div class="mt-4">
+                            <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
+                                {{ ucfirst($employee->status) }}
+                            </flux:badge>
+                        </div>
+
+                        <div class="space-y-1 text-sm">
+                            <flux:text>
+                                <span class="text-zinc-500">{{ __('Type') }}:</span>
+                                {{ $this->employmentTypeLabel($employee->employment_type) }}
+                            </flux:text>
+                            @if ($employee->phone)
+                                <flux:text>
+                                    <span class="text-zinc-500">{{ __('Contact') }}:</span>
+                                    {{ $employee->phone }}
+                                </flux:text>
+                            @endif
+                            @if ($employee->email)
+                                <flux:text class="truncate">
+                                    <span class="text-zinc-500">{{ __('Email') }}:</span>
+                                    {{ $employee->email }}
+                                </flux:text>
+                            @endif
+                        </div>
+
+                        <div class="mt-auto flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                            <flux:button size="sm" variant="primary" icon="eye" :href="route('admin.employees.profile', $employee)" wire:navigate>
+                                {{ __('View') }}
+                            </flux:button>
+                            <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editEmployee({{ $employee->id }})">
+                                {{ __('Edit') }}
+                            </flux:button>
+                            <flux:button size="sm" variant="ghost" wire:click="toggleStatus({{ $employee->id }})" wire:confirm="{{ __('Are you sure you want to change the status?') }}">
+                                {{ $employee->status === 'active' ? __('Deactivate') : __('Activate') }}
+                            </flux:button>
+                        </div>
+                    </flux:card>
+                @endforeach
+            </div>
+
+            <div class="mt-2">
                 {{ $this->employees->links() }}
             </div>
-        </flux:card>
+        @endif
     </div>
 
     <flux:modal wire:model="showModal" class="w-full max-w-2xl">
@@ -342,7 +357,7 @@ new #[Title('Staff Profiles')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Phone') }}</flux:label>
+                    <flux:label>{{ __('Contact Number') }}</flux:label>
                     <flux:input wire:model="phone" />
                     <flux:error name="phone" />
                 </flux:field>
@@ -354,7 +369,7 @@ new #[Title('Staff Profiles')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Designation') }}</flux:label>
+                    <flux:label>{{ __('Post Held') }}</flux:label>
                     <flux:input wire:model="designation" placeholder="{{ __('e.g. Nurse, Admin Officer') }}" />
                     <flux:error name="designation" />
                 </flux:field>

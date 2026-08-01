@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\EmployeeFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,14 +21,28 @@ class Employee extends Model
      */
     protected $fillable = [
         'name',
+        'father_name',
+        'cnic',
+        'date_of_birth',
+        'sex',
+        'religion_sect',
+        'caste',
+        'marital_status',
         'email',
         'phone',
+        'current_address',
+        'permanent_address',
+        'emergency_contact',
+        'languages',
+        'distance_time_from_hospital',
         'designation',
         'department',
         'joining_date',
         'employment_type',
         'status',
         'notes',
+        'undertaking_accepted',
+        'undertaking_accepted_at',
         'user_id',
         'doctor_id',
         'created_by',
@@ -42,6 +57,9 @@ class Employee extends Model
     {
         return [
             'joining_date' => 'date',
+            'date_of_birth' => 'date',
+            'undertaking_accepted' => 'boolean',
+            'undertaking_accepted_at' => 'datetime',
         ];
     }
 
@@ -51,6 +69,18 @@ class Employee extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    /**
+     * Computed age in years from date of birth.
+     *
+     * @return Attribute<int|null, never>
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?int => $this->date_of_birth?->age,
+        );
     }
 
     /**
@@ -101,6 +131,26 @@ class Employee extends Model
     public function todos(): HasMany
     {
         return $this->hasMany(EmployeeTodo::class)->latest('due_date');
+    }
+
+    /**
+     * The qualifications attached to this employee.
+     *
+     * @return HasMany<EmployeeQualification, $this>
+     */
+    public function qualifications(): HasMany
+    {
+        return $this->hasMany(EmployeeQualification::class)->latest('passing_year');
+    }
+
+    /**
+     * The work experiences attached to this employee.
+     *
+     * @return HasMany<EmployeeExperience, $this>
+     */
+    public function experiences(): HasMany
+    {
+        return $this->hasMany(EmployeeExperience::class)->latest('date_of_joining');
     }
 
     /**

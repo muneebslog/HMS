@@ -3,8 +3,11 @@
 use App\Models\AdminNotification;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\EmployeeExperience;
+use App\Models\EmployeeQualification;
 use App\Models\EmployeeTodo;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +26,8 @@ test('admin can view staff profiles list', function () {
     $this->actingAs($admin)
         ->get(route('admin.employees'))
         ->assertOk()
-        ->assertSee($employee->name);
+        ->assertSee($employee->name)
+        ->assertSee('#'.$employee->id);
 });
 
 test('non-admin cannot access staff profiles', function () {
@@ -35,7 +39,7 @@ test('non-admin cannot access staff profiles', function () {
         ->assertForbidden();
 });
 
-test('admin can create a staff profile', function () {
+test('admin can create a staff profile and is redirected to profile', function () {
     $admin = User::factory()->admin()->create();
 
     Livewire::actingAs($admin)
@@ -48,7 +52,8 @@ test('admin can create a staff profile', function () {
         ->set('employmentType', 'full_time')
         ->set('status', 'active')
         ->call('saveEmployee')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        ->assertRedirect(route('admin.employees.profile', Employee::where('email', 'amina@example.com')->first()));
 
     $this->assertDatabaseHas('employees', [
         'name' => 'Dr. Amina Khan',
@@ -59,7 +64,7 @@ test('admin can create a staff profile', function () {
     ]);
 });
 
-test('admin can update employee info from profile page', function () {
+test('admin can update employee info from profile page with undertaking', function () {
     $admin = User::factory()->admin()->create();
     $employee = Employee::factory()->create(['name' => 'Old Name']);
 
@@ -67,15 +72,45 @@ test('admin can update employee info from profile page', function () {
         ->test('pages::admin.employee-profile', ['employee' => $employee])
         ->call('startEditingInfo')
         ->set('name', 'New Name')
+        ->set('fatherName', 'Ali Khan')
+        ->set('cnic', '35202-1234567-1')
+        ->set('dateOfBirth', '1990-05-15')
+        ->set('sex', 'female')
+        ->set('religionSect', 'Islam')
+        ->set('caste', 'Rajput')
+        ->set('maritalStatus', 'married')
+        ->set('currentAddress', 'Lahore')
+        ->set('permanentAddress', 'Multan')
+        ->set('emergencyContact', '03009876543')
+        ->set('languages', 'Urdu, English')
+        ->set('distanceTimeFromHospital', '10 km / 20 min')
         ->set('designation', 'Senior Nurse')
+        ->set('undertakingAccepted', true)
         ->call('saveInfo')
         ->assertHasNoErrors();
 
-    $this->assertDatabaseHas('employees', [
-        'id' => $employee->id,
-        'name' => 'New Name',
-        'designation' => 'Senior Nurse',
-    ]);
+    $employee->refresh();
+
+    expect($employee->name)->toBe('New Name')
+        ->and($employee->father_name)->toBe('Ali Khan')
+        ->and($employee->cnic)->toBe('35202-1234567-1')
+        ->and($employee->designation)->toBe('Senior Nurse')
+        ->and($employee->undertaking_accepted)->toBeTrue()
+        ->and($employee->undertaking_accepted_at)->not->toBeNull()
+        ->and($employee->age)->toBe(Carbon::parse('1990-05-15')->age);
+});
+
+test('saving employee info requires undertaking', function () {
+    $admin = User::factory()->admin()->create();
+    $employee = Employee::factory()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('startEditingInfo')
+        ->set('name', 'Updated Name')
+        ->set('undertakingAccepted', false)
+        ->call('saveInfo')
+        ->assertHasErrors(['undertakingAccepted']);
 });
 
 test('admin can upload a document for an employee', function () {
@@ -102,6 +137,96 @@ test('admin can upload a document for an employee', function () {
 
     $document = EmployeeDocument::first();
     Storage::disk('local')->assertExists($document->file_path);
+});
+
+test('admin can add update and delete a qualification', function () {
+    $admin = User::factory()->admin()->create();
+    $employee = Employee::factory()->create();
+    $file = UploadedFile::fake()->create('mbbs.pdf', 100);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('openQualificationModal')
+        ->set('qualificationCourse', 'MBBS')
+        ->set('qualificationPassingYear', '2015')
+        ->set('qualificationInstitution', 'King Edward Medical University')
+        ->set('qualificationDocument', $file)
+        ->call('saveQualification')
+        ->assertHasNoErrors();
+
+    $qualification = EmployeeQualification::first();
+    expect($qualification)->not->toBeNull()
+        ->and($qualification->course)->toBe('MBBS')
+        ->and($qualification->passing_year)->toBe(2015)
+        ->and($qualification->original_name)->toBe('mbbs.pdf');
+
+    Storage::disk('local')->assertExists($qualification->document_path);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('editQualification', $qualification->id)
+        ->set('qualificationCourse', 'MBBS (Honours)')
+        ->call('saveQualification')
+        ->assertHasNoErrors();
+
+    expect($qualification->fresh()->course)->toBe('MBBS (Honours)');
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('deleteQualification', $qualification->id)
+        ->assertHasNoErrors();
+
+    expect(EmployeeQualification::count())->toBe(0);
+});
+
+test('admin can add update and delete experience', function () {
+    $admin = User::factory()->admin()->create();
+    $employee = Employee::factory()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('openExperienceModal')
+        ->set('experienceCompany', 'City Hospital')
+        ->set('experienceDateOfJoining', '2018-01-01')
+        ->set('experienceDateOfLeaving', '2020-06-30')
+        ->set('experienceReasonForLeaving', 'Relocated')
+        ->call('saveExperience')
+        ->assertHasNoErrors();
+
+    $experience = EmployeeExperience::first();
+    expect($experience)->not->toBeNull()
+        ->and($experience->company)->toBe('City Hospital')
+        ->and($experience->reason_for_leaving)->toBe('Relocated');
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('editExperience', $experience->id)
+        ->set('experienceCompany', 'City General Hospital')
+        ->call('saveExperience')
+        ->assertHasNoErrors();
+
+    expect($experience->fresh()->company)->toBe('City General Hospital');
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('deleteExperience', $experience->id)
+        ->assertHasNoErrors();
+
+    expect(EmployeeExperience::count())->toBe(0);
+});
+
+test('admin can download qualification document', function () {
+    $admin = User::factory()->admin()->create();
+    $qualification = EmployeeQualification::factory()->create([
+        'document_path' => 'employee-qualifications/1/doc.pdf',
+        'original_name' => 'doc.pdf',
+    ]);
+    Storage::disk('local')->put($qualification->document_path, 'file content');
+
+    $this->actingAs($admin)
+        ->get(route('employee-qualifications.download', $qualification))
+        ->assertOk()
+        ->assertDownload('doc.pdf');
 });
 
 test('admin can add and complete a todo', function () {
