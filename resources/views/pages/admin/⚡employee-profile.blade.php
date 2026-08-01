@@ -1522,7 +1522,7 @@ new #[Title('Staff Profile')] class extends Component
 
         <form wire:submit="saveExperience" class="mt-6 space-y-6">
             <flux:field>
-                <flux:label>{{ __('Company') }}</flux:label>
+                <flux:label>{{ __('Organization / Hospital') }}</flux:label>
                 <flux:input wire:model="experienceCompany" required />
                 <flux:error name="experienceCompany" />
             </flux:field>
