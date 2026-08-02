@@ -497,6 +497,21 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | timestamps | | |
 | | | IDX `(status, created_at)` |
 
+### `pdf_print_jobs`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| user_id | FK → users | cascadeOnDelete (uploader) |
+| original_filename | string | |
+| disk_path | string | path on `local` disk under `pdf-print-jobs/` |
+| status | string | default `pending` (`PrintJobStatus`) |
+| attempts | unsignedTinyInteger | default 0 |
+| printed_at | timestamp | nullable |
+| failed_at | timestamp | nullable |
+| error_message | text | nullable |
+| timestamps | | |
+| | | IDX `(status, created_at)` |
+
 ---
 
 ## Admin / Ops
@@ -784,6 +799,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    └── ultrasound_reports
         │            └── print_jobs
         │
+        ├── pdf_print_jobs
         ├── monthly_expenses
         ├── doctors (optional user_id link)
         ├── employees ──┬── employee_documents

@@ -39,6 +39,10 @@ return [
         'token' => env('PRINT_AGENT_TOKEN'),
     ],
 
+    'pdf_print_agent' => [
+        'token' => env('PDF_PRINT_AGENT_TOKEN'),
+    ],
+
     'veevo_sms' => [
         'enabled' => env('VEEVO_SMS_ENABLED', false),
         'hash' => env('VEEVO_SMS_HASH'),

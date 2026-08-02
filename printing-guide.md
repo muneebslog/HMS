@@ -499,3 +499,38 @@ Authorization: Bearer <PRINT_AGENT_TOKEN>
 - [ ] Agent runs on startup (PM2 or Task Scheduler)
 - [ ] Test invoice printed successfully
 - [ ] Monitoring page shows the job as `printed`
+
+---
+
+## PDF Printing (HP LaserJet)
+
+PDF printing uses a **separate queue and agent** from thermal receipts.
+
+### Server
+
+1. Set `PDF_PRINT_AGENT_TOKEN` in `.env` (different from the thermal token).
+2. Admins open **Administration → PDF Print** (`/admin/pdf-print`), upload a PDF, and queue it.
+3. Agent API (Bearer `PDF_PRINT_AGENT_TOKEN`):
+   - `GET /api/pdf-print-jobs/pending`
+   - `GET /api/pdf-print-jobs/{job}/file`
+   - `POST /api/pdf-print-jobs/{job}/printed`
+   - `POST /api/pdf-print-jobs/{job}/failed` with `{ "error_message": "..." }`
+
+### Agent (separate repo)
+
+The PDF agent lives **outside** this HMS repository (e.g. `D:\Projects\hms-pdf-print-agent`) so it can have its own GitHub repo.
+
+Configure it with:
+
+```json
+{
+  "apiBaseUrl": "http://192.168.100.104",
+  "apiToken": "<PDF_PRINT_AGENT_TOKEN>",
+  "pollIntervalMs": 2000,
+  "printer": {
+    "name": "HP LaserJet Professional M1132 MFP"
+  }
+}
+```
+
+It polls pending jobs, downloads each PDF, prints via Windows PrintTo to the HP LaserJet, then reports printed/failed.

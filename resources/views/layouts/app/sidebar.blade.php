@@ -150,6 +150,9 @@
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
                             {{ __('Monthly Report') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
+                            {{ __('PDF Print') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
                             {{ __('Supervisor Questions') }}
                         </flux:sidebar.item>
