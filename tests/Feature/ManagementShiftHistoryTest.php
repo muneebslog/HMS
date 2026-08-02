@@ -99,6 +99,40 @@ test('invoices from other shifts are not shown in the shift detail modal', funct
         ->assertDontSee($otherInvoice->invoice_number);
 });
 
+test('shift detail modal shows cash to receive reconciliation breakdown', function () {
+    $user = User::factory()->management()->create();
+    $shift = Shift::factory()->for($user)->closed()->create([
+        'opening_balance' => 1000.00,
+        'closing_balance' => 1700.00,
+    ]);
+
+    Invoice::factory()->create([
+        'shift_id' => $shift->id,
+        'total' => 500.00,
+        'created_by' => $user->id,
+    ]);
+
+    LabInvoice::factory()->create([
+        'shift_id' => $shift->id,
+        'total' => 300.00,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.shift-history')
+        ->call('viewShift', $shift->id)
+        ->assertSee(__('Cash to Receive'))
+        ->assertSee(__('Walk-in Sales'))
+        ->assertSee(__('Lab Sales'))
+        ->assertSee(__('Procedure Payments'))
+        ->assertSee(__('Daily Payouts'))
+        ->assertSee(number_format(1000.00, 2))
+        ->assertSee(number_format(500.00, 2))
+        ->assertSee(number_format(300.00, 2))
+        ->assertSee(number_format(1800.00, 2))
+        ->assertSee(number_format(1700.00, 2));
+});
+
 test('modal can be closed', function () {
     $user = User::factory()->management()->create();
     $shift = Shift::factory()->for($user)->closed()->create();

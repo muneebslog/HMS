@@ -140,31 +140,8 @@ new #[Title('Dashboard')] class extends Component
                             &middot; {{ $this->currentShift->user->name }}
                         </flux:text>
 
-                        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Opening Balance') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->currentShift->opening_balance, 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Walk-in Sales') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->currentShift->totalWalkInSales(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Lab Sales') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->currentShift->totalLabSales(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Procedure Payments') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->currentShift->totalProcedureSales(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->currentShift->totalSales(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Expected Cash') }}</flux:text>
-                                <flux:heading level="3">{{ number_format($this->currentShift->expectedCash(), 2) }}</flux:heading>
-                            </div>
+                        <div class="mt-6 rounded-lg bg-zinc-50 p-4 dark:bg-zinc-800/50 sm:p-5">
+                            <x-shift-cash-breakdown :shift="$this->currentShift" />
                         </div>
 
                         <div class="mt-6 flex justify-end">
@@ -200,31 +177,8 @@ new #[Title('Dashboard')] class extends Component
                             &middot; {{ $this->lastClosedShift->user->name }}
                         </flux:text>
 
-                        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Opening Balance') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->lastClosedShift->opening_balance, 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Closing Balance') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->lastClosedShift->closing_balance, 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
-                                <flux:text class="font-semibold">{{ number_format($this->lastClosedShift->totalSales(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Expenses') }}</flux:text>
-                                <flux:text class="font-semibold text-red-600">-{{ number_format($this->lastClosedShift->totalExpenses(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Daily Payouts') }}</flux:text>
-                                <flux:text class="font-semibold text-red-600">-{{ number_format($this->lastClosedShift->totalDailyPayouts(), 2) }}</flux:text>
-                            </div>
-                            <div>
-                                <flux:text class="text-zinc-500">{{ __('Expected Cash') }}</flux:text>
-                                <flux:heading level="3">{{ number_format($this->lastClosedShift->expectedCash(), 2) }}</flux:heading>
-                            </div>
+                        <div class="mt-6 rounded-lg bg-zinc-50 p-4 dark:bg-zinc-800/50 sm:p-5">
+                            <x-shift-cash-breakdown :shift="$this->lastClosedShift" :show-closing-balance="true" />
                         </div>
 
                         <div class="mt-6 flex justify-end">

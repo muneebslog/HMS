@@ -41,6 +41,7 @@ test('management users see current and last closed shift finance stats', functio
     $response->assertOk()
         ->assertSee('Current Shift')
         ->assertSee('150.00')
+        ->assertSee('Cash to Receive')
         ->assertSee('Last Closed Shift')
         ->assertSee('225.50');
 });

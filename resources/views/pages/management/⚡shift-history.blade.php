@@ -158,7 +158,7 @@ new #[Title('Shift History')] class extends Component
                     <flux:table.column>{{ __('Opening') }}</flux:table.column>
                     <flux:table.column>{{ __('Sales') }}</flux:table.column>
                     <flux:table.column>{{ __('Expenses') }}</flux:table.column>
-                    <flux:table.column>{{ __('Expected Cash') }}</flux:table.column>
+                    <flux:table.column>{{ __('Cash to Receive') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                 </flux:table.columns>
 
@@ -209,49 +209,8 @@ new #[Title('Shift History')] class extends Component
                     <flux:badge size="sm" color="zinc">{{ __('Closed') }}</flux:badge>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-700 sm:grid-cols-4">
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Opening Balance') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->opening_balance, 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Closing Balance') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->closing_balance, 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Total Sales') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->totalSales(), 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Expected Cash') }}</flux:text>
-                        <flux:heading level="3">{{ number_format($this->selectedShift->expectedCash(), 2) }}</flux:heading>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-700 sm:grid-cols-3">
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Walk-in Sales') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->totalWalkInSales(), 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Lab Sales') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->totalLabSales(), 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Procedure Payments') }}</flux:text>
-                        <flux:text class="font-semibold">{{ number_format($this->selectedShift->totalProcedureSales(), 2) }}</flux:text>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-700 sm:grid-cols-2">
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Expenses') }}</flux:text>
-                        <flux:text class="font-semibold text-red-600">-{{ number_format($this->selectedShift->totalExpenses(), 2) }}</flux:text>
-                    </div>
-                    <div>
-                        <flux:text class="text-zinc-500">{{ __('Daily Payouts') }}</flux:text>
-                        <flux:text class="font-semibold text-red-600">-{{ number_format($this->selectedShift->totalDailyPayouts(), 2) }}</flux:text>
-                    </div>
+                <div class="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-800/50 sm:p-6">
+                    <x-shift-cash-breakdown :shift="$this->selectedShift" :show-closing-balance="true" />
                 </div>
 
                 <div>

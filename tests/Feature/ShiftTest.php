@@ -442,7 +442,7 @@ test('closing a shift with doctor payouts does not create a payout notification'
     expect(AdminNotification::where('type', 'shift_closed_without_doctor_payouts')->count())->toBe(0);
 });
 
-test('shift page shows expected cash reconciliation', function () {
+test('shift page shows cash to receive reconciliation breakdown', function () {
     $user = User::factory()->receptionist()->create();
     $shift = Shift::factory()->for($user)->open()->create([
         'opening_balance' => 1000.00,
@@ -467,10 +467,19 @@ test('shift page shows expected cash reconciliation', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
+        ->assertSee(__('Opening Balance'))
+        ->assertSee(__('Walk-in Sales'))
+        ->assertSee(__('Lab Sales'))
+        ->assertSee(__('Procedure Payments'))
+        ->assertSee(__('Total Sales'))
+        ->assertSee(__('Daily Payouts'))
+        ->assertSee(__('Expenses'))
+        ->assertSee(__('Cash to Receive'))
         ->assertSee(number_format(1000.00, 2))
         ->assertSee(number_format(500.00, 2))
         ->assertSee(number_format(300.00, 2))
         ->assertSee(number_format(50.00, 2))
+        ->assertSee(number_format(1800.00, 2))
         ->assertSee(number_format(1750.00, 2));
 
     expect($shift->fresh()->expectedCash())->toBe(1750.00);
