@@ -281,15 +281,23 @@ new #[Title('Staff Profiles')] class extends Component
                 @foreach ($this->employees as $employee)
                     <flux:card wire:key="employee-{{ $employee->id }}" class="flex flex-col gap-4">
                         <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
-                                <flux:heading level="3" class="mt-1 truncate text-lg">{{ $employee->name }}</flux:heading>
-                                <flux:text class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-                                    {{ $employee->designation ?: __('No post held') }}
-                                    @if ($employee->department)
-                                        &middot; {{ $employee->department }}
-                                    @endif
-                                </flux:text>
+                            <div class="flex min-w-0 items-start gap-3">
+                                @if ($employee->hasPhoto())
+                                    <flux:avatar size="md" :src="$employee->photoUrl()" :name="$employee->name" :initials="$employee->initials()" class="shrink-0" />
+                                @else
+                                    <flux:avatar size="md" :name="$employee->name" :initials="$employee->initials()" class="shrink-0" />
+                                @endif
+
+                                <div class="min-w-0">
+                                    <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
+                                    <flux:heading level="3" class="mt-1 truncate text-lg">{{ $employee->name }}</flux:heading>
+                                    <flux:text class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                                        {{ $employee->designation ?: __('No post held') }}
+                                        @if ($employee->department)
+                                            &middot; {{ $employee->department }}
+                                        @endif
+                                    </flux:text>
+                                </div>
                             </div>
 
                             <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">

@@ -113,6 +113,61 @@ test('saving employee info requires undertaking', function () {
         ->assertHasErrors(['undertakingAccepted']);
 });
 
+test('admin can upload and remove a staff profile photo', function () {
+    $admin = User::factory()->admin()->create();
+    $employee = Employee::factory()->create();
+    $file = UploadedFile::fake()->image('portrait.jpg', 400, 400);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->set('photo', $file)
+        ->call('savePhoto')
+        ->assertHasNoErrors();
+
+    $employee->refresh();
+
+    expect($employee->hasPhoto())->toBeTrue();
+    Storage::disk('local')->assertExists($employee->photo_path);
+
+    $photoPath = $employee->photo_path;
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.employee-profile', ['employee' => $employee])
+        ->call('removePhoto')
+        ->assertHasNoErrors();
+
+    $employee->refresh();
+
+    expect($employee->hasPhoto())->toBeFalse()
+        ->and($employee->photo_path)->toBeNull();
+
+    Storage::disk('local')->assertMissing($photoPath);
+});
+
+test('admin can view staff profile photo', function () {
+    $admin = User::factory()->admin()->create();
+    $employee = Employee::factory()->create([
+        'photo_path' => 'employee-photos/1/portrait.jpg',
+    ]);
+    Storage::disk('local')->put($employee->photo_path, 'fake-image-content');
+
+    $this->actingAs($admin)
+        ->get(route('employee-photos.show', $employee))
+        ->assertOk();
+});
+
+test('non-admin cannot view staff profile photo', function () {
+    $user = User::factory()->receptionist()->create();
+    $employee = Employee::factory()->create([
+        'photo_path' => 'employee-photos/1/portrait.jpg',
+    ]);
+    Storage::disk('local')->put($employee->photo_path, 'fake-image-content');
+
+    $this->actingAs($user)
+        ->get(route('employee-photos.show', $employee))
+        ->assertForbidden();
+});
+
 test('admin can upload a document for an employee', function () {
     $admin = User::factory()->admin()->create();
     $employee = Employee::factory()->create();

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Employee extends Model
 {
@@ -41,6 +42,7 @@ class Employee extends Model
         'employment_type',
         'status',
         'notes',
+        'photo_path',
         'undertaking_accepted',
         'undertaking_accepted_at',
         'user_id',
@@ -159,5 +161,37 @@ class Employee extends Model
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    /**
+     * Determine whether the employee has a profile photo.
+     */
+    public function hasPhoto(): bool
+    {
+        return filled($this->photo_path);
+    }
+
+    /**
+     * Get the URL for the employee's profile photo, if any.
+     */
+    public function photoUrl(): ?string
+    {
+        if (! $this->hasPhoto()) {
+            return null;
+        }
+
+        return route('employee-photos.show', $this);
+    }
+
+    /**
+     * Get the employee's initials for avatar fallbacks.
+     */
+    public function initials(): string
+    {
+        return Str::of($this->name)
+            ->explode(' ')
+            ->take(2)
+            ->map(fn ($word) => Str::substr($word, 0, 1))
+            ->implode('');
     }
 }

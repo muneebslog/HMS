@@ -3,6 +3,7 @@
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\EmployeePhotoController;
 use App\Http\Controllers\EmployeeQualificationDownloadController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
@@ -58,6 +59,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::get('employee-documents/{document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
+        Route::get('employee-photos/{employee}', EmployeePhotoController::class)->name('employee-photos.show');
         Route::get('employee-qualifications/{qualification}/download', EmployeeQualificationDownloadController::class)->name('employee-qualifications.download');
     });
 

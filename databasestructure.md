@@ -654,6 +654,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | employment_type | string | default `full_time` |
 | status | string | default `active`, IDX |
 | notes | text | nullable |
+| photo_path | string | nullable |
 | undertaking_accepted | boolean | default false |
 | undertaking_accepted_at | timestamp | nullable |
 | user_id | FK → users | nullable, nullOnDelete |

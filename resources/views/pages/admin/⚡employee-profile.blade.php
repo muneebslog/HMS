@@ -66,6 +66,8 @@ new #[Title('Staff Profile')] class extends Component
 
     public string $notes = '';
 
+    public $photo;
+
     public bool $undertakingAccepted = false;
 
     public ?int $linkedUserId = null;
@@ -337,6 +339,58 @@ new #[Title('Staff Profile')] class extends Component
         $this->resetInfoForm();
 
         Flux::toast(variant: 'success', text: __('Profile updated successfully.'));
+    }
+
+    /**
+     * Upload a new profile photo for the employee.
+     */
+    public function savePhoto(): void
+    {
+        $this->validate([
+            'photo' => ['required', 'image', 'max:5120'],
+        ]);
+
+        /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile $file */
+        $file = $this->photo;
+
+        if (filled($this->employee->photo_path)) {
+            Storage::disk('local')->delete($this->employee->photo_path);
+        }
+
+        $path = $file->store("employee-photos/{$this->employee->id}", 'local');
+
+        $this->employee->update(['photo_path' => $path]);
+        $this->employee->refresh();
+        $this->photo = null;
+        $this->resetValidation('photo');
+
+        Flux::toast(variant: 'success', text: __('Photo uploaded successfully.'));
+    }
+
+    /**
+     * Clear a pending photo selection without saving.
+     */
+    public function cancelPhotoSelection(): void
+    {
+        $this->photo = null;
+        $this->resetValidation('photo');
+    }
+
+    /**
+     * Remove the employee's profile photo.
+     */
+    public function removePhoto(): void
+    {
+        if (filled($this->employee->photo_path)) {
+            Storage::disk('local')->delete($this->employee->photo_path);
+            $this->employee->update(['photo_path' => null]);
+            $this->employee->refresh();
+        }
+
+        $this->photo = null;
+        $this->resetValidation('photo');
+
+        Flux::toast(variant: 'success', text: __('Photo removed successfully.'));
     }
 
     /**
@@ -803,18 +857,73 @@ new #[Title('Staff Profile')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-3">
-                <flux:button size="sm" variant="ghost" icon="arrow-left" :href="route('admin.employees')" wire:navigate>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-start gap-4">
+                <flux:button size="sm" variant="ghost" icon="arrow-left" :href="route('admin.employees')" wire:navigate class="mt-1">
                     {{ __('Back') }}
                 </flux:button>
-                <div>
-                    <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
-                    <div class="flex items-center gap-3">
-                        <flux:heading level="1">{{ $employee->name }}</flux:heading>
-                        <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
-                            {{ ucfirst($employee->status) }}
-                        </flux:badge>
+
+                <div class="flex items-start gap-4">
+                    <div class="flex flex-col items-center gap-2">
+                        @if ($photo)
+                            <img
+                                src="{{ $photo->temporaryUrl() }}"
+                                alt="{{ $employee->name }}"
+                                class="size-20 rounded-full object-cover"
+                            />
+                        @elseif ($employee->hasPhoto())
+                            <flux:avatar size="xl" :src="$employee->photoUrl()" :name="$employee->name" :initials="$employee->initials()" />
+                        @else
+                            <flux:avatar size="xl" :name="$employee->name" :initials="$employee->initials()" />
+                        @endif
+
+                        <div class="flex flex-col items-center gap-1">
+                            <label class="cursor-pointer">
+                                <span class="text-xs font-medium text-zinc-600 hover:underline dark:text-zinc-300">
+                                    {{ $employee->hasPhoto() || $photo ? __('Change photo') : __('Upload photo') }}
+                                </span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    wire:model="photo"
+                                    class="sr-only"
+                                />
+                            </label>
+
+                            @if ($photo)
+                                <flux:button size="sm" variant="primary" wire:click="savePhoto" wire:loading.attr="disabled">
+                                    <span wire:loading.remove wire:target="savePhoto">{{ __('Save photo') }}</span>
+                                    <span wire:loading wire:target="savePhoto">{{ __('Saving...') }}</span>
+                                </flux:button>
+                                <flux:button size="sm" variant="ghost" wire:click="cancelPhotoSelection">
+                                    {{ __('Cancel') }}
+                                </flux:button>
+                            @elseif ($employee->hasPhoto())
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    wire:click="removePhoto"
+                                    wire:confirm="{{ __('Are you sure you want to remove this photo?') }}"
+                                >
+                                    {{ __('Remove') }}
+                                </flux:button>
+                            @endif
+                        </div>
+
+                        <div wire:loading wire:target="photo" class="text-xs text-zinc-500">
+                            {{ __('Uploading...') }}
+                        </div>
+                        <flux:error name="photo" />
+                    </div>
+
+                    <div>
+                        <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
+                        <div class="flex items-center gap-3">
+                            <flux:heading level="1">{{ $employee->name }}</flux:heading>
+                            <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
+                                {{ ucfirst($employee->status) }}
+                            </flux:badge>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1020,7 +1129,7 @@ new #[Title('Staff Profile')] class extends Component
                         <flux:heading level="3" class="mb-3 text-base">{{ __('Undertaking') }}</flux:heading>
                         <flux:checkbox
                             wire:model="undertakingAccepted"
-                            label="{{ __('I :name s/o, d/o :father, do hereby undertake that all the above given info are correct to the best of my knowledge and belief and nothing concealed therein.', ['name' => $name ?: __('[Name]'), 'father' => $fatherName ?: __('[Father Name]')]) }}"
+                            label="{{ __('I :name s/o, d/o :father, do hereby undertake that all the above given information are correct to the best of my knowledge and belief and nothing concealed therein.', ['name' => $name ?: __('[Name]'), 'father' => $fatherName ?: __('[Father Name]')]) }}"
                         />
                         <flux:error name="undertakingAccepted" />
                     </div>
