@@ -8,6 +8,7 @@ use App\Http\Controllers\EmployeeQualificationDownloadController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\ProcedureFileController;
+use App\Http\Controllers\Reception\ProcedurePrintController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
@@ -101,6 +102,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');
+            Route::get('reception/procedures/{procedure}/print', ProcedurePrintController::class)->name('reception.procedures.print');
             Route::get('reception/ultrasound/{report}/print', fn (UltrasoundReport $report) => view('ultrasound.print', compact('report')))->name('reception.ultrasound.print');
         });
 

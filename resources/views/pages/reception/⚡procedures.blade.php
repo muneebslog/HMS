@@ -873,7 +873,18 @@ new #[Title('Procedures')] class extends Component
                 </div>
                 <div>
                     <flux:text class="text-zinc-500">{{ __('Balance') }}</flux:text>
-                    <flux:text>{{ number_format($viewedBalance, 2) }}</flux:text>
+                    <div class="flex items-center gap-2">
+                        <flux:text>{{ number_format($viewedBalance, 2) }}</flux:text>
+                        <flux:button
+                            size="sm"
+                            variant="ghost"
+                            icon="printer"
+                            :href="route('reception.procedures.print', $this->viewedProcedure)"
+                            target="_blank"
+                        >
+                            {{ __('Print') }}
+                        </flux:button>
+                    </div>
                 </div>
             </div>
 
