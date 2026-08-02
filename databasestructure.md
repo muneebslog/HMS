@@ -123,6 +123,7 @@ Conventions used below:
 | id | bigint | PK |
 | name | string | |
 | is_standalone | boolean | default false |
+| needs_vitals | boolean | default false |
 | token_reset_type | string | default `shift` (`TokenResetType`) |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
@@ -342,6 +343,20 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | called_at | timestamp | IDX |
 | notes | text | nullable |
 | timestamps | | |
+
+### `vitals`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| queue_token_id | FK → queue_tokens | unique, cascadeOnDelete |
+| patient_id | FK → patients | cascadeOnDelete |
+| recorded_by | FK → users | cascadeOnDelete |
+| temperature | decimal(4,1) | °C |
+| bp_systolic | unsignedSmallInteger | mmHg |
+| bp_diastolic | unsignedSmallInteger | mmHg |
+| timestamps | | |
+
+One vitals row per queue token. Presence means vitals are done; token status is unchanged.
 
 ### `sms_logs`
 | Column | Type | Notes |

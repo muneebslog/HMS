@@ -66,6 +66,9 @@ new #[Title('Management')] class extends Component
     public bool $serviceIsStandalone = false;
 
     #[Validate]
+    public bool $serviceNeedsVitals = false;
+
+    #[Validate]
     public string $serviceTokenResetType = 'shift';
 
     #[Validate]
@@ -158,6 +161,7 @@ new #[Title('Management')] class extends Component
                     },
                 ],
                 'serviceIsStandalone' => ['boolean'],
+                'serviceNeedsVitals' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
                 'serviceIsActive' => ['boolean'],
             ],
@@ -243,6 +247,7 @@ new #[Title('Management')] class extends Component
 
         $this->serviceName = $service->name;
         $this->serviceIsStandalone = $service->is_standalone;
+        $this->serviceNeedsVitals = $service->needs_vitals;
         $this->serviceTokenResetType = $service->token_reset_type->value;
         $this->serviceIsActive = $service->is_active;
     }
@@ -313,6 +318,7 @@ new #[Title('Management')] class extends Component
             'doctorIsActive',
             'serviceName',
             'serviceIsStandalone',
+            'serviceNeedsVitals',
             'serviceTokenResetType',
             'serviceIsActive',
             'priceServiceId',
@@ -401,6 +407,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['serviceName'],
             'is_standalone' => $validated['serviceIsStandalone'],
+            'needs_vitals' => $validated['serviceNeedsVitals'],
             'token_reset_type' => $validated['serviceTokenResetType'],
             'is_active' => $validated['serviceIsActive'],
         ];
@@ -1185,6 +1192,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Standalone') }}</flux:table.column>
+                            <flux:table.column>{{ __('Needs Vitals') }}</flux:table.column>
                             <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -1197,6 +1205,13 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>
                                         @if ($service->is_standalone)
                                             <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->needs_vitals)
+                                            <flux:badge size="sm" color="amber">{{ __('Yes') }}</flux:badge>
                                         @else
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
@@ -1216,7 +1231,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -1314,6 +1329,11 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="serviceIsStandalone" :label="__('Standalone service')" />
                     <flux:error name="serviceIsStandalone" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceNeedsVitals" :label="__('Needs vitals')" />
+                    <flux:error name="serviceNeedsVitals" />
                 </flux:field>
 
                 <flux:field>

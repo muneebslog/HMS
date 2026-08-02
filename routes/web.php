@@ -96,6 +96,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
+            Route::livewire('reception/vitals', 'pages::reception.vitals')->name('reception.vitals');
             Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');

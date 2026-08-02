@@ -24,6 +24,7 @@ class Service extends Model
     protected $fillable = [
         'name',
         'is_standalone',
+        'needs_vitals',
         'token_reset_type',
         'is_active',
     ];
@@ -34,6 +35,7 @@ class Service extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'needs_vitals' => false,
         'is_active' => true,
     ];
 
@@ -46,6 +48,7 @@ class Service extends Model
     {
         return [
             'is_standalone' => 'boolean',
+            'needs_vitals' => 'boolean',
             'token_reset_type' => TokenResetType::class,
             'is_active' => 'boolean',
         ];

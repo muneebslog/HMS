@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class QueueToken extends Model
 {
@@ -70,6 +71,16 @@ class QueueToken extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
+    }
+
+    /**
+     * Get the vitals recorded for this token.
+     *
+     * @return HasOne<Vital, $this>
+     */
+    public function vital(): HasOne
+    {
+        return $this->hasOne(Vital::class);
     }
 
     /**

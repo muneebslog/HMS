@@ -21,6 +21,7 @@ class ServiceFactory extends Factory
         return [
             'name' => fake()->words(3, true),
             'is_standalone' => fake()->boolean(),
+            'needs_vitals' => false,
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
             'is_active' => true,
         ];
@@ -33,6 +34,16 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    /**
+     * Indicate that the service requires vitals before the doctor.
+     */
+    public function needsVitals(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'needs_vitals' => true,
         ]);
     }
 }

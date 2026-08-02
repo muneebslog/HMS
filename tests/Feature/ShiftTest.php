@@ -136,6 +136,10 @@ test('receptionist is redirected to shift page when accessing reception without 
     $this->actingAs($user)
         ->get(route('reception.lab-entry'))
         ->assertRedirect(route('reception.shift'));
+
+    $this->actingAs($user)
+        ->get(route('reception.vitals'))
+        ->assertRedirect(route('reception.shift'));
 });
 
 test('management is redirected to shift page when accessing invoices without an open shift', function () {
