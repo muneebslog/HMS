@@ -280,23 +280,25 @@ new #[Title('Lab Entry')] class extends Component
 
         <flux:card>
             <div class="grid grid-cols-1 items-start gap-6 md:grid-cols-12">
-                <flux:field class="md:col-span-4">
-                    <flux:label>{{ __('Patient name') }}</flux:label>
-                    <flux:input wire:model="patientName" type="text" required />
-                    <flux:error name="patientName" />
-                </flux:field>
-
-                <div class="md:col-span-4">
+                <div class="md:col-span-6">
                     @include('partials.reception.patient-intake')
                 </div>
 
-                <flux:field class="md:col-span-2">
+                @if ($this->shouldShowPatientNameField())
+                    <flux:field class="md:col-span-6">
+                        <flux:label>{{ __('Patient name') }}</flux:label>
+                        <flux:input wire:model="patientName" type="text" required />
+                        <flux:error name="patientName" />
+                    </flux:field>
+                @endif
+
+                <flux:field class="md:col-span-3">
                     <flux:label>{{ __('Age') }}</flux:label>
                     <flux:input wire:model="patientAge" type="number" min="0" max="150" required />
                     <flux:error name="patientAge" />
                 </flux:field>
 
-                <flux:field class="md:col-span-2">
+                <flux:field class="md:col-span-3">
                     <flux:label>{{ __('Gender') }}</flux:label>
                     <flux:select wire:model="patientGender" required>
                         <option value="">{{ __('Select') }}</option>

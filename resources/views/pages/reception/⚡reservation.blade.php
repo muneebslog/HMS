@@ -85,7 +85,6 @@ new #[Title('Reservations')] class extends Component
             $this->patientPhone = '';
             $this->hasNoPhone = false;
             $this->selectedPatientId = null;
-            $this->patientMrnSearch = '';
             $this->matchedPatients = [];
             $this->showReserveModal = true;
 
@@ -181,7 +180,6 @@ new #[Title('Reservations')] class extends Component
         $this->patientPhone = '';
         $this->hasNoPhone = false;
         $this->selectedPatientId = null;
-        $this->patientMrnSearch = '';
         $this->matchedPatients = [];
         $this->resetValidation();
     }
@@ -406,13 +404,15 @@ new #[Title('Reservations')] class extends Component
         </flux:heading>
 
         <form wire:submit="reserve" class="mt-6 space-y-6">
-            <flux:field>
-                <flux:label>{{ __('Patient name') }}</flux:label>
-                <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
-                <flux:error name="patientName" />
-            </flux:field>
-
             @include('partials.reception.patient-intake')
+
+            @if ($this->shouldShowPatientNameField())
+                <flux:field>
+                    <flux:label>{{ __('Patient name') }}</flux:label>
+                    <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
+                    <flux:error name="patientName" />
+                </flux:field>
+            @endif
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="closeReserveModal">

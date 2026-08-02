@@ -145,3 +145,77 @@ test('procedure creation without phone notifies admin', function () {
     expect(Patient::first()->contactPhone())->toBeNull();
     expect(AdminNotification::where('type', 'patient_without_phone')->count())->toBe(1);
 });
+
+test('walk-in shows patient name field only when creating a new person', function () {
+    $user = User::factory()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Existing']);
+
+    $component = Livewire::actingAs($user)->test('pages::reception.walkin');
+
+    expect($component->instance()->shouldShowPatientNameField())->toBeFalse();
+
+    $component->set('hasNoPhone', true);
+    expect($component->instance()->shouldShowPatientNameField())->toBeTrue();
+
+    $component->set('hasNoPhone', false)->set('patientPhone', '03009998877');
+    expect($component->instance()->shouldShowPatientNameField())->toBeTrue();
+
+    $component->set('patientPhone', intakePhone())->call('selectMatchedPatient', $existing->id);
+    expect($component->instance()->shouldShowPatientNameField())->toBeFalse()
+        ->and($component->get('patientName'))->toBe('Existing');
+
+    $component->call('addNewFamilyMember');
+    expect($component->instance()->shouldShowPatientNameField())->toBeTrue()
+        ->and($component->get('patientName'))->toBe('');
+});
+
+test('reservation shows patient name field only when creating a new person', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Reserved Patient']);
+    $service = Service::factory()->create([
+        'name' => 'Consultation',
+        'is_standalone' => false,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $doctor = Doctor::factory()->create();
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'price' => 250,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5);
+
+    expect($component->instance()->shouldShowPatientNameField())->toBeFalse();
+
+    $component->set('patientPhone', intakePhone())->call('selectMatchedPatient', $existing->id);
+    expect($component->instance()->shouldShowPatientNameField())->toBeFalse();
+
+    $component->call('addNewFamilyMember');
+    expect($component->instance()->shouldShowPatientNameField())->toBeTrue();
+});
+
+test('lab entry and procedures show patient name field only when creating a new person', function () {
+    $user = User::factory()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Shared Patient']);
+
+    $lab = Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientPhone', intakePhone())
+        ->call('selectMatchedPatient', $existing->id);
+    expect($lab->instance()->shouldShowPatientNameField())->toBeFalse();
+    $lab->call('addNewFamilyMember');
+    expect($lab->instance()->shouldShowPatientNameField())->toBeTrue();
+
+    $procedures = Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('patientPhone', intakePhone())
+        ->call('selectMatchedPatient', $existing->id);
+    expect($procedures->instance()->shouldShowPatientNameField())->toBeFalse();
+    $procedures->call('addNewFamilyMember');
+    expect($procedures->instance()->shouldShowPatientNameField())->toBeTrue();
+});

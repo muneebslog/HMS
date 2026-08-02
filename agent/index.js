@@ -5,17 +5,23 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
-const {
-  buildLabItemDetails,
-  shouldPrintLabItemPrice,
-  shouldPrintInvoiceTotal,
-} = require('./receipt-format');
+const QRCode = require('qrcode');
 
 function toWindowsDevicePath(port) {
   if (/^(COM|ESDPRT)\d+$/i.test(port)) {
     return `\\\\.\\${port}`;
   }
   return port;
+}
+
+async function printQrCodeAsImage(printer, url) {
+  const pngBuffer = await QRCode.toBuffer(url, {
+    type: 'png',
+    width: 300,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+  });
+  await printer.printImageBuffer(pngBuffer);
 }
 
 function setLeftMargin(printer, columns) {
@@ -171,7 +177,6 @@ function buildPrinter() {
 
 async function printReceipt(printer, job) {
   const invoice = job.invoice;
-  const isLabInvoice = job.payload?.type === 'lab_invoice';
 
   // Shift the whole receipt to the right so the printer does not clip
   // the leftmost characters.
@@ -186,6 +191,10 @@ async function printReceipt(printer, job) {
   printer.println(config.subHeaderText || 'Invoice Receipt');
 
   const copyFor = invoice.copy_for;
+  const isLabInvoice = job.payload?.type === 'lab_invoice';
+  const isLabCopy = typeof copyFor === 'string' && copyFor.toLowerCase() === 'lab';
+  const isPatientCopy = typeof copyFor === 'string' && copyFor.toLowerCase() === 'patient';
+
   if (copyFor) {
     printer.newLine();
     printer.alignCenter();
@@ -207,24 +216,15 @@ async function printReceipt(printer, job) {
   printer.println(invoice.patient.name.toUpperCase());
   printer.setTextNormal();
   printer.bold(false);
-
-  if (isLabInvoice) {
-    const patient = invoice.patient;
-    const demographics = [];
-    if (patient.mrn) {
-      demographics.push(`MRN: ${patient.mrn}`);
-    }
-    if (patient.age) {
-      demographics.push(`Age: ${patient.age}`);
-    }
-    if (patient.gender) {
-      demographics.push(`Gender: ${patient.gender.toUpperCase()}`);
-    }
-    if (demographics.length > 0) {
-      printer.println(demographics.join(' | '));
+  if (isLabInvoice && invoice.patient) {
+    const patientDetails = [];
+    if (invoice.patient.mrn) patientDetails.push(`MRN: ${invoice.patient.mrn}`);
+    if (invoice.patient.age) patientDetails.push(`Age: ${invoice.patient.age}`);
+    if (invoice.patient.gender) patientDetails.push(`Gender: ${invoice.patient.gender}`);
+    if (patientDetails.length > 0) {
+      printer.println(patientDetails.join(' | '));
     }
   }
-
   printer.newLine();
 
   const tokenItem = invoice.items.find((item) => item.token_number);
@@ -245,12 +245,20 @@ async function printReceipt(printer, job) {
       printer.println(item.service_name);
       printer.bold(false);
 
-      const details = buildLabItemDetails(item, copyFor);
-      if (details.length > 0) {
-        printer.println(`  ${details.join(' | ')}`);
+      if (!isPatientCopy) {
+        const details = [];
+        if (item.test_code) {
+          details.push(`Code: ${item.test_code}`);
+        }
+        if (item.time_required) {
+          details.push(`Time: ${item.time_required}`);
+        }
+        if (details.length > 0) {
+          printer.println(`  ${details.join(' | ')}`);
+        }
       }
 
-      if (shouldPrintLabItemPrice(copyFor)) {
+      if (!isLabCopy) {
         const priceLabel = '  Price:';
         const priceValue = item.price.toFixed(2);
         const pricePadding = Math.max(0, printer.getWidth() - priceLabel.length - priceValue.length);
@@ -267,26 +275,34 @@ async function printReceipt(printer, job) {
     }
   });
 
-  if (shouldPrintInvoiceTotal(copyFor)) {
-    printer.drawLine();
-    printer.bold(true);
-    const totalLabel = 'TOTAL';
-    const totalValue = invoice.total.toFixed(2);
-    const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
-    printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
-    printer.bold(false);
-  } else {
-    printer.drawLine();
-  }
+  printer.drawLine();
+  printer.bold(true);
+  const totalLabel = 'TOTAL';
+  const totalValue = invoice.total.toFixed(2);
+  const padding = Math.max(0, printer.getWidth() - totalLabel.length - totalValue.length);
+  printer.println(`${totalLabel}${' '.repeat(padding)}${totalValue}`);
+  printer.bold(false);
 
   if (invoice.qr_url) {
-    printer.newLine();
-    printer.alignCenter();
-    printer.println('Scan for invoice details');
-    printer.printQR(invoice.qr_url, { cellSize: 5, correction: 'M' });
-    printer.setTextNormal();
-    printer.alignCenter();
-    printer.println(invoice.qr_url);
+    if (!isLabCopy) {
+      printer.newLine();
+      printer.alignCenter();
+      printer.println('Scan for invoice details');
+
+      if (isLabInvoice) {
+        try {
+          await printQrCodeAsImage(printer, invoice.qr_url);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] QR image generation failed: ${error.message}`);
+        }
+      } else {
+        printer.printQR(invoice.qr_url, { cellSize: 4, correction: 'M' });
+      }
+
+      printer.setTextNormal();
+      printer.alignCenter();
+      printer.println(invoice.qr_url);
+    }
   }
 
   printer.newLine();

@@ -8,6 +8,7 @@
                 maxlength="11"
                 pattern="[0-9]{11}"
                 placeholder="03XXXXXXXXX"
+                autofocus
                 x-model="phone"
                 x-init="phone = $wire.patientPhone"
                 x-on:input="phone = phone.replace(/\D/g, ''); $wire.set('patientPhone', phone)"
@@ -20,24 +21,6 @@
 
         <flux:checkbox wire:model.live="hasNoPhone" label="{{ __('Have no number') }}" class="mt-3" />
     </div>
-
-    @unless ($hasNoPhone)
-        <flux:field>
-            <flux:label>{{ __('Search by MRN or name') }}</flux:label>
-            <div class="flex gap-2">
-                <flux:input
-                    wire:model="patientMrnSearch"
-                    type="search"
-                    placeholder="{{ __('MRN or patient name') }}"
-                    class="flex-1"
-                />
-                <flux:button type="button" variant="outline" wire:click="searchPatientsByMrn">
-                    {{ __('Search') }}
-                </flux:button>
-            </div>
-            <flux:error name="patientMrnSearch" />
-        </flux:field>
-    @endunless
 
     @if (count($matchedPatients) > 0)
         <div class="rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -89,7 +72,7 @@
 
     @if ($selectedPatientId)
         <div class="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800">
-            <span>{{ __('Using existing patient record') }}</span>
+            <span>{{ __('Using existing patient record') }}@if (filled($patientName)): {{ $patientName }}@endif</span>
             <flux:button type="button" size="sm" variant="ghost" wire:click="clearSelectedPatient">
                 {{ __('Clear') }}
             </flux:button>

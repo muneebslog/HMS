@@ -702,15 +702,17 @@ new #[Title('Procedures')] class extends Component
 
         <form wire:submit="saveProcedure" class="mt-6 space-y-6">
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <flux:field>
-                    <flux:label>{{ __('Name') }}</flux:label>
-                    <flux:input wire:model="patientName" type="text" required />
-                    <flux:error name="patientName" />
-                </flux:field>
-
                 <div class="sm:col-span-2">
                     @include('partials.reception.patient-intake')
                 </div>
+
+                @if ($this->shouldShowPatientNameField())
+                    <flux:field class="sm:col-span-2">
+                        <flux:label>{{ __('Name') }}</flux:label>
+                        <flux:input wire:model="patientName" type="text" required />
+                        <flux:error name="patientName" />
+                    </flux:field>
+                @endif
 
                 <flux:field>
                     <flux:label>{{ __('Husband') }}</flux:label>

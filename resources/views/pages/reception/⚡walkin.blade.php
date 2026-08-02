@@ -396,16 +396,16 @@ new #[Title('Walk-in')] class extends Component
         </div>
 
         <flux:card>
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <flux:field class="w-full">
-                    <flux:label>{{ __('Patient name') }}</flux:label>
-                    <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
-                    <flux:error name="patientName" />
-                </flux:field>
+            <div class="space-y-4">
+                @include('partials.reception.patient-intake')
 
-                <div>
-                    @include('partials.reception.patient-intake')
-                </div>
+                @if ($this->shouldShowPatientNameField())
+                    <flux:field class="w-full">
+                        <flux:label>{{ __('Patient name') }}</flux:label>
+                        <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
+                        <flux:error name="patientName" />
+                    </flux:field>
+                @endif
             </div>
         </flux:card>
 

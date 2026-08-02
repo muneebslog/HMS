@@ -13,12 +13,19 @@ trait InteractsWithPatientIntake
 
     public ?int $selectedPatientId = null;
 
-    public string $patientMrnSearch = '';
-
     /**
      * @var list<array{id: int, name: string, mrn: ?string, age: ?int, gender: ?string, phone: ?string}>
      */
     public array $matchedPatients = [];
+
+    /**
+     * Whether the patient name input should be shown for creating a new person.
+     */
+    public function shouldShowPatientNameField(): bool
+    {
+        return $this->hasNoPhone
+            || (strlen($this->patientPhone) === 11 && $this->selectedPatientId === null);
+    }
 
     /**
      * Clear the phone and matches when skipping contact number.
@@ -27,12 +34,11 @@ trait InteractsWithPatientIntake
     {
         if ($value) {
             $this->patientPhone = '';
-            $this->patientMrnSearch = '';
             $this->matchedPatients = [];
             $this->selectedPatientId = null;
         }
 
-        $this->resetValidation(['patientPhone', 'patientMrnSearch']);
+        $this->resetValidation(['patientPhone']);
     }
 
     /**
@@ -56,26 +62,6 @@ trait InteractsWithPatientIntake
         }
 
         $this->loadMatchesFromPhone($digits);
-    }
-
-    /**
-     * Search patients by MRN or name.
-     */
-    public function searchPatientsByMrn(): void
-    {
-        $term = trim($this->patientMrnSearch);
-
-        if ($term === '') {
-            $this->matchedPatients = [];
-
-            return;
-        }
-
-        $this->matchedPatients = app(PatientIntakeService::class)
-            ->findPatientsByMrnOrName($term)
-            ->map(fn (Patient $patient): array => $this->patientMatchPayload($patient))
-            ->values()
-            ->all();
     }
 
     /**
@@ -181,7 +167,6 @@ trait InteractsWithPatientIntake
             'patientPhone',
             'hasNoPhone',
             'selectedPatientId',
-            'patientMrnSearch',
             'matchedPatients',
         ];
     }
