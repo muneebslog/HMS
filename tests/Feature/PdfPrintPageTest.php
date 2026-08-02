@@ -82,6 +82,18 @@ test('admins can retry a failed pdf print job', function () {
         ->error_message->toBeNull();
 });
 
+test('the pdf print page shows the failure reason', function () {
+    $admin = User::factory()->admin()->create();
+    PdfPrintJob::factory()->failed()->create([
+        'user_id' => $admin->id,
+        'error_message' => 'Printer offline',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.pdf-print')
+        ->assertSee('Printer offline');
+});
+
 test('management users cannot access the pdf print page', function () {
     $user = User::factory()->create(['role' => UserRole::Management]);
 

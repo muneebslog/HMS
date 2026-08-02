@@ -149,6 +149,7 @@ new #[Title('PDF Print')] class extends Component
                     <flux:table.column>{{ __('Filename') }}</flux:table.column>
                     <flux:table.column>{{ __('Uploaded by') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
+                    <flux:table.column>{{ __('Error') }}</flux:table.column>
                     <flux:table.column>{{ __('Attempts') }}</flux:table.column>
                     <flux:table.column>{{ __('Created') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -166,7 +167,18 @@ new #[Title('PDF Print')] class extends Component
                                 @elseif ($job->status === App\Enums\PrintJobStatus::Printed)
                                     <flux:badge size="sm" color="green">{{ $job->status->label() }}</flux:badge>
                                 @else
-                                    <flux:badge size="sm" color="red" title="{{ $job->error_message }}">{{ $job->status->label() }}</flux:badge>
+                                    <flux:badge size="sm" color="red">{{ $job->status->label() }}</flux:badge>
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell class="max-w-xs">
+                                @if ($job->status === App\Enums\PrintJobStatus::Failed && filled($job->error_message))
+                                    <span class="text-sm text-red-600 dark:text-red-400" title="{{ $job->error_message }}">
+                                        {{ $job->error_message }}
+                                    </span>
+                                @elseif ($job->status === App\Enums\PrintJobStatus::Pending)
+                                    <span class="text-sm text-zinc-500">{{ __('Waiting for agent...') }}</span>
+                                @else
+                                    <span class="text-zinc-400">-</span>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $job->attempts }}</flux:table.cell>
@@ -184,7 +196,7 @@ new #[Title('PDF Print')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                 {{ __('No PDF print jobs found.') }}
                             </flux:table.cell>
                         </flux:table.row>
