@@ -135,6 +135,8 @@ test('merge duplicates page lists groups and merges selected patients', function
         ->assertSee('Keep Me')
         ->assertSee('Merge Me')
         ->assertSee('Leave Me')
+        ->set('selected.'.$winner->id, true)
+        ->set('selected.'.$loser->id, true)
         ->set('selected.'.$sibling->id, false)
         ->call('confirmMerge', $family->id)
         ->call('mergeConfirmed')
@@ -144,4 +146,90 @@ test('merge duplicates page lists groups and merges selected patients', function
         ->and(Patient::find($loser->id))->toBeNull()
         ->and(Patient::find($sibling->id))->not->toBeNull()
         ->and(Invoice::where('patient_id', $winner->id)->count())->toBe(1);
+});
+
+test('merge duplicates page auto-checks same-name lookalikes only', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $family = Family::factory()->create(['phone' => '03006667788']);
+    $first = Patient::factory()->forFamily($family)->create(['name' => 'Muneeb']);
+    $duplicate = Patient::factory()->forFamily($family)->create(['name' => ' muneeb ']);
+    $sibling = Patient::factory()->forFamily($family)->create(['name' => 'Sara']);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.merge-duplicates')
+        ->assertSet('selected.'.$first->id, true)
+        ->assertSet('selected.'.$duplicate->id, true)
+        ->assertSet('selected.'.$sibling->id, false);
+});
+
+test('merge all merges multiple phone groups while leaving unchecked patients alone', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+    $firstFamily = Family::factory()->create(['phone' => '03007778899']);
+    $firstWinner = Patient::factory()->forFamily($firstFamily)->create(['name' => 'Muneeb']);
+    $firstLoser = Patient::factory()->forFamily($firstFamily)->create(['name' => 'Muneeb']);
+    $firstSibling = Patient::factory()->forFamily($firstFamily)->create(['name' => 'Sister']);
+
+    $secondFamily = Family::factory()->create(['phone' => '03008889900']);
+    $secondWinner = Patient::factory()->forFamily($secondFamily)->create(['name' => 'Aisha']);
+    $secondLoser = Patient::factory()->forFamily($secondFamily)->create(['name' => 'Aisha']);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.merge-duplicates')
+        ->assertSet('selected.'.$firstSibling->id, false)
+        ->call('confirmMergeAll')
+        ->assertSet('mergingAll', true)
+        ->assertSet('confirmGroupCount', 2)
+        ->call('mergeConfirmed')
+        ->assertSet('showConfirmModal', false);
+
+    expect(Patient::find($firstWinner->id))->not->toBeNull()
+        ->and(Patient::find($firstLoser->id))->toBeNull()
+        ->and(Patient::find($firstSibling->id))->not->toBeNull()
+        ->and(Patient::find($secondWinner->id))->not->toBeNull()
+        ->and(Patient::find($secondLoser->id))->toBeNull();
+});
+
+test('unlink from phone detaches patient and keeps their records', function () {
+    $family = Family::factory()->create(['phone' => '03009990011']);
+    $kept = Patient::factory()->forFamily($family)->create(['name' => 'Kept']);
+    $unlinked = Patient::factory()->forFamily($family)->create(['name' => 'Wrong Number']);
+    $invoice = Invoice::factory()->create(['patient_id' => $unlinked->id]);
+
+    $result = app(PatientMergeService::class)->unlinkFromPhone($unlinked);
+
+    expect($result->family_id)->toBeNull()
+        ->and($result->contactPhone())->toBeNull()
+        ->and(Patient::find($unlinked->id))->not->toBeNull()
+        ->and($kept->fresh()->family_id)->toBe($family->id)
+        ->and($invoice->fresh()->patient_id)->toBe($unlinked->id)
+        ->and(Family::find($family->id))->not->toBeNull();
+});
+
+test('unlink from phone deletes empty family when last patient is removed', function () {
+    $family = Family::factory()->create(['phone' => '03001112200']);
+    $patient = Patient::factory()->forFamily($family)->create(['name' => 'Only One']);
+
+    app(PatientMergeService::class)->unlinkFromPhone($patient);
+
+    expect($patient->fresh()->family_id)->toBeNull()
+        ->and(Family::find($family->id))->toBeNull();
+});
+
+test('merge duplicates page can unlink a patient from the phone group', function () {
+    $admin = User::factory()->create(['role' => UserRole::Admin]);
+    $family = Family::factory()->create(['phone' => '03002223344']);
+    $kept = Patient::factory()->forFamily($family)->create(['name' => 'Same']);
+    $duplicate = Patient::factory()->forFamily($family)->create(['name' => 'Same']);
+    $wrong = Patient::factory()->forFamily($family)->create(['name' => 'Other Person']);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.merge-duplicates')
+        ->assertSee('Other Person')
+        ->call('unlinkFromPhone', $wrong->id)
+        ->assertDontSee('Other Person');
+
+    expect($wrong->fresh()->family_id)->toBeNull()
+        ->and($kept->fresh()->family_id)->toBe($family->id)
+        ->and($duplicate->fresh()->family_id)->toBe($family->id);
 });

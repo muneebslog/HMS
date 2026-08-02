@@ -53,6 +53,38 @@ class PatientMergeService
     }
 
     /**
+     * Detach a patient from their family phone so they no longer appear under that number.
+     */
+    public function unlinkFromPhone(Patient $patient): Patient
+    {
+        return DB::transaction(function () use ($patient): Patient {
+            $lockedPatient = Patient::query()
+                ->with('family')
+                ->whereKey($patient->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $familyId = $lockedPatient->family_id;
+
+            if ($familyId === null) {
+                return $lockedPatient;
+            }
+
+            $lockedPatient->update(['family_id' => null]);
+
+            $familyStillHasPatients = Patient::query()
+                ->where('family_id', $familyId)
+                ->exists();
+
+            if (! $familyStillHasPatients) {
+                Family::query()->whereKey($familyId)->delete();
+            }
+
+            return $lockedPatient->fresh(['family']) ?? $lockedPatient;
+        });
+    }
+
+    /**
      * Merge selected patients into the oldest (lowest id). Losers' related rows are reassigned.
      *
      * @param  list<int>  $patientIds
