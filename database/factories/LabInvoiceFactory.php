@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PaymentMode;
 use App\Models\LabInvoice;
 use App\Models\Patient;
 use App\Models\Shift;
@@ -33,6 +34,7 @@ class LabInvoiceFactory extends Factory
             'discount_amount' => $discountAmount,
             'total' => round($subtotal - $discountAmount, 2),
             'status' => 'pending',
+            'payment_mode' => PaymentMode::Cash->value,
             'created_by' => $user->id,
             'shift_id' => Shift::factory()->state(['user_id' => $user->id]),
         ];

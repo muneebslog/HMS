@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMode;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,15 @@ class Invoice extends Model
     use HasFactory;
 
     /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'payment_mode' => 'cash',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -24,6 +34,7 @@ class Invoice extends Model
         'invoice_number',
         'total',
         'status',
+        'payment_mode',
         'created_by',
         'shift_id',
     ];
@@ -37,6 +48,7 @@ class Invoice extends Model
     {
         return [
             'total' => 'float',
+            'payment_mode' => PaymentMode::class,
         ];
     }
 

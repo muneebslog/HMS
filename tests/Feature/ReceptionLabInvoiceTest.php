@@ -51,6 +51,7 @@ test('a lab invoice can be saved with items', function () {
         ->discount_amount->toBe(0.0)
         ->total->toBe(1200.00)
         ->status->toBe('paid')
+        ->payment_mode->value->toBe('cash')
         ->created_by->toBe($user->id);
 
     expect($invoice->items)->toHaveCount(1)
@@ -62,6 +63,27 @@ test('a lab invoice can be saved with items', function () {
         ->time_required->toBe('1 hour')
         ->is_in_house->toBeTrue()
         ->price->toBe(1200.00);
+});
+
+test('a lab invoice can be saved with online payment mode', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $labTest = LabTest::factory()->create(['test_price' => 1000.00]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'Online Patient')
+        ->set('patientPhone', '03001234567')
+        ->set('patientGender', 'female')
+        ->set('patientAge', 25)
+        ->set('selectedLabTestId', $labTest->id)
+        ->call('add')
+        ->set('paymentMode', 'online')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(LabInvoice::first())
+        ->payment_mode->value->toBe('online');
 });
 
 test('a lab invoice can be saved with a discount', function () {

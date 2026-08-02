@@ -67,4 +67,54 @@ class Patient extends Model
     {
         return $this->hasMany(QueueToken::class);
     }
+
+    /**
+     * Get the invoices associated with this patient.
+     *
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Get the lab invoices associated with this patient.
+     *
+     * @return HasMany<LabInvoice, $this>
+     */
+    public function labInvoices(): HasMany
+    {
+        return $this->hasMany(LabInvoice::class);
+    }
+
+    /**
+     * Get the procedures associated with this patient.
+     *
+     * @return HasMany<Procedure, $this>
+     */
+    public function procedures(): HasMany
+    {
+        return $this->hasMany(Procedure::class);
+    }
+
+    /**
+     * Get the vitals associated with this patient.
+     *
+     * @return HasMany<Vital, $this>
+     */
+    public function vitals(): HasMany
+    {
+        return $this->hasMany(Vital::class);
+    }
+
+    /**
+     * Get the ultrasound reports associated with this patient.
+     *
+     * @return HasMany<UltrasoundReport, $this>
+     */
+    public function ultrasoundReports(): HasMany
+    {
+        return $this->hasMany(UltrasoundReport::class);
+    }
 }

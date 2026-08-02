@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentMode;
 use App\Enums\SmsStatus;
 use App\Jobs\SendAppointmentConfirmationSms;
 use App\Models\Invoice;
@@ -87,9 +88,9 @@ class ReservationService
     /**
      * Mark a reserved token as arrived and create its invoice.
      */
-    public function arrive(QueueToken $token): Invoice
+    public function arrive(QueueToken $token, string $paymentMode = 'cash'): Invoice
     {
-        return DB::transaction(function () use ($token) {
+        return DB::transaction(function () use ($token, $paymentMode) {
             $lockedQueue = ServiceQueue::where('id', $token->service_queue_id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -114,6 +115,8 @@ class ReservationService
                 throw new \RuntimeException(__('Consultation service is not configured.'));
             }
 
+            $mode = PaymentMode::tryFrom($paymentMode) ?? PaymentMode::Cash;
+
             $price = ServicePrice::query()
                 ->where('service_id', $service->id)
                 ->when(
@@ -131,6 +134,7 @@ class ReservationService
                 'invoice_number' => Invoice::generateNumber(),
                 'total' => $priceAmount,
                 'status' => 'paid',
+                'payment_mode' => $mode,
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
             ]);

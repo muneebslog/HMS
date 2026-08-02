@@ -170,6 +170,7 @@ Conventions used below:
 | invoice_number | string | UQ |
 | total | decimal(10,2) | |
 | status | string | default `pending` |
+| payment_mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | nullable |
 | shift_id | FK → shifts | |
 | timestamps | | |
@@ -202,6 +203,7 @@ Conventions used below:
 | discount_amount | decimal(10,2) | default 0 |
 | total | decimal(10,2) | |
 | status | string | default `pending` |
+| payment_mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | nullable |
 | shift_id | FK → shifts | |
 | timestamps | | |

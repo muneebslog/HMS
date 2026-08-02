@@ -249,6 +249,7 @@ new #[Title('Invoices')] class extends Component
                     <flux:table.column>{{ __('Invoice #') }}</flux:table.column>
                     <flux:table.column>{{ __('Patient') }}</flux:table.column>
                     <flux:table.column>{{ __('Total') }}</flux:table.column>
+                    <flux:table.column>{{ __('Mode') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
                     <flux:table.column>{{ __('Date') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -260,6 +261,7 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient->name }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
+                            <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($invoice->status === 'paid')
                                     <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
@@ -287,7 +289,7 @@ new #[Title('Invoices')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="7" class="text-center text-zinc-500">
                                 {{ __('No walk-in invoices found.') }}
                             </flux:table.cell>
                         </flux:table.row>
@@ -307,6 +309,7 @@ new #[Title('Invoices')] class extends Component
                     <flux:table.column>{{ __('Invoice #') }}</flux:table.column>
                     <flux:table.column>{{ __('Patient') }}</flux:table.column>
                     <flux:table.column>{{ __('Total') }}</flux:table.column>
+                    <flux:table.column>{{ __('Mode') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
                     <flux:table.column>{{ __('Date') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -318,6 +321,7 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient->name }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
+                            <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($invoice->status === 'paid')
                                     <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
@@ -345,7 +349,7 @@ new #[Title('Invoices')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="7" class="text-center text-zinc-500">
                                 {{ __('No lab invoices found.') }}
                             </flux:table.cell>
                         </flux:table.row>
@@ -407,6 +411,10 @@ new #[Title('Invoices')] class extends Component
                         <flux:text>{{ ucfirst($this->viewedInvoice->status) }}</flux:text>
                     </div>
                     <div>
+                        <flux:text class="text-zinc-500">{{ __('Payment mode') }}</flux:text>
+                        <flux:text>{{ $this->viewedInvoice->payment_mode?->label() ?? '-' }}</flux:text>
+                    </div>
+                    <div>
                         <flux:text class="text-zinc-500">{{ __('Date') }}</flux:text>
                         <flux:text>{{ $this->viewedInvoice->created_at->format('Y-m-d H:i') }}</flux:text>
                     </div>
@@ -448,6 +456,10 @@ new #[Title('Invoices')] class extends Component
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Status') }}</flux:text>
                         <flux:text>{{ ucfirst($this->viewedLabInvoice->status) }}</flux:text>
+                    </div>
+                    <div>
+                        <flux:text class="text-zinc-500">{{ __('Payment mode') }}</flux:text>
+                        <flux:text>{{ $this->viewedLabInvoice->payment_mode?->label() ?? '-' }}</flux:text>
                     </div>
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Date') }}</flux:text>

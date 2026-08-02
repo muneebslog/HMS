@@ -179,6 +179,7 @@ test('a walk-in invoice can be saved with items', function () {
     expect($invoice)->not->toBeNull()
         ->total->toBe(75.00)
         ->status->toBe('paid')
+        ->payment_mode->value->toBe('cash')
         ->created_by->toBe($user->id);
 
     expect($invoice->items)->toHaveCount(1)
@@ -188,6 +189,31 @@ test('a walk-in invoice can be saved with items', function () {
         ->doctor_id->toBeNull()
         ->doctor_name->toBeNull()
         ->price->toBe(75.00);
+});
+
+test('a walk-in invoice can be saved with online payment mode', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 75.00,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'Online Patient')->set('hasNoPhone', true)
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->set('paymentMode', 'online')
+        ->call('saveInvoice')
+        ->assertHasNoErrors();
+
+    $invoice = Invoice::whereHas('patient', fn ($q) => $q->where('name', 'Online Patient'))->first();
+
+    expect($invoice)->not->toBeNull()
+        ->payment_mode->value->toBe('online');
 });
 
 test('a walk-in invoice can be saved with a doctor service', function () {

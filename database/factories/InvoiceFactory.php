@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PaymentMode;
 use App\Models\Invoice;
 use App\Models\Patient;
 use App\Models\Shift;
@@ -27,6 +28,7 @@ class InvoiceFactory extends Factory
             'invoice_number' => fake()->unique()->regexify('INV-[0-9]{10}'),
             'total' => fake()->randomFloat(2, 10, 1000),
             'status' => 'pending',
+            'payment_mode' => PaymentMode::Cash->value,
             'created_by' => $user->id,
             'shift_id' => Shift::factory()->state(['user_id' => $user->id]),
         ];

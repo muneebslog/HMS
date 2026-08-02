@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMode;
 use Database\Factories\LabInvoiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,15 @@ class LabInvoice extends Model
 {
     /** @use HasFactory<LabInvoiceFactory> */
     use HasFactory;
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'payment_mode' => 'cash',
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -27,6 +37,7 @@ class LabInvoice extends Model
         'discount_amount',
         'total',
         'status',
+        'payment_mode',
         'created_by',
         'shift_id',
     ];
@@ -43,6 +54,7 @@ class LabInvoice extends Model
             'discount_percentage' => 'float',
             'discount_amount' => 'float',
             'total' => 'float',
+            'payment_mode' => PaymentMode::class,
         ];
     }
 

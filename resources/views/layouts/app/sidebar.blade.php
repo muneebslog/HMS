@@ -129,6 +129,9 @@
                         <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
                             {{ __('SMS Logs') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
+                            {{ __('Merge Duplicates') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
                             {{ __('SQL Runner') }}
                         </flux:sidebar.item>

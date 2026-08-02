@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Enums\PaymentMode;
 use App\Jobs\SendLabCaseToLab;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\LabInvoice;
@@ -42,6 +43,9 @@ new #[Title('Lab Entry')] class extends Component
     #[Validate]
     public string $discountPercentage = '0';
 
+    #[Validate]
+    public string $paymentMode = 'cash';
+
     /**
      * Get the validation rules for the lab entry form.
      *
@@ -56,6 +60,7 @@ new #[Title('Lab Entry')] class extends Component
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'selectedLabTestId' => ['required', 'integer', 'exists:lab_tests,id'],
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
         ];
     }
 
@@ -134,7 +139,9 @@ new #[Title('Lab Entry')] class extends Component
             'selectedLabTestId',
             'items',
             'discountPercentage',
+            'paymentMode',
         ]);
+        $this->paymentMode = PaymentMode::Cash->value;
         $this->resetValidation();
     }
 
@@ -143,7 +150,7 @@ new #[Title('Lab Entry')] class extends Component
      */
     public function save(): void
     {
-        $this->validate([
+        $validated = $this->validate([
             'patientName' => ['required', 'string', 'max:255'],
             ...$this->patientIntakePhoneRules(),
             'patientGender' => ['required', 'string', 'in:male,female'],
@@ -152,6 +159,7 @@ new #[Title('Lab Entry')] class extends Component
             'items.*.lab_test_id' => ['required', 'integer', 'exists:lab_tests,id'],
             'items.*.test_price' => ['required', 'numeric', 'min:0'],
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'paymentMode' => $this->rules()['paymentMode'],
         ]);
 
         $shift = Shift::current();
@@ -162,7 +170,7 @@ new #[Title('Lab Entry')] class extends Component
             return;
         }
 
-        $invoice = DB::transaction(function () use ($shift) {
+        $invoice = DB::transaction(function () use ($shift, $validated) {
             $patient = $this->resolveIntakePatient([
                 'name' => $this->patientName,
                 'age' => $this->patientAge,
@@ -185,6 +193,7 @@ new #[Title('Lab Entry')] class extends Component
                 'discount_amount' => $this->discountAmount,
                 'total' => $this->total,
                 'status' => 'paid',
+                'payment_mode' => $validated['paymentMode'],
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
             ]);
@@ -382,16 +391,28 @@ new #[Title('Lab Entry')] class extends Component
             @if (count($this->items) > 0)
                 <div class="mt-6 space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                        <flux:field class="w-full sm:max-w-xs">
-                            <flux:label>{{ __('Discount (%)') }}</flux:label>
-                            <div class="flex gap-2">
-                                <flux:input wire:model="discountPercentage" type="number" step="0.01" min="0" max="100" />
-                                <flux:button type="button" variant="outline" wire:click="applyDiscount">
-                                    {{ __('Apply') }}
-                                </flux:button>
-                            </div>
-                            <flux:error name="discountPercentage" />
-                        </flux:field>
+                        <div class="flex w-full flex-col gap-4 sm:max-w-md sm:flex-row">
+                            <flux:field class="w-full">
+                                <flux:label>{{ __('Discount (%)') }}</flux:label>
+                                <div class="flex gap-2">
+                                    <flux:input wire:model="discountPercentage" type="number" step="0.01" min="0" max="100" />
+                                    <flux:button type="button" variant="outline" wire:click="applyDiscount">
+                                        {{ __('Apply') }}
+                                    </flux:button>
+                                </div>
+                                <flux:error name="discountPercentage" />
+                            </flux:field>
+
+                            <flux:field class="w-full">
+                                <flux:label>{{ __('Payment mode') }}</flux:label>
+                                <flux:select wire:model="paymentMode" required>
+                                    @foreach (App\Enums\PaymentMode::cases() as $mode)
+                                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="paymentMode" />
+                            </flux:field>
+                        </div>
 
                         <div class="text-right">
                             <flux:text class="text-zinc-500">{{ __('Subtotal') }}: {{ number_format($this->subtotal, 2) }}</flux:text>

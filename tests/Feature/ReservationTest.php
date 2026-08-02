@@ -183,7 +183,8 @@ test('marking a reservation arrived creates an invoice and links the token', fun
     expect($invoice)->not->toBeNull()
         ->patient->name->toBe('Phone Patient')
         ->total->toBe(250.00)
-        ->status->toBe('paid');
+        ->status->toBe('paid')
+        ->payment_mode->value->toBe('cash');
 
     $token->refresh();
     expect($token)
@@ -191,6 +192,30 @@ test('marking a reservation arrived creates an invoice and links the token', fun
         ->origin->toBe('reservation')
         ->invoice_item_id->not->toBeNull()
         ->invoiceItem->invoice_id->toBe($invoice->id);
+});
+
+test('marking a reservation arrived can use online payment mode', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 4)
+        ->set('patientName', 'Online Patient')
+        ->set('patientPhone', validPhone())
+        ->call('reserve');
+
+    $component->call('selectToken', 4)
+        ->set('paymentMode', 'online')
+        ->call('markArrived')
+        ->assertHasNoErrors();
+
+    expect(Invoice::first())
+        ->payment_mode->value->toBe('online');
 });
 
 test('phone is required for reservation', function () {

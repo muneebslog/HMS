@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Enums\PaymentMode;
 use App\Enums\TokenResetType;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
@@ -45,6 +46,9 @@ new #[Title('Walk-in')] class extends Component
 
     public bool $showPriceModal = false;
 
+    #[Validate]
+    public string $paymentMode = 'cash';
+
     /**
      * Get the validation rules for the walk-in form.
      *
@@ -65,6 +69,7 @@ new #[Title('Walk-in')] class extends Component
                     [Rule::exists('service_prices', 'doctor_id')->where('service_id', $this->selectedServiceId)]
                 ),
             ],
+            'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
         ];
     }
 
@@ -199,7 +204,9 @@ new #[Title('Walk-in')] class extends Component
             'editingItemIndex',
             'editingItemPrice',
             'showPriceModal',
+            'paymentMode',
         ]);
+        $this->paymentMode = PaymentMode::Cash->value;
         $this->resetValidation();
     }
 
@@ -208,13 +215,14 @@ new #[Title('Walk-in')] class extends Component
      */
     public function saveInvoice(): void
     {
-        $this->validate([
+        $validated = $this->validate([
             'patientName' => ['required', 'string', 'max:255'],
             ...$this->patientIntakePhoneRules(),
             'items' => ['required', 'array', 'min:1'],
             'items.*.service_id' => ['required', 'integer', 'exists:services,id'],
             'items.*.doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'paymentMode' => $this->rules()['paymentMode'],
         ]);
 
         $shift = Shift::current();
@@ -225,7 +233,7 @@ new #[Title('Walk-in')] class extends Component
             return;
         }
 
-        $invoice = DB::transaction(function () use ($shift) {
+        $invoice = DB::transaction(function () use ($shift, $validated) {
             $patient = $this->resolveIntakePatient(['name' => $this->patientName]);
 
             if ($this->hasNoPhone && auth()->user() !== null) {
@@ -241,6 +249,7 @@ new #[Title('Walk-in')] class extends Component
                 'invoice_number' => Invoice::generateNumber(),
                 'total' => $this->totalPrice,
                 'status' => 'paid',
+                'payment_mode' => $validated['paymentMode'],
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
             ]);
@@ -480,8 +489,20 @@ new #[Title('Walk-in')] class extends Component
             </flux:table>
 
             @if (count($this->items) > 0)
-                <div class="mt-4 flex justify-end text-lg font-semibold">
-                    {{ __('Total') }}: {{ number_format($this->totalPrice, 2) }}
+                <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <flux:field class="w-full sm:max-w-xs">
+                        <flux:label>{{ __('Payment mode') }}</flux:label>
+                        <flux:select wire:model="paymentMode" required>
+                            @foreach (App\Enums\PaymentMode::cases() as $mode)
+                                <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="paymentMode" />
+                    </flux:field>
+
+                    <div class="text-lg font-semibold">
+                        {{ __('Total') }}: {{ number_format($this->totalPrice, 2) }}
+                    </div>
                 </div>
             @endif
 

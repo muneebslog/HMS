@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Enums\PaymentMode;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\QueueToken;
@@ -36,6 +37,9 @@ new #[Title('Reservations')] class extends Component
 
     public bool $showArrivalModal = false;
 
+    #[Validate]
+    public string $paymentMode = 'cash';
+
     /**
      * Get the validation rules for the reservation form.
      *
@@ -47,6 +51,7 @@ new #[Title('Reservations')] class extends Component
             'selectedDoctorId' => ['required', 'integer', 'exists:doctors,id'],
             'patientName' => ['required', 'string', 'max:255'],
             ...$this->patientIntakePhoneRules(),
+            'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
         ];
     }
 
@@ -89,6 +94,7 @@ new #[Title('Reservations')] class extends Component
 
         if ($token->status === 'reserved') {
             $this->viewingTokenId = $token->id;
+            $this->paymentMode = PaymentMode::Cash->value;
             $this->showArrivalModal = true;
         }
     }
@@ -139,6 +145,10 @@ new #[Title('Reservations')] class extends Component
             return;
         }
 
+        $validated = $this->validate([
+            'paymentMode' => $this->rules()['paymentMode'],
+        ]);
+
         $token = QueueToken::find($this->viewingTokenId);
 
         if ($token === null) {
@@ -148,7 +158,7 @@ new #[Title('Reservations')] class extends Component
         }
 
         try {
-            $invoice = app(ReservationService::class)->arrive($token);
+            $invoice = app(ReservationService::class)->arrive($token, $validated['paymentMode']);
 
             app(CreatePrintJob::class)->create($invoice);
 
@@ -183,6 +193,8 @@ new #[Title('Reservations')] class extends Component
     {
         $this->showArrivalModal = false;
         $this->viewingTokenId = null;
+        $this->paymentMode = PaymentMode::Cash->value;
+        $this->resetValidation('paymentMode');
     }
 
     /**
@@ -433,13 +445,25 @@ new #[Title('Reservations')] class extends Component
             </div>
         @endif
 
-        <div class="mt-6 flex justify-end gap-3">
-            <flux:button type="button" variant="ghost" wire:click="closeArrivalModal">
-                {{ __('Cancel') }}
-            </flux:button>
-            <flux:button type="button" variant="primary" wire:click="markArrived">
-                {{ __('Mark arrived') }}
-            </flux:button>
-        </div>
+        <form wire:submit="markArrived" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('Payment mode') }}</flux:label>
+                <flux:select wire:model="paymentMode" required>
+                    @foreach (App\Enums\PaymentMode::cases() as $mode)
+                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="paymentMode" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeArrivalModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Mark arrived') }}
+                </flux:button>
+            </div>
+        </form>
     </flux:modal>
 </div>
