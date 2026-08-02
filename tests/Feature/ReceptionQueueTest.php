@@ -144,9 +144,9 @@ test('admin can edit patient name and phone from the queue page', function () {
         ->assertHasNoErrors()
         ->assertSet('showEditPatientModal', false);
 
-    expect($patient->fresh())
-        ->name->toBe('Updated Patient')
-        ->phone->toBe('03001234567');
+    expect($patient->fresh()->load('family'))
+        ->name->toBe('Updated Patient');
+    expect($patient->fresh()->contactPhone())->toBe('03001234567');
 
     $notification = AdminNotification::where('type', 'token_patient_updated')->first();
 
@@ -165,7 +165,7 @@ test('management users cannot edit patient details from the queue page', functio
         'status' => 'open',
         'reset_type' => TokenResetType::Shift,
     ]);
-    $patient = Patient::factory()->create(['name' => 'Locked Patient', 'phone' => '03001111111']);
+    $patient = Patient::factory()->withPhone('03001111111')->create(['name' => 'Locked Patient']);
     $token = QueueToken::factory()->reserved()->create([
         'service_queue_id' => $queue->id,
         'invoice_item_id' => null,
@@ -179,9 +179,8 @@ test('management users cannot edit patient details from the queue page', functio
         ->call('openEditPatient', $token->id)
         ->assertForbidden();
 
-    expect($patient->fresh())
-        ->name->toBe('Locked Patient')
-        ->phone->toBe('03001111111');
+    expect($patient->fresh()->name)->toBe('Locked Patient');
+    expect($patient->fresh()->contactPhone())->toBe('03001111111');
 });
 
 test('admin can mark an arrived reservation as not arrived and cancel its invoice', function () {
@@ -313,9 +312,8 @@ function adminQueueWithReservedToken(): array
         'status' => 'open',
         'reset_type' => TokenResetType::Shift,
     ]);
-    $patient = Patient::factory()->create([
+    $patient = Patient::factory()->withPhone('03009999999')->create([
         'name' => 'Reserved Patient',
-        'phone' => '03009999999',
     ]);
     $token = QueueToken::factory()->reserved()->create([
         'service_queue_id' => $queue->id,

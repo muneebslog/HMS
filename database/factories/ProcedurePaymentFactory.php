@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PaymentMode;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\Shift;
@@ -23,6 +24,7 @@ class ProcedurePaymentFactory extends Factory
         return [
             'procedure_id' => Procedure::factory(),
             'amount' => $this->faker->randomFloat(2, 50, 1000),
+            'mode' => PaymentMode::Cash->value,
             'created_by' => User::factory(),
             'shift_id' => Shift::factory(),
         ];

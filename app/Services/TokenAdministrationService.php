@@ -28,17 +28,20 @@ class TokenAdministrationService
 
             $before = [
                 'name' => $patient->name,
-                'phone' => $patient->phone,
+                'phone' => $patient->contactPhone(),
             ];
 
             $patient->update([
                 'name' => $name,
-                'phone' => $phone,
             ]);
+
+            app(PatientIntakeService::class)->updateContactPhone($patient, $phone);
+
+            $patient->refresh()->load('family');
 
             $after = [
                 'name' => $patient->name,
-                'phone' => $patient->phone,
+                'phone' => $patient->contactPhone(),
             ];
 
             $this->notifyAfterCommit(function () use ($admin, $lockedToken, $before, $after): void {
@@ -200,7 +203,7 @@ class TokenAdministrationService
     private function lockToken(int $tokenId): QueueToken
     {
         return QueueToken::query()
-            ->with(['patient', 'invoiceItem.invoice', 'patientCalls'])
+            ->with(['patient.family', 'invoiceItem.invoice', 'patientCalls'])
             ->whereKey($tokenId)
             ->lockForUpdate()
             ->firstOrFail();

@@ -1,15 +1,16 @@
 <?php
 
+use App\Actions\CreatePrintJob;
 use App\Enums\TokenResetType;
+use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
-use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServicePrice;
-use App\Actions\CreatePrintJob;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
+use App\Services\PatientIntakeService;
 use App\Services\QueueService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,6 +23,8 @@ use Livewire\Component;
 
 new #[Title('Walk-in')] class extends Component
 {
+    use InteractsWithPatientIntake;
+
     #[Validate]
     public string $patientName = '';
 
@@ -51,6 +54,7 @@ new #[Title('Walk-in')] class extends Component
     {
         return [
             'patientName' => ['required', 'string', 'max:255'],
+            ...$this->patientIntakePhoneRules(),
             'selectedServiceId' => ['required', 'integer', 'exists:services,id'],
             'selectedDoctorId' => [
                 Rule::requiredIf(fn () => $this->currentService !== null && ! $this->currentService->is_standalone),
@@ -188,6 +192,7 @@ new #[Title('Walk-in')] class extends Component
     {
         $this->reset([
             'patientName',
+            ...$this->patientIntakeResetFields(),
             'selectedServiceId',
             'selectedDoctorId',
             'items',
@@ -205,6 +210,7 @@ new #[Title('Walk-in')] class extends Component
     {
         $this->validate([
             'patientName' => ['required', 'string', 'max:255'],
+            ...$this->patientIntakePhoneRules(),
             'items' => ['required', 'array', 'min:1'],
             'items.*.service_id' => ['required', 'integer', 'exists:services,id'],
             'items.*.doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
@@ -220,7 +226,15 @@ new #[Title('Walk-in')] class extends Component
         }
 
         $invoice = DB::transaction(function () use ($shift) {
-            $patient = Patient::create(['name' => $this->patientName]);
+            $patient = $this->resolveIntakePatient(['name' => $this->patientName]);
+
+            if ($this->hasNoPhone && auth()->user() !== null) {
+                app(PatientIntakeService::class)->notifyWithoutPhone(
+                    auth()->user(),
+                    $patient,
+                    'walk_in',
+                );
+            }
 
             $invoice = Invoice::create([
                 'patient_id' => $patient->id,
@@ -373,14 +387,17 @@ new #[Title('Walk-in')] class extends Component
         </div>
 
         <flux:card>
-            <form >
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <flux:field class="w-full">
                     <flux:label>{{ __('Patient name') }}</flux:label>
                     <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
                     <flux:error name="patientName" />
                 </flux:field>
 
-            </form>
+                <div>
+                    @include('partials.reception.patient-intake')
+                </div>
+            </div>
         </flux:card>
 
         <flux:card>

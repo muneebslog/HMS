@@ -2,11 +2,12 @@
 
 use App\Actions\CreatePrintJob;
 use App\Jobs\SendLabCaseToLab;
+use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
-use App\Models\Patient;
 use App\Models\Shift;
+use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +18,10 @@ use Livewire\Component;
 
 new #[Title('Lab Entry')] class extends Component
 {
-    #[Validate]
-    public string $patientName = '';
+    use InteractsWithPatientIntake;
 
     #[Validate]
-    public string $patientPhone = '';
+    public string $patientName = '';
 
     #[Validate]
     public string $patientGender = '';
@@ -51,7 +51,7 @@ new #[Title('Lab Entry')] class extends Component
     {
         return [
             'patientName' => ['required', 'string', 'max:255'],
-            'patientPhone' => ['required', 'string', 'max:255'],
+            ...$this->patientIntakePhoneRules(),
             'patientGender' => ['required', 'string', 'in:male,female'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'selectedLabTestId' => ['required', 'integer', 'exists:lab_tests,id'],
@@ -67,6 +67,8 @@ new #[Title('Lab Entry')] class extends Component
         $validated = $this->validate([
             'patientName' => $this->rules()['patientName'],
             'patientPhone' => $this->rules()['patientPhone'],
+            'hasNoPhone' => $this->rules()['hasNoPhone'],
+            'selectedPatientId' => $this->rules()['selectedPatientId'],
             'patientGender' => $this->rules()['patientGender'],
             'patientAge' => $this->rules()['patientAge'],
             'selectedLabTestId' => $this->rules()['selectedLabTestId'],
@@ -126,7 +128,7 @@ new #[Title('Lab Entry')] class extends Component
     {
         $this->reset([
             'patientName',
-            'patientPhone',
+            ...$this->patientIntakeResetFields(),
             'patientGender',
             'patientAge',
             'selectedLabTestId',
@@ -143,7 +145,7 @@ new #[Title('Lab Entry')] class extends Component
     {
         $this->validate([
             'patientName' => ['required', 'string', 'max:255'],
-            'patientPhone' => ['required', 'string', 'max:255'],
+            ...$this->patientIntakePhoneRules(),
             'patientGender' => ['required', 'string', 'in:male,female'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'items' => ['required', 'array', 'min:1'],
@@ -161,12 +163,19 @@ new #[Title('Lab Entry')] class extends Component
         }
 
         $invoice = DB::transaction(function () use ($shift) {
-            $patient = Patient::create([
+            $patient = $this->resolveIntakePatient([
                 'name' => $this->patientName,
-                'phone' => $this->patientPhone,
                 'age' => $this->patientAge,
                 'gender' => $this->patientGender,
             ]);
+
+            if ($this->hasNoPhone && auth()->user() !== null) {
+                app(PatientIntakeService::class)->notifyWithoutPhone(
+                    auth()->user(),
+                    $patient,
+                    'lab',
+                );
+            }
 
             $invoice = LabInvoice::create([
                 'patient_id' => $patient->id,
@@ -261,18 +270,16 @@ new #[Title('Lab Entry')] class extends Component
         </div>
 
         <flux:card>
-            <form wire:submit="add" class="grid grid-cols-1 items-end gap-6 md:grid-cols-12">
+            <div class="grid grid-cols-1 items-start gap-6 md:grid-cols-12">
                 <flux:field class="md:col-span-4">
                     <flux:label>{{ __('Patient name') }}</flux:label>
                     <flux:input wire:model="patientName" type="text" required />
                     <flux:error name="patientName" />
                 </flux:field>
 
-                <flux:field class="md:col-span-4">
-                    <flux:label>{{ __('Phone number') }}</flux:label>
-                    <flux:input wire:model="patientPhone" type="text" required />
-                    <flux:error name="patientPhone" />
-                </flux:field>
+                <div class="md:col-span-4">
+                    @include('partials.reception.patient-intake')
+                </div>
 
                 <flux:field class="md:col-span-2">
                     <flux:label>{{ __('Age') }}</flux:label>
@@ -289,8 +296,7 @@ new #[Title('Lab Entry')] class extends Component
                     </flux:select>
                     <flux:error name="patientGender" />
                 </flux:field>
-
-            </form>
+            </div>
         </flux:card>
 
         <flux:card>

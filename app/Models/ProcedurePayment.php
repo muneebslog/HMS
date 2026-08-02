@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMode;
 use Database\Factories\ProcedurePaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,7 @@ class ProcedurePayment extends Model
     protected $fillable = [
         'procedure_id',
         'amount',
+        'mode',
         'created_by',
         'shift_id',
     ];
@@ -33,6 +35,7 @@ class ProcedurePayment extends Model
     {
         return [
             'amount' => 'float',
+            'mode' => PaymentMode::class,
         ];
     }
 

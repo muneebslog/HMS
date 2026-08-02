@@ -39,7 +39,7 @@ test('a procedure with patient details and advance payment can be created', func
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
-        ->set('patientPhone', '1234567890')
+        ->set('patientPhone', '03001234567')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureTypeId', $procedureType->id)
@@ -53,10 +53,10 @@ test('a procedure with patient details and advance payment can be created', func
 
     $patient = Patient::where('name', 'John Doe')->first();
     expect($patient)->not->toBeNull()
-        ->phone->toBe('1234567890')
         ->husband_name->toBe('James Doe')
         ->age->toBe(30)
         ->gender->toBe('female');
+    expect($patient->contactPhone())->toBe('03001234567');
 
     $procedure = Procedure::where('patient_id', $patient->id)->first();
     expect($procedure)->not->toBeNull()
@@ -68,11 +68,37 @@ test('a procedure with patient details and advance payment can be created', func
 
     expect($procedure->payments)->toHaveCount(1)
         ->and($procedure->payments->first())
-        ->amount->toBe(2000.0);
+        ->amount->toBe(2000.0)
+        ->mode->value->toBe('cash');
 
     expect($procedure->totalPaid())->toBe(2000.0)
         ->and($procedure->balance())->toBe(3000.0)
         ->and($procedure->isPaid())->toBeFalse();
+});
+
+test('a procedure advance payment can be recorded as online', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedureType = ProcedureType::factory()->create(['name' => 'Normal Delivery']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->set('patientName', 'John Doe')
+        ->set('patientPhone', '03001234567')
+        ->set('husbandName', 'James Doe')
+        ->set('patientAge', 30)
+        ->set('procedureTypeId', $procedureType->id)
+        ->set('expectedDeliveryDate', '2026-12-15')
+        ->set('fullAmount', '5000')
+        ->set('hasAdvancePayment', true)
+        ->set('advancePayment', '2000')
+        ->set('advancePaymentMode', 'online')
+        ->call('saveProcedure')
+        ->assertHasNoErrors();
+
+    $procedure = Procedure::first();
+    expect($procedure->payments)->toHaveCount(1)
+        ->and($procedure->payments->first()->mode->value)->toBe('online');
 });
 
 test('a procedure can be created without advance payment when checkbox is unchecked', function () {
@@ -83,7 +109,7 @@ test('a procedure can be created without advance payment when checkbox is unchec
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'Jane Doe')
-        ->set('patientPhone', '0987654321')
+        ->set('patientPhone', '03009876543')
         ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
         ->set('procedureTypeId', $procedureType->id)
@@ -111,7 +137,7 @@ test('a procedure can be created without a doctor', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'Jane Doe')
-        ->set('patientPhone', '0987654321')
+        ->set('patientPhone', '03009876543')
         ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
         ->set('procedureTypeId', $procedureType->id)
@@ -135,7 +161,7 @@ test('procedure type is required when creating a procedure', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'Jane Doe')
-        ->set('patientPhone', '0987654321')
+        ->set('patientPhone', '03009876543')
         ->set('husbandName', 'John Doe')
         ->set('patientAge', 25)
         ->set('procedureTypeId', null)
@@ -168,7 +194,7 @@ test('an open shift is required to create a procedure', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
-        ->set('patientPhone', '1234567890')
+        ->set('patientPhone', '03001234567')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureTypeId', $procedureType->id)
@@ -204,7 +230,31 @@ test('additional payments can be added to a procedure', function () {
     expect($procedure->payments)->toHaveCount(2)
         ->and($procedure->totalPaid())->toBe(4500.0)
         ->and($procedure->balance())->toBe(500.0)
-        ->and($procedure->isPaid())->toBeFalse();
+        ->and($procedure->isPaid())->toBeFalse()
+        ->and($procedure->payments->last()->mode->value)->toBe('cash');
+});
+
+test('a procedure payment can be recorded as online', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['full_amount' => 5000]);
+    ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 2000,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addPayment', $procedure->id)
+        ->set('paymentAmount', '2500')
+        ->set('paymentMode', 'online')
+        ->call('savePayment')
+        ->assertHasNoErrors();
+
+    $procedure->refresh();
+    expect($procedure->payments)->toHaveCount(2)
+        ->and($procedure->payments->last()->mode->value)->toBe('online');
 });
 
 test('a final payment marks the procedure as paid', function () {
@@ -233,10 +283,9 @@ test('a final payment marks the procedure as paid', function () {
 test('the full amount can be edited when a discount is given', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
-    $patient = Patient::factory()->create([
+    $patient = Patient::factory()->withPhone('03001234567')->create([
         'name' => 'John Doe',
         'husband_name' => 'James Doe',
-        'phone' => '1234567890',
         'age' => 30,
         'gender' => 'female',
     ]);
@@ -266,10 +315,9 @@ test('the full amount can be edited when a discount is given', function () {
 test('procedure maternity fields can be updated', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
-    $patient = Patient::factory()->create([
+    $patient = Patient::factory()->withPhone('03009876543')->create([
         'name' => 'Jane Doe',
         'husband_name' => 'John Doe',
-        'phone' => '0987654321',
         'age' => 28,
     ]);
     $originalType = ProcedureType::factory()->create(['name' => 'Normal Delivery']);
@@ -300,10 +348,9 @@ test('procedure maternity fields can be updated', function () {
 test('full amount cannot be reduced below total paid', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
-    $patient = Patient::factory()->create([
+    $patient = Patient::factory()->withPhone('03009876543')->create([
         'name' => 'Jane Doe',
         'husband_name' => 'John Doe',
-        'phone' => '0987654321',
         'age' => 25,
         'gender' => 'female',
     ]);
@@ -353,7 +400,7 @@ test('advance payment cannot exceed the full amount', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
-        ->set('patientPhone', '1234567890')
+        ->set('patientPhone', '03001234567')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureTypeId', $procedureType->id)
@@ -375,7 +422,7 @@ test('advance amount is required when advance checkbox is checked', function () 
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->set('patientName', 'John Doe')
-        ->set('patientPhone', '1234567890')
+        ->set('patientPhone', '03001234567')
         ->set('husbandName', 'James Doe')
         ->set('patientAge', 30)
         ->set('procedureTypeId', $procedureType->id)
@@ -464,6 +511,7 @@ test('procedure payment ledger can be viewed from a card', function () {
         ->assertSet('showPaymentLedger', true)
         ->assertSee('Payment Ledger')
         ->assertSee('4,000.00')
+        ->assertSee('Cash')
         ->assertSee($user->name)
         ->assertSee($shift->opened_at->format('Y-m-d H:i'))
         ->assertSee('Edit')

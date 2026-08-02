@@ -164,7 +164,7 @@ test('saving vitals keeps token waiting and advances to the next patient', funct
     Livewire::actingAs($user)
         ->test('pages::reception.vitals')
         ->call('selectToken', $firstToken->id)
-        ->set('temperature', '37.2')
+        ->set('temperatureFahrenheit', '98.6')
         ->set('bpSystolic', '120')
         ->set('bpDiastolic', '80')
         ->call('saveAndNext')
@@ -176,7 +176,7 @@ test('saving vitals keeps token waiting and advances to the next patient', funct
         'queue_token_id' => $firstToken->id,
         'patient_id' => $firstPatient->id,
         'recorded_by' => $user->id,
-        'temperature' => '37.2',
+        'temperature' => '98.6',
         'bp_systolic' => 120,
         'bp_diastolic' => 80,
     ]);
@@ -190,7 +190,7 @@ test('saving the last patient returns to the empty queue list', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.vitals')
         ->call('selectToken', $token->id)
-        ->set('temperature', '36.8')
+        ->set('temperatureFahrenheit', '99.5')
         ->set('bpSystolic', '110')
         ->set('bpDiastolic', '70')
         ->call('saveAndNext')
@@ -209,5 +209,5 @@ test('vitals capture requires temperature and blood pressure', function () {
         ->test('pages::reception.vitals')
         ->call('selectToken', $token->id)
         ->call('saveAndNext')
-        ->assertHasErrors(['temperature', 'bpSystolic', 'bpDiastolic']);
+        ->assertHasErrors(['temperatureFahrenheit', 'bpSystolic', 'bpDiastolic']);
 });

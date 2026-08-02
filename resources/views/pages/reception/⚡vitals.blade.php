@@ -15,7 +15,7 @@ new #[Title('Vitals')] class extends Component
     public ?int $selectedTokenId = null;
 
     #[Validate]
-    public string $temperature = '';
+    public string $temperatureFahrenheit = '';
 
     #[Validate]
     public string $bpSystolic = '';
@@ -31,7 +31,7 @@ new #[Title('Vitals')] class extends Component
     protected function rules(): array
     {
         return [
-            'temperature' => ['required', 'numeric', 'min:30', 'max:45'],
+            'temperatureFahrenheit' => ['required', 'numeric', 'min:86', 'max:113'],
             'bpSystolic' => ['required', 'integer', 'min:50', 'max:300'],
             'bpDiastolic' => ['required', 'integer', 'min:30', 'max:200'],
         ];
@@ -151,7 +151,7 @@ new #[Title('Vitals')] class extends Component
             'queue_token_id' => $token->id,
             'patient_id' => $token->patient_id,
             'recorded_by' => auth()->id(),
-            'temperature' => $validated['temperature'],
+            'temperature' => $validated['temperatureFahrenheit'],
             'bp_systolic' => $validated['bpSystolic'],
             'bp_diastolic' => $validated['bpDiastolic'],
         ]);
@@ -179,7 +179,7 @@ new #[Title('Vitals')] class extends Component
      */
     private function resetCaptureFields(): void
     {
-        $this->temperature = '';
+        $this->temperatureFahrenheit = '';
         $this->bpSystolic = '';
         $this->bpDiastolic = '';
     }
@@ -249,19 +249,19 @@ new #[Title('Vitals')] class extends Component
 
         <form wire:submit="saveAndNext" class="flex flex-1 flex-col gap-5">
             <flux:field>
-                <flux:label class="text-base">{{ __('Temperature (°C)') }}</flux:label>
+                <flux:label class="text-base">{{ __('Temperature (°F)') }}</flux:label>
                 <flux:input
-                    wire:model="temperature"
+                    wire:model="temperatureFahrenheit"
                     type="number"
                     inputmode="decimal"
                     step="0.1"
-                    min="30"
-                    max="45"
+                    min="86"
+                    max="113"
                     class="!h-14 !text-2xl"
                     autofocus
                     required
                 />
-                <flux:error name="temperature" />
+                <flux:error name="temperatureFahrenheit" />
             </flux:field>
 
             <div class="grid grid-cols-2 gap-3">

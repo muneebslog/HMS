@@ -20,7 +20,7 @@ class AdminNotificationFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'type' => 'reservation_without_phone',
+            'type' => 'patient_without_phone',
             'title' => $this->faker->sentence(),
             'message' => $this->faker->paragraph(),
             'read_at' => null,

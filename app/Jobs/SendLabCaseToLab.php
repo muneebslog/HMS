@@ -38,7 +38,7 @@ class SendLabCaseToLab implements ShouldQueue
      */
     public function handle(LabApiService $labApiService): void
     {
-        $invoice = LabInvoice::find($this->labInvoiceId);
+        $invoice = LabInvoice::with(['patient.family', 'items'])->find($this->labInvoiceId);
 
         if ($invoice === null) {
             return;

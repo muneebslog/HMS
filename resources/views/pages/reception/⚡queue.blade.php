@@ -106,7 +106,7 @@ new #[Title('Queue')] class extends Component
     {
         $this->ensureAdmin();
 
-        $token = QueueToken::with(['patient', 'invoiceItem.invoice.patient'])->find($tokenId);
+        $token = QueueToken::with(['patient.family', 'invoiceItem.invoice.patient.family'])->find($tokenId);
 
         if ($token === null) {
             Flux::toast(variant: 'danger', text: __('Token not found.'));
@@ -124,7 +124,7 @@ new #[Title('Queue')] class extends Component
 
         $this->editingTokenId = $token->id;
         $this->editPatientName = $patient->name;
-        $this->editPatientPhone = $patient->phone ?? '';
+        $this->editPatientPhone = $patient->contactPhone() ?? '';
         $this->showEditPatientModal = true;
         $this->resetValidation();
     }
@@ -277,7 +277,7 @@ new #[Title('Queue')] class extends Component
             return null;
         }
 
-        return ServiceQueue::with(['service', 'doctor', 'tokens.patient', 'tokens.invoiceItem.invoice.patient'])
+        return ServiceQueue::with(['service', 'doctor', 'tokens.patient.family', 'tokens.invoiceItem.invoice.patient.family'])
             ->find($this->viewingQueueId);
     }
 
@@ -422,7 +422,7 @@ new #[Title('Queue')] class extends Component
                             <flux:table.row wire:key="queue-token-{{ $token->id }}">
                                 <flux:table.cell class="font-semibold">{{ $token->token_number }}</flux:table.cell>
                                 <flux:table.cell>{{ $patient?->name ?? '-' }}</flux:table.cell>
-                                <flux:table.cell>{{ $patient?->phone ?? '-' }}</flux:table.cell>
+                                <flux:table.cell>{{ $patient?->contactPhone() ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>
                                     @if ($token->status === 'reserved')
                                         <flux:badge size="sm" color="purple">{{ __('Reserved') }}</flux:badge>

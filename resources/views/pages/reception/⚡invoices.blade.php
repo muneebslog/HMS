@@ -366,6 +366,7 @@ new #[Title('Invoices')] class extends Component
                     <flux:table.column>{{ __('Patient') }}</flux:table.column>
                     <flux:table.column>{{ __('Doctor') }}</flux:table.column>
                     <flux:table.column>{{ __('Amount') }}</flux:table.column>
+                    <flux:table.column>{{ __('Mode') }}</flux:table.column>
                     <flux:table.column>{{ __('Date') }}</flux:table.column>
                 </flux:table.columns>
 
@@ -376,11 +377,12 @@ new #[Title('Invoices')] class extends Component
                             <flux:table.cell>{{ $payment->procedure->patient->name }}</flux:table.cell>
                             <flux:table.cell>{{ $payment->procedure->doctor?->name ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
+                            <flux:table.cell>{{ $payment->mode?->label() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ $payment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                 {{ __('No procedure payments found.') }}
                             </flux:table.cell>
                         </flux:table.row>

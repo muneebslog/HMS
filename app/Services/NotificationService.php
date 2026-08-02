@@ -12,6 +12,7 @@ use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
+use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\ReceptionMemo;
 use App\Models\RoleRequest;
@@ -48,7 +49,73 @@ class NotificationService
     private const MEMO_PRIORITY = 5;
 
     /**
-     * Notify that a token was reserved without a patient phone number.
+     * Notify that a patient was registered or reserved without a contact phone.
+     *
+     * @param  'walk_in'|'reservation'|'lab'|'procedure'  $context
+     * @param  array<string, mixed>  $metadata
+     */
+    public function notifyPatientWithoutPhone(
+        User $user,
+        Patient $patient,
+        string $context,
+        ?QueueToken $token = null,
+        array $metadata = []
+    ): AdminNotification {
+        $routes = [
+            'walk_in' => 'reception.walkin',
+            'reservation' => 'reception.reservation',
+            'lab' => 'reception.lab-entry',
+            'procedure' => 'reception.procedures',
+        ];
+
+        $labels = [
+            'walk_in' => __('walk-in'),
+            'reservation' => __('reservation'),
+            'lab' => __('lab entry'),
+            'procedure' => __('procedure'),
+        ];
+
+        $title = __('📵 Patient Registered Without Contact Number');
+        $message = $token !== null
+            ? __(
+                'Receptionist :name issued token :number for :patient (:mrn) without a contact number.',
+                [
+                    'name' => $user->name,
+                    'number' => $token->token_number,
+                    'patient' => $patient->name,
+                    'mrn' => $patient->mrn ?? __('No MRN'),
+                ]
+            )
+            : __(
+                'Receptionist :name registered :patient (:mrn) for :context without a contact number.',
+                [
+                    'name' => $user->name,
+                    'patient' => $patient->name,
+                    'mrn' => $patient->mrn ?? __('No MRN'),
+                    'context' => $labels[$context] ?? $context,
+                ]
+            );
+
+        return $this->createAdminNotification(
+            $user,
+            'patient_without_phone',
+            $title,
+            $message,
+            route($routes[$context] ?? 'reception.walkin'),
+            array_merge([
+                'context' => $context,
+                'patient_id' => $patient->id,
+                'patient_name' => $patient->name,
+                'patient_mrn' => $patient->mrn,
+                'token_id' => $token?->id,
+                'token_number' => $token?->token_number,
+                'queue_id' => $token?->service_queue_id,
+            ], $metadata)
+        );
+    }
+
+    /**
+     * @deprecated Use notifyPatientWithoutPhone()
      */
     public function notifyReservationWithoutPhone(
         User $user,
@@ -56,30 +123,9 @@ class NotificationService
         string $patientName,
         int $tokenNumber
     ): AdminNotification {
-        $title = __('📵 Token Issued Without Contact Number');
-        $message = __(
-            'Receptionist :name issued token :number for :patient without a contact number.',
-            [
-                'name' => $user->name,
-                'number' => $tokenNumber,
-                'patient' => $patientName,
-            ]
-        );
+        $patient = $token->patient ?? Patient::query()->make(['name' => $patientName]);
 
-        return $this->createAdminNotification(
-            $user,
-            'reservation_without_phone',
-            $title,
-            $message,
-            route('reception.reservation'),
-            [
-                'token_id' => $token->id,
-                'token_number' => $tokenNumber,
-                'patient_id' => $token->patient_id,
-                'patient_name' => $patientName,
-                'queue_id' => $token->service_queue_id,
-            ]
-        );
+        return $this->notifyPatientWithoutPhone($user, $patient, 'reservation', $token);
     }
 
     /**

@@ -1,12 +1,14 @@
 <?php
 
+use App\Enums\PaymentMode;
+use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
-use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
 use App\Models\Room;
 use App\Models\Shift;
+use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,6 +21,7 @@ use Livewire\WithPagination;
 
 new #[Title('Procedures')] class extends Component
 {
+    use InteractsWithPatientIntake;
     use WithPagination;
 
     public string $search = '';
@@ -49,9 +52,6 @@ new #[Title('Procedures')] class extends Component
     public string $patientName = '';
 
     #[Validate]
-    public string $patientPhone = '';
-
-    #[Validate]
     public string $husbandName = '';
 
     #[Validate]
@@ -75,7 +75,13 @@ new #[Title('Procedures')] class extends Component
     public string $advancePayment = '';
 
     #[Validate]
+    public string $advancePaymentMode = 'cash';
+
+    #[Validate]
     public string $paymentAmount = '';
+
+    #[Validate]
+    public string $paymentMode = 'cash';
 
     /**
      * Get the validation rules for the procedure form.
@@ -86,7 +92,7 @@ new #[Title('Procedures')] class extends Component
     {
         return [
             'patientName' => ['required', 'string', 'max:255'],
-            'patientPhone' => ['required', 'string', 'max:255'],
+            ...$this->patientIntakePhoneRules(),
             'husbandName' => ['required', 'string', 'max:255'],
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'procedureTypeId' => ['required', 'integer', 'exists:procedure_types,id'],
@@ -105,7 +111,14 @@ new #[Title('Procedures')] class extends Component
                     }
                 },
             ],
+            'advancePaymentMode' => [
+                'exclude_unless:hasAdvancePayment,true',
+                'required',
+                'string',
+                'in:'.implode(',', PaymentMode::values()),
+            ],
             'paymentAmount' => ['required', 'numeric', 'min:0'],
+            'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
             'admissionCnic' => ['required', 'string', 'max:20'],
             'admissionRoomId' => ['required', 'integer', 'exists:rooms,id'],
         ];
@@ -138,10 +151,12 @@ new #[Title('Procedures')] class extends Component
         $this->editingProcedureId = $id;
         $this->showViewModal = false;
 
-        $procedure = Procedure::with('patient')->findOrFail($id);
+        $procedure = Procedure::with('patient.family')->findOrFail($id);
 
+        $this->selectedPatientId = $procedure->patient->id;
         $this->patientName = $procedure->patient->name;
-        $this->patientPhone = $procedure->patient->phone ?? '';
+        $this->patientPhone = $procedure->patient->contactPhone() ?? '';
+        $this->hasNoPhone = blank($this->patientPhone);
         $this->husbandName = $procedure->patient->husband_name ?? '';
         $this->patientAge = $procedure->patient->age;
         $this->procedureTypeId = $procedure->procedure_type_id
@@ -266,7 +281,7 @@ new #[Title('Procedures')] class extends Component
     {
         $this->reset([
             'patientName',
-            'patientPhone',
+            ...$this->patientIntakeResetFields(),
             'husbandName',
             'patientAge',
             'procedureTypeId',
@@ -276,6 +291,7 @@ new #[Title('Procedures')] class extends Component
             'hasAdvancePayment',
             'advancePayment',
         ]);
+        $this->advancePaymentMode = PaymentMode::Cash->value;
         $this->resetErrorBag();
     }
 
@@ -285,6 +301,7 @@ new #[Title('Procedures')] class extends Component
     private function resetPaymentForm(): void
     {
         $this->reset(['paymentAmount']);
+        $this->paymentMode = PaymentMode::Cash->value;
         $this->resetErrorBag();
     }
 
@@ -318,7 +335,7 @@ new #[Title('Procedures')] class extends Component
             return null;
         }
 
-        return Procedure::with(['patient', 'doctor', 'payments.creator', 'shift', 'procedureType.documents'])
+        return Procedure::with(['patient.family', 'doctor', 'payments.creator', 'shift', 'procedureType.documents'])
             ->withSum('payments as payments_sum_amount', 'amount')
             ->find($this->viewingProcedureId);
     }
@@ -331,6 +348,8 @@ new #[Title('Procedures')] class extends Component
         $rules = [
             'patientName' => $this->rules()['patientName'],
             'patientPhone' => $this->rules()['patientPhone'],
+            'hasNoPhone' => $this->rules()['hasNoPhone'],
+            'selectedPatientId' => $this->rules()['selectedPatientId'],
             'husbandName' => $this->rules()['husbandName'],
             'patientAge' => $this->rules()['patientAge'],
             'procedureTypeId' => $this->rules()['procedureTypeId'],
@@ -342,6 +361,7 @@ new #[Title('Procedures')] class extends Component
         if ($this->editingProcedureId === null) {
             $rules['hasAdvancePayment'] = $this->rules()['hasAdvancePayment'];
             $rules['advancePayment'] = $this->rules()['advancePayment'];
+            $rules['advancePaymentMode'] = $this->rules()['advancePaymentMode'];
         }
 
         $validated = $this->validate($rules);
@@ -373,13 +393,20 @@ new #[Title('Procedures')] class extends Component
         DB::transaction(function () use ($validated, $shift) {
             $procedureType = ProcedureType::findOrFail($validated['procedureTypeId']);
 
-            $patient = Patient::create([
+            $patient = $this->resolveIntakePatient([
                 'name' => $validated['patientName'],
                 'husband_name' => $validated['husbandName'],
-                'phone' => $validated['patientPhone'],
                 'age' => $validated['patientAge'],
                 'gender' => 'female',
             ]);
+
+            if ($this->hasNoPhone && auth()->user() !== null) {
+                app(PatientIntakeService::class)->notifyWithoutPhone(
+                    auth()->user(),
+                    $patient,
+                    'procedure',
+                );
+            }
 
             $procedure = Procedure::create([
                 'patient_id' => $patient->id,
@@ -396,6 +423,7 @@ new #[Title('Procedures')] class extends Component
                 ProcedurePayment::create([
                     'procedure_id' => $procedure->id,
                     'amount' => $validated['advancePayment'],
+                    'mode' => $validated['advancePaymentMode'],
                     'created_by' => auth()->id(),
                     'shift_id' => $shift->id,
                 ]);
@@ -426,9 +454,13 @@ new #[Title('Procedures')] class extends Component
             $procedure->patient->update([
                 'name' => $validated['patientName'],
                 'husband_name' => $validated['husbandName'],
-                'phone' => $validated['patientPhone'],
                 'age' => $validated['patientAge'],
             ]);
+
+            app(PatientIntakeService::class)->updateContactPhone(
+                $procedure->patient,
+                $this->hasNoPhone ? null : $validated['patientPhone'],
+            );
 
             $procedure->update([
                 'procedure_type_id' => $procedureType->id,
@@ -449,6 +481,7 @@ new #[Title('Procedures')] class extends Component
     {
         $validated = $this->validate([
             'paymentAmount' => $this->rules()['paymentAmount'],
+            'paymentMode' => $this->rules()['paymentMode'],
         ]);
 
         $shift = Shift::current();
@@ -470,6 +503,7 @@ new #[Title('Procedures')] class extends Component
         ProcedurePayment::create([
             'procedure_id' => $procedure->id,
             'amount' => $validated['paymentAmount'],
+            'mode' => $validated['paymentMode'],
             'created_by' => auth()->id(),
             'shift_id' => $shift->id,
         ]);
@@ -674,11 +708,9 @@ new #[Title('Procedures')] class extends Component
                     <flux:error name="patientName" />
                 </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Cell') }}</flux:label>
-                    <flux:input wire:model="patientPhone" type="text" required />
-                    <flux:error name="patientPhone" />
-                </flux:field>
+                <div class="sm:col-span-2">
+                    @include('partials.reception.patient-intake')
+                </div>
 
                 <flux:field>
                     <flux:label>{{ __('Husband') }}</flux:label>
@@ -737,6 +769,16 @@ new #[Title('Procedures')] class extends Component
                             <flux:input wire:model="advancePayment" type="number" step="0.01" min="0" required />
                             <flux:error name="advancePayment" />
                         </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Payment mode') }}</flux:label>
+                            <flux:select wire:model="advancePaymentMode" required>
+                                @foreach (App\Enums\PaymentMode::cases() as $mode)
+                                    <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="advancePaymentMode" />
+                        </flux:field>
                     @endif
                 </div>
             @endif
@@ -760,6 +802,16 @@ new #[Title('Procedures')] class extends Component
                 <flux:label>{{ __('Payment amount') }}</flux:label>
                 <flux:input wire:model="paymentAmount" type="number" step="0.01" min="0" required autofocus />
                 <flux:error name="paymentAmount" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Payment mode') }}</flux:label>
+                <flux:select wire:model="paymentMode" required>
+                    @foreach (App\Enums\PaymentMode::cases() as $mode)
+                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="paymentMode" />
             </flux:field>
 
             <div class="flex justify-end gap-3">
@@ -797,7 +849,7 @@ new #[Title('Procedures')] class extends Component
             <div class="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
                     <flux:text class="text-zinc-500">{{ __('Cell') }}</flux:text>
-                    <flux:text>{{ $this->viewedProcedure->patient->phone ?? '-' }}</flux:text>
+                    <flux:text>{{ $this->viewedProcedure->patient->contactPhone() ?? '-' }}</flux:text>
                 </div>
                 <div>
                     <flux:text class="text-zinc-500">{{ __('Husband') }}</flux:text>
@@ -907,6 +959,7 @@ new #[Title('Procedures')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Date') }}</flux:table.column>
                             <flux:table.column>{{ __('Amount') }}</flux:table.column>
+                            <flux:table.column>{{ __('Mode') }}</flux:table.column>
                             <flux:table.column>{{ __('Recorded By') }}</flux:table.column>
                             <flux:table.column>{{ __('Shift') }}</flux:table.column>
                         </flux:table.columns>
@@ -916,12 +969,13 @@ new #[Title('Procedures')] class extends Component
                                 <flux:table.row wire:key="procedure-ledger-payment-{{ $payment->id }}">
                                     <flux:table.cell>{{ $payment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                                     <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $payment->mode?->label() ?? '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ $payment->creator?->name ?? '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ $payment->shift?->opened_at->format('Y-m-d H:i') ?? '-' }}</flux:table.cell>
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No payments recorded.') }}
                                     </flux:table.cell>
                                 </flux:table.row>

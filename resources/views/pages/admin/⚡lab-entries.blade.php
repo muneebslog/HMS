@@ -23,7 +23,7 @@ new #[Title('Lab Entries Listings')] class extends Component
     #[Computed]
     public function invoices(): LengthAwarePaginator
     {
-        $query = LabInvoice::with(['patient', 'labApiLog'])->latest();
+        $query = LabInvoice::with(['patient.family', 'labApiLog'])->latest();
 
         if ($this->statusFilter !== 'all' && in_array($this->statusFilter, LabApiStatus::values(), true)) {
             $query->whereHas('labApiLog', fn ($q) => $q->where('status', $this->statusFilter));
@@ -35,7 +35,10 @@ new #[Title('Lab Entries Listings')] class extends Component
                 $q->where('invoice_number', 'like', $term)
                     ->orWhereHas('patient', function ($patientQuery) use ($term) {
                         $patientQuery->where('name', 'like', $term)
-                            ->orWhere('phone', 'like', $term);
+                            ->orWhere('mrn', 'like', $term)
+                            ->orWhereHas('family', function ($familyQuery) use ($term) {
+                                $familyQuery->where('phone', 'like', $term);
+                            });
                     });
             });
         }
@@ -53,7 +56,7 @@ new #[Title('Lab Entries Listings')] class extends Component
             return null;
         }
 
-        return LabInvoice::with(['patient', 'labApiLog', 'items'])->find($this->selectedInvoiceId);
+        return LabInvoice::with(['patient.family', 'labApiLog', 'items'])->find($this->selectedInvoiceId);
     }
 
     /**
@@ -124,7 +127,7 @@ new #[Title('Lab Entries Listings')] class extends Component
                         <flux:table.row wire:key="lab-entry-{{ $invoice->id }}">
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient?->name ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>{{ $invoice->patient?->phone ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ $invoice->patient?->contactPhone() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient?->age ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->patient?->gender ? ucfirst($invoice->patient->gender) : '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
@@ -207,7 +210,7 @@ new #[Title('Lab Entries Listings')] class extends Component
 
                 <div class="grid grid-cols-3 gap-2">
                     <flux:text class="text-zinc-500">{{ __('Phone') }}</flux:text>
-                    <flux:text class="col-span-2">{{ $this->selectedInvoice->patient?->phone ?? '-' }}</flux:text>
+                    <flux:text class="col-span-2">{{ $this->selectedInvoice->patient?->contactPhone() ?? '-' }}</flux:text>
                 </div>
 
                 <div class="grid grid-cols-3 gap-2">

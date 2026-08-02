@@ -14,33 +14,32 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('models');
 
 test('patients table can store patient records', function () {
-    $patient = Patient::factory()->create([
+    $patient = Patient::factory()->withPhone('03001234567')->create([
         'name' => 'John Doe',
-        'phone' => '1234567890',
         'age' => 30,
         'gender' => 'male',
     ]);
 
-    expect($patient->fresh())
+    expect($patient->fresh()->load('family'))
         ->name->toBe('John Doe')
         ->mrn->toBe('MRN000001')
-        ->phone->toBe('1234567890')
         ->age->toBe(30)
-        ->gender->toBe('male');
+        ->gender->toBe('male')
+        ->and($patient->contactPhone())->toBe('03001234567');
 });
 
 test('patient nullable fields can be null', function () {
     $patient = Patient::factory()->create([
-        'phone' => null,
         'age' => null,
         'gender' => null,
     ]);
 
     expect($patient->fresh())
         ->mrn->toBe('MRN000001')
-        ->phone->toBeNull()
+        ->family_id->toBeNull()
         ->age->toBeNull()
-        ->gender->toBeNull();
+        ->gender->toBeNull()
+        ->and($patient->contactPhone())->toBeNull();
 });
 
 test('services table can store service records', function () {

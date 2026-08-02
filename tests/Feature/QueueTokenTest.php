@@ -25,7 +25,7 @@ function createWalkInInvoice(User $user, Shift $shift, Service $service, ?Doctor
 
     $component = Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Test Patient')
+        ->set('patientName', 'Test Patient')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id);
 
     if ($doctor !== null) {
@@ -245,7 +245,7 @@ test('walk-in page shows expected token number before saving', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Test Patient')
+        ->set('patientName', 'Test Patient')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertSee('1');
@@ -274,7 +274,7 @@ test('walk-in page shows next expected token when a queue already exists', funct
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Test Patient')
+        ->set('patientName', 'Test Patient')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertSee('4');

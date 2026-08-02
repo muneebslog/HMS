@@ -93,7 +93,7 @@ new #[Title('Patient Calling')] class extends Component
             return new Collection();
         }
 
-        return QueueToken::with(['patient', 'serviceQueue.doctor', 'patientCalls.caller'])
+        return QueueToken::with(['patient.family', 'serviceQueue.doctor', 'patientCalls.caller'])
             ->where('service_queue_id', $queue->id)
             ->where('status', 'reserved')
             ->orderBy('token_number')
@@ -216,7 +216,7 @@ new #[Title('Patient Calling')] class extends Component
                                         <tr wire:key="reservation-{{ $reservation->id }}">
                                             <td class="py-3 pr-4">{{ $reservation->token_number }}</td>
                                             <td class="py-3 pr-4">{{ $reservation->patient->name }}</td>
-                                            <td class="py-3 pr-4">{{ $reservation->patient->phone }}</td>
+                                            <td class="py-3 pr-4">{{ $reservation->patient->contactPhone() }}</td>
                                             <td class="py-3 pr-4">{{ $reservation->created_at->format('Y-m-d H:i') }}</td>
                                             <td class="py-3 pr-4">
                                                 @if ($reservation->patientCalls->isNotEmpty())
@@ -236,7 +236,7 @@ new #[Title('Patient Calling')] class extends Component
                                                     <flux:button
                                                         icon="phone"
                                                         size="sm"
-                                                        :href="'tel:' . $reservation->patient->phone"
+                                                        :href="'tel:' . $reservation->patient->contactPhone()"
                                                     >
                                                         {{ __('Call') }}
                                                     </flux:button>
@@ -283,14 +283,14 @@ new #[Title('Patient Calling')] class extends Component
                                         <tr wire:key="uncalled-{{ $reservation->id }}">
                                             <td class="py-3 pr-4">{{ $reservation->token_number }}</td>
                                             <td class="py-3 pr-4">{{ $reservation->patient->name }}</td>
-                                            <td class="py-3 pr-4">{{ $reservation->patient->phone }}</td>
+                                            <td class="py-3 pr-4">{{ $reservation->patient->contactPhone() }}</td>
                                             <td class="py-3 pr-4">{{ $reservation->created_at->format('Y-m-d H:i') }}</td>
                                             <td class="py-3">
                                                 <div class="flex items-center gap-2">
                                                     <flux:button
                                                         icon="phone"
                                                         size="sm"
-                                                        :href="'tel:' . $reservation->patient->phone"
+                                                        :href="'tel:' . $reservation->patient->contactPhone()"
                                                     >
                                                         {{ __('Call') }}
                                                     </flux:button>

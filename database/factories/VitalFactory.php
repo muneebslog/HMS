@@ -24,7 +24,7 @@ class VitalFactory extends Factory
             'queue_token_id' => QueueToken::factory(),
             'patient_id' => Patient::factory(),
             'recorded_by' => User::factory(),
-            'temperature' => fake()->randomFloat(1, 36.0, 39.5),
+            'temperature' => fake()->randomFloat(1, 96.8, 103.1),
             'bp_systolic' => fake()->numberBetween(90, 160),
             'bp_diastolic' => fake()->numberBetween(60, 100),
         ];

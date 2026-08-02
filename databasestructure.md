@@ -90,15 +90,22 @@ Conventions used below:
 
 ## Core Clinical
 
+### `families`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| phone | string | nullable, UQ |
+| timestamps | | |
+
 ### `patients`
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint | PK |
+| family_id | FK → families | nullable, nullOnDelete |
 | mrn | string | nullable, UQ |
 | name | string | |
 | husband_name | string | nullable |
 | cnic | string | nullable |
-| phone | string | nullable |
 | age | unsignedTinyInteger | nullable |
 | gender | string | nullable |
 | timestamps | | |
@@ -351,7 +358,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | queue_token_id | FK → queue_tokens | unique, cascadeOnDelete |
 | patient_id | FK → patients | cascadeOnDelete |
 | recorded_by | FK → users | cascadeOnDelete |
-| temperature | decimal(4,1) | °C |
+| temperature | decimal(4,1) | °F |
 | bp_systolic | unsignedSmallInteger | mmHg |
 | bp_diastolic | unsignedSmallInteger | mmHg |
 | timestamps | | |
@@ -426,6 +433,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | id | bigint | PK |
 | procedure_id | FK → procedures | cascadeOnDelete |
 | amount | decimal(12,2) | |
+| mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | cascadeOnDelete |
 | shift_id | FK → shifts | cascadeOnDelete |
 | timestamps | | |
@@ -766,7 +774,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            ├── lab_invoices ── lab_invoice_items ── lab_tests
         │            ├── expenses
         │            ├── doctor_payouts ── doctors
-        │            ├── procedures ──┬── patients
+        │            ├── procedures ──┬── patients ── families
         │            │                ├── procedure_types ── procedure_type_documents
         │            │                ├── rooms
         │            │                └── procedure_payments

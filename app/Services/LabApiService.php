@@ -48,7 +48,7 @@ class LabApiService
 
         $payload = [
             'name' => $invoice->patient->name,
-            'phone' => $invoice->patient->phone,
+            'phone' => $invoice->patient->contactPhone(),
             'invoice_number' => $invoice->invoice_number,
             'receipt_no' => null,
             'age' => $invoice->patient->age,

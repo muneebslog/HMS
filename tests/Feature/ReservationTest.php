@@ -90,9 +90,10 @@ test('a token can be reserved for a doctor', function () {
         ->token_number->toBe(5)
         ->status->toBe('reserved')
         ->origin->toBe('reservation')
-        ->patient->name->toBe('Reserved Patient')
-        ->patient->phone->toBe(validPhone())
         ->invoice_item_id->toBeNull();
+
+    expect($token->patient->name)->toBe('Reserved Patient');
+    expect($token->patient->contactPhone())->toBe(validPhone());
 });
 
 test('reserving an already used token fails', function () {
@@ -141,6 +142,7 @@ test('walk-in tokens skip reserved numbers', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
         ->set('patientName', 'Walk-in Patient')
+        ->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->set('selectedDoctorId', $doctor->id)
         ->call('add')
@@ -251,7 +253,7 @@ test('patient calling page lists only reserved tokens for the selected doctor', 
 
     $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
 
-    $reservedPatient = Patient::factory()->create(['phone' => validPhone()]);
+    $reservedPatient = Patient::factory()->withPhone(validPhone())->create();
     $arrivedPatient = Patient::factory()->create();
 
     $reservedToken = QueueToken::create([
@@ -288,7 +290,7 @@ test('patient calling page renders a call link for each reservation', function (
 
     $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
 
-    $patient = Patient::factory()->create(['phone' => validPhone()]);
+    $patient = Patient::factory()->withPhone(validPhone())->create();
 
     QueueToken::create([
         'service_queue_id' => $queue->id,
@@ -324,9 +326,10 @@ test('a token can be reserved without a phone number', function () {
     $token = QueueToken::first();
     expect($token)->not->toBeNull()
         ->token_number->toBe(5)
-        ->status->toBe('reserved')
-        ->patient->name->toBe('No Phone Patient')
-        ->patient->phone->toBeNull();
+        ->status->toBe('reserved');
+
+    expect($token->patient->name)->toBe('No Phone Patient');
+    expect($token->patient->contactPhone())->toBeNull();
 });
 
 test('reservation creates a queued sms log and dispatches job when a phone number is provided', function () {
@@ -495,8 +498,8 @@ test('reserving without a phone number logs an admin notification', function () 
     $notification = AdminNotification::first();
     expect($notification)->not->toBeNull()
         ->user_id->toBe($user->id)
-        ->type->toBe('reservation_without_phone')
-        ->title->toBe(__('📵 Token Issued Without Contact Number'))
+        ->type->toBe('patient_without_phone')
+        ->title->toBe(__('📵 Patient Registered Without Contact Number'))
         ->read_at->toBeNull();
 
     expect($notification->message)->toContain('No Phone Patient');
@@ -558,7 +561,7 @@ test('uncalled reservations appear in the not called today list', function () {
 
     $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
 
-    $patient = Patient::factory()->create(['phone' => validPhone()]);
+    $patient = Patient::factory()->withPhone(validPhone())->create();
 
     QueueToken::create([
         'service_queue_id' => $queue->id,
@@ -585,7 +588,7 @@ test('marking a reservation called creates a patient call record', function () {
 
     $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
 
-    $patient = Patient::factory()->create(['phone' => validPhone()]);
+    $patient = Patient::factory()->withPhone(validPhone())->create();
 
     $token = QueueToken::create([
         'service_queue_id' => $queue->id,
@@ -619,7 +622,7 @@ test('a called reservation is removed from the not called today list', function 
 
     $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
 
-    $patient = Patient::factory()->create(['phone' => validPhone()]);
+    $patient = Patient::factory()->withPhone(validPhone())->create();
 
     $token = QueueToken::create([
         'service_queue_id' => $queue->id,

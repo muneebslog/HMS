@@ -59,7 +59,8 @@ test('users with the default user role are redirected to the pending role page',
 
 test('lab entries page lists invoices and their api statuses', function () {
     $admin = User::factory()->admin()->create();
-    $invoice = LabInvoice::factory()->paid()->create();
+    $patient = Patient::factory()->withPhone('03001234567')->create();
+    $invoice = LabInvoice::factory()->paid()->create(['patient_id' => $patient->id]);
     LabApiLog::factory()->sent()->create([
         'lab_invoice_id' => $invoice->id,
         'lab_case_url' => 'https://lab.mohsinmedicalcomplex.com/my-visit/'.$invoice->invoice_number,
@@ -69,7 +70,7 @@ test('lab entries page lists invoices and their api statuses', function () {
         ->test('pages::admin.lab-entries')
         ->assertSee($invoice->invoice_number)
         ->assertSee($invoice->patient->name)
-        ->assertSee($invoice->patient->phone)
+        ->assertSee($patient->contactPhone())
         ->assertSee(number_format($invoice->total, 2))
         ->assertSee('Sent')
         ->assertSee('https://lab.mohsinmedicalcomplex.com/my-visit/'.$invoice->invoice_number);
@@ -119,14 +120,14 @@ test('lab entries page filters by patient name', function () {
 
 test('lab entries page filters by patient phone', function () {
     $admin = User::factory()->admin()->create();
-    $patient = Patient::factory()->create(['phone' => '03001234567']);
+    $patient = Patient::factory()->withPhone('03001234567')->create();
     $matchingInvoice = LabInvoice::factory()->paid()->create(['patient_id' => $patient->id]);
     $otherInvoice = LabInvoice::factory()->paid()->create();
 
     Livewire::actingAs($admin)
         ->test('pages::admin.lab-entries')
-        ->set('keyword', $patient->phone)
-        ->assertSee($patient->phone)
+        ->set('keyword', $patient->contactPhone())
+        ->assertSee($patient->contactPhone())
         ->assertDontSee($otherInvoice->invoice_number);
 });
 

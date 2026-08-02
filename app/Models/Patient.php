@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\PatientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Patient extends Model
@@ -18,11 +19,11 @@ class Patient extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'family_id',
         'name',
         'husband_name',
         'cnic',
         'mrn',
-        'phone',
         'age',
         'gender',
     ];
@@ -37,6 +38,24 @@ class Patient extends Model
                 $patient->update(['mrn' => 'MRN'.str_pad((string) $patient->id, 6, '0', STR_PAD_LEFT)]);
             }
         });
+    }
+
+    /**
+     * Get the family this patient belongs to.
+     *
+     * @return BelongsTo<Family, $this>
+     */
+    public function family(): BelongsTo
+    {
+        return $this->belongsTo(Family::class);
+    }
+
+    /**
+     * Get the shared family contact phone, if any.
+     */
+    public function contactPhone(): ?string
+    {
+        return $this->family?->phone;
     }
 
     /**

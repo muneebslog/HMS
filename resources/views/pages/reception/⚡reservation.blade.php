@@ -1,12 +1,13 @@
 <?php
 
+use App\Actions\CreatePrintJob;
+use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\QueueService;
-use App\Actions\CreatePrintJob;
 use App\Services\ReservationService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,16 +18,13 @@ use Livewire\Component;
 
 new #[Title('Reservations')] class extends Component
 {
+    use InteractsWithPatientIntake;
+
     #[Validate]
     public ?int $selectedDoctorId = null;
 
     #[Validate]
     public string $patientName = '';
-
-    #[Validate]
-    public string $patientPhone = '';
-
-    public bool $hasNoPhone = false;
 
     public int $visibleCount = 30;
 
@@ -48,7 +46,7 @@ new #[Title('Reservations')] class extends Component
         return [
             'selectedDoctorId' => ['required', 'integer', 'exists:doctors,id'],
             'patientName' => ['required', 'string', 'max:255'],
-            'patientPhone' => [$this->hasNoPhone ? 'nullable' : 'required', 'digits:11'],
+            ...$this->patientIntakePhoneRules(),
         ];
     }
 
@@ -59,18 +57,6 @@ new #[Title('Reservations')] class extends Component
     {
         $this->visibleCount = 30;
         $this->closeModals();
-    }
-
-    /**
-     * Clear the phone number when the patient has no phone.
-     */
-    public function updatedHasNoPhone(): void
-    {
-        if ($this->hasNoPhone) {
-            $this->patientPhone = '';
-        }
-
-        $this->resetValidation('patientPhone');
     }
 
     /**
@@ -91,6 +77,11 @@ new #[Title('Reservations')] class extends Component
         if ($token === null) {
             $this->viewingTokenNumber = $tokenNumber;
             $this->patientName = '';
+            $this->patientPhone = '';
+            $this->hasNoPhone = false;
+            $this->selectedPatientId = null;
+            $this->patientMrnSearch = '';
+            $this->matchedPatients = [];
             $this->showReserveModal = true;
 
             return;
@@ -109,6 +100,7 @@ new #[Title('Reservations')] class extends Component
     {
         $this->validateOnly('patientName');
         $this->validateOnly('patientPhone');
+        $this->validateOnly('selectedPatientId');
 
         if ($this->viewingTokenNumber === null || $this->selectedDoctorId === null) {
             return;
@@ -126,7 +118,9 @@ new #[Title('Reservations')] class extends Component
         try {
             $queue = app(QueueService::class)->queueFor($service, $this->selectedDoctorId, $shift);
 
-            app(ReservationService::class)->reserve($queue, $this->viewingTokenNumber, $this->patientName, $this->hasNoPhone ? null : $this->patientPhone);
+            $patient = $this->resolveIntakePatient(['name' => $this->patientName]);
+
+            app(ReservationService::class)->reserve($queue, $this->viewingTokenNumber, $patient);
 
             $this->closeReserveModal();
 
@@ -176,6 +170,9 @@ new #[Title('Reservations')] class extends Component
         $this->patientName = '';
         $this->patientPhone = '';
         $this->hasNoPhone = false;
+        $this->selectedPatientId = null;
+        $this->patientMrnSearch = '';
+        $this->matchedPatients = [];
         $this->resetValidation();
     }
 
@@ -403,27 +400,7 @@ new #[Title('Reservations')] class extends Component
                 <flux:error name="patientName" />
             </flux:field>
 
-            <div x-data="{ phone: '' }" x-effect="if ($wire.hasNoPhone) phone = ''">
-                <flux:field>
-                    <flux:label>{{ __('Phone number') }}</flux:label>
-                    <flux:input
-                        type="tel"
-                        inputmode="numeric"
-                        maxlength="11"
-                        pattern="[0-9]{11}"
-                        placeholder="03XXXXXXXXX"
-                        x-model="phone"
-                        x-init="phone = $wire.patientPhone"
-                        x-on:input="phone = phone.replace(/\D/g, ''); $wire.patientPhone = phone"
-                        x-bind:required="! $wire.hasNoPhone"
-                        x-bind:disabled="$wire.hasNoPhone"
-                        x-bind:class="phone.length === 11 ? 'ring-2 ring-green-500 dark:ring-green-400 border-green-500 dark:border-green-400' : ''"
-                    />
-                    <flux:error name="patientPhone" />
-                </flux:field>
-
-                <flux:checkbox wire:model.live="hasNoPhone" label="{{ __('Have no number') }}" class="mt-3" />
-            </div>
+            @include('partials.reception.patient-intake')
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="closeReserveModal">

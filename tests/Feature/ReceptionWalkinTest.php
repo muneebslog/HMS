@@ -38,7 +38,7 @@ test('a standalone service can be added without a doctor', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertHasNoErrors()
@@ -62,7 +62,7 @@ test('a non-standalone service requires a related doctor', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Jane Doe')
+        ->set('patientName', 'Jane Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->set('selectedDoctorId', '')
         ->call('add')
@@ -70,7 +70,7 @@ test('a non-standalone service requires a related doctor', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Jane Doe')
+        ->set('patientName', 'Jane Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->set('selectedDoctorId', $doctor->id)
         ->call('add')
@@ -89,7 +89,7 @@ test('the reset button clears the form and services', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertCount('items', 1)
@@ -105,7 +105,7 @@ test('a service can be removed from the list', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertCount('items', 1)
@@ -124,7 +124,7 @@ test('a service price can be edited from the table', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->assertCount('items', 1)
@@ -145,7 +145,7 @@ test('price edits must be a non-negative number', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->call('editPrice', 0)
@@ -166,7 +166,7 @@ test('a walk-in invoice can be saved with items', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->call('saveInvoice')
@@ -203,7 +203,7 @@ test('a walk-in invoice can be saved with a doctor service', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'Jane Doe')
+        ->set('patientName', 'Jane Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->set('selectedDoctorId', $doctor->id)
         ->call('add')
@@ -241,7 +241,7 @@ test('saving a walk-in invoice requires at least one item', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->call('saveInvoice')
         ->assertHasErrors(['items']);
 
@@ -261,7 +261,7 @@ test('saving a walk-in invoice clears the form', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
-        ->set('patientName', 'John Doe')
+        ->set('patientName', 'John Doe')->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')
         ->call('saveInvoice')
