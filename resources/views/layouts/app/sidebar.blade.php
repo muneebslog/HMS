@@ -25,6 +25,9 @@
                         <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
                             {{ __('Doctor Portal') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
+                            {{ __('Medication') }}
+                        </flux:sidebar.item>
                     @endif
 
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
@@ -53,6 +56,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
                             {{ __('Vitals') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="beaker" :href="route('reception.medication-admin')" :current="request()->routeIs('reception.medication-admin')" wire:navigate>
+                            {{ __('Medication Admin') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
                             {{ __('Ultrasound') }}

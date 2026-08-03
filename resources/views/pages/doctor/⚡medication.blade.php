@@ -1,0 +1,746 @@
+<?php
+
+use App\Enums\MedicationOrderStatus;
+use App\Models\Doctor;
+use App\Models\DripBase;
+use App\Models\Injection;
+use App\Models\MedicationOrder;
+use App\Models\Medicine;
+use App\Models\QueueToken;
+use App\Models\Shift;
+use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+
+new #[Title('Medication')] class extends Component
+{
+    public ?int $selectedTokenId = null;
+
+    public string $activeOrderTab = 'medicines';
+
+    public string $notes = '';
+
+    /**
+     * @var list<array{medicine_id: int|null, quantity: string, dosage_instructions: string}>
+     */
+    public array $medicineLines = [];
+
+    /**
+     * @var list<array{injection_id: int|null, volume_ml: string}>
+     */
+    public array $injectionLines = [];
+
+    /**
+     * @var list<array{drip_base_id: int|null, volume_ml: string, additives: list<array{injection_id: int|null, volume_ml: string}>}>
+     */
+    public array $dripLines = [];
+
+    /**
+     * Get the logged-in doctor's profile.
+     */
+    #[Computed]
+    public function doctor(): ?Doctor
+    {
+        return auth()->user()?->doctor;
+    }
+
+    /**
+     * Tokens awaiting medication for the current doctor and open shift.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function queue(): Collection
+    {
+        $doctor = $this->doctor;
+        $shift = Shift::current();
+
+        if ($doctor === null || $shift === null) {
+            return new Collection;
+        }
+
+        return QueueToken::query()
+            ->with(['patient', 'serviceQueue.service', 'vital', 'medicationOrder'])
+            ->whereIn('status', ['waiting', 'serving'])
+            ->whereHas('serviceQueue', function ($query) use ($doctor, $shift): void {
+                $query->where('status', 'open')
+                    ->where('shift_id', $shift->id)
+                    ->where('doctor_id', $doctor->id)
+                    ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
+            })
+            ->orderByRaw('arrived_at is null')
+            ->orderBy('arrived_at')
+            ->orderBy('token_number')
+            ->get();
+    }
+
+    /**
+     * The token currently being ordered for.
+     */
+    #[Computed]
+    public function selectedToken(): ?QueueToken
+    {
+        if ($this->selectedTokenId === null) {
+            return null;
+        }
+
+        return $this->queue->firstWhere('id', $this->selectedTokenId)
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'vital', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
+                ->find($this->selectedTokenId);
+    }
+
+    /**
+     * Active medicine catalog.
+     *
+     * @return Collection<int, Medicine>
+     */
+    #[Computed]
+    public function medicines(): Collection
+    {
+        return Medicine::query()->active()->orderBy('name')->get();
+    }
+
+    /**
+     * Active injection catalog.
+     *
+     * @return Collection<int, Injection>
+     */
+    #[Computed]
+    public function injections(): Collection
+    {
+        return Injection::query()->active()->orderBy('name')->get();
+    }
+
+    /**
+     * Active drip base catalog.
+     *
+     * @return Collection<int, DripBase>
+     */
+    #[Computed]
+    public function dripBases(): Collection
+    {
+        return DripBase::query()->active()->orderBy('name')->get();
+    }
+
+    /**
+     * Select a patient token and load any existing pending order.
+     */
+    public function selectToken(int $tokenId): void
+    {
+        $token = $this->queue->firstWhere('id', $tokenId);
+
+        if ($token === null) {
+            Flux::toast(variant: 'danger', text: __('Patient is no longer in the medication queue.'));
+
+            return;
+        }
+
+        $this->selectedTokenId = $tokenId;
+        $this->activeOrderTab = 'medicines';
+        $this->resetValidation();
+        $this->loadOrderForm($token);
+    }
+
+    /**
+     * Return to the patient list.
+     */
+    public function backToList(): void
+    {
+        $this->selectedTokenId = null;
+        $this->notes = '';
+        $this->medicineLines = [];
+        $this->injectionLines = [];
+        $this->dripLines = [];
+        $this->resetValidation();
+    }
+
+    public function switchOrderTab(string $tab): void
+    {
+        if (! in_array($tab, ['medicines', 'injections', 'drips'], true)) {
+            return;
+        }
+
+        $this->activeOrderTab = $tab;
+    }
+
+    public function addMedicineLine(): void
+    {
+        $this->medicineLines[] = [
+            'medicine_id' => null,
+            'quantity' => '1',
+            'dosage_instructions' => '',
+        ];
+    }
+
+    public function removeMedicineLine(int $index): void
+    {
+        unset($this->medicineLines[$index]);
+        $this->medicineLines = array_values($this->medicineLines);
+    }
+
+    public function addInjectionLine(): void
+    {
+        $this->injectionLines[] = [
+            'injection_id' => null,
+            'volume_ml' => '',
+        ];
+    }
+
+    public function removeInjectionLine(int $index): void
+    {
+        unset($this->injectionLines[$index]);
+        $this->injectionLines = array_values($this->injectionLines);
+    }
+
+    public function updatedInjectionLines(mixed $value, ?string $key): void
+    {
+        if (! is_string($key) || ! str_ends_with($key, '.injection_id')) {
+            return;
+        }
+
+        $index = (int) explode('.', $key)[0];
+        $injectionId = $this->injectionLines[$index]['injection_id'] ?? null;
+
+        if ($injectionId === null || $injectionId === '') {
+            return;
+        }
+
+        $injection = $this->injections->firstWhere('id', (int) $injectionId);
+
+        if ($injection?->default_volume_ml !== null && ($this->injectionLines[$index]['volume_ml'] ?? '') === '') {
+            $this->injectionLines[$index]['volume_ml'] = (string) $injection->default_volume_ml;
+        }
+    }
+
+    public function addDripLine(): void
+    {
+        $this->dripLines[] = [
+            'drip_base_id' => null,
+            'volume_ml' => '',
+            'additives' => [],
+        ];
+    }
+
+    public function removeDripLine(int $index): void
+    {
+        unset($this->dripLines[$index]);
+        $this->dripLines = array_values($this->dripLines);
+    }
+
+    public function updatedDripLines(mixed $value, ?string $key): void
+    {
+        if (! is_string($key) || ! str_ends_with($key, '.drip_base_id')) {
+            return;
+        }
+
+        $index = (int) explode('.', $key)[0];
+        $dripBaseId = $this->dripLines[$index]['drip_base_id'] ?? null;
+
+        if ($dripBaseId === null || $dripBaseId === '') {
+            return;
+        }
+
+        $dripBase = $this->dripBases->firstWhere('id', (int) $dripBaseId);
+
+        if ($dripBase !== null && ($this->dripLines[$index]['volume_ml'] ?? '') === '') {
+            $this->dripLines[$index]['volume_ml'] = (string) $dripBase->default_volume_ml;
+        }
+    }
+
+    public function addDripAdditive(int $dripIndex): void
+    {
+        if (! isset($this->dripLines[$dripIndex])) {
+            return;
+        }
+
+        $this->dripLines[$dripIndex]['additives'][] = [
+            'injection_id' => null,
+            'volume_ml' => '',
+        ];
+    }
+
+    public function removeDripAdditive(int $dripIndex, int $additiveIndex): void
+    {
+        if (! isset($this->dripLines[$dripIndex]['additives'][$additiveIndex])) {
+            return;
+        }
+
+        unset($this->dripLines[$dripIndex]['additives'][$additiveIndex]);
+        $this->dripLines[$dripIndex]['additives'] = array_values($this->dripLines[$dripIndex]['additives']);
+    }
+
+    /**
+     * Save or update the medication order for the selected token.
+     */
+    public function save(): void
+    {
+        $doctor = $this->doctor;
+
+        if ($doctor === null) {
+            Flux::toast(variant: 'danger', text: __('Doctor profile not found.'));
+
+            return;
+        }
+
+        $token = $this->selectedToken;
+
+        if ($token === null || $token->patient_id === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+            $this->backToList();
+
+            return;
+        }
+
+        if (! in_array($token->status, ['waiting', 'serving'], true)) {
+            Flux::toast(variant: 'danger', text: __('Patient is no longer available for medication.'));
+            $this->backToList();
+
+            return;
+        }
+
+        if ($token->serviceQueue?->doctor_id !== $doctor->id) {
+            Flux::toast(variant: 'danger', text: __('You can only prescribe for your own patients.'));
+            $this->backToList();
+
+            return;
+        }
+
+        if (! $token->serviceQueue?->service?->needs_medication) {
+            Flux::toast(variant: 'danger', text: __('This service does not require medication.'));
+            $this->backToList();
+
+            return;
+        }
+
+        $existing = $token->medicationOrder;
+
+        if ($existing !== null && $existing->status === MedicationOrderStatus::Administered) {
+            Flux::toast(variant: 'danger', text: __('This order has already been administered and cannot be edited.'));
+            $this->backToList();
+
+            return;
+        }
+
+        $validated = $this->validate($this->orderRules());
+
+        $medicineLines = collect($validated['medicineLines'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['medicine_id'] ?? null))
+            ->values();
+        $injectionLines = collect($validated['injectionLines'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['injection_id'] ?? null))
+            ->values();
+        $dripLines = collect($validated['dripLines'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
+            ->values();
+
+        if ($medicineLines->isEmpty() && $injectionLines->isEmpty() && $dripLines->isEmpty()) {
+            $this->addError('medicineLines', __('Add at least one medicine, injection, or drip.'));
+
+            return;
+        }
+
+        $medicinesById = Medicine::query()
+            ->whereIn('id', $medicineLines->pluck('medicine_id')->filter()->all())
+            ->get()
+            ->keyBy('id');
+        $injectionsById = Injection::query()
+            ->whereIn(
+                'id',
+                $injectionLines->pluck('injection_id')
+                    ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
+                    ->filter()
+                    ->all()
+            )
+            ->get()
+            ->keyBy('id');
+        $dripBasesById = DripBase::query()
+            ->whereIn('id', $dripLines->pluck('drip_base_id')->filter()->all())
+            ->get()
+            ->keyBy('id');
+
+        DB::transaction(function () use ($token, $doctor, $validated, $medicineLines, $injectionLines, $dripLines, $medicinesById, $injectionsById, $dripBasesById, $existing): void {
+            $order = $existing ?? new MedicationOrder([
+                'queue_token_id' => $token->id,
+                'patient_id' => $token->patient_id,
+                'doctor_id' => $doctor->id,
+            ]);
+
+            $order->fill([
+                'prescribed_by' => auth()->id(),
+                'status' => MedicationOrderStatus::Pending,
+                'notes' => $validated['notes'] !== '' ? $validated['notes'] : null,
+                'administered_by' => null,
+                'administered_at' => null,
+            ]);
+            $order->save();
+
+            $order->medicines()->delete();
+            $order->injections()->delete();
+            $order->drips()->delete();
+
+            foreach ($medicineLines as $line) {
+                $medicine = $medicinesById->get((int) $line['medicine_id']);
+
+                if ($medicine === null) {
+                    continue;
+                }
+
+                $order->medicines()->create([
+                    'medicine_id' => $medicine->id,
+                    'quantity' => (int) $line['quantity'],
+                    'dosage_instructions' => filled($line['dosage_instructions'] ?? null) ? $line['dosage_instructions'] : null,
+                    'name' => $medicine->name,
+                ]);
+            }
+
+            foreach ($injectionLines as $line) {
+                $injection = $injectionsById->get((int) $line['injection_id']);
+
+                if ($injection === null) {
+                    continue;
+                }
+
+                $order->injections()->create([
+                    'injection_id' => $injection->id,
+                    'volume_ml' => filled($line['volume_ml'] ?? null) ? $line['volume_ml'] : null,
+                    'name' => $injection->name,
+                ]);
+            }
+
+            foreach ($dripLines as $line) {
+                $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
+
+                if ($dripBase === null) {
+                    continue;
+                }
+
+                $drip = $order->drips()->create([
+                    'drip_base_id' => $dripBase->id,
+                    'volume_ml' => $line['volume_ml'],
+                    'name' => $dripBase->name,
+                ]);
+
+                foreach ($line['additives'] ?? [] as $additive) {
+                    if (! filled($additive['injection_id'] ?? null)) {
+                        continue;
+                    }
+
+                    $injection = $injectionsById->get((int) $additive['injection_id']);
+
+                    if ($injection === null) {
+                        continue;
+                    }
+
+                    $drip->additives()->create([
+                        'injection_id' => $injection->id,
+                        'volume_ml' => $additive['volume_ml'],
+                        'name' => $injection->name,
+                    ]);
+                }
+            }
+        });
+
+        unset($this->queue, $this->selectedToken);
+
+        Flux::toast(variant: 'success', text: __('Medication order saved.'));
+        $this->backToList();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function orderRules(): array
+    {
+        return [
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'medicineLines' => ['array'],
+            'medicineLines.*.medicine_id' => ['nullable', 'integer', 'exists:medicines,id'],
+            'medicineLines.*.quantity' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1'],
+            'medicineLines.*.dosage_instructions' => ['nullable', 'string', 'max:255'],
+            'injectionLines' => ['array'],
+            'injectionLines.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
+            'injectionLines.*.volume_ml' => ['nullable', 'numeric', 'min:0'],
+            'dripLines' => ['array'],
+            'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
+            'dripLines.*.volume_ml' => ['required_with:dripLines.*.drip_base_id', 'numeric', 'min:0'],
+            'dripLines.*.additives' => ['array'],
+            'dripLines.*.additives.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
+            'dripLines.*.additives.*.volume_ml' => ['required_with:dripLines.*.additives.*.injection_id', 'numeric', 'min:0'],
+        ];
+    }
+
+    private function loadOrderForm(QueueToken $token): void
+    {
+        $order = $token->medicationOrder()
+            ->with(['medicines', 'injections', 'drips.additives'])
+            ->first();
+
+        if ($order === null || $order->status === MedicationOrderStatus::Administered) {
+            $this->notes = '';
+            $this->medicineLines = [[
+                'medicine_id' => null,
+                'quantity' => '1',
+                'dosage_instructions' => '',
+            ]];
+            $this->injectionLines = [];
+            $this->dripLines = [];
+
+            return;
+        }
+
+        $this->notes = $order->notes ?? '';
+        $this->medicineLines = $order->medicines->map(fn ($line) => [
+            'medicine_id' => $line->medicine_id,
+            'quantity' => (string) $line->quantity,
+            'dosage_instructions' => $line->dosage_instructions ?? '',
+        ])->values()->all();
+
+        if ($this->medicineLines === []) {
+            $this->medicineLines = [[
+                'medicine_id' => null,
+                'quantity' => '1',
+                'dosage_instructions' => '',
+            ]];
+        }
+
+        $this->injectionLines = $order->injections->map(fn ($line) => [
+            'injection_id' => $line->injection_id,
+            'volume_ml' => $line->volume_ml !== null ? (string) $line->volume_ml : '',
+        ])->values()->all();
+
+        $this->dripLines = $order->drips->map(fn ($drip) => [
+            'drip_base_id' => $drip->drip_base_id,
+            'volume_ml' => (string) $drip->volume_ml,
+            'additives' => $drip->additives->map(fn ($additive) => [
+                'injection_id' => $additive->injection_id,
+                'volume_ml' => (string) $additive->volume_ml,
+            ])->values()->all(),
+        ])->values()->all();
+    }
+}; ?>
+
+<div class="flex h-full w-full flex-1 flex-col gap-4">
+    <div class="flex items-center justify-between gap-3">
+        <flux:heading level="1">{{ __('Medication') }}</flux:heading>
+        @if ($selectedTokenId === null)
+            <flux:badge color="zinc" size="lg">{{ $this->queue->count() }}</flux:badge>
+        @endif
+    </div>
+
+    @if ($this->doctor === null)
+        <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
+            <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No doctor profile linked to your account.') }}</p>
+        </div>
+    @elseif ($selectedTokenId === null)
+        <div class="flex flex-1 flex-col gap-2" wire:poll.20s>
+            @forelse ($this->queue as $token)
+                <button
+                    type="button"
+                    wire:key="medication-token-{{ $token->id }}"
+                    wire:click="selectToken({{ $token->id }})"
+                    class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                    <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
+                        {{ $token->token_number }}
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
+                            {{ $token->patient?->name ?? __('Unknown') }}
+                        </span>
+                        <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
+                            {{ $token->serviceQueue?->service?->name }}
+                            @if ($token->medicationOrder)
+                                · {{ $token->medicationOrder->status->label() }}
+                            @endif
+                        </span>
+                    </span>
+                    <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-400" />
+                </button>
+            @empty
+                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
+                    <flux:icon name="beaker" class="size-10 text-zinc-400" />
+                    <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No patients need medication') }}</p>
+                    <p class="text-sm text-zinc-500">{{ __('Waiting or serving patients for services that need medication will appear here.') }}</p>
+                </div>
+            @endforelse
+        </div>
+    @else
+        @php($token = $this->selectedToken)
+        <div class="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900 sm:mx-0 sm:rounded-xl sm:border">
+            <div class="flex items-center gap-3">
+                <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-lg font-bold text-white dark:bg-white dark:text-zinc-900">
+                    {{ $token?->token_number }}
+                </span>
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-lg font-semibold text-zinc-900 dark:text-white">
+                        {{ $token?->patient?->name ?? __('Unknown') }}
+                    </p>
+                    <p class="truncate text-sm text-zinc-500">
+                        {{ $token?->serviceQueue?->service?->name }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+            <flux:heading size="sm" class="mb-3">{{ __('Vitals') }}</flux:heading>
+            @if ($token?->vital)
+                <div class="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                        <p class="text-xs text-zinc-500">{{ __('Temp (°F)') }}</p>
+                        <p class="text-lg font-semibold">{{ $token->vital->temperature }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-zinc-500">{{ __('BP Systolic') }}</p>
+                        <p class="text-lg font-semibold">{{ $token->vital->bp_systolic }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-zinc-500">{{ __('BP Diastolic') }}</p>
+                        <p class="text-lg font-semibold">{{ $token->vital->bp_diastolic }}</p>
+                    </div>
+                </div>
+            @else
+                <p class="text-sm text-zinc-500">{{ __('No vitals recorded for this visit.') }}</p>
+            @endif
+        </div>
+
+        <div class="border-b border-zinc-200 dark:border-zinc-700">
+            <nav class="-mb-px flex gap-4">
+                @foreach (['medicines' => __('Medicines'), 'injections' => __('Injections'), 'drips' => __('Drips')] as $tab => $label)
+                    <button
+                        type="button"
+                        wire:click="switchOrderTab('{{ $tab }}')"
+                        class="cursor-pointer border-b-2 px-1 pb-2 text-sm font-medium transition-colors {{ $activeOrderTab === $tab ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400' }}"
+                    >
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </nav>
+        </div>
+
+        <form wire:submit="save" class="flex flex-1 flex-col gap-4">
+            @if ($activeOrderTab === 'medicines')
+                <div class="space-y-3">
+                    @foreach ($medicineLines as $index => $line)
+                        <div wire:key="medicine-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
+                            <div class="sm:col-span-5">
+                                <flux:select wire:model="medicineLines.{{ $index }}.medicine_id">
+                                    <option value="">{{ __('Select medicine') }}</option>
+                                    @foreach ($this->medicines as $medicine)
+                                        <option value="{{ $medicine->id }}">{{ $medicine->name }} ({{ $medicine->unit }})</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <flux:input wire:model="medicineLines.{{ $index }}.quantity" type="number" min="1" placeholder="{{ __('Qty') }}" />
+                                <flux:error name="medicineLines.{{ $index }}.quantity" />
+                            </div>
+                            <div class="sm:col-span-4">
+                                <flux:input wire:model="medicineLines.{{ $index }}.dosage_instructions" type="text" placeholder="{{ __('Instructions') }}" />
+                            </div>
+                            <div class="flex items-start sm:col-span-1">
+                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
+                            </div>
+                        </div>
+                    @endforeach
+                    <flux:error name="medicineLines" />
+                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
+                </div>
+            @elseif ($activeOrderTab === 'injections')
+                <div class="space-y-3">
+                    @forelse ($injectionLines as $index => $line)
+                        <div wire:key="injection-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
+                            <div class="sm:col-span-7">
+                                <flux:select wire:model.live="injectionLines.{{ $index }}.injection_id">
+                                    <option value="">{{ __('Select injection') }}</option>
+                                    @foreach ($this->injections as $injection)
+                                        <option value="{{ $injection->id }}">{{ $injection->name }}</option>
+                                    @endforeach
+                                </flux:select>
+                            </div>
+                            <div class="sm:col-span-4">
+                                <flux:input wire:model="injectionLines.{{ $index }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
+                            </div>
+                            <div class="flex items-start sm:col-span-1">
+                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm text-zinc-500">{{ __('No injections added yet.') }}</p>
+                    @endforelse
+                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
+                </div>
+            @else
+                <div class="space-y-4">
+                    @forelse ($dripLines as $dripIndex => $drip)
+                        <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            <div class="grid gap-2 sm:grid-cols-12">
+                                <div class="sm:col-span-7">
+                                    <flux:select wire:model.live="dripLines.{{ $dripIndex }}.drip_base_id">
+                                        <option value="">{{ __('Select drip base') }}</option>
+                                        @foreach ($this->dripBases as $dripBase)
+                                            <option value="{{ $dripBase->id }}">{{ $dripBase->name }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                </div>
+                                <div class="sm:col-span-4">
+                                    <flux:input wire:model="dripLines.{{ $dripIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
+                                </div>
+                                <div class="flex items-start sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
+                                @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
+                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="grid gap-2 sm:grid-cols-12">
+                                        <div class="sm:col-span-7">
+                                            <flux:select wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id">
+                                                <option value="">{{ __('Select injection') }}</option>
+                                                @foreach ($this->injections as $injection)
+                                                    <option value="{{ $injection->id }}">{{ $injection->name }}</option>
+                                                @endforeach
+                                            </flux:select>
+                                        </div>
+                                        <div class="sm:col-span-4">
+                                            <flux:input wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('ml') }}" />
+                                        </div>
+                                        <div class="flex items-start sm:col-span-1">
+                                            <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
+                                        </div>
+                                    </div>
+                                @endforeach
+                                <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
+                                    {{ __('Add additive') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-sm text-zinc-500">{{ __('No drips added yet.') }}</p>
+                    @endforelse
+                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
+                </div>
+            @endif
+
+            <flux:field>
+                <flux:label>{{ __('Notes') }}</flux:label>
+                <flux:textarea wire:model="notes" rows="2" />
+                <flux:error name="notes" />
+            </flux:field>
+
+            <div class="mt-auto flex flex-col gap-3 pt-2">
+                <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">
+                    {{ __('Save order') }}
+                </flux:button>
+                <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
+                    {{ __('Back to list') }}
+                </flux:button>
+            </div>
+        </form>
+    @endif
+</div>

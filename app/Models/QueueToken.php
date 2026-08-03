@@ -84,6 +84,16 @@ class QueueToken extends Model
     }
 
     /**
+     * Get the medication order for this token.
+     *
+     * @return HasOne<MedicationOrder, $this>
+     */
+    public function medicationOrder(): HasOne
+    {
+        return $this->hasOne(MedicationOrder::class);
+    }
+
+    /**
      * Get the call records for this token.
      *
      * @return HasMany<PatientCall, $this>

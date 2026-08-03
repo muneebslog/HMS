@@ -22,6 +22,7 @@ class ServiceFactory extends Factory
             'name' => fake()->words(3, true),
             'is_standalone' => fake()->boolean(),
             'needs_vitals' => false,
+            'needs_medication' => false,
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
             'is_active' => true,
         ];
@@ -44,6 +45,16 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'needs_vitals' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the service requires a doctor medication page.
+     */
+    public function needsMedication(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'needs_medication' => true,
         ]);
     }
 }

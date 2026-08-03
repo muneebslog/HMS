@@ -69,6 +69,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
+        Route::livewire('doctor/medication', 'pages::doctor.medication')->name('doctor.medication');
     });
 
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
@@ -102,6 +103,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/vitals', 'pages::reception.vitals')->name('reception.vitals');
+            Route::livewire('reception/medication-admin', 'pages::reception.medication-admin')->name('reception.medication-admin');
             Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');

@@ -131,6 +131,7 @@ Conventions used below:
 | name | string | |
 | is_standalone | boolean | default false |
 | needs_vitals | boolean | default false |
+| needs_medication | boolean | default false |
 | token_reset_type | string | default `shift` (`TokenResetType`) |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
@@ -366,6 +367,90 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | timestamps | | |
 
 One vitals row per queue token. Presence means vitals are done; token status is unchanged.
+
+### `medicines`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| unit | string | e.g. tablet, syrup |
+| is_active | boolean | default true, IDX |
+| timestamps | | |
+
+### `injections`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| default_volume_ml | decimal(8,2) | nullable |
+| is_active | boolean | default true, IDX |
+| timestamps | | |
+
+### `drip_bases`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| default_volume_ml | decimal(8,2) | |
+| is_active | boolean | default true, IDX |
+| timestamps | | |
+
+### `medication_orders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| queue_token_id | FK → queue_tokens | UQ, cascadeOnDelete |
+| patient_id | FK → patients | cascadeOnDelete |
+| doctor_id | FK → doctors | cascadeOnDelete |
+| prescribed_by | FK → users | cascadeOnDelete |
+| status | string | default `pending` (`MedicationOrderStatus`), IDX |
+| notes | text | nullable |
+| administered_by | FK → users | nullable, nullOnDelete |
+| administered_at | timestamp | nullable |
+| timestamps | | |
+
+One medication order per queue token. Status `pending` until reception marks administered.
+
+### `medication_order_medicines`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medication_order_id | FK → medication_orders | cascadeOnDelete |
+| medicine_id | FK → medicines | restrictOnDelete |
+| quantity | unsignedInteger | |
+| dosage_instructions | string | nullable |
+| name | string | snapshot |
+| timestamps | | |
+
+### `medication_order_injections`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medication_order_id | FK → medication_orders | cascadeOnDelete |
+| injection_id | FK → injections | restrictOnDelete |
+| volume_ml | decimal(8,2) | nullable |
+| name | string | snapshot |
+| timestamps | | |
+
+### `medication_order_drips`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medication_order_id | FK → medication_orders | cascadeOnDelete |
+| drip_base_id | FK → drip_bases | restrictOnDelete |
+| volume_ml | decimal(8,2) | |
+| name | string | snapshot |
+| timestamps | | |
+
+### `medication_order_drip_additives`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medication_order_drip_id | FK → medication_order_drips | cascadeOnDelete |
+| injection_id | FK → injections | restrictOnDelete |
+| volume_ml | decimal(8,2) | |
+| name | string | snapshot |
+| timestamps | | |
 
 ### `sms_logs`
 | Column | Type | Notes |
@@ -822,7 +907,12 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                ├── rooms
         │            │                └── procedure_payments
         │            ├── service_queues ── queue_tokens ──┬── patient_calls
-        │            │                                    └── ultrasound_reports
+        │            │                                    ├── vitals
+        │            │                                    ├── ultrasound_reports
+        │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines
+        │            │                                                           ├── medication_order_injections ── injections
+        │            │                                                           └── medication_order_drips ──┬── drip_bases
+        │            │                                                                                       └── medication_order_drip_additives ── injections
         │            └── print_jobs
         │
         ├── pdf_print_jobs
@@ -830,6 +920,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │                   └── drive_files
         ├── monthly_expenses
         ├── doctors (optional user_id link)
+        ├── medicines / injections / drip_bases (catalogs)
         ├── employees ──┬── employee_documents
         │               ├── employee_todos
         │               ├── employee_qualifications

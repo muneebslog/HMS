@@ -2,7 +2,10 @@
 
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
+use App\Models\DripBase;
+use App\Models\Injection;
 use App\Models\LabTest;
+use App\Models\Medicine;
 use App\Models\ProcedureType;
 use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
@@ -69,6 +72,9 @@ new #[Title('Management')] class extends Component
     public bool $serviceNeedsVitals = false;
 
     #[Validate]
+    public bool $serviceNeedsMedication = false;
+
+    #[Validate]
     public string $serviceTokenResetType = 'shift';
 
     #[Validate]
@@ -106,6 +112,33 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $labTestIsActive = true;
+
+    #[Validate]
+    public string $medicineName = '';
+
+    #[Validate]
+    public string $medicineUnit = '';
+
+    #[Validate]
+    public bool $medicineIsActive = true;
+
+    #[Validate]
+    public string $injectionName = '';
+
+    #[Validate]
+    public string $injectionDefaultVolumeMl = '';
+
+    #[Validate]
+    public bool $injectionIsActive = true;
+
+    #[Validate]
+    public string $dripBaseName = '';
+
+    #[Validate]
+    public string $dripBaseDefaultVolumeMl = '';
+
+    #[Validate]
+    public bool $dripBaseIsActive = true;
 
     #[Validate]
     public string $procedureTypeName = '';
@@ -162,6 +195,7 @@ new #[Title('Management')] class extends Component
                 ],
                 'serviceIsStandalone' => ['boolean'],
                 'serviceNeedsVitals' => ['boolean'],
+                'serviceNeedsMedication' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
                 'serviceIsActive' => ['boolean'],
             ],
@@ -179,6 +213,21 @@ new #[Title('Management')] class extends Component
                 'labTestTimeRequired' => ['required', 'string', 'max:255'],
                 'labTestIsInHouse' => ['boolean'],
                 'labTestIsActive' => ['boolean'],
+            ],
+            'medicines' => [
+                'medicineName' => ['required', 'string', 'max:255'],
+                'medicineUnit' => ['required', 'string', 'max:255'],
+                'medicineIsActive' => ['boolean'],
+            ],
+            'injections' => [
+                'injectionName' => ['required', 'string', 'max:255'],
+                'injectionDefaultVolumeMl' => ['nullable', 'numeric', 'min:0'],
+                'injectionIsActive' => ['boolean'],
+            ],
+            'dripBases' => [
+                'dripBaseName' => ['required', 'string', 'max:255'],
+                'dripBaseDefaultVolumeMl' => ['required', 'numeric', 'min:0'],
+                'dripBaseIsActive' => ['boolean'],
             ],
             'procedureTypes' => [
                 'procedureTypeName' => ['required', 'string', 'max:255', Rule::unique('procedure_types', 'name')->ignore($this->editingId)],
@@ -215,6 +264,9 @@ new #[Title('Management')] class extends Component
             'services' => $this->loadService($id),
             'servicePrices' => $this->loadServicePrice($id),
             'labTests' => $this->loadLabTest($id),
+            'medicines' => $this->loadMedicine($id),
+            'injections' => $this->loadInjection($id),
+            'dripBases' => $this->loadDripBase($id),
             'procedureTypes' => $this->loadProcedureType($id),
             'rooms' => $this->loadRoom($id),
         };
@@ -248,6 +300,7 @@ new #[Title('Management')] class extends Component
         $this->serviceName = $service->name;
         $this->serviceIsStandalone = $service->is_standalone;
         $this->serviceNeedsVitals = $service->needs_vitals;
+        $this->serviceNeedsMedication = $service->needs_medication;
         $this->serviceTokenResetType = $service->token_reset_type->value;
         $this->serviceIsActive = $service->is_active;
     }
@@ -279,6 +332,44 @@ new #[Title('Management')] class extends Component
         $this->labTestTimeRequired = $labTest->time_required ?? '';
         $this->labTestIsInHouse = $labTest->is_in_house;
         $this->labTestIsActive = $labTest->is_active;
+    }
+
+    /**
+     * Load medicine data into the form.
+     */
+    private function loadMedicine(int $id): void
+    {
+        $medicine = Medicine::findOrFail($id);
+
+        $this->medicineName = $medicine->name;
+        $this->medicineUnit = $medicine->unit;
+        $this->medicineIsActive = $medicine->is_active;
+    }
+
+    /**
+     * Load injection data into the form.
+     */
+    private function loadInjection(int $id): void
+    {
+        $injection = Injection::findOrFail($id);
+
+        $this->injectionName = $injection->name;
+        $this->injectionDefaultVolumeMl = $injection->default_volume_ml !== null
+            ? (string) $injection->default_volume_ml
+            : '';
+        $this->injectionIsActive = $injection->is_active;
+    }
+
+    /**
+     * Load drip base data into the form.
+     */
+    private function loadDripBase(int $id): void
+    {
+        $dripBase = DripBase::findOrFail($id);
+
+        $this->dripBaseName = $dripBase->name;
+        $this->dripBaseDefaultVolumeMl = (string) $dripBase->default_volume_ml;
+        $this->dripBaseIsActive = $dripBase->is_active;
     }
 
     /**
@@ -319,6 +410,7 @@ new #[Title('Management')] class extends Component
             'serviceName',
             'serviceIsStandalone',
             'serviceNeedsVitals',
+            'serviceNeedsMedication',
             'serviceTokenResetType',
             'serviceIsActive',
             'priceServiceId',
@@ -332,6 +424,15 @@ new #[Title('Management')] class extends Component
             'labTestTimeRequired',
             'labTestIsInHouse',
             'labTestIsActive',
+            'medicineName',
+            'medicineUnit',
+            'medicineIsActive',
+            'injectionName',
+            'injectionDefaultVolumeMl',
+            'injectionIsActive',
+            'dripBaseName',
+            'dripBaseDefaultVolumeMl',
+            'dripBaseIsActive',
             'procedureTypeName',
             'procedureTypeIsActive',
             'roomNumber',
@@ -356,6 +457,10 @@ new #[Title('Management')] class extends Component
             }
         }
 
+        if ($this->activeTab === 'injections' && $this->injectionDefaultVolumeMl === '') {
+            $this->injectionDefaultVolumeMl = '';
+        }
+
         $validated = $this->validate();
 
         match ($this->activeTab) {
@@ -363,6 +468,9 @@ new #[Title('Management')] class extends Component
             'services' => $this->saveService($validated),
             'servicePrices' => $this->saveServicePrice($validated),
             'labTests' => $this->saveLabTest($validated),
+            'medicines' => $this->saveMedicine($validated),
+            'injections' => $this->saveInjection($validated),
+            'dripBases' => $this->saveDripBase($validated),
             'procedureTypes' => $this->saveProcedureType($validated),
             'rooms' => $this->saveRoom($validated),
         };
@@ -408,6 +516,7 @@ new #[Title('Management')] class extends Component
             'name' => $validated['serviceName'],
             'is_standalone' => $validated['serviceIsStandalone'],
             'needs_vitals' => $validated['serviceNeedsVitals'],
+            'needs_medication' => $validated['serviceNeedsMedication'],
             'token_reset_type' => $validated['serviceTokenResetType'],
             'is_active' => $validated['serviceIsActive'],
         ];
@@ -467,6 +576,74 @@ new #[Title('Management')] class extends Component
         } else {
             LabTest::create($data);
             Flux::toast(variant: 'success', text: __('Lab test created.'));
+        }
+    }
+
+    /**
+     * Persist medicine data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveMedicine(array $validated): void
+    {
+        $data = [
+            'name' => $validated['medicineName'],
+            'unit' => $validated['medicineUnit'],
+            'is_active' => $validated['medicineIsActive'],
+        ];
+
+        if ($this->editingId) {
+            Medicine::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Medicine updated.'));
+        } else {
+            Medicine::create($data);
+            Flux::toast(variant: 'success', text: __('Medicine created.'));
+        }
+    }
+
+    /**
+     * Persist injection data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveInjection(array $validated): void
+    {
+        $data = [
+            'name' => $validated['injectionName'],
+            'default_volume_ml' => $validated['injectionDefaultVolumeMl'] !== '' && $validated['injectionDefaultVolumeMl'] !== null
+                ? $validated['injectionDefaultVolumeMl']
+                : null,
+            'is_active' => $validated['injectionIsActive'],
+        ];
+
+        if ($this->editingId) {
+            Injection::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Injection updated.'));
+        } else {
+            Injection::create($data);
+            Flux::toast(variant: 'success', text: __('Injection created.'));
+        }
+    }
+
+    /**
+     * Persist drip base data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveDripBase(array $validated): void
+    {
+        $data = [
+            'name' => $validated['dripBaseName'],
+            'default_volume_ml' => $validated['dripBaseDefaultVolumeMl'],
+            'is_active' => $validated['dripBaseIsActive'],
+        ];
+
+        if ($this->editingId) {
+            DripBase::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Drip base updated.'));
+        } else {
+            DripBase::create($data);
+            Flux::toast(variant: 'success', text: __('Drip base created.'));
         }
     }
 
@@ -851,6 +1028,9 @@ new #[Title('Management')] class extends Component
             'services' => Service::findOrFail($id)->delete(),
             'servicePrices' => ServicePrice::findOrFail($id)->delete(),
             'labTests' => LabTest::findOrFail($id)->delete(),
+            'medicines' => Medicine::findOrFail($id)->delete(),
+            'injections' => Injection::findOrFail($id)->delete(),
+            'dripBases' => DripBase::findOrFail($id)->delete(),
             'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
             'rooms' => Room::findOrFail($id)->delete(),
         };
@@ -912,6 +1092,39 @@ new #[Title('Management')] class extends Component
     public function labTests(): Collection
     {
         return LabTest::orderBy('test_name')->get();
+    }
+
+    /**
+     * Get the list of medicines.
+     *
+     * @return Collection<int, Medicine>
+     */
+    #[Computed]
+    public function medicines(): Collection
+    {
+        return Medicine::orderBy('name')->get();
+    }
+
+    /**
+     * Get the list of injections.
+     *
+     * @return Collection<int, Injection>
+     */
+    #[Computed]
+    public function injections(): Collection
+    {
+        return Injection::orderBy('name')->get();
+    }
+
+    /**
+     * Get the list of drip bases.
+     *
+     * @return Collection<int, DripBase>
+     */
+    #[Computed]
+    public function dripBases(): Collection
+    {
+        return DripBase::orderBy('name')->get();
     }
 
     /**
@@ -997,6 +1210,27 @@ new #[Title('Management')] class extends Component
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'labTests' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
                             {{ __('Lab Tests') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('medicines')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'medicines' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Medicines') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('injections')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'injections' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Injections') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('dripBases')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'dripBases' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Drip Bases') }}
                         </button>
                         <button
                             type="button"
@@ -1193,6 +1427,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Standalone') }}</flux:table.column>
                             <flux:table.column>{{ __('Needs Vitals') }}</flux:table.column>
+                            <flux:table.column>{{ __('Needs Medication') }}</flux:table.column>
                             <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -1216,6 +1451,13 @@ new #[Title('Management')] class extends Component
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
                                     </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->needs_medication)
+                                            <flux:badge size="sm" color="sky">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>{{ $service->token_reset_type->label() }}</flux:table.cell>
                                     <flux:table.cell>
                                         @if ($service->is_active)
@@ -1231,8 +1473,107 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'medicines')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Unit') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->medicines as $medicine)
+                                <flux:table.row wire:key="medicine-{{ $medicine->id }}">
+                                    <flux:table.cell>{{ $medicine->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->unit }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $medicine->is_active ? 'green' : 'zinc' }}">
+                                            {{ $medicine->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $medicine->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $medicine->id }})" wire:confirm="{{ __('Are you sure you want to delete this medicine?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                        {{ __('No medicines found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'injections')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->injections as $injection)
+                                <flux:table.row wire:key="injection-{{ $injection->id }}">
+                                    <flux:table.cell>{{ $injection->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->default_volume_ml !== null ? rtrim(rtrim(number_format($injection->default_volume_ml, 2), '0'), '.') : '-' }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $injection->is_active ? 'green' : 'zinc' }}">
+                                            {{ $injection->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $injection->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $injection->id }})" wire:confirm="{{ __('Are you sure you want to delete this injection?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                        {{ __('No injections found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'dripBases')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->dripBases as $dripBase)
+                                <flux:table.row wire:key="drip-base-{{ $dripBase->id }}">
+                                    <flux:table.cell>{{ $dripBase->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ rtrim(rtrim(number_format($dripBase->default_volume_ml, 2), '0'), '.') }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $dripBase->is_active ? 'green' : 'zinc' }}">
+                                            {{ $dripBase->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $dripBase->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $dripBase->id }})" wire:confirm="{{ __('Are you sure you want to delete this drip base?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                        {{ __('No drip bases found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
@@ -1276,7 +1617,7 @@ new #[Title('Management')] class extends Component
 
     <flux:modal wire:model="showModal" class="w-full max-w-lg">
         <flux:heading level="2">
-            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
         </flux:heading>
 
         <form wire:submit="save" class="mt-6 space-y-6">
@@ -1334,6 +1675,11 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="serviceNeedsVitals" :label="__('Needs vitals')" />
                     <flux:error name="serviceNeedsVitals" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceNeedsMedication" :label="__('Needs doctor medication')" />
+                    <flux:error name="serviceNeedsMedication" />
                 </flux:field>
 
                 <flux:field>
@@ -1406,7 +1752,58 @@ new #[Title('Management')] class extends Component
                     <flux:switch wire:model="roomIsActive" :label="__('Active')" />
                     <flux:error name="roomIsActive" />
                 </flux:field>
-            @else
+            @elseif ($activeTab === 'medicines')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="medicineName" type="text" required />
+                    <flux:error name="medicineName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Unit') }}</flux:label>
+                    <flux:input wire:model="medicineUnit" type="text" required />
+                    <flux:error name="medicineUnit" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="medicineIsActive" :label="__('Active')" />
+                    <flux:error name="medicineIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'injections')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="injectionName" type="text" required />
+                    <flux:error name="injectionName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
+                    <flux:input wire:model="injectionDefaultVolumeMl" type="number" step="0.01" min="0" />
+                    <flux:error name="injectionDefaultVolumeMl" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="injectionIsActive" :label="__('Active')" />
+                    <flux:error name="injectionIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'dripBases')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="dripBaseName" type="text" required />
+                    <flux:error name="dripBaseName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
+                    <flux:input wire:model="dripBaseDefaultVolumeMl" type="number" step="0.01" min="0" required />
+                    <flux:error name="dripBaseDefaultVolumeMl" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="dripBaseIsActive" :label="__('Active')" />
+                    <flux:error name="dripBaseIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'labTests')
                 <flux:field>
                     <flux:label>{{ __('Test Name') }}</flux:label>
                     <flux:input wire:model="labTestName" type="text" required />

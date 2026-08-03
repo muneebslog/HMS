@@ -170,9 +170,9 @@ new #[Title('Leave Calendar')] class extends Component
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('employee_leaves', 'employee_name')
-                    ->where(fn ($query) => $query->whereDate('leave_date', $this->selectedDate))
-                    ->ignore($this->editingId),
+                // Rule::unique('employee_leaves', 'employee_name')
+                //     ->where(fn ($query) => $query->whereDate('leave_date', $this->selectedDate))
+                //     ->ignore($this->editingId),
             ],
             'replacementName' => ['nullable', 'string', 'max:255', 'different:employeeName'],
             'dutyStartTime' => ['nullable', 'date_format:H:i'],
