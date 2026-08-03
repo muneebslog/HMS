@@ -196,9 +196,12 @@ new #[Title('Medication Admin')] class extends Component
                 @forelse ($order?->injections ?? [] as $injection)
                     <p class="text-sm text-zinc-700 dark:text-zinc-200">
                         {{ $injection->name }}
-                        @if ($injection->volume_ml !== null)
-                            — {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
-                        @endif
+                        <span class="text-zinc-500">
+                            — {{ $injection->administration_type->label() }}
+                            @if ($injection->volume_ml !== null)
+                                · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
+                            @endif
+                        </span>
                     </p>
                 @empty
                     <p class="text-sm text-zinc-500">{{ __('None') }}</p>

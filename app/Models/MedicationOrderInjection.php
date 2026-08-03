@@ -2,9 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\InjectionAdministrationType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property InjectionAdministrationType $administration_type
+ */
 class MedicationOrderInjection extends Model
 {
     /**
@@ -15,6 +19,7 @@ class MedicationOrderInjection extends Model
     protected $fillable = [
         'medication_order_id',
         'injection_id',
+        'administration_type',
         'volume_ml',
         'name',
     ];
@@ -27,6 +32,7 @@ class MedicationOrderInjection extends Model
     protected function casts(): array
     {
         return [
+            'administration_type' => InjectionAdministrationType::class,
             'volume_ml' => 'float',
         ];
     }

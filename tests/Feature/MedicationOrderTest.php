@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\MedicationOrderStatus;
+use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
@@ -139,6 +140,7 @@ test('doctor can save a medication order for a standalone service without a doct
         ]])
         ->set('injectionLines', [[
             'injection_id' => $injection->id,
+            'administration_type' => 'iv',
             'volume_ml' => '3',
         ]])
         ->set('dripLines', [[
@@ -170,6 +172,14 @@ test('doctor can save a medication order for a standalone service without a doct
         'dose' => '1-0-1',
         'days' => 5,
         'name' => 'Paracetamol',
+    ]);
+
+    $this->assertDatabaseHas('medication_order_injections', [
+        'medication_order_id' => $order->id,
+        'injection_id' => $injection->id,
+        'administration_type' => 'iv',
+        'volume_ml' => 3,
+        'name' => 'Diclofenac',
     ]);
 
     $this->assertDatabaseHas('medication_order_drip_additives', [
@@ -241,4 +251,69 @@ test('reception sees pending orders and can mark them administered', function ()
     expect($order->status)->toBe(MedicationOrderStatus::Administered)
         ->and($order->administered_by)->toBe($receptionist->id)
         ->and($order->administered_at)->not->toBeNull();
+});
+
+test('doctor can open medication history modal for a patient', function () {
+    [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 42,
+        'status' => 'served',
+        'arrived_at' => now()->subDays(5),
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'created_at' => now()->subDays(5),
+    ]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneOneOne,
+        'days' => 7,
+        'name' => 'Amoxicillin',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->assertSet('showHistoryModal', true)
+        ->assertSee('Amoxicillin')
+        ->assertSee('1-1-1')
+        ->assertSee('7')
+        ->call('closeHistory')
+        ->assertSet('showHistoryModal', false);
+});
+
+test('medication history excludes the current visit order', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Only On Current Visit']);
+
+    $currentOrder = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+    ]);
+
+    $currentOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroZero,
+        'days' => 2,
+        'name' => 'Only On Current Visit',
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->assertSee(__('No previous medication records'));
+
+    expect($component->get('showHistoryModal'))->toBeTrue()
+        ->and($component->instance()->medicationHistory)->toHaveCount(0);
 });

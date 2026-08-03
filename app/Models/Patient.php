@@ -109,6 +109,16 @@ class Patient extends Model
     }
 
     /**
+     * Get the medication orders associated with this patient.
+     *
+     * @return HasMany<MedicationOrder, $this>
+     */
+    public function medicationOrders(): HasMany
+    {
+        return $this->hasMany(MedicationOrder::class);
+    }
+
+    /**
      * Get the ultrasound reports associated with this patient.
      *
      * @return HasMany<UltrasoundReport, $this>

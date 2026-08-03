@@ -428,6 +428,7 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | injection_id | FK → injections | restrictOnDelete |
+| administration_type | string | `InjectionAdministrationType` (`im`, `iv`) |
 | volume_ml | decimal(8,2) | nullable |
 | name | string | snapshot |
 | timestamps | | |

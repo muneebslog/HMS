@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Models\DripBase;
@@ -20,6 +21,8 @@ new #[Title('Medication')] class extends Component
 {
     public ?int $selectedTokenId = null;
 
+    public bool $showHistoryModal = false;
+
     public string $activeOrderTab = 'medicines';
 
     public string $notes = '';
@@ -30,7 +33,7 @@ new #[Title('Medication')] class extends Component
     public array $medicineLines = [];
 
     /**
-     * @var list<array{injection_id: int|null, volume_ml: string}>
+     * @var list<array{injection_id: int|null, administration_type: string, volume_ml: string}>
      */
     public array $injectionLines = [];
 
@@ -116,6 +119,40 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Previous medication orders for the selected patient (excluding this visit).
+     *
+     * @return Collection<int, MedicationOrder>
+     */
+    #[Computed]
+    public function medicationHistory(): Collection
+    {
+        if (! $this->showHistoryModal) {
+            return new Collection;
+        }
+
+        $token = $this->selectedToken;
+
+        if ($token?->patient_id === null) {
+            return new Collection;
+        }
+
+        return MedicationOrder::query()
+            ->with([
+                'medicines',
+                'injections',
+                'drips.additives',
+                'doctor',
+                'prescribedBy',
+                'queueToken.serviceQueue.service',
+            ])
+            ->where('patient_id', $token->patient_id)
+            ->where('queue_token_id', '!=', $token->id)
+            ->latest()
+            ->limit(20)
+            ->get();
+    }
+
+    /**
      * Select a patient token and load any existing pending order.
      */
     public function selectToken(int $tokenId): void
@@ -129,9 +166,33 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->selectedTokenId = $tokenId;
+        $this->showHistoryModal = false;
         $this->activeOrderTab = 'medicines';
         $this->resetValidation();
         $this->loadOrderForm($token);
+    }
+
+    /**
+     * Open the medication history modal for the selected patient.
+     */
+    public function openHistory(): void
+    {
+        if ($this->selectedToken?->patient_id === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+
+            return;
+        }
+
+        $this->showHistoryModal = true;
+        unset($this->medicationHistory);
+    }
+
+    /**
+     * Close the medication history modal.
+     */
+    public function closeHistory(): void
+    {
+        $this->showHistoryModal = false;
     }
 
     /**
@@ -140,6 +201,7 @@ new #[Title('Medication')] class extends Component
     public function backToList(): void
     {
         $this->selectedTokenId = null;
+        $this->showHistoryModal = false;
         $this->notes = '';
         $this->medicineLines = [];
         $this->injectionLines = [];
@@ -175,6 +237,7 @@ new #[Title('Medication')] class extends Component
     {
         $this->injectionLines[] = [
             'injection_id' => null,
+            'administration_type' => InjectionAdministrationType::Im->value,
             'volume_ml' => '',
         ];
     }
@@ -380,6 +443,7 @@ new #[Title('Medication')] class extends Component
 
                 $order->injections()->create([
                     'injection_id' => $injection->id,
+                    'administration_type' => $line['administration_type'],
                     'volume_ml' => filled($line['volume_ml'] ?? null) ? $line['volume_ml'] : null,
                     'name' => $injection->name,
                 ]);
@@ -437,6 +501,7 @@ new #[Title('Medication')] class extends Component
             'medicineLines.*.days' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1', 'max:365'],
             'injectionLines' => ['array'],
             'injectionLines.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
+            'injectionLines.*.administration_type' => ['required_with:injectionLines.*.injection_id', 'string', Rule::enum(InjectionAdministrationType::class)],
             'injectionLines.*.volume_ml' => ['nullable', 'numeric', 'min:0'],
             'dripLines' => ['array'],
             'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
@@ -483,6 +548,7 @@ new #[Title('Medication')] class extends Component
 
         $this->injectionLines = $order->injections->map(fn ($line) => [
             'injection_id' => $line->injection_id,
+            'administration_type' => $line->administration_type->value,
             'volume_ml' => $line->volume_ml !== null ? (string) $line->volume_ml : '',
         ])->values()->all();
 
@@ -553,6 +619,9 @@ new #[Title('Medication')] class extends Component
                         {{ $token?->serviceQueue?->service?->name }}
                     </p>
                 </div>
+                <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
+                    {{ __('History') }}
+                </flux:button>
             </div>
         </div>
 
@@ -630,7 +699,7 @@ new #[Title('Medication')] class extends Component
                 <div class="space-y-3">
                     @forelse ($injectionLines as $index => $line)
                         <div wire:key="injection-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
-                            <div class="sm:col-span-7">
+                            <div class="sm:col-span-5">
                                 <flux:select wire:model.live="injectionLines.{{ $index }}.injection_id">
                                     <option value="">{{ __('Select injection') }}</option>
                                     @foreach ($this->injections as $injection)
@@ -638,7 +707,15 @@ new #[Title('Medication')] class extends Component
                                     @endforeach
                                 </flux:select>
                             </div>
-                            <div class="sm:col-span-4">
+                            <div class="sm:col-span-3">
+                                <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
+                                    @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                        <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="injectionLines.{{ $index }}.administration_type" />
+                            </div>
+                            <div class="sm:col-span-3">
                                 <flux:input wire:model="injectionLines.{{ $index }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
                             </div>
                             <div class="flex items-start sm:col-span-1">
@@ -719,4 +796,98 @@ new #[Title('Medication')] class extends Component
             </div>
         </form>
     @endif
+
+    <flux:modal wire:model="showHistoryModal" class="w-full max-w-2xl">
+        <div class="space-y-4">
+            <flux:heading level="2">{{ __('Medication history') }}</flux:heading>
+            <p class="text-sm text-zinc-500">
+                {{ $this->selectedToken?->patient?->name ?? __('Unknown') }}
+            </p>
+
+            <div class="max-h-[70vh] space-y-4 overflow-y-auto pe-1">
+                @forelse ($this->medicationHistory as $order)
+                    <div wire:key="history-order-{{ $order->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p class="text-sm font-semibold text-zinc-900 dark:text-white">
+                                    {{ $order->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
+                                </p>
+                                <p class="text-xs text-zinc-500">
+                                    {{ $order->queueToken?->serviceQueue?->service?->name ?? __('Unknown service') }}
+                                    @if ($order->doctor)
+                                        · {{ $order->doctor->name }}
+                                    @endif
+                                </p>
+                            </div>
+                            <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
+                                {{ $order->status->label() }}
+                            </flux:badge>
+                        </div>
+
+                        @if ($order->medicines->isNotEmpty())
+                            <div class="mb-2">
+                                <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
+                                @foreach ($order->medicines as $medicine)
+                                    <p class="text-sm text-zinc-700 dark:text-zinc-200">
+                                        {{ $medicine->name }}
+                                        <span class="text-zinc-500">— {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}</span>
+                                    </p>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if ($order->injections->isNotEmpty())
+                            <div class="mb-2">
+                                <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Injections') }}</p>
+                                @foreach ($order->injections as $injection)
+                                    <p class="text-sm text-zinc-700 dark:text-zinc-200">
+                                        {{ $injection->name }}
+                                        <span class="text-zinc-500">
+                                            — {{ $injection->administration_type->label() }}
+                                            @if ($injection->volume_ml !== null)
+                                                · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
+                                            @endif
+                                        </span>
+                                    </p>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if ($order->drips->isNotEmpty())
+                            <div class="mb-2">
+                                <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drips') }}</p>
+                                @foreach ($order->drips as $drip)
+                                    <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                                        {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                                    </p>
+                                    @foreach ($drip->additives as $additive)
+                                        <p class="ms-3 text-sm text-zinc-500">
+                                            + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
+                                        </p>
+                                    @endforeach
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if ($order->notes)
+                            <p class="mt-2 text-sm text-zinc-500">
+                                <span class="font-medium">{{ __('Notes:') }}</span> {{ $order->notes }}
+                            </p>
+                        @endif
+                    </div>
+                @empty
+                    <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                        <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('No previous medication records') }}</p>
+                        <p class="mt-1 text-sm text-zinc-500">{{ __('Past prescriptions for this patient will appear here.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeHistory">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>
