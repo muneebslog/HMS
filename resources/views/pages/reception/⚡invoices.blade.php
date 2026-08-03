@@ -259,7 +259,10 @@ new #[Title('Invoices')] class extends Component
                     @forelse ($this->invoices as $invoice)
                         <flux:table.row wire:key="invoice-{{ $invoice->id }}">
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
-                            <flux:table.cell>{{ $invoice->patient->name }}</flux:table.cell>
+                            <flux:table.cell>
+                                <div>{{ $invoice->patient->name }}</div>
+                                <div class="text-xs text-zinc-500">{{ $invoice->patient->mrn ?? __('No MRN') }}</div>
+                            </flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>
@@ -319,7 +322,10 @@ new #[Title('Invoices')] class extends Component
                     @forelse ($this->labInvoices as $invoice)
                         <flux:table.row wire:key="lab-invoice-{{ $invoice->id }}">
                             <flux:table.cell>{{ $invoice->invoice_number }}</flux:table.cell>
-                            <flux:table.cell>{{ $invoice->patient->name }}</flux:table.cell>
+                            <flux:table.cell>
+                                <div>{{ $invoice->patient->name }}</div>
+                                <div class="text-xs text-zinc-500">{{ $invoice->patient->mrn ?? __('No MRN') }}</div>
+                            </flux:table.cell>
                             <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
                             <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
                             <flux:table.cell>
@@ -378,7 +384,10 @@ new #[Title('Invoices')] class extends Component
                     @forelse ($this->procedurePayments as $payment)
                         <flux:table.row wire:key="procedure-payment-{{ $payment->id }}">
                             <flux:table.cell>{{ $payment->procedure->name }}</flux:table.cell>
-                            <flux:table.cell>{{ $payment->procedure->patient->name }}</flux:table.cell>
+                            <flux:table.cell>
+                                <div>{{ $payment->procedure->patient->name }}</div>
+                                <div class="text-xs text-zinc-500">{{ $payment->procedure->patient->mrn ?? __('No MRN') }}</div>
+                            </flux:table.cell>
                             <flux:table.cell>{{ $payment->procedure->doctor?->name ?? '-' }}</flux:table.cell>
                             <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
                             <flux:table.cell>{{ $payment->mode?->label() ?? '-' }}</flux:table.cell>
@@ -405,6 +414,7 @@ new #[Title('Invoices')] class extends Component
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Patient') }}</flux:text>
                         <flux:text>{{ $this->viewedInvoice->patient->name }}</flux:text>
+                        <flux:text class="text-zinc-500">{{ $this->viewedInvoice->patient->mrn ?? __('No MRN') }}</flux:text>
                     </div>
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Status') }}</flux:text>
@@ -452,6 +462,7 @@ new #[Title('Invoices')] class extends Component
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Patient') }}</flux:text>
                         <flux:text>{{ $this->viewedLabInvoice->patient->name }}</flux:text>
+                        <flux:text class="text-zinc-500">{{ $this->viewedLabInvoice->patient->mrn ?? __('No MRN') }}</flux:text>
                     </div>
                     <div>
                         <flux:text class="text-zinc-500">{{ __('Status') }}</flux:text>

@@ -657,7 +657,8 @@ new #[Title('Medication')] class extends Component
                             {{ $token->patient?->name ?? __('Unknown') }}
                         </span>
                         <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                            {{ $token->serviceQueue?->service?->name }}
+                            {{ $token->patient?->mrn ?? __('No MRN') }}
+                            · {{ $token->serviceQueue?->service?->name }}
                             @if ($token->medicationOrder)
                                 · {{ $token->medicationOrder->status->label() }}
                             @endif
@@ -685,7 +686,8 @@ new #[Title('Medication')] class extends Component
                         {{ $token?->patient?->name ?? __('Unknown') }}
                     </p>
                     <p class="truncate text-sm text-zinc-500">
-                        {{ $token?->serviceQueue?->service?->name }}
+                        {{ $token?->patient?->mrn ?? __('No MRN') }}
+                        · {{ $token?->serviceQueue?->service?->name }}
                     </p>
                 </div>
                 <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
@@ -867,6 +869,7 @@ new #[Title('Medication')] class extends Component
             <flux:heading level="2">{{ __('Medication history') }}</flux:heading>
             <p class="text-sm text-zinc-500">
                 {{ $this->selectedToken?->patient?->name ?? __('Unknown') }}
+                · {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
             </p>
 
             <div class="max-h-[70vh] space-y-4 overflow-y-auto pe-1">

@@ -83,6 +83,10 @@
                 <span class="label">{{ __('Patient') }}</span>
                 <span>{{ $invoice->patient->name }}</span>
             </div>
+            <div class="row">
+                <span class="label">{{ __('MRN') }}</span>
+                <span>{{ $invoice->patient->mrn ?? __('No MRN') }}</span>
+            </div>
 
             <div class="token">
                 <div class="label">{{ __('Token Number') }}</div>

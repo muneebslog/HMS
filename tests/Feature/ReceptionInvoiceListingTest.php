@@ -45,6 +45,7 @@ test('walk-in invoices are listed for the current shift', function () {
         ->test('pages::reception.invoices')
         ->assertSee($invoice->invoice_number)
         ->assertSee($invoice->patient->name)
+        ->assertSee($invoice->patient->mrn)
         ->assertSee(number_format($invoice->total, 2))
         ->assertSee('Pending');
 });
@@ -103,6 +104,7 @@ test('lab invoices are listed for the current shift', function () {
         ->test('pages::reception.invoices')
         ->assertSee($invoice->invoice_number)
         ->assertSee($invoice->patient->name)
+        ->assertSee($invoice->patient->mrn)
         ->assertSee(number_format($invoice->total, 2))
         ->assertSee('Paid');
 });
@@ -132,6 +134,7 @@ test('walk-in invoice details can be viewed', function () {
         ->assertSet('viewingType', 'walkin')
         ->assertSet('showViewModal', true)
         ->assertSee($invoice->invoice_number)
+        ->assertSee($invoice->patient->mrn)
         ->assertSee($item->service_name)
         ->assertSee(number_format($item->price, 2));
 });
@@ -149,6 +152,7 @@ test('lab invoice details can be viewed', function () {
         ->assertSet('viewingType', 'lab')
         ->assertSet('showViewModal', true)
         ->assertSee($invoice->invoice_number)
+        ->assertSee($invoice->patient->mrn)
         ->assertSee($item->test_name)
         ->assertSee(number_format($item->price, 2));
 });

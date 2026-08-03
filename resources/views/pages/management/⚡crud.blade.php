@@ -1369,7 +1369,7 @@ new #[Title('Management')] class extends Component
                     </flux:badge>
                 </div>
                 <flux:button variant="primary" icon="plus" wire:click="create">
-                    {{ __('Add new') }}
+                    {{ in_array($activeTab, ['medicines', 'injections'], true) ? __('Bulk add') : __('Add new') }}
                 </flux:button>
             </div>
 

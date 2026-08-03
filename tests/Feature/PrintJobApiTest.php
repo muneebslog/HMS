@@ -94,7 +94,8 @@ test('pending jobs include invoice details', function () {
 
     $response->assertOk()
         ->assertJsonPath('data.0.invoice.invoice_number', $invoice->invoice_number)
-        ->assertJsonPath('data.0.invoice.patient.name', $invoice->patient->name);
+        ->assertJsonPath('data.0.invoice.patient.name', $invoice->patient->name)
+        ->assertJsonPath('data.0.invoice.patient.mrn', $invoice->patient->mrn);
 });
 
 test('pending lab invoice jobs include qr url copy type and time required', function () {

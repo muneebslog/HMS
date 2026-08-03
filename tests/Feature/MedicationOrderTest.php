@@ -81,6 +81,7 @@ test('medication page lists waiting tokens without selecting a doctor profile', 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->assertSee($patient->name)
+        ->assertSee($patient->mrn)
         ->assertSee((string) $token->token_number)
         ->assertDontSee(__('Change doctor'));
 });
@@ -242,6 +243,7 @@ test('reception sees pending orders and can mark them administered', function ()
     Livewire::actingAs($receptionist)
         ->test('pages::reception.medication-admin')
         ->assertSee($patient->name)
+        ->assertSee($patient->mrn)
         ->call('selectOrder', $order->id)
         ->call('markAdministered')
         ->assertHasNoErrors();

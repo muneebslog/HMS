@@ -141,7 +141,8 @@ new #[Title('Medication Admin')] class extends Component
                             {{ $order->patient?->name ?? __('Unknown') }}
                         </span>
                         <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                            {{ $order->queueToken?->serviceQueue?->service?->name }}
+                            {{ $order->patient?->mrn ?? __('No MRN') }}
+                            · {{ $order->queueToken?->serviceQueue?->service?->name }}
                             @if ($order->doctor)
                                 · {{ $order->doctor->name }}
                             @endif
@@ -169,7 +170,8 @@ new #[Title('Medication Admin')] class extends Component
                         {{ $order?->patient?->name ?? __('Unknown') }}
                     </p>
                     <p class="truncate text-sm text-zinc-500">
-                        {{ $order?->queueToken?->serviceQueue?->service?->name }}
+                        {{ $order?->patient?->mrn ?? __('No MRN') }}
+                        · {{ $order?->queueToken?->serviceQueue?->service?->name }}
                         @if ($order?->doctor)
                             · {{ $order->doctor->name }}
                         @endif
