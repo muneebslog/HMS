@@ -2,9 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\MedicineDose;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property MedicineDose $dose
+ */
 class MedicationOrderMedicine extends Model
 {
     /**
@@ -15,8 +19,8 @@ class MedicationOrderMedicine extends Model
     protected $fillable = [
         'medication_order_id',
         'medicine_id',
-        'quantity',
-        'dosage_instructions',
+        'dose',
+        'days',
         'name',
     ];
 
@@ -28,7 +32,8 @@ class MedicationOrderMedicine extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'integer',
+            'dose' => MedicineDose::class,
+            'days' => 'integer',
         ];
     }
 

@@ -417,8 +417,8 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | medicine_id | FK → medicines | restrictOnDelete |
-| quantity | unsignedInteger | |
-| dosage_instructions | string | nullable |
+| dose | string | `MedicineDose` e.g. `1-0-0`, `1-0-1`, `1-1-1` |
+| days | unsignedInteger | duration in days |
 | name | string | snapshot |
 | timestamps | | |
 

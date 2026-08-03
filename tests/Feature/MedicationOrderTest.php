@@ -134,8 +134,8 @@ test('doctor can save a medication order for a standalone service without a doct
         ->call('selectToken', $token->id)
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
-            'quantity' => '2',
-            'dosage_instructions' => 'Twice daily',
+            'dose' => '1-0-1',
+            'days' => '5',
         ]])
         ->set('injectionLines', [[
             'injection_id' => $injection->id,
@@ -167,7 +167,8 @@ test('doctor can save a medication order for a standalone service without a doct
     $this->assertDatabaseHas('medication_order_medicines', [
         'medication_order_id' => $order->id,
         'medicine_id' => $medicine->id,
-        'quantity' => 2,
+        'dose' => '1-0-1',
+        'days' => 5,
         'name' => 'Paracetamol',
     ]);
 
@@ -187,8 +188,8 @@ test('medication order keeps the queue doctor when the service has one', functio
         ->call('selectToken', $token->id)
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
-            'quantity' => '1',
-            'dosage_instructions' => '',
+            'dose' => '1-0-0',
+            'days' => '3',
         ]])
         ->call('save')
         ->assertHasNoErrors();

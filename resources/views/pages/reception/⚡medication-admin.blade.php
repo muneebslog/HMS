@@ -183,10 +183,8 @@ new #[Title('Medication Admin')] class extends Component
                 <flux:heading size="sm" class="mb-2">{{ __('Medicines') }}</flux:heading>
                 @forelse ($order?->medicines ?? [] as $medicine)
                     <p class="text-sm text-zinc-700 dark:text-zinc-200">
-                        {{ $medicine->name }} × {{ $medicine->quantity }}
-                        @if ($medicine->dosage_instructions)
-                            <span class="text-zinc-500">— {{ $medicine->dosage_instructions }}</span>
-                        @endif
+                        {{ $medicine->name }}
+                        <span class="text-zinc-500">— {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}</span>
                     </p>
                 @empty
                     <p class="text-sm text-zinc-500">{{ __('None') }}</p>

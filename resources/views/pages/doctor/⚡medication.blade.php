@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\MedicationOrderStatus;
+use App\Enums\MedicineDose;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
@@ -10,6 +11,7 @@ use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -23,7 +25,7 @@ new #[Title('Medication')] class extends Component
     public string $notes = '';
 
     /**
-     * @var list<array{medicine_id: int|null, quantity: string, dosage_instructions: string}>
+     * @var list<array{medicine_id: int|null, dose: string, days: string}>
      */
     public array $medicineLines = [];
 
@@ -158,8 +160,8 @@ new #[Title('Medication')] class extends Component
     {
         $this->medicineLines[] = [
             'medicine_id' => null,
-            'quantity' => '1',
-            'dosage_instructions' => '',
+            'dose' => MedicineDose::OneZeroZero->value,
+            'days' => '3',
         ];
     }
 
@@ -363,8 +365,8 @@ new #[Title('Medication')] class extends Component
 
                 $order->medicines()->create([
                     'medicine_id' => $medicine->id,
-                    'quantity' => (int) $line['quantity'],
-                    'dosage_instructions' => filled($line['dosage_instructions'] ?? null) ? $line['dosage_instructions'] : null,
+                    'dose' => $line['dose'],
+                    'days' => (int) $line['days'],
                     'name' => $medicine->name,
                 ]);
             }
@@ -431,8 +433,8 @@ new #[Title('Medication')] class extends Component
             'notes' => ['nullable', 'string', 'max:2000'],
             'medicineLines' => ['array'],
             'medicineLines.*.medicine_id' => ['nullable', 'integer', 'exists:medicines,id'],
-            'medicineLines.*.quantity' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1'],
-            'medicineLines.*.dosage_instructions' => ['nullable', 'string', 'max:255'],
+            'medicineLines.*.dose' => ['required_with:medicineLines.*.medicine_id', 'string', Rule::enum(MedicineDose::class)],
+            'medicineLines.*.days' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1', 'max:365'],
             'injectionLines' => ['array'],
             'injectionLines.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
             'injectionLines.*.volume_ml' => ['nullable', 'numeric', 'min:0'],
@@ -455,8 +457,8 @@ new #[Title('Medication')] class extends Component
             $this->notes = '';
             $this->medicineLines = [[
                 'medicine_id' => null,
-                'quantity' => '1',
-                'dosage_instructions' => '',
+                'dose' => MedicineDose::OneZeroZero->value,
+                'days' => '3',
             ]];
             $this->injectionLines = [];
             $this->dripLines = [];
@@ -467,15 +469,15 @@ new #[Title('Medication')] class extends Component
         $this->notes = $order->notes ?? '';
         $this->medicineLines = $order->medicines->map(fn ($line) => [
             'medicine_id' => $line->medicine_id,
-            'quantity' => (string) $line->quantity,
-            'dosage_instructions' => $line->dosage_instructions ?? '',
+            'dose' => $line->dose->value,
+            'days' => (string) $line->days,
         ])->values()->all();
 
         if ($this->medicineLines === []) {
             $this->medicineLines = [[
                 'medicine_id' => null,
-                'quantity' => '1',
-                'dosage_instructions' => '',
+                'dose' => MedicineDose::OneZeroZero->value,
+                'days' => '3',
             ]];
         }
 
@@ -604,12 +606,17 @@ new #[Title('Medication')] class extends Component
                                 </flux:select>
                                 <flux:error name="medicineLines.{{ $index }}.medicine_id" />
                             </div>
-                            <div class="sm:col-span-2">
-                                <flux:input wire:model="medicineLines.{{ $index }}.quantity" type="number" min="1" placeholder="{{ __('Qty') }}" />
-                                <flux:error name="medicineLines.{{ $index }}.quantity" />
+                            <div class="sm:col-span-3">
+                                <flux:select wire:model="medicineLines.{{ $index }}.dose">
+                                    @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                        <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="medicineLines.{{ $index }}.dose" />
                             </div>
-                            <div class="sm:col-span-4">
-                                <flux:input wire:model="medicineLines.{{ $index }}.dosage_instructions" type="text" placeholder="{{ __('Instructions') }}" />
+                            <div class="sm:col-span-3">
+                                <flux:input wire:model="medicineLines.{{ $index }}.days" type="number" min="1" max="365" placeholder="{{ __('Days') }}" />
+                                <flux:error name="medicineLines.{{ $index }}.days" />
                             </div>
                             <div class="flex items-start sm:col-span-1">
                                 <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
