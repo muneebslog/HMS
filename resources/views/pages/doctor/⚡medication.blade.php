@@ -119,6 +119,57 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Medicine options for searchable select.
+     *
+     * @return list<array{value: int, label: string}>
+     */
+    #[Computed]
+    public function medicineOptions(): array
+    {
+        return $this->medicines
+            ->map(fn (Medicine $medicine): array => [
+                'value' => $medicine->id,
+                'label' => $medicine->name.' ('.$medicine->unit.')',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Injection options for searchable select.
+     *
+     * @return list<array{value: int, label: string}>
+     */
+    #[Computed]
+    public function injectionOptions(): array
+    {
+        return $this->injections
+            ->map(fn (Injection $injection): array => [
+                'value' => $injection->id,
+                'label' => $injection->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Drip base options for searchable select.
+     *
+     * @return list<array{value: int, label: string}>
+     */
+    #[Computed]
+    public function dripBaseOptions(): array
+    {
+        return $this->dripBases
+            ->map(fn (DripBase $dripBase): array => [
+                'value' => $dripBase->id,
+                'label' => $dripBase->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * Previous medication orders for the selected patient (excluding this visit).
      *
      * @return Collection<int, MedicationOrder>
@@ -667,12 +718,11 @@ new #[Title('Medication')] class extends Component
                     @foreach ($medicineLines as $index => $line)
                         <div wire:key="medicine-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
                             <div class="sm:col-span-5">
-                                <flux:select wire:model="medicineLines.{{ $index }}.medicine_id">
-                                    <option value="">{{ __('Select medicine') }}</option>
-                                    @foreach ($this->medicines as $medicine)
-                                        <option value="{{ $medicine->id }}">{{ $medicine->name }} ({{ $medicine->unit }})</option>
-                                    @endforeach
-                                </flux:select>
+                                <x-searchable-select
+                                    wire:model="medicineLines.{{ $index }}.medicine_id"
+                                    :options="$this->medicineOptions"
+                                    :placeholder="__('Search medicine')"
+                                />
                                 <flux:error name="medicineLines.{{ $index }}.medicine_id" />
                             </div>
                             <div class="sm:col-span-3">
@@ -700,12 +750,11 @@ new #[Title('Medication')] class extends Component
                     @forelse ($injectionLines as $index => $line)
                         <div wire:key="injection-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
                             <div class="sm:col-span-5">
-                                <flux:select wire:model.live="injectionLines.{{ $index }}.injection_id">
-                                    <option value="">{{ __('Select injection') }}</option>
-                                    @foreach ($this->injections as $injection)
-                                        <option value="{{ $injection->id }}">{{ $injection->name }}</option>
-                                    @endforeach
-                                </flux:select>
+                                <x-searchable-select
+                                    wire:model.live="injectionLines.{{ $index }}.injection_id"
+                                    :options="$this->injectionOptions"
+                                    :placeholder="__('Search injection')"
+                                />
                             </div>
                             <div class="sm:col-span-3">
                                 <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
@@ -733,12 +782,11 @@ new #[Title('Medication')] class extends Component
                         <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <div class="grid gap-2 sm:grid-cols-12">
                                 <div class="sm:col-span-7">
-                                    <flux:select wire:model.live="dripLines.{{ $dripIndex }}.drip_base_id">
-                                        <option value="">{{ __('Select drip base') }}</option>
-                                        @foreach ($this->dripBases as $dripBase)
-                                            <option value="{{ $dripBase->id }}">{{ $dripBase->name }}</option>
-                                        @endforeach
-                                    </flux:select>
+                                    <x-searchable-select
+                                        wire:model.live="dripLines.{{ $dripIndex }}.drip_base_id"
+                                        :options="$this->dripBaseOptions"
+                                        :placeholder="__('Search drip base')"
+                                    />
                                 </div>
                                 <div class="sm:col-span-4">
                                     <flux:input wire:model="dripLines.{{ $dripIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
@@ -753,12 +801,11 @@ new #[Title('Medication')] class extends Component
                                 @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
                                     <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="grid gap-2 sm:grid-cols-12">
                                         <div class="sm:col-span-7">
-                                            <flux:select wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id">
-                                                <option value="">{{ __('Select injection') }}</option>
-                                                @foreach ($this->injections as $injection)
-                                                    <option value="{{ $injection->id }}">{{ $injection->name }}</option>
-                                                @endforeach
-                                            </flux:select>
+                                            <x-searchable-select
+                                                wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
+                                                :options="$this->injectionOptions"
+                                                :placeholder="__('Search injection')"
+                                            />
                                         </div>
                                         <div class="sm:col-span-4">
                                             <flux:input wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('ml') }}" />

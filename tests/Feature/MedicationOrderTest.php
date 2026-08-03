@@ -253,6 +253,27 @@ test('reception sees pending orders and can mark them administered', function ()
         ->and($order->administered_at)->not->toBeNull();
 });
 
+test('medication form uses searchable selects for catalog fields', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    Medicine::factory()->create(['name' => 'Searchable Paracetamol']);
+    Injection::factory()->create(['name' => 'Searchable Diclofenac']);
+    DripBase::factory()->create(['name' => 'Searchable Saline']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee(__('Search medicine'))
+        ->assertSee('Searchable Paracetamol')
+        ->call('switchOrderTab', 'injections')
+        ->call('addInjectionLine')
+        ->assertSee(__('Search injection'))
+        ->assertSee('Searchable Diclofenac')
+        ->call('switchOrderTab', 'drips')
+        ->call('addDripLine')
+        ->assertSee(__('Search drip base'))
+        ->assertSee('Searchable Saline');
+});
+
 test('doctor can open medication history modal for a patient', function () {
     [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
