@@ -24,7 +24,7 @@ class PatientIntakeService
     }
 
     /**
-     * Search patients by MRN or name.
+     * Search patients by MRN, name, or family phone.
      *
      * @return Collection<int, Patient>
      */
@@ -40,10 +40,13 @@ class PatientIntakeService
             ->with('family')
             ->where(function ($builder) use ($term) {
                 $builder->where('mrn', 'like', '%'.$term.'%')
-                    ->orWhere('name', 'like', '%'.$term.'%');
+                    ->orWhere('name', 'like', '%'.$term.'%')
+                    ->orWhereHas('family', function ($familyQuery) use ($term) {
+                        $familyQuery->where('phone', 'like', '%'.$term.'%');
+                    });
             })
             ->orderBy('name')
-            ->limit(15)
+            ->limit(25)
             ->get();
     }
 

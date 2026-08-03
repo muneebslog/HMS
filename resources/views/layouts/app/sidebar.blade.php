@@ -33,6 +33,12 @@
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
                         {{ __('Lab') }}
                     </flux:sidebar.item>
+
+                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement() || auth()->user()->isDoctor())
+                        <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
+                            {{ __('MR Lookup') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())

@@ -81,6 +81,10 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
     });
 
+    Route::middleware('role:'.UserRole::Receptionist->value.','.UserRole::Management->value.','.UserRole::Admin->value.','.UserRole::Doctor->value)->group(function () {
+        Route::livewire('reception/mr-lookup', 'pages::reception.mr-lookup')->name('reception.mr-lookup');
+    });
+
     Route::middleware('role:'.UserRole::Receptionist->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
