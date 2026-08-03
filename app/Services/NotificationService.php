@@ -640,15 +640,15 @@ class NotificationService
     }
 
     /**
-     * Notify admins that a supervisor has not submitted a checklist for a block.
+     * Notify admins that a receptionist has not submitted a checklist for a block.
      */
     public function notifySupervisorChecklistMissing(
-        User $supervisor,
+        User $receptionist,
         CarbonInterface $blockStart,
         CarbonInterface $blockEnd
     ): ?AdminNotification {
         $alreadyNotified = AdminNotification::where('type', 'supervisor_checklist_missing')
-            ->whereJsonContains('metadata', ['supervisor_id' => $supervisor->id])
+            ->whereJsonContains('metadata', ['supervisor_id' => $receptionist->id])
             ->whereJsonContains('metadata', ['block_starts_at' => $blockStart->toDateTimeString()])
             ->exists();
 
@@ -656,24 +656,24 @@ class NotificationService
             return null;
         }
 
-        $title = __('⏰ Supervisor Checklist Missing');
+        $title = __('⏰ Checklist Missing');
         $message = __(
-            'Supervisor :name has not submitted the checklist for the :start - :end block.',
+            'Receptionist :name has not submitted the checklist for the :start - :end block.',
             [
-                'name' => $supervisor->name,
+                'name' => $receptionist->name,
                 'start' => $blockStart->format('H:i'),
                 'end' => $blockEnd->format('H:i'),
             ]
         );
 
         return $this->createAdminNotification(
-            $supervisor,
+            $receptionist,
             'supervisor_checklist_missing',
             $title,
             $message,
             route('admin.supervisor-checklist'),
             [
-                'supervisor_id' => $supervisor->id,
+                'supervisor_id' => $receptionist->id,
                 'block_starts_at' => $blockStart->toDateTimeString(),
                 'block_ends_at' => $blockEnd->toDateTimeString(),
             ]
@@ -681,16 +681,16 @@ class NotificationService
     }
 
     /**
-     * Notify admins that a supervisor submitted a checklist with "No" answers.
+     * Notify admins that a receptionist submitted a checklist with "No" answers.
      *
      * @param  Collection<int, SupervisorChecklistResponse>  $noResponses
      */
     public function notifySupervisorChecklistSubmitted(
-        User $supervisor,
+        User $receptionist,
         SupervisorChecklistEntry $entry,
         Collection $noResponses
     ): AdminNotification {
-        $title = __('⚠️ Supervisor Checklist Submitted With No Answers');
+        $title = __('⚠️ Checklist Submitted With No Answers');
 
         $items = $noResponses->map(function (SupervisorChecklistResponse $response): string {
             $text = $response->question->question_text;
@@ -701,9 +701,9 @@ class NotificationService
         })->implode("\n");
 
         $message = __(
-            "Supervisor :name submitted the checklist for :start - :end with the following No answers:\n:items",
+            "Receptionist :name submitted the checklist for :start - :end with the following No answers:\n:items",
             [
-                'name' => $supervisor->name,
+                'name' => $receptionist->name,
                 'start' => $entry->block_starts_at->format('H:i'),
                 'end' => $entry->block_ends_at->format('H:i'),
                 'items' => $items,
@@ -711,13 +711,13 @@ class NotificationService
         );
 
         return $this->createAdminNotification(
-            $supervisor,
+            $receptionist,
             'supervisor_checklist_no_answers',
             $title,
             $message,
             route('admin.supervisor-checklist'),
             [
-                'supervisor_id' => $supervisor->id,
+                'supervisor_id' => $receptionist->id,
                 'entry_id' => $entry->id,
                 'block_starts_at' => $entry->block_starts_at->toDateTimeString(),
                 'block_ends_at' => $entry->block_ends_at->toDateTimeString(),

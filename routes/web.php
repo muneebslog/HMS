@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Display\TokenDisplayController;
+use App\Http\Controllers\DriveFileController;
 use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\EmployeePhotoController;
 use App\Http\Controllers\EmployeeQualificationDownloadController;
@@ -70,10 +71,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
     });
 
-    Route::middleware('role:'.UserRole::Supervisor->value)->group(function () {
-        Route::livewire('supervisor/checklist', 'pages::supervisor.checklist')->name('supervisor.checklist');
-    });
-
     Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
@@ -91,6 +88,11 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
+        Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
+        Route::get('admin/drive/files/{driveFile}/download', [DriveFileController::class, 'download'])
+            ->name('admin.drive.download');
+        Route::get('admin/drive/files/{driveFile}/view', [DriveFileController::class, 'view'])
+            ->name('admin.drive.view');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {
@@ -108,6 +110,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         });
 
         Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');
+        Route::livewire('supervisor/checklist', 'pages::supervisor.checklist')->name('supervisor.checklist');
 
         Route::livewire('daily-payout', 'pages::payout.daily')->name('payout.daily');
     });

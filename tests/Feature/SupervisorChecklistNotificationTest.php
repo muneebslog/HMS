@@ -8,12 +8,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('notification is created when supervisor checklist is missing for a block', function () {
-    $supervisor = User::factory()->supervisor()->create();
+test('notification is created when checklist is missing for a block', function () {
+    $receptionist = User::factory()->receptionist()->create();
     $block = app(SupervisorChecklistService::class)->currentBlock();
 
     $notification = app(NotificationService::class)->notifySupervisorChecklistMissing(
-        $supervisor,
+        $receptionist,
         $block['start'],
         $block['end']
     );
@@ -21,17 +21,17 @@ test('notification is created when supervisor checklist is missing for a block',
     expect($notification)->not->toBeNull();
     expect(AdminNotification::count())->toBe(1);
     expect($notification->type)->toBe('supervisor_checklist_missing');
-    expect($notification->metadata)->toHaveKey('supervisor_id', $supervisor->id);
+    expect($notification->metadata)->toHaveKey('supervisor_id', $receptionist->id);
     expect($notification->actionable_url)->toBe(route('admin.supervisor-checklist'));
 });
 
 test('duplicate notifications for the same block are suppressed', function () {
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $block = app(SupervisorChecklistService::class)->currentBlock();
     $service = app(NotificationService::class);
 
-    $first = $service->notifySupervisorChecklistMissing($supervisor, $block['start'], $block['end']);
-    $second = $service->notifySupervisorChecklistMissing($supervisor, $block['start'], $block['end']);
+    $first = $service->notifySupervisorChecklistMissing($receptionist, $block['start'], $block['end']);
+    $second = $service->notifySupervisorChecklistMissing($receptionist, $block['start'], $block['end']);
 
     expect($first)->not->toBeNull();
     expect($second)->toBeNull();

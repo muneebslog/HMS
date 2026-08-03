@@ -30,7 +30,7 @@ class SupervisorChecklistEntryFactory extends Factory
         $block = app(SupervisorChecklistService::class)->currentBlock();
 
         return [
-            'user_id' => User::factory()->supervisor(),
+            'user_id' => User::factory()->receptionist(),
             'block_starts_at' => $block['start'],
             'block_ends_at' => $block['end'],
             'submitted_at' => now(),
@@ -49,12 +49,22 @@ class SupervisorChecklistEntryFactory extends Factory
     }
 
     /**
-     * Set the supervisor who owns the entry.
+     * Set the user who owns the entry.
      */
-    public function forSupervisor(User $user): static
+    public function forUser(User $user): static
     {
         return $this->state(fn (array $attributes) => [
             'user_id' => $user->id,
         ]);
+    }
+
+    /**
+     * Set the supervisor who owns the entry.
+     *
+     * @deprecated Use forUser() instead.
+     */
+    public function forSupervisor(User $user): static
+    {
+        return $this->forUser($user);
     }
 }

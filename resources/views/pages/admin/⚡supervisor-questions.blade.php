@@ -8,7 +8,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Supervisor Questions')] class extends Component
+new #[Title('Checklist Questions')] class extends Component
 {
     public bool $showQuestionModal = false;
 
@@ -249,7 +249,7 @@ new #[Title('Supervisor Questions')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Supervisor Questions') }}</flux:heading>
+            <flux:heading level="1">{{ __('Checklist Questions') }}</flux:heading>
             <flux:button variant="primary" icon="plus" wire:click="createQuestion">
                 {{ __('Add Question') }}
             </flux:button>

@@ -30,7 +30,6 @@ test('non-admin users cannot visit the supervisor questions page', function (Use
 
     $response->{$expected}();
 })->with([
-    'supervisor' => [UserRole::Supervisor, 'assertForbidden'],
     'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
     'management' => [UserRole::Management, 'assertForbidden'],

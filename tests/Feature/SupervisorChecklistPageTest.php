@@ -18,15 +18,15 @@ test('guests are redirected to the login page', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('supervisors can visit the checklist page', function () {
-    $supervisor = User::factory()->supervisor()->create();
+test('receptionists can visit the checklist page', function () {
+    $receptionist = User::factory()->receptionist()->create();
 
-    $response = $this->actingAs($supervisor)->get(route('supervisor.checklist'));
+    $response = $this->actingAs($receptionist)->get(route('supervisor.checklist'));
 
     $response->assertOk();
 });
 
-test('non-supervisor users cannot visit the checklist page', function (UserRole $role, string $expected) {
+test('non-receptionist users cannot visit the checklist page', function (UserRole $role, string $expected) {
     $user = User::factory()->{$role->value}()->create();
 
     $response = $this->actingAs($user)->get(route('supervisor.checklist'));
@@ -34,29 +34,28 @@ test('non-supervisor users cannot visit the checklist page', function (UserRole 
     $response->{$expected}();
 })->with([
     'admin' => [UserRole::Admin, 'assertOk'],
-    'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
     'management' => [UserRole::Management, 'assertForbidden'],
     'user' => [UserRole::User, 'assertRedirect'],
 ]);
 
-test('supervisor sees active questions and options', function () {
-    $supervisor = User::factory()->supervisor()->create();
+test('receptionist sees active questions and options', function () {
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Sample question?']);
     SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Option A']);
 
-    Livewire::actingAs($supervisor)
+    Livewire::actingAs($receptionist)
         ->test('pages::supervisor.checklist')
         ->assertSee('Sample question?')
         ->assertSee('Option A');
 });
 
-test('supervisor can submit the checklist for the current block', function () {
-    $supervisor = User::factory()->supervisor()->create();
+test('receptionist can submit the checklist for the current block', function () {
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create();
     $option = SupervisorChecklistOption::factory()->create(['question_id' => $question->id]);
 
-    Livewire::actingAs($supervisor)
+    Livewire::actingAs($receptionist)
         ->test('pages::supervisor.checklist')
         ->set("selectedOptions.{$question->id}", $option->id)
         ->set("remarks.{$question->id}", 'All good')
@@ -66,19 +65,19 @@ test('supervisor can submit the checklist for the current block', function () {
     expect(SupervisorChecklistEntry::count())->toBe(1);
 
     $entry = SupervisorChecklistEntry::first();
-    expect($entry->user_id)->toBe($supervisor->id);
+    expect($entry->user_id)->toBe($receptionist->id);
     expect($entry->responses)->toHaveCount(1);
     expect($entry->responses->first()->remarks)->toBe('All good');
     expect($entry->responses->first()->options->pluck('id')->all())->toContain($option->id);
 });
 
 test('already submitted block shows saved responses and prevents re-submission', function () {
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create();
     $option = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Option A']);
 
     $block = app(SupervisorChecklistService::class)->currentBlock();
-    $entry = SupervisorChecklistEntry::factory()->forSupervisor($supervisor)->forBlock($block['start'], $block['end'])->create();
+    $entry = SupervisorChecklistEntry::factory()->forUser($receptionist)->forBlock($block['start'], $block['end'])->create();
     $response = $entry->responses()->create([
         'entry_id' => $entry->id,
         'question_id' => $question->id,
@@ -86,7 +85,7 @@ test('already submitted block shows saved responses and prevents re-submission',
     ]);
     $response->options()->attach($option->id);
 
-    Livewire::actingAs($supervisor)
+    Livewire::actingAs($receptionist)
         ->test('pages::supervisor.checklist')
         ->assertSee('Already submitted')
         ->assertSee('Option A')
@@ -97,12 +96,12 @@ test('already submitted block shows saved responses and prevents re-submission',
 });
 
 test('submitting a checklist with no answers creates an admin notification', function () {
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Is the ward clean?']);
     $noOption = SupervisorChecklistOption::factory()->no()->create(['question_id' => $question->id]);
-    $yesOption = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Yes']);
+    SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Yes']);
 
-    Livewire::actingAs($supervisor)
+    Livewire::actingAs($receptionist)
         ->test('pages::supervisor.checklist')
         ->set("selectedOptions.{$question->id}", $noOption->id)
         ->set("remarks.{$question->id}", 'Needs cleaning')
@@ -119,11 +118,11 @@ test('submitting a checklist with no answers creates an admin notification', fun
 });
 
 test('submitting a checklist without no answers does not create a notification', function () {
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create();
     $yesOption = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Yes']);
 
-    Livewire::actingAs($supervisor)
+    Livewire::actingAs($receptionist)
         ->test('pages::supervisor.checklist')
         ->set("selectedOptions.{$question->id}", $yesOption->id)
         ->call('submit')

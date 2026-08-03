@@ -36,7 +36,6 @@ test('non-admins cannot visit the policy journal page', function (UserRole $role
     'receptionist' => [UserRole::Receptionist],
     'management' => [UserRole::Management],
     'doctor' => [UserRole::Doctor],
-    'supervisor' => [UserRole::Supervisor],
 ]);
 
 test('users with the default user role are redirected to the pending role page', function () {
@@ -165,7 +164,6 @@ test('non-admins cannot download attachments', function (UserRole $role) {
     'receptionist' => [UserRole::Receptionist],
     'management' => [UserRole::Management],
     'doctor' => [UserRole::Doctor],
-    'supervisor' => [UserRole::Supervisor],
 ]);
 
 test('guests cannot download attachments', function () {

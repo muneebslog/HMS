@@ -28,7 +28,6 @@ test('non-admin users cannot visit the leave calendar page', function (UserRole 
     'receptionist' => [UserRole::Receptionist],
     'management' => [UserRole::Management],
     'doctor' => [UserRole::Doctor],
-    'supervisor' => [UserRole::Supervisor],
 ]);
 
 test('users with the default user role are redirected to the pending role page', function () {

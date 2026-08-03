@@ -11,7 +11,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Supervisor Checklist')] class extends Component
+new #[Title('Checklist')] class extends Component
 {
     /**
      * Selected option ID keyed by question ID.
@@ -142,7 +142,7 @@ new #[Title('Supervisor Checklist')] class extends Component
     <div class="flex h-full w-full flex-1 flex-col gap-6 print:gap-2">
         <div class="flex flex-col gap-2 print:hidden sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <flux:heading level="1">{{ __('Supervisor Checklist') }}</flux:heading>
+                <flux:heading level="1">{{ __('Checklist') }}</flux:heading>
                 <flux:text class="text-zinc-500">
                     {{ __('Block: :start - :end', ['start' => $this->block['start']->format('H:i'), 'end' => $this->block['end']->format('H:i')]) }}
                 </flux:text>

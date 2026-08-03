@@ -11,7 +11,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('supervisor:check-missing-checklists')]
-#[Description('Notify admins when supervisors have not submitted a checklist for the previous hour block.')]
+#[Description('Notify admins when receptionists have not submitted a checklist for the previous hour block.')]
 class CheckMissingSupervisorChecklists extends Command
 {
     /**
@@ -21,30 +21,30 @@ class CheckMissingSupervisorChecklists extends Command
     {
         $block = $checklistService->previousCompletedBlock();
 
-        $supervisors = User::where('role', UserRole::Supervisor)->orderBy('name')->get();
+        $receptionists = User::where('role', UserRole::Receptionist)->orderBy('name')->get();
 
-        if ($supervisors->isEmpty()) {
-            $this->info('No supervisors found.');
+        if ($receptionists->isEmpty()) {
+            $this->info('No receptionists found.');
 
             return self::SUCCESS;
         }
 
         $notifiedCount = 0;
 
-        foreach ($supervisors as $supervisor) {
-            if ($checklistService->hasEntryForBlock($supervisor, $block['start'], $block['end'])) {
+        foreach ($receptionists as $receptionist) {
+            if ($checklistService->hasEntryForBlock($receptionist, $block['start'], $block['end'])) {
                 continue;
             }
 
             $notification = $notificationService->notifySupervisorChecklistMissing(
-                $supervisor,
+                $receptionist,
                 $block['start'],
                 $block['end']
             );
 
             if ($notification !== null) {
                 $notifiedCount++;
-                $this->info("Notified: {$supervisor->name} missing block {$block['start']->format('H:i')} - {$block['end']->format('H:i')}.");
+                $this->info("Notified: {$receptionist->name} missing block {$block['start']->format('H:i')} - {$block['end']->format('H:i')}.");
             }
         }
 

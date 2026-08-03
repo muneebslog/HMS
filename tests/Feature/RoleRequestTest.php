@@ -52,15 +52,15 @@ test('user role users can request the doctor role', function () {
         ->and($request->status)->toBe(RoleRequestStatus::Pending);
 });
 
-test('user role users can request the supervisor role', function () {
+test('user role users can request the receptionist role', function () {
     $user = User::factory()->user()->create();
 
     Livewire::actingAs($user)
         ->test('pages::pending-role')
         ->call('requestRole')
         ->assertSet('showRequestModal', true)
-        ->set('requestedRole', UserRole::Supervisor->value)
-        ->set('message', 'I need supervisor access.')
+        ->set('requestedRole', UserRole::Receptionist->value)
+        ->set('message', 'I need receptionist access.')
         ->call('submitRequest')
         ->assertHasNoErrors();
 
@@ -68,7 +68,7 @@ test('user role users can request the supervisor role', function () {
 
     expect($request)->not->toBeNull()
         ->and($request->user_id)->toBe($user->id)
-        ->and($request->requested_role)->toBe(UserRole::Supervisor)
+        ->and($request->requested_role)->toBe(UserRole::Receptionist)
         ->and($request->status)->toBe(RoleRequestStatus::Pending);
 });
 
@@ -78,8 +78,8 @@ test('submitting a role request creates an admin notification', function () {
     Livewire::actingAs($user)
         ->test('pages::pending-role')
         ->call('requestRole')
-        ->set('requestedRole', UserRole::Supervisor->value)
-        ->set('message', 'I need supervisor access.')
+        ->set('requestedRole', UserRole::Receptionist->value)
+        ->set('message', 'I need receptionist access.')
         ->call('submitRequest')
         ->assertHasNoErrors();
 
@@ -88,7 +88,7 @@ test('submitting a role request creates an admin notification', function () {
     $notification = AdminNotification::first();
     expect($notification->type)->toBe('role_request_submitted')
         ->and($notification->metadata)->toHaveKey('role_request_id')
-        ->and($notification->metadata)->toHaveKey('requested_role', UserRole::Supervisor->value)
+        ->and($notification->metadata)->toHaveKey('requested_role', UserRole::Receptionist->value)
         ->and($notification->actionable_url)->toBe(route('admin.users'));
 });
 

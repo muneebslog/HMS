@@ -66,6 +66,11 @@
                         <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
                             {{ __('Daily Payout') }}
                         </flux:sidebar.item>
+                        @if (auth()->user()->isReceptionist())
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.checklist')" :current="request()->routeIs('supervisor.checklist')" wire:navigate>
+                                {{ __('Checklist') }}
+                            </flux:sidebar.item>
+                        @endif
                     </flux:sidebar.group>
                 @endif
 
@@ -91,18 +96,8 @@
                         <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
                             {{ __('Lab Entries Listings') }}
                         </flux:sidebar.item>
-                    </flux:sidebar.group>
-                @endif
-
-                @if (auth()->user()->isSupervisor())
-                    <flux:sidebar.group class="grid">
-                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                            <span class="size-2 rounded-full bg-indigo-500"></span>
-                            {{ __('Supervisor') }}
-                        </div>
-
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.checklist')" :current="request()->routeIs('supervisor.checklist')" wire:navigate>
-                            {{ __('Checklist') }}
+                        <flux:sidebar.item icon="cloud" :href="route('admin.drive')" :current="request()->routeIs('admin.drive*')" wire:navigate>
+                            {{ __('HMS Drive') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
@@ -154,10 +149,10 @@
                             {{ __('PDF Print') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
-                            {{ __('Supervisor Questions') }}
+                            {{ __('Checklist Questions') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
-                            {{ __('Supervisor Checklist') }}
+                            {{ __('Checklist Summary') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

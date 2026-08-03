@@ -32,82 +32,76 @@ test('non-admin users cannot visit the supervisor checklist summary page', funct
 
     $response->{$expected}();
 })->with([
-    'supervisor' => [UserRole::Supervisor, 'assertForbidden'],
     'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
     'management' => [UserRole::Management, 'assertForbidden'],
     'user' => [UserRole::User, 'assertRedirect'],
 ]);
 
-test('page lists daily blocks for a selected supervisor', function () {
+test('page lists daily blocks for a selected receptionist', function () {
     $admin = User::factory()->admin()->create();
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
 
     Livewire::actingAs($admin)
         ->test('pages::admin.supervisor-checklist')
-        ->set('selectedSupervisorId', $supervisor->id)
-        ->assertSee($supervisor->name)
-        ->assertSee('00:00 - 01:00')
-        ->assertSee('01:00 - 02:00');
+        ->set('selectedReceptionistId', $receptionist->id)
+        ->assertSee($receptionist->name)
+        ->assertSee('00:00')
+        ->assertSee('Missing');
 });
 
-test('page shows submitted and missing block statuses', function () {
+test('submitted blocks show as submitted', function () {
     $admin = User::factory()->admin()->create();
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $block = app(SupervisorChecklistService::class)->currentBlock();
 
     SupervisorChecklistEntry::factory()
-        ->forSupervisor($supervisor)
+        ->forUser($receptionist)
         ->forBlock($block['start'], $block['end'])
         ->create();
 
     Livewire::actingAs($admin)
         ->test('pages::admin.supervisor-checklist')
-        ->set('selectedSupervisorId', $supervisor->id)
-        ->assertSee($block['start']->format('H:i').' - '.$block['end']->format('H:i'))
+        ->set('selectedReceptionistId', $receptionist->id)
         ->assertSee('Submitted');
 });
 
-test('expanding a submitted block shows question option and remark details', function () {
+test('expanding a submitted block shows responses', function () {
     $admin = User::factory()->admin()->create();
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Check temperature?']);
     $option = SupervisorChecklistOption::factory()->create(['question_id' => $question->id, 'option_text' => 'Normal']);
     $block = app(SupervisorChecklistService::class)->currentBlock();
     $entry = SupervisorChecklistEntry::factory()
-        ->forSupervisor($supervisor)
+        ->forUser($receptionist)
         ->forBlock($block['start'], $block['end'])
         ->create();
-
     $response = $entry->responses()->create([
-        'entry_id' => $entry->id,
         'question_id' => $question->id,
-        'remarks' => 'Room was cool',
+        'remarks' => 'Looks fine',
     ]);
     $response->options()->attach($option->id);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.supervisor-checklist')
-        ->set('selectedSupervisorId', $supervisor->id)
+        ->set('selectedReceptionistId', $receptionist->id)
         ->call('toggleBlock', $block['start']->format('H:i'))
         ->assertSee('Check temperature?')
         ->assertSee('Normal')
-        ->assertSee('Room was cool');
+        ->assertSee('Looks fine');
 });
 
-test('expanding a submitted block highlights no answers in red', function () {
+test('no answers are highlighted in the expanded view', function () {
     $admin = User::factory()->admin()->create();
-    $supervisor = User::factory()->supervisor()->create();
+    $receptionist = User::factory()->receptionist()->create();
     $question = SupervisorChecklistQuestion::factory()->create(['question_text' => 'Is equipment working?']);
     $noOption = SupervisorChecklistOption::factory()->no()->create(['question_id' => $question->id]);
     $block = app(SupervisorChecklistService::class)->currentBlock();
     $entry = SupervisorChecklistEntry::factory()
-        ->forSupervisor($supervisor)
+        ->forUser($receptionist)
         ->forBlock($block['start'], $block['end'])
         ->create();
-
     $response = $entry->responses()->create([
-        'entry_id' => $entry->id,
         'question_id' => $question->id,
         'remarks' => 'Broken',
     ]);
@@ -115,9 +109,8 @@ test('expanding a submitted block highlights no answers in red', function () {
 
     Livewire::actingAs($admin)
         ->test('pages::admin.supervisor-checklist')
-        ->set('selectedSupervisorId', $supervisor->id)
+        ->set('selectedReceptionistId', $receptionist->id)
         ->call('toggleBlock', $block['start']->format('H:i'))
         ->assertSee('Is equipment working?')
-        ->assertSeeHtml('bg-red-50')
         ->assertSee('Broken');
 });

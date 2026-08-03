@@ -10,9 +10,9 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Supervisor Checklist Summary')] class extends Component
+new #[Title('Checklist Summary')] class extends Component
 {
-    public ?int $selectedSupervisorId = null;
+    public ?int $selectedReceptionistId = null;
 
     public string $selectedDate = '';
 
@@ -24,27 +24,27 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
     }
 
     /**
-     * Get all supervisor users.
+     * Get all receptionist users.
      *
      * @return Collection<int, User>
      */
     #[Computed]
-    public function supervisors(): Collection
+    public function receptionists(): Collection
     {
-        return User::where('role', UserRole::Supervisor)->orderBy('name')->get();
+        return User::where('role', UserRole::Receptionist)->orderBy('name')->get();
     }
 
     /**
-     * Get the selected supervisor.
+     * Get the selected receptionist.
      */
     #[Computed]
-    public function supervisor(): ?User
+    public function receptionist(): ?User
     {
-        if ($this->selectedSupervisorId === null) {
+        if ($this->selectedReceptionistId === null) {
             return null;
         }
 
-        return User::where('role', UserRole::Supervisor)->find($this->selectedSupervisorId);
+        return User::where('role', UserRole::Receptionist)->find($this->selectedReceptionistId);
     }
 
     /**
@@ -59,19 +59,19 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
     }
 
     /**
-     * Get entries for the selected supervisor and date.
+     * Get entries for the selected receptionist and date.
      *
      * @return Collection<int, SupervisorChecklistEntry>
      */
     #[Computed]
     public function entries(): Collection
     {
-        if ($this->supervisor === null) {
-            return new Collection();
+        if ($this->receptionist === null) {
+            return new Collection;
         }
 
         return SupervisorChecklistEntry::with(['responses.question', 'responses.options'])
-            ->where('user_id', $this->supervisor->id)
+            ->where('user_id', $this->receptionist->id)
             ->whereDate('block_starts_at', $this->selectedDate)
             ->orderBy('block_starts_at')
             ->get();
@@ -99,17 +99,17 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Supervisor Checklist Summary') }}</flux:heading>
+            <flux:heading level="1">{{ __('Checklist Summary') }}</flux:heading>
         </div>
 
         <flux:card>
             <div class="grid gap-4 sm:grid-cols-2">
                 <flux:field>
-                    <flux:label>{{ __('Supervisor') }}</flux:label>
-                    <flux:select wire:model.live="selectedSupervisorId">
-                        <option value="">{{ __('Select a supervisor') }}</option>
-                        @foreach ($this->supervisors as $supervisor)
-                            <option value="{{ $supervisor->id }}">{{ $supervisor->name }}</option>
+                    <flux:label>{{ __('Receptionist') }}</flux:label>
+                    <flux:select wire:model.live="selectedReceptionistId">
+                        <option value="">{{ __('Select a receptionist') }}</option>
+                        @foreach ($this->receptionists as $receptionist)
+                            <option value="{{ $receptionist->id }}">{{ $receptionist->name }}</option>
                         @endforeach
                     </flux:select>
                 </flux:field>
@@ -121,10 +121,10 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
             </div>
         </flux:card>
 
-        @if ($this->supervisor)
+        @if ($this->receptionist)
             <flux:card>
                 <flux:heading level="2" class="mb-4">
-                    {{ __(':name — :date', ['name' => $this->supervisor->name, 'date' => Carbon::parse($this->selectedDate)->format('M j, Y')]) }}
+                    {{ __(':name — :date', ['name' => $this->receptionist->name, 'date' => Carbon::parse($this->selectedDate)->format('M j, Y')]) }}
                 </flux:heading>
 
                 <flux:table>
@@ -212,7 +212,7 @@ new #[Title('Supervisor Checklist Summary')] class extends Component
             </flux:card>
         @else
             <flux:card>
-                <flux:text class="text-center text-zinc-500">{{ __('Select a supervisor to view the daily summary.') }}</flux:text>
+                <flux:text class="text-center text-zinc-500">{{ __('Select a receptionist to view the daily summary.') }}</flux:text>
             </flux:card>
         @endif
     </div>

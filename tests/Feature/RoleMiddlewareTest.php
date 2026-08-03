@@ -24,6 +24,7 @@ $routeMap = [
         'reception.vitals',
         'reception.procedures',
         'payout.daily',
+        'supervisor.checklist',
     ],
     'doctor' => [
         'doctor.portal',

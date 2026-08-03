@@ -8,7 +8,6 @@ enum UserRole: string
     case Receptionist = 'receptionist';
     case Management = 'management';
     case Doctor = 'doctor';
-    case Supervisor = 'supervisor';
     case User = 'user';
 
     /**
@@ -21,7 +20,6 @@ enum UserRole: string
             self::Receptionist => __('Receptionist'),
             self::Management => __('Management'),
             self::Doctor => __('Doctor'),
-            self::Supervisor => __('Supervisor'),
             self::User => __('User'),
         };
     }

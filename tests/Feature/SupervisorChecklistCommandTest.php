@@ -8,30 +8,30 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('command notifies only supervisors missing the previous block entry', function () {
-    $missingSupervisor = User::factory()->supervisor()->create();
-    $submittedSupervisor = User::factory()->supervisor()->create();
+test('command notifies only receptionists missing the previous block entry', function () {
+    $missingReceptionist = User::factory()->receptionist()->create();
+    $submittedReceptionist = User::factory()->receptionist()->create();
     $block = app(SupervisorChecklistService::class)->previousCompletedBlock();
 
     SupervisorChecklistEntry::factory()
-        ->forSupervisor($submittedSupervisor)
+        ->forUser($submittedReceptionist)
         ->forBlock($block['start'], $block['end'])
         ->create();
 
     $this->artisan('supervisor:check-missing-checklists')
         ->assertSuccessful()
-        ->expectsOutputToContain('Notified: '.$missingSupervisor->name)
-        ->doesntExpectOutputToContain('Notified: '.$submittedSupervisor->name);
+        ->expectsOutputToContain('Notified: '.$missingReceptionist->name)
+        ->doesntExpectOutputToContain('Notified: '.$submittedReceptionist->name);
 
     expect(AdminNotification::where('type', 'supervisor_checklist_missing')->count())->toBe(1);
 });
 
-test('command creates no notifications when all supervisors submitted', function () {
-    $supervisor = User::factory()->supervisor()->create();
+test('command creates no notifications when all receptionists submitted', function () {
+    $receptionist = User::factory()->receptionist()->create();
     $block = app(SupervisorChecklistService::class)->previousCompletedBlock();
 
     SupervisorChecklistEntry::factory()
-        ->forSupervisor($supervisor)
+        ->forUser($receptionist)
         ->forBlock($block['start'], $block['end'])
         ->create();
 

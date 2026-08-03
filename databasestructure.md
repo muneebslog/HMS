@@ -513,6 +513,31 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | timestamps | | |
 | | | IDX `(status, created_at)` |
 
+### `drive_folders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| parent_id | FK → drive_folders | nullable, cascadeOnDelete |
+| name | string | |
+| created_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+| | | IDX `parent_id`, UNIQUE `(parent_id, name)` |
+
+### `drive_files`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| folder_id | FK → drive_folders | nullable, cascadeOnDelete (null = root) |
+| name | string | display name |
+| original_filename | string | |
+| disk_path | string | path on `local` disk under `hms-drive/` |
+| mime_type | string | |
+| size | unsignedBigInteger | bytes |
+| tags | json | nullable |
+| created_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+| | | IDX `folder_id`, IDX `name` |
+
 ---
 
 ## Admin / Ops
@@ -801,6 +826,8 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            └── print_jobs
         │
         ├── pdf_print_jobs
+        ├── drive_folders ──┬── drive_folders (parent)
+        │                   └── drive_files
         ├── monthly_expenses
         ├── doctors (optional user_id link)
         ├── employees ──┬── employee_documents
