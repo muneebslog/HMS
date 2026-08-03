@@ -234,6 +234,11 @@ new #[Title('HMS Drive')] class extends Component
         /** @var TemporaryUploadedFile $upload */
         $upload = $this->upload;
 
+        // Capture metadata before store() — Livewire 4 moves the temp file on same-disk store.
+        $originalFilename = $upload->getClientOriginalName();
+        $mimeType = $upload->getMimeType() ?: 'application/octet-stream';
+        $size = $upload->getSize() ?: 0;
+
         $directory = $this->currentFolderId === null
             ? 'hms-drive/root'
             : 'hms-drive/'.$this->currentFolderId;
@@ -243,10 +248,10 @@ new #[Title('HMS Drive')] class extends Component
         DriveFile::create([
             'folder_id' => $this->currentFolderId,
             'name' => $this->fileName,
-            'original_filename' => $upload->getClientOriginalName(),
+            'original_filename' => $originalFilename,
             'disk_path' => $path,
-            'mime_type' => $upload->getMimeType() ?: 'application/octet-stream',
-            'size' => $upload->getSize() ?: 0,
+            'mime_type' => $mimeType,
+            'size' => $size,
             'tags' => $this->parsedTags($this->fileTags),
             'created_by' => Auth::id(),
         ]);

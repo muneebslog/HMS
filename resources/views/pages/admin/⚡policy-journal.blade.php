@@ -381,12 +381,15 @@ new #[Title('Policy Journal')] class extends Component
         $attachments = $entry->attachments ?? [];
 
         foreach ($this->newAttachments as $file) {
+            // Capture metadata before store() — Livewire 4 moves the temp file on same-disk store.
+            $originalName = $file->getClientOriginalName();
+            $size = $file->getSize();
             $path = $file->store("policy-journals/{$entry->id}", 'local');
 
             $attachments[] = [
                 'path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'size' => $file->getSize(),
+                'original_name' => $originalName,
+                'size' => $size,
             ];
         }
 
