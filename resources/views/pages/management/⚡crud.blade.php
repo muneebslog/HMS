@@ -13,6 +13,7 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -31,6 +32,8 @@ new #[Title('Management')] class extends Component
 
     private const ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 
+    private const BULK_CATALOG_INITIAL_ROWS = 5;
+
     public string $activeTab = 'doctors';
 
     public bool $showModal = false;
@@ -40,6 +43,16 @@ new #[Title('Management')] class extends Component
     public ?int $editingId = null;
 
     public ?int $documentsProcedureTypeId = null;
+
+    /**
+     * @var list<array{name: string, short_form: string, unit: string, is_active: bool}>
+     */
+    public array $medicineBulkRows = [];
+
+    /**
+     * @var list<array{name: string, short_form: string, default_volume_ml: string, is_active: bool}>
+     */
+    public array $injectionBulkRows = [];
 
     #[Validate]
     public string $doctorName = '';
@@ -220,18 +233,34 @@ new #[Title('Management')] class extends Component
                 'labTestIsInHouse' => ['boolean'],
                 'labTestIsActive' => ['boolean'],
             ],
-            'medicines' => [
-                'medicineName' => ['required', 'string', 'max:255'],
-                'medicineShortForm' => ['nullable', 'string', 'max:50'],
-                'medicineUnit' => ['required', 'string', 'max:255'],
-                'medicineIsActive' => ['boolean'],
-            ],
-            'injections' => [
-                'injectionName' => ['required', 'string', 'max:255'],
-                'injectionShortForm' => ['nullable', 'string', 'max:50'],
-                'injectionDefaultVolumeMl' => ['nullable', 'numeric', 'min:0'],
-                'injectionIsActive' => ['boolean'],
-            ],
+            'medicines' => $this->editingId
+                ? [
+                    'medicineName' => ['required', 'string', 'max:255'],
+                    'medicineShortForm' => ['nullable', 'string', 'max:50'],
+                    'medicineUnit' => ['required', 'string', 'max:255'],
+                    'medicineIsActive' => ['boolean'],
+                ]
+                : [
+                    'medicineBulkRows' => ['required', 'array', 'min:1'],
+                    'medicineBulkRows.*.name' => ['nullable', 'string', 'max:255'],
+                    'medicineBulkRows.*.short_form' => ['nullable', 'string', 'max:50'],
+                    'medicineBulkRows.*.unit' => ['nullable', 'required_with:medicineBulkRows.*.name', 'string', 'max:255'],
+                    'medicineBulkRows.*.is_active' => ['boolean'],
+                ],
+            'injections' => $this->editingId
+                ? [
+                    'injectionName' => ['required', 'string', 'max:255'],
+                    'injectionShortForm' => ['nullable', 'string', 'max:50'],
+                    'injectionDefaultVolumeMl' => ['nullable', 'numeric', 'min:0'],
+                    'injectionIsActive' => ['boolean'],
+                ]
+                : [
+                    'injectionBulkRows' => ['required', 'array', 'min:1'],
+                    'injectionBulkRows.*.name' => ['nullable', 'string', 'max:255'],
+                    'injectionBulkRows.*.short_form' => ['nullable', 'string', 'max:50'],
+                    'injectionBulkRows.*.default_volume_ml' => ['nullable', 'numeric', 'min:0'],
+                    'injectionBulkRows.*.is_active' => ['boolean'],
+                ],
             'dripBases' => [
                 'dripBaseName' => ['required', 'string', 'max:255'],
                 'dripBaseDefaultVolumeMl' => ['required', 'numeric', 'min:0'],
@@ -256,7 +285,92 @@ new #[Title('Management')] class extends Component
     {
         $this->resetForm();
         $this->editingId = null;
+
+        if ($this->activeTab === 'medicines') {
+            $this->medicineBulkRows = $this->emptyMedicineBulkRows();
+        }
+
+        if ($this->activeTab === 'injections') {
+            $this->injectionBulkRows = $this->emptyInjectionBulkRows();
+        }
+
         $this->showModal = true;
+    }
+
+    /**
+     * @return list<array{name: string, short_form: string, unit: string, is_active: bool}>
+     */
+    private function emptyMedicineBulkRows(int $count = self::BULK_CATALOG_INITIAL_ROWS): array
+    {
+        return array_map(fn (): array => $this->emptyMedicineBulkRow(), range(1, $count));
+    }
+
+    /**
+     * @return array{name: string, short_form: string, unit: string, is_active: bool}
+     */
+    private function emptyMedicineBulkRow(): array
+    {
+        return [
+            'name' => '',
+            'short_form' => '',
+            'unit' => '',
+            'is_active' => true,
+        ];
+    }
+
+    /**
+     * @return list<array{name: string, short_form: string, default_volume_ml: string, is_active: bool}>
+     */
+    private function emptyInjectionBulkRows(int $count = self::BULK_CATALOG_INITIAL_ROWS): array
+    {
+        return array_map(fn (): array => $this->emptyInjectionBulkRow(), range(1, $count));
+    }
+
+    /**
+     * @return array{name: string, short_form: string, default_volume_ml: string, is_active: bool}
+     */
+    private function emptyInjectionBulkRow(): array
+    {
+        return [
+            'name' => '',
+            'short_form' => '',
+            'default_volume_ml' => '',
+            'is_active' => true,
+        ];
+    }
+
+    public function addMedicineBulkRow(): void
+    {
+        $this->medicineBulkRows[] = $this->emptyMedicineBulkRow();
+    }
+
+    public function removeMedicineBulkRow(int $index): void
+    {
+        if (count($this->medicineBulkRows) <= 1) {
+            $this->medicineBulkRows = [$this->emptyMedicineBulkRow()];
+
+            return;
+        }
+
+        unset($this->medicineBulkRows[$index]);
+        $this->medicineBulkRows = array_values($this->medicineBulkRows);
+    }
+
+    public function addInjectionBulkRow(): void
+    {
+        $this->injectionBulkRows[] = $this->emptyInjectionBulkRow();
+    }
+
+    public function removeInjectionBulkRow(int $index): void
+    {
+        if (count($this->injectionBulkRows) <= 1) {
+            $this->injectionBulkRows = [$this->emptyInjectionBulkRow()];
+
+            return;
+        }
+
+        unset($this->injectionBulkRows[$index]);
+        $this->injectionBulkRows = array_values($this->injectionBulkRows);
     }
 
     /**
@@ -449,6 +563,8 @@ new #[Title('Management')] class extends Component
             'procedureTypeIsActive',
             'roomNumber',
             'roomIsActive',
+            'medicineBulkRows',
+            'injectionBulkRows',
         ]);
 
         $this->resetErrorBag();
@@ -469,8 +585,14 @@ new #[Title('Management')] class extends Component
             }
         }
 
-        if ($this->activeTab === 'injections' && $this->injectionDefaultVolumeMl === '') {
+        if ($this->activeTab === 'injections' && $this->editingId && $this->injectionDefaultVolumeMl === '') {
             $this->injectionDefaultVolumeMl = '';
+        }
+
+        if (! $this->editingId && in_array($this->activeTab, ['medicines', 'injections'], true)) {
+            $this->saveBulkCatalog();
+
+            return;
         }
 
         $validated = $this->validate();
@@ -486,6 +608,73 @@ new #[Title('Management')] class extends Component
             'procedureTypes' => $this->saveProcedureType($validated),
             'rooms' => $this->saveRoom($validated),
         };
+
+        $this->showModal = false;
+        $this->resetForm();
+    }
+
+    /**
+     * Persist multiple medicines or injections from the bulk create form.
+     */
+    private function saveBulkCatalog(): void
+    {
+        $validated = $this->validate();
+
+        if ($this->activeTab === 'medicines') {
+            $rows = collect($validated['medicineBulkRows'])
+                ->filter(fn (array $row): bool => filled($row['name'] ?? null))
+                ->values();
+
+            if ($rows->isEmpty()) {
+                $this->addError('medicineBulkRows', __('Add at least one medicine.'));
+
+                return;
+            }
+
+            DB::transaction(function () use ($rows): void {
+                foreach ($rows as $row) {
+                    Medicine::create([
+                        'name' => $row['name'],
+                        'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
+                        'unit' => $row['unit'],
+                        'is_active' => (bool) ($row['is_active'] ?? true),
+                    ]);
+                }
+            });
+
+            Flux::toast(
+                variant: 'success',
+                text: trans_choice(':count medicine created.|:count medicines created.', $rows->count(), ['count' => $rows->count()]),
+            );
+        } else {
+            $rows = collect($validated['injectionBulkRows'])
+                ->filter(fn (array $row): bool => filled($row['name'] ?? null))
+                ->values();
+
+            if ($rows->isEmpty()) {
+                $this->addError('injectionBulkRows', __('Add at least one injection.'));
+
+                return;
+            }
+
+            DB::transaction(function () use ($rows): void {
+                foreach ($rows as $row) {
+                    Injection::create([
+                        'name' => $row['name'],
+                        'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
+                        'default_volume_ml' => filled($row['default_volume_ml'] ?? null)
+                            ? $row['default_volume_ml']
+                            : null,
+                        'is_active' => (bool) ($row['is_active'] ?? true),
+                    ]);
+                }
+            });
+
+            Flux::toast(
+                variant: 'success',
+                text: trans_choice(':count injection created.|:count injections created.', $rows->count(), ['count' => $rows->count()]),
+            );
+        }
 
         $this->showModal = false;
         $this->resetForm();
@@ -592,7 +781,7 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * Persist medicine data.
+     * Persist medicine data (edit only; creates use bulk catalog save).
      *
      * @param  array<string, mixed>  $validated
      */
@@ -605,17 +794,12 @@ new #[Title('Management')] class extends Component
             'is_active' => $validated['medicineIsActive'],
         ];
 
-        if ($this->editingId) {
-            Medicine::findOrFail($this->editingId)->update($data);
-            Flux::toast(variant: 'success', text: __('Medicine updated.'));
-        } else {
-            Medicine::create($data);
-            Flux::toast(variant: 'success', text: __('Medicine created.'));
-        }
+        Medicine::findOrFail($this->editingId)->update($data);
+        Flux::toast(variant: 'success', text: __('Medicine updated.'));
     }
 
     /**
-     * Persist injection data.
+     * Persist injection data (edit only; creates use bulk catalog save).
      *
      * @param  array<string, mixed>  $validated
      */
@@ -630,13 +814,8 @@ new #[Title('Management')] class extends Component
             'is_active' => $validated['injectionIsActive'],
         ];
 
-        if ($this->editingId) {
-            Injection::findOrFail($this->editingId)->update($data);
-            Flux::toast(variant: 'success', text: __('Injection updated.'));
-        } else {
-            Injection::create($data);
-            Flux::toast(variant: 'success', text: __('Injection created.'));
-        }
+        Injection::findOrFail($this->editingId)->update($data);
+        Flux::toast(variant: 'success', text: __('Injection updated.'));
     }
 
     /**
@@ -1633,9 +1812,17 @@ new #[Title('Management')] class extends Component
         </flux:card>
     </div>
 
-    <flux:modal wire:model="showModal" class="w-full max-w-lg">
+    <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : 'max-w-lg' }}">
         <flux:heading level="2">
-            {{ $editingId ? __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) : __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+            @if ($editingId)
+                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+            @elseif ($activeTab === 'medicines')
+                {{ __('Bulk add medicines') }}
+            @elseif ($activeTab === 'injections')
+                {{ __('Bulk add injections') }}
+            @else
+                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+            @endif
         </flux:heading>
 
         <form wire:submit="save" class="mt-6 space-y-6">
@@ -1771,51 +1958,113 @@ new #[Title('Management')] class extends Component
                     <flux:error name="roomIsActive" />
                 </flux:field>
             @elseif ($activeTab === 'medicines')
-                <flux:field>
-                    <flux:label>{{ __('Name') }}</flux:label>
-                    <flux:input wire:model="medicineName" type="text" required />
-                    <flux:error name="medicineName" />
-                </flux:field>
+                @if ($editingId)
+                    <flux:field>
+                        <flux:label>{{ __('Name') }}</flux:label>
+                        <flux:input wire:model="medicineName" type="text" required />
+                        <flux:error name="medicineName" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Short form') }}</flux:label>
-                    <flux:input wire:model="medicineShortForm" type="text" placeholder="{{ __('e.g. PCM') }}" />
-                    <flux:error name="medicineShortForm" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>{{ __('Short form') }}</flux:label>
+                        <flux:input wire:model="medicineShortForm" type="text" placeholder="{{ __('e.g. PCM') }}" />
+                        <flux:error name="medicineShortForm" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Unit') }}</flux:label>
-                    <flux:input wire:model="medicineUnit" type="text" required />
-                    <flux:error name="medicineUnit" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>{{ __('Unit') }}</flux:label>
+                        <flux:input wire:model="medicineUnit" type="text" required />
+                        <flux:error name="medicineUnit" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:switch wire:model="medicineIsActive" :label="__('Active')" />
-                    <flux:error name="medicineIsActive" />
-                </flux:field>
+                    <flux:field>
+                        <flux:switch wire:model="medicineIsActive" :label="__('Active')" />
+                        <flux:error name="medicineIsActive" />
+                    </flux:field>
+                @else
+                    <div class="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                        @foreach ($medicineBulkRows as $index => $row)
+                            <div wire:key="medicine-bulk-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
+                                <div class="sm:col-span-4">
+                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.name" type="text" placeholder="{{ __('Name') }}" />
+                                    <flux:error name="medicineBulkRows.{{ $index }}.name" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.short_form" type="text" placeholder="{{ __('Short form') }}" />
+                                    <flux:error name="medicineBulkRows.{{ $index }}.short_form" />
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.unit" type="text" placeholder="{{ __('Unit') }}" />
+                                    <flux:error name="medicineBulkRows.{{ $index }}.unit" />
+                                </div>
+                                <div class="flex items-center sm:col-span-2">
+                                    <flux:switch wire:model="medicineBulkRows.{{ $index }}.is_active" :label="__('Active')" />
+                                </div>
+                                <div class="flex items-start justify-end sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineBulkRow({{ $index }})" />
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <flux:error name="medicineBulkRows" />
+                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineBulkRow">
+                        {{ __('Add row') }}
+                    </flux:button>
+                @endif
             @elseif ($activeTab === 'injections')
-                <flux:field>
-                    <flux:label>{{ __('Name') }}</flux:label>
-                    <flux:input wire:model="injectionName" type="text" required />
-                    <flux:error name="injectionName" />
-                </flux:field>
+                @if ($editingId)
+                    <flux:field>
+                        <flux:label>{{ __('Name') }}</flux:label>
+                        <flux:input wire:model="injectionName" type="text" required />
+                        <flux:error name="injectionName" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Short form') }}</flux:label>
-                    <flux:input wire:model="injectionShortForm" type="text" placeholder="{{ __('e.g. DIC') }}" />
-                    <flux:error name="injectionShortForm" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>{{ __('Short form') }}</flux:label>
+                        <flux:input wire:model="injectionShortForm" type="text" placeholder="{{ __('e.g. DIC') }}" />
+                        <flux:error name="injectionShortForm" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
-                    <flux:input wire:model="injectionDefaultVolumeMl" type="number" step="0.01" min="0" />
-                    <flux:error name="injectionDefaultVolumeMl" />
-                </flux:field>
+                    <flux:field>
+                        <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
+                        <flux:input wire:model="injectionDefaultVolumeMl" type="number" step="0.01" min="0" />
+                        <flux:error name="injectionDefaultVolumeMl" />
+                    </flux:field>
 
-                <flux:field>
-                    <flux:switch wire:model="injectionIsActive" :label="__('Active')" />
-                    <flux:error name="injectionIsActive" />
-                </flux:field>
+                    <flux:field>
+                        <flux:switch wire:model="injectionIsActive" :label="__('Active')" />
+                        <flux:error name="injectionIsActive" />
+                    </flux:field>
+                @else
+                    <div class="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                        @foreach ($injectionBulkRows as $index => $row)
+                            <div wire:key="injection-bulk-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
+                                <div class="sm:col-span-4">
+                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.name" type="text" placeholder="{{ __('Name') }}" />
+                                    <flux:error name="injectionBulkRows.{{ $index }}.name" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.short_form" type="text" placeholder="{{ __('Short form') }}" />
+                                    <flux:error name="injectionBulkRows.{{ $index }}.short_form" />
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.default_volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
+                                    <flux:error name="injectionBulkRows.{{ $index }}.default_volume_ml" />
+                                </div>
+                                <div class="flex items-center sm:col-span-2">
+                                    <flux:switch wire:model="injectionBulkRows.{{ $index }}.is_active" :label="__('Active')" />
+                                </div>
+                                <div class="flex items-start justify-end sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionBulkRow({{ $index }})" />
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <flux:error name="injectionBulkRows" />
+                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionBulkRow">
+                        {{ __('Add row') }}
+                    </flux:button>
+                @endif
             @elseif ($activeTab === 'dripBases')
                 <flux:field>
                     <flux:label>{{ __('Name') }}</flux:label>

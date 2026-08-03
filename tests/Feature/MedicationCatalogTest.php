@@ -17,10 +17,10 @@ test('authenticated admins can create a medicine', function () {
         ->test('pages::management.crud')
         ->set('activeTab', 'medicines')
         ->call('create')
-        ->set('medicineName', 'Paracetamol')
-        ->set('medicineShortForm', 'PCM')
-        ->set('medicineUnit', 'tablet')
-        ->set('medicineIsActive', true)
+        ->set('medicineBulkRows.0.name', 'Paracetamol')
+        ->set('medicineBulkRows.0.short_form', 'PCM')
+        ->set('medicineBulkRows.0.unit', 'tablet')
+        ->set('medicineBulkRows.0.is_active', true)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -32,6 +32,40 @@ test('authenticated admins can create a medicine', function () {
     ]);
 });
 
+test('authenticated admins can bulk create medicines', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'medicines')
+        ->call('create')
+        ->assertCount('medicineBulkRows', 5)
+        ->call('addMedicineBulkRow')
+        ->assertCount('medicineBulkRows', 6)
+        ->set('medicineBulkRows.0.name', 'Paracetamol')
+        ->set('medicineBulkRows.0.short_form', 'PCM')
+        ->set('medicineBulkRows.0.unit', 'tablet')
+        ->set('medicineBulkRows.1.name', 'Ibuprofen')
+        ->set('medicineBulkRows.1.unit', 'tablet')
+        ->set('medicineBulkRows.2.name', '')
+        ->set('medicineBulkRows.2.unit', '')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Medicine::query()->count())->toBe(2);
+
+    $this->assertDatabaseHas('medicines', [
+        'name' => 'Paracetamol',
+        'short_form' => 'PCM',
+        'unit' => 'tablet',
+    ]);
+
+    $this->assertDatabaseHas('medicines', [
+        'name' => 'Ibuprofen',
+        'unit' => 'tablet',
+    ]);
+});
+
 test('authenticated admins can create an injection', function () {
     $user = User::factory()->admin()->create();
 
@@ -39,10 +73,10 @@ test('authenticated admins can create an injection', function () {
         ->test('pages::management.crud')
         ->set('activeTab', 'injections')
         ->call('create')
-        ->set('injectionName', 'Diclofenac')
-        ->set('injectionShortForm', 'DIC')
-        ->set('injectionDefaultVolumeMl', '3')
-        ->set('injectionIsActive', true)
+        ->set('injectionBulkRows.0.name', 'Diclofenac')
+        ->set('injectionBulkRows.0.short_form', 'DIC')
+        ->set('injectionBulkRows.0.default_volume_ml', '3')
+        ->set('injectionBulkRows.0.is_active', true)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -52,6 +86,62 @@ test('authenticated admins can create an injection', function () {
         'default_volume_ml' => 3,
         'is_active' => true,
     ]);
+});
+
+test('authenticated admins can bulk create injections', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'injections')
+        ->call('create')
+        ->assertCount('injectionBulkRows', 5)
+        ->call('addInjectionBulkRow')
+        ->assertCount('injectionBulkRows', 6)
+        ->set('injectionBulkRows.0.name', 'Diclofenac')
+        ->set('injectionBulkRows.0.short_form', 'DIC')
+        ->set('injectionBulkRows.0.default_volume_ml', '3')
+        ->set('injectionBulkRows.1.name', 'Ceftriaxone')
+        ->set('injectionBulkRows.1.default_volume_ml', '')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Injection::query()->count())->toBe(2);
+
+    $this->assertDatabaseHas('injections', [
+        'name' => 'Diclofenac',
+        'short_form' => 'DIC',
+        'default_volume_ml' => 3,
+    ]);
+
+    $this->assertDatabaseHas('injections', [
+        'name' => 'Ceftriaxone',
+        'default_volume_ml' => null,
+    ]);
+});
+
+test('bulk medicine create requires a unit when a name is provided', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'medicines')
+        ->call('create')
+        ->set('medicineBulkRows.0.name', 'Paracetamol')
+        ->set('medicineBulkRows.0.unit', '')
+        ->call('save')
+        ->assertHasErrors(['medicineBulkRows.0.unit']);
+});
+
+test('bulk create requires at least one filled medicine row', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'medicines')
+        ->call('create')
+        ->call('save')
+        ->assertHasErrors(['medicineBulkRows']);
 });
 
 test('authenticated admins can create a drip base', function () {
