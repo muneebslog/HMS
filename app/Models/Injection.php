@@ -19,6 +19,7 @@ class Injection extends Model
      */
     protected $fillable = [
         'name',
+        'short_form',
         'default_volume_ml',
         'is_active',
     ];

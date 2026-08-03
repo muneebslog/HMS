@@ -117,6 +117,9 @@ new #[Title('Management')] class extends Component
     public string $medicineName = '';
 
     #[Validate]
+    public string $medicineShortForm = '';
+
+    #[Validate]
     public string $medicineUnit = '';
 
     #[Validate]
@@ -124,6 +127,9 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public string $injectionName = '';
+
+    #[Validate]
+    public string $injectionShortForm = '';
 
     #[Validate]
     public string $injectionDefaultVolumeMl = '';
@@ -216,11 +222,13 @@ new #[Title('Management')] class extends Component
             ],
             'medicines' => [
                 'medicineName' => ['required', 'string', 'max:255'],
+                'medicineShortForm' => ['nullable', 'string', 'max:50'],
                 'medicineUnit' => ['required', 'string', 'max:255'],
                 'medicineIsActive' => ['boolean'],
             ],
             'injections' => [
                 'injectionName' => ['required', 'string', 'max:255'],
+                'injectionShortForm' => ['nullable', 'string', 'max:50'],
                 'injectionDefaultVolumeMl' => ['nullable', 'numeric', 'min:0'],
                 'injectionIsActive' => ['boolean'],
             ],
@@ -342,6 +350,7 @@ new #[Title('Management')] class extends Component
         $medicine = Medicine::findOrFail($id);
 
         $this->medicineName = $medicine->name;
+        $this->medicineShortForm = $medicine->short_form ?? '';
         $this->medicineUnit = $medicine->unit;
         $this->medicineIsActive = $medicine->is_active;
     }
@@ -354,6 +363,7 @@ new #[Title('Management')] class extends Component
         $injection = Injection::findOrFail($id);
 
         $this->injectionName = $injection->name;
+        $this->injectionShortForm = $injection->short_form ?? '';
         $this->injectionDefaultVolumeMl = $injection->default_volume_ml !== null
             ? (string) $injection->default_volume_ml
             : '';
@@ -425,9 +435,11 @@ new #[Title('Management')] class extends Component
             'labTestIsInHouse',
             'labTestIsActive',
             'medicineName',
+            'medicineShortForm',
             'medicineUnit',
             'medicineIsActive',
             'injectionName',
+            'injectionShortForm',
             'injectionDefaultVolumeMl',
             'injectionIsActive',
             'dripBaseName',
@@ -588,6 +600,7 @@ new #[Title('Management')] class extends Component
     {
         $data = [
             'name' => $validated['medicineName'],
+            'short_form' => filled($validated['medicineShortForm'] ?? null) ? $validated['medicineShortForm'] : null,
             'unit' => $validated['medicineUnit'],
             'is_active' => $validated['medicineIsActive'],
         ];
@@ -610,6 +623,7 @@ new #[Title('Management')] class extends Component
     {
         $data = [
             'name' => $validated['injectionName'],
+            'short_form' => filled($validated['injectionShortForm'] ?? null) ? $validated['injectionShortForm'] : null,
             'default_volume_ml' => $validated['injectionDefaultVolumeMl'] !== '' && $validated['injectionDefaultVolumeMl'] !== null
                 ? $validated['injectionDefaultVolumeMl']
                 : null,
@@ -1484,6 +1498,7 @@ new #[Title('Management')] class extends Component
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Short form') }}</flux:table.column>
                             <flux:table.column>{{ __('Unit') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -1493,6 +1508,7 @@ new #[Title('Management')] class extends Component
                             @forelse ($this->medicines as $medicine)
                                 <flux:table.row wire:key="medicine-{{ $medicine->id }}">
                                     <flux:table.cell>{{ $medicine->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->short_form ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->unit }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $medicine->is_active ? 'green' : 'zinc' }}">
@@ -1506,7 +1522,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No medicines found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -1517,6 +1533,7 @@ new #[Title('Management')] class extends Component
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Short form') }}</flux:table.column>
                             <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -1526,6 +1543,7 @@ new #[Title('Management')] class extends Component
                             @forelse ($this->injections as $injection)
                                 <flux:table.row wire:key="injection-{{ $injection->id }}">
                                     <flux:table.cell>{{ $injection->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->short_form ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $injection->default_volume_ml !== null ? rtrim(rtrim(number_format($injection->default_volume_ml, 2), '0'), '.') : '-' }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $injection->is_active ? 'green' : 'zinc' }}">
@@ -1539,7 +1557,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No injections found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -1760,6 +1778,12 @@ new #[Title('Management')] class extends Component
                 </flux:field>
 
                 <flux:field>
+                    <flux:label>{{ __('Short form') }}</flux:label>
+                    <flux:input wire:model="medicineShortForm" type="text" placeholder="{{ __('e.g. PCM') }}" />
+                    <flux:error name="medicineShortForm" />
+                </flux:field>
+
+                <flux:field>
                     <flux:label>{{ __('Unit') }}</flux:label>
                     <flux:input wire:model="medicineUnit" type="text" required />
                     <flux:error name="medicineUnit" />
@@ -1774,6 +1798,12 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Name') }}</flux:label>
                     <flux:input wire:model="injectionName" type="text" required />
                     <flux:error name="injectionName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Short form') }}</flux:label>
+                    <flux:input wire:model="injectionShortForm" type="text" placeholder="{{ __('e.g. DIC') }}" />
+                    <flux:error name="injectionShortForm" />
                 </flux:field>
 
                 <flux:field>

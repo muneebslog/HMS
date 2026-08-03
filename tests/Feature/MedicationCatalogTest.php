@@ -18,6 +18,7 @@ test('authenticated admins can create a medicine', function () {
         ->set('activeTab', 'medicines')
         ->call('create')
         ->set('medicineName', 'Paracetamol')
+        ->set('medicineShortForm', 'PCM')
         ->set('medicineUnit', 'tablet')
         ->set('medicineIsActive', true)
         ->call('save')
@@ -25,6 +26,7 @@ test('authenticated admins can create a medicine', function () {
 
     $this->assertDatabaseHas('medicines', [
         'name' => 'Paracetamol',
+        'short_form' => 'PCM',
         'unit' => 'tablet',
         'is_active' => true,
     ]);
@@ -38,6 +40,7 @@ test('authenticated admins can create an injection', function () {
         ->set('activeTab', 'injections')
         ->call('create')
         ->set('injectionName', 'Diclofenac')
+        ->set('injectionShortForm', 'DIC')
         ->set('injectionDefaultVolumeMl', '3')
         ->set('injectionIsActive', true)
         ->call('save')
@@ -45,6 +48,7 @@ test('authenticated admins can create an injection', function () {
 
     $this->assertDatabaseHas('injections', [
         'name' => 'Diclofenac',
+        'short_form' => 'DIC',
         'default_volume_ml' => 3,
         'is_active' => true,
     ]);

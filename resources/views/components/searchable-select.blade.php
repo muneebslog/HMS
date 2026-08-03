@@ -9,6 +9,7 @@
         ->map(fn ($option) => [
             'value' => is_array($option) ? ($option['value'] ?? null) : $option->value,
             'label' => is_array($option) ? ($option['label'] ?? '') : $option->label,
+            'keywords' => is_array($option) ? ($option['keywords'] ?? '') : ($option->keywords ?? ''),
         ])
         ->values()
         ->all();
@@ -29,7 +30,11 @@
                 return this.options;
             }
 
-            return this.options.filter((option) => String(option.label).toLowerCase().includes(query));
+            return this.options.filter((option) => {
+                const haystack = [option.label, option.keywords ?? ''].join(' ').toLowerCase();
+
+                return haystack.includes(query);
+            });
         },
         get selectedLabel() {
             const match = this.options.find((option) => String(option.value) === String(this.value ?? ''));

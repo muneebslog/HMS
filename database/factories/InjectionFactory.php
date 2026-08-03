@@ -19,6 +19,7 @@ class InjectionFactory extends Factory
     {
         return [
             'name' => fake()->words(2, true).' Injection',
+            'short_form' => null,
             'default_volume_ml' => fake()->randomElement([1, 2, 5, 10]),
             'is_active' => true,
         ];

@@ -373,6 +373,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 |--------|------|-------|
 | id | bigint | PK |
 | name | string | |
+| short_form | string | nullable, e.g. `PCM` for search shortcuts |
 | unit | string | e.g. tablet, syrup |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
@@ -382,6 +383,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 |--------|------|-------|
 | id | bigint | PK |
 | name | string | |
+| short_form | string | nullable, e.g. `DIC` for search shortcuts |
 | default_volume_ml | decimal(8,2) | nullable |
 | is_active | boolean | default true, IDX |
 | timestamps | | |

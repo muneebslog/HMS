@@ -255,19 +255,19 @@ test('reception sees pending orders and can mark them administered', function ()
 
 test('medication form uses searchable selects for catalog fields', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
-    Medicine::factory()->create(['name' => 'Searchable Paracetamol']);
-    Injection::factory()->create(['name' => 'Searchable Diclofenac']);
+    Medicine::factory()->create(['name' => 'Searchable Paracetamol', 'short_form' => 'PCM']);
+    Injection::factory()->create(['name' => 'Searchable Diclofenac', 'short_form' => 'DIC']);
     DripBase::factory()->create(['name' => 'Searchable Saline']);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->assertSee(__('Search medicine'))
-        ->assertSee('Searchable Paracetamol')
+        ->assertSee('PCM — Searchable Paracetamol')
         ->call('switchOrderTab', 'injections')
         ->call('addInjectionLine')
         ->assertSee(__('Search injection'))
-        ->assertSee('Searchable Diclofenac')
+        ->assertSee('DIC — Searchable Diclofenac')
         ->call('switchOrderTab', 'drips')
         ->call('addDripLine')
         ->assertSee(__('Search drip base'))

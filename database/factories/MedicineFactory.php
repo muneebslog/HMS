@@ -19,6 +19,7 @@ class MedicineFactory extends Factory
     {
         return [
             'name' => fake()->words(2, true),
+            'short_form' => null,
             'unit' => fake()->randomElement(['tablet', 'syrup', 'capsule']),
             'is_active' => true,
         ];

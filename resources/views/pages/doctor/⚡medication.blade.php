@@ -121,16 +121,25 @@ new #[Title('Medication')] class extends Component
     /**
      * Medicine options for searchable select.
      *
-     * @return list<array{value: int, label: string}>
+     * @return list<array{value: int, label: string, keywords: string}>
      */
     #[Computed]
     public function medicineOptions(): array
     {
         return $this->medicines
-            ->map(fn (Medicine $medicine): array => [
-                'value' => $medicine->id,
-                'label' => $medicine->name.' ('.$medicine->unit.')',
-            ])
+            ->map(function (Medicine $medicine): array {
+                $label = $medicine->name.' ('.$medicine->unit.')';
+
+                if (filled($medicine->short_form)) {
+                    $label = $medicine->short_form.' — '.$label;
+                }
+
+                return [
+                    'value' => $medicine->id,
+                    'label' => $label,
+                    'keywords' => trim($medicine->name.' '.$medicine->unit.' '.($medicine->short_form ?? '')),
+                ];
+            })
             ->values()
             ->all();
     }
@@ -138,16 +147,25 @@ new #[Title('Medication')] class extends Component
     /**
      * Injection options for searchable select.
      *
-     * @return list<array{value: int, label: string}>
+     * @return list<array{value: int, label: string, keywords: string}>
      */
     #[Computed]
     public function injectionOptions(): array
     {
         return $this->injections
-            ->map(fn (Injection $injection): array => [
-                'value' => $injection->id,
-                'label' => $injection->name,
-            ])
+            ->map(function (Injection $injection): array {
+                $label = $injection->name;
+
+                if (filled($injection->short_form)) {
+                    $label = $injection->short_form.' — '.$label;
+                }
+
+                return [
+                    'value' => $injection->id,
+                    'label' => $label,
+                    'keywords' => trim($injection->name.' '.($injection->short_form ?? '')),
+                ];
+            })
             ->values()
             ->all();
     }
