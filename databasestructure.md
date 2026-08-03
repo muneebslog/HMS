@@ -401,7 +401,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | id | bigint | PK |
 | queue_token_id | FK → queue_tokens | UQ, cascadeOnDelete |
 | patient_id | FK → patients | cascadeOnDelete |
-| doctor_id | FK → doctors | cascadeOnDelete |
+| doctor_id | FK → doctors | nullable, nullOnDelete |
 | prescribed_by | FK → users | cascadeOnDelete |
 | status | string | default `pending` (`MedicationOrderStatus`), IDX |
 | notes | text | nullable |
@@ -409,7 +409,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | administered_at | timestamp | nullable |
 | timestamps | | |
 
-One medication order per queue token. Status `pending` until reception marks administered.
+One medication order per queue token. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. Status `pending` until reception marks administered.
 
 ### `medication_order_medicines`
 | Column | Type | Notes |

@@ -20,23 +20,26 @@ use Livewire\Livewire;
 uses(RefreshDatabase::class);
 
 /**
- * @return array{0: User, 1: Doctor, 2: Shift, 3: Service, 4: ServiceQueue, 5: Patient, 6: QueueToken}
+ * @return array{0: User, 1: ?Doctor, 2: Shift, 3: Service, 4: ServiceQueue, 5: Patient, 6: QueueToken}
  */
 function createMedicationQueuePatient(
     bool $needsMedication = true,
     string $tokenStatus = 'waiting',
     ?Doctor $doctor = null,
+    bool $withDoctor = true,
 ): array {
     $user = User::factory()->doctor()->create();
-    $doctor ??= Doctor::factory()->create();
+    $doctor = $withDoctor ? ($doctor ?? Doctor::factory()->create()) : null;
     $shift = Shift::factory()->open()->create();
     $service = Service::factory()->create([
+        'name' => 'General Checkup',
+        'is_standalone' => ! $withDoctor,
         'needs_medication' => $needsMedication,
         'token_reset_type' => TokenResetType::Shift,
     ]);
     $queue = ServiceQueue::factory()->create([
         'service_id' => $service->id,
-        'doctor_id' => $doctor->id,
+        'doctor_id' => $doctor?->id,
         'shift_id' => $shift->id,
         'date' => today(),
         'reset_type' => TokenResetType::Shift,
@@ -71,60 +74,36 @@ test('receptionists cannot visit the doctor medication page', function () {
         ->assertForbidden();
 });
 
-test('medication page lists doctor profiles to select', function () {
-    $user = User::factory()->doctor()->create();
-    $doctor = Doctor::factory()->create(['name' => 'Dr Profile One']);
+test('medication page lists waiting tokens without selecting a doctor profile', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->assertSee('Dr Profile One')
-        ->call('selectDoctor', $doctor->id)
-        ->assertSet('selectedDoctorId', $doctor->id);
-});
-
-test('medication queue lists waiting tokens for the selected doctor', function () {
-    [$user, $doctor, , , , $patient, $token] = createMedicationQueuePatient();
-
-    Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->call('selectDoctor', $doctor->id)
         ->assertSee($patient->name)
-        ->assertSee((string) $token->token_number);
+        ->assertSee((string) $token->token_number)
+        ->assertDontSee(__('Change doctor'));
 });
 
 test('medication queue excludes tokens for services that do not need medication', function () {
-    [$user, $doctor, , , , $patient] = createMedicationQueuePatient(needsMedication: false);
+    [$user, , , , , $patient] = createMedicationQueuePatient(needsMedication: false, withDoctor: false);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectDoctor', $doctor->id)
         ->assertDontSee($patient->name)
         ->assertSee(__('No patients need medication'));
 });
 
-test('medication queue excludes tokens for another doctor profile', function () {
-    [$user, , , , , $patient] = createMedicationQueuePatient();
-    $otherDoctor = Doctor::factory()->create(['name' => 'Other Doctor Profile']);
-
-    Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->call('selectDoctor', $otherDoctor->id)
-        ->assertDontSee($patient->name)
-        ->assertSee(__('No patients need medication'));
-});
-
-test('any doctor login can enter via a selected profile without a linked account', function () {
-    [$user, $doctor, , , , $patient] = createMedicationQueuePatient();
+test('any doctor login can prescribe for patients in the medication queue', function () {
+    [, , , , , $patient] = createMedicationQueuePatient(withDoctor: false);
     $unlinkedUser = User::factory()->doctor()->create();
 
     Livewire::actingAs($unlinkedUser)
         ->test('pages::doctor.medication')
-        ->call('selectDoctor', $doctor->id)
         ->assertSee($patient->name);
 });
 
 test('doctor sees vitals for the selected token', function () {
-    [$user, $doctor, , , , $patient, $token] = createMedicationQueuePatient();
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
 
     Vital::factory()->create([
         'queue_token_id' => $token->id,
@@ -137,15 +116,14 @@ test('doctor sees vitals for the selected token', function () {
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectDoctor', $doctor->id)
         ->call('selectToken', $token->id)
         ->assertSee('98.6')
         ->assertSee('120')
         ->assertSee('80');
 });
 
-test('doctor can save a medication order with medicines injections and drip additives', function () {
-    [$user, $doctor, , , , $patient, $token] = createMedicationQueuePatient();
+test('doctor can save a medication order for a standalone service without a doctor', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
     $injection = Injection::factory()->create(['name' => 'Diclofenac']);
     $additiveInjection = Injection::factory()->create(['name' => 'Vitamin B12']);
@@ -153,7 +131,6 @@ test('doctor can save a medication order with medicines injections and drip addi
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectDoctor', $doctor->id)
         ->call('selectToken', $token->id)
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
@@ -179,7 +156,8 @@ test('doctor can save a medication order with medicines injections and drip addi
 
     expect($order)->not->toBeNull()
         ->and($order->patient_id)->toBe($patient->id)
-        ->and($order->doctor_id)->toBe($doctor->id)
+        ->and($order->doctor_id)->toBeNull()
+        ->and($order->prescribed_by)->toBe($user->id)
         ->and($order->status)->toBe(MedicationOrderStatus::Pending)
         ->and($order->medicines)->toHaveCount(1)
         ->and($order->injections)->toHaveCount(1)
@@ -200,25 +178,24 @@ test('doctor can save a medication order with medicines injections and drip addi
     ]);
 });
 
-test('doctor cannot save an order for another doctors token', function () {
-    [, $doctor, , , , , $token] = createMedicationQueuePatient();
-    $otherUser = User::factory()->doctor()->create();
-    $otherDoctor = Doctor::factory()->create();
+test('medication order keeps the queue doctor when the service has one', function () {
+    [$user, $doctor, , , , , $token] = createMedicationQueuePatient();
     $medicine = Medicine::factory()->create();
 
-    Livewire::actingAs($otherUser)
+    Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectDoctor', $otherDoctor->id)
-        ->set('selectedTokenId', $token->id)
+        ->call('selectToken', $token->id)
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'quantity' => '1',
             'dosage_instructions' => '',
         ]])
-        ->call('save');
+        ->call('save')
+        ->assertHasNoErrors();
 
-    $this->assertDatabaseMissing('medication_orders', [
+    $this->assertDatabaseHas('medication_orders', [
         'queue_token_id' => $token->id,
+        'doctor_id' => $doctor->id,
     ]);
 });
 
@@ -240,14 +217,13 @@ test('receptionist is redirected to shift page when accessing medication admin w
 });
 
 test('reception sees pending orders and can mark them administered', function () {
-    [$user, $doctor, $shift, , , $patient, $token] = createMedicationQueuePatient();
+    [$user, , $shift, , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $receptionist = User::factory()->receptionist()->create();
     $shift->update(['user_id' => $receptionist->id]);
 
-    $order = MedicationOrder::factory()->create([
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
         'queue_token_id' => $token->id,
         'patient_id' => $patient->id,
-        'doctor_id' => $doctor->id,
         'prescribed_by' => $user->id,
         'status' => MedicationOrderStatus::Pending,
     ]);

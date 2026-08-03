@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\MedicationOrderStatus;
-use App\Models\Doctor;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
@@ -17,8 +16,6 @@ use Livewire\Component;
 
 new #[Title('Medication')] class extends Component
 {
-    public ?int $selectedDoctorId = null;
-
     public ?int $selectedTokenId = null;
 
     public string $activeOrderTab = 'medicines';
@@ -41,52 +38,25 @@ new #[Title('Medication')] class extends Component
     public array $dripLines = [];
 
     /**
-     * Active doctor profiles available to enter.
-     *
-     * @return Collection<int, Doctor>
-     */
-    #[Computed]
-    public function doctors(): Collection
-    {
-        return Doctor::query()->active()->orderBy('name')->get();
-    }
-
-    /**
-     * The currently selected doctor profile.
-     */
-    #[Computed]
-    public function doctor(): ?Doctor
-    {
-        if ($this->selectedDoctorId === null) {
-            return null;
-        }
-
-        return $this->doctors->firstWhere('id', $this->selectedDoctorId)
-            ?? Doctor::query()->active()->find($this->selectedDoctorId);
-    }
-
-    /**
-     * Tokens awaiting medication for the selected doctor and open shift.
+     * Waiting/serving tokens that need medication for the current open shift.
      *
      * @return Collection<int, QueueToken>
      */
     #[Computed]
     public function queue(): Collection
     {
-        $doctor = $this->doctor;
         $shift = Shift::current();
 
-        if ($doctor === null || $shift === null) {
+        if ($shift === null) {
             return new Collection;
         }
 
         return QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'vital', 'medicationOrder'])
+            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'medicationOrder'])
             ->whereIn('status', ['waiting', 'serving'])
-            ->whereHas('serviceQueue', function ($query) use ($doctor, $shift): void {
+            ->whereHas('serviceQueue', function ($query) use ($shift): void {
                 $query->where('status', 'open')
                     ->where('shift_id', $shift->id)
-                    ->where('doctor_id', $doctor->id)
                     ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
             })
             ->orderByRaw('arrived_at is null')
@@ -106,7 +76,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient', 'serviceQueue.service', 'vital', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
                 ->find($this->selectedTokenId);
     }
 
@@ -144,45 +114,10 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * Select a doctor profile to enter their medication queue.
-     */
-    public function selectDoctor(int $doctorId): void
-    {
-        $doctor = $this->doctors->firstWhere('id', $doctorId);
-
-        if ($doctor === null) {
-            Flux::toast(variant: 'danger', text: __('Doctor profile not found.'));
-
-            return;
-        }
-
-        $this->selectedDoctorId = $doctorId;
-        $this->selectedTokenId = null;
-        $this->resetValidation();
-        unset($this->doctor, $this->queue, $this->selectedToken);
-    }
-
-    /**
-     * Return to the doctor profile list.
-     */
-    public function backToDoctors(): void
-    {
-        $this->selectedDoctorId = null;
-        $this->backToList();
-        unset($this->doctor, $this->queue);
-    }
-
-    /**
      * Select a patient token and load any existing pending order.
      */
     public function selectToken(int $tokenId): void
     {
-        if ($this->doctor === null) {
-            Flux::toast(variant: 'danger', text: __('Select a doctor profile first.'));
-
-            return;
-        }
-
         $token = $this->queue->firstWhere('id', $tokenId);
 
         if ($token === null) {
@@ -330,14 +265,6 @@ new #[Title('Medication')] class extends Component
      */
     public function save(): void
     {
-        $doctor = $this->doctor;
-
-        if ($doctor === null) {
-            Flux::toast(variant: 'danger', text: __('Select a doctor profile first.'));
-
-            return;
-        }
-
         $token = $this->selectedToken;
 
         if ($token === null || $token->patient_id === null) {
@@ -349,13 +276,6 @@ new #[Title('Medication')] class extends Component
 
         if (! in_array($token->status, ['waiting', 'serving'], true)) {
             Flux::toast(variant: 'danger', text: __('Patient is no longer available for medication.'));
-            $this->backToList();
-
-            return;
-        }
-
-        if ($token->serviceQueue?->doctor_id !== $doctor->id) {
-            Flux::toast(variant: 'danger', text: __('You can only prescribe for your own patients.'));
             $this->backToList();
 
             return;
@@ -414,14 +334,14 @@ new #[Title('Medication')] class extends Component
             ->get()
             ->keyBy('id');
 
-        DB::transaction(function () use ($token, $doctor, $validated, $medicineLines, $injectionLines, $dripLines, $medicinesById, $injectionsById, $dripBasesById, $existing): void {
+        DB::transaction(function () use ($token, $validated, $medicineLines, $injectionLines, $dripLines, $medicinesById, $injectionsById, $dripBasesById, $existing): void {
             $order = $existing ?? new MedicationOrder([
                 'queue_token_id' => $token->id,
                 'patient_id' => $token->patient_id,
-                'doctor_id' => $doctor->id,
             ]);
 
             $order->fill([
+                'doctor_id' => $token->serviceQueue?->doctor_id,
                 'prescribed_by' => auth()->id(),
                 'status' => MedicationOrderStatus::Pending,
                 'notes' => $validated['notes'] !== '' ? $validated['notes'] : null,
@@ -577,48 +497,13 @@ new #[Title('Medication')] class extends Component
 
 <div class="flex h-full w-full flex-1 flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-            <flux:heading level="1">{{ __('Medication') }}</flux:heading>
-            @if ($this->doctor)
-                <p class="truncate text-sm text-zinc-500">{{ $this->doctor->name }}</p>
-            @endif
-        </div>
-        @if ($selectedDoctorId !== null && $selectedTokenId === null)
+        <flux:heading level="1">{{ __('Medication') }}</flux:heading>
+        @if ($selectedTokenId === null)
             <flux:badge color="zinc" size="lg">{{ $this->queue->count() }}</flux:badge>
         @endif
     </div>
 
-    @if ($selectedDoctorId === null)
-        <div class="flex flex-1 flex-col gap-2">
-            @forelse ($this->doctors as $doctorProfile)
-                <button
-                    type="button"
-                    wire:key="medication-doctor-{{ $doctorProfile->id }}"
-                    wire:click="selectDoctor({{ $doctorProfile->id }})"
-                    class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:border-zinc-700 dark:bg-zinc-800"
-                >
-                    <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
-                        {{ strtoupper(mb_substr($doctorProfile->name, 0, 1)) }}
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                            {{ $doctorProfile->name }}
-                        </span>
-                        <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                            {{ $doctorProfile->specialization }}
-                        </span>
-                    </span>
-                    <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-400" />
-                </button>
-            @empty
-                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
-                    <flux:icon name="user-circle" class="size-10 text-zinc-400" />
-                    <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No doctor profiles found') }}</p>
-                    <p class="text-sm text-zinc-500">{{ __('Add active doctors in Management first.') }}</p>
-                </div>
-            @endforelse
-        </div>
-    @elseif ($selectedTokenId === null)
+    @if ($selectedTokenId === null)
         <div class="flex flex-1 flex-col gap-2" wire:poll.20s>
             @forelse ($this->queue as $token)
                 <button
@@ -650,10 +535,6 @@ new #[Title('Medication')] class extends Component
                     <p class="text-sm text-zinc-500">{{ __('Waiting or serving patients for services that need medication will appear here.') }}</p>
                 </div>
             @endforelse
-
-            <flux:button type="button" variant="ghost" wire:click="backToDoctors" class="mt-2 w-full">
-                {{ __('Change doctor') }}
-            </flux:button>
         </div>
     @else
         @php($token = $this->selectedToken)

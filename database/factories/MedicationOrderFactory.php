@@ -35,6 +35,16 @@ class MedicationOrderFactory extends Factory
     }
 
     /**
+     * Indicate that the order has no assigned doctor (standalone service).
+     */
+    public function withoutDoctor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'doctor_id' => null,
+        ]);
+    }
+
+    /**
      * Indicate that the order has been administered.
      */
     public function administered(?User $by = null): static
