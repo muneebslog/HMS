@@ -17,6 +17,8 @@ use Livewire\Component;
 
 new #[Title('Medication')] class extends Component
 {
+    public ?int $selectedDoctorId = null;
+
     public ?int $selectedTokenId = null;
 
     public string $activeOrderTab = 'medicines';
@@ -39,16 +41,32 @@ new #[Title('Medication')] class extends Component
     public array $dripLines = [];
 
     /**
-     * Get the logged-in doctor's profile.
+     * Active doctor profiles available to enter.
+     *
+     * @return Collection<int, Doctor>
+     */
+    #[Computed]
+    public function doctors(): Collection
+    {
+        return Doctor::query()->active()->orderBy('name')->get();
+    }
+
+    /**
+     * The currently selected doctor profile.
      */
     #[Computed]
     public function doctor(): ?Doctor
     {
-        return auth()->user()?->doctor;
+        if ($this->selectedDoctorId === null) {
+            return null;
+        }
+
+        return $this->doctors->firstWhere('id', $this->selectedDoctorId)
+            ?? Doctor::query()->active()->find($this->selectedDoctorId);
     }
 
     /**
-     * Tokens awaiting medication for the current doctor and open shift.
+     * Tokens awaiting medication for the selected doctor and open shift.
      *
      * @return Collection<int, QueueToken>
      */
@@ -126,10 +144,45 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Select a doctor profile to enter their medication queue.
+     */
+    public function selectDoctor(int $doctorId): void
+    {
+        $doctor = $this->doctors->firstWhere('id', $doctorId);
+
+        if ($doctor === null) {
+            Flux::toast(variant: 'danger', text: __('Doctor profile not found.'));
+
+            return;
+        }
+
+        $this->selectedDoctorId = $doctorId;
+        $this->selectedTokenId = null;
+        $this->resetValidation();
+        unset($this->doctor, $this->queue, $this->selectedToken);
+    }
+
+    /**
+     * Return to the doctor profile list.
+     */
+    public function backToDoctors(): void
+    {
+        $this->selectedDoctorId = null;
+        $this->backToList();
+        unset($this->doctor, $this->queue);
+    }
+
+    /**
      * Select a patient token and load any existing pending order.
      */
     public function selectToken(int $tokenId): void
     {
+        if ($this->doctor === null) {
+            Flux::toast(variant: 'danger', text: __('Select a doctor profile first.'));
+
+            return;
+        }
+
         $token = $this->queue->firstWhere('id', $tokenId);
 
         if ($token === null) {
@@ -280,7 +333,7 @@ new #[Title('Medication')] class extends Component
         $doctor = $this->doctor;
 
         if ($doctor === null) {
-            Flux::toast(variant: 'danger', text: __('Doctor profile not found.'));
+            Flux::toast(variant: 'danger', text: __('Select a doctor profile first.'));
 
             return;
         }
@@ -524,15 +577,46 @@ new #[Title('Medication')] class extends Component
 
 <div class="flex h-full w-full flex-1 flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
-        <flux:heading level="1">{{ __('Medication') }}</flux:heading>
-        @if ($selectedTokenId === null)
+        <div class="min-w-0">
+            <flux:heading level="1">{{ __('Medication') }}</flux:heading>
+            @if ($this->doctor)
+                <p class="truncate text-sm text-zinc-500">{{ $this->doctor->name }}</p>
+            @endif
+        </div>
+        @if ($selectedDoctorId !== null && $selectedTokenId === null)
             <flux:badge color="zinc" size="lg">{{ $this->queue->count() }}</flux:badge>
         @endif
     </div>
 
-    @if ($this->doctor === null)
-        <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
-            <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No doctor profile linked to your account.') }}</p>
+    @if ($selectedDoctorId === null)
+        <div class="flex flex-1 flex-col gap-2">
+            @forelse ($this->doctors as $doctorProfile)
+                <button
+                    type="button"
+                    wire:key="medication-doctor-{{ $doctorProfile->id }}"
+                    wire:click="selectDoctor({{ $doctorProfile->id }})"
+                    class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                    <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
+                        {{ strtoupper(mb_substr($doctorProfile->name, 0, 1)) }}
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
+                            {{ $doctorProfile->name }}
+                        </span>
+                        <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
+                            {{ $doctorProfile->specialization }}
+                        </span>
+                    </span>
+                    <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-400" />
+                </button>
+            @empty
+                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
+                    <flux:icon name="user-circle" class="size-10 text-zinc-400" />
+                    <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No doctor profiles found') }}</p>
+                    <p class="text-sm text-zinc-500">{{ __('Add active doctors in Management first.') }}</p>
+                </div>
+            @endforelse
         </div>
     @elseif ($selectedTokenId === null)
         <div class="flex flex-1 flex-col gap-2" wire:poll.20s>
@@ -566,6 +650,10 @@ new #[Title('Medication')] class extends Component
                     <p class="text-sm text-zinc-500">{{ __('Waiting or serving patients for services that need medication will appear here.') }}</p>
                 </div>
             @endforelse
+
+            <flux:button type="button" variant="ghost" wire:click="backToDoctors" class="mt-2 w-full">
+                {{ __('Change doctor') }}
+            </flux:button>
         </div>
     @else
         @php($token = $this->selectedToken)
