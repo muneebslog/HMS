@@ -84,6 +84,7 @@ class PdfPrintJobController extends Controller
             'id' => $job->id,
             'status' => $job->status->value,
             'original_filename' => $job->original_filename,
+            'copies' => $job->copies,
             'attempts' => $job->attempts,
             'created_at' => $job->created_at?->format('Y-m-d H:i:s'),
             'download_url' => '/api/pdf-print-jobs/'.$job->id.'/file',

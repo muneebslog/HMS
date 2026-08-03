@@ -29,6 +29,7 @@ class PdfPrintJobFactory extends Factory
             'user_id' => User::factory()->admin(),
             'original_filename' => $filename,
             'disk_path' => $path,
+            'copies' => 1,
             'status' => PrintJobStatus::Pending,
             'attempts' => 0,
             'printed_at' => null,

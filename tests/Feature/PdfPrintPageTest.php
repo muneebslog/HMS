@@ -38,18 +38,35 @@ test('admins can upload a pdf and queue a print job', function () {
     Livewire::actingAs($admin)
         ->test('pages::admin.pdf-print')
         ->set('pdf', $file)
+        ->set('copies', 3)
         ->call('queuePrint')
         ->assertHasNoErrors()
-        ->assertSet('pdf', null);
+        ->assertSet('pdf', null)
+        ->assertSet('copies', 1);
 
     $job = PdfPrintJob::query()->first();
 
     expect($job)->not->toBeNull()
         ->and($job->user_id)->toBe($admin->id)
         ->and($job->original_filename)->toBe('report.pdf')
+        ->and($job->copies)->toBe(3)
         ->and($job->status)->toBe(PrintJobStatus::Pending);
 
     Storage::disk('local')->assertExists($job->disk_path);
+});
+
+test('pdf upload rejects invalid copy counts', function () {
+    $admin = User::factory()->admin()->create();
+    $file = TemporaryUploadedFile::fake()->create('report.pdf', 100, 'application/pdf');
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.pdf-print')
+        ->set('pdf', $file)
+        ->set('copies', 0)
+        ->call('queuePrint')
+        ->assertHasErrors(['copies']);
+
+    expect(PdfPrintJob::query()->count())->toBe(0);
 });
 
 test('pdf upload rejects non-pdf files', function () {

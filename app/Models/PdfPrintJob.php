@@ -23,6 +23,7 @@ class PdfPrintJob extends Model
         'user_id',
         'original_filename',
         'disk_path',
+        'copies',
         'status',
         'attempts',
         'printed_at',
@@ -39,6 +40,7 @@ class PdfPrintJob extends Model
     {
         return [
             'status' => PrintJobStatus::class,
+            'copies' => 'integer',
             'attempts' => 'integer',
             'printed_at' => 'datetime',
             'failed_at' => 'datetime',

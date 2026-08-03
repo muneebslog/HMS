@@ -504,6 +504,7 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | user_id | FK → users | cascadeOnDelete (uploader) |
 | original_filename | string | |
 | disk_path | string | path on `local` disk under `pdf-print-jobs/` |
+| copies | unsignedTinyInteger | default 1 |
 | status | string | default `pending` (`PrintJobStatus`) |
 | attempts | unsignedTinyInteger | default 0 |
 | printed_at | timestamp | nullable |

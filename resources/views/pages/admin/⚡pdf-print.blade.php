@@ -21,6 +21,8 @@ new #[Title('PDF Print')] class extends Component
 
     public ?TemporaryUploadedFile $pdf = null;
 
+    public int $copies = 1;
+
     /**
      * Get the filtered PDF print jobs.
      *
@@ -46,6 +48,7 @@ new #[Title('PDF Print')] class extends Component
     {
         $this->validate([
             'pdf' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            'copies' => ['required', 'integer', 'min:1', 'max:50'],
         ]);
 
         /** @var TemporaryUploadedFile $pdf */
@@ -57,10 +60,12 @@ new #[Title('PDF Print')] class extends Component
             'user_id' => Auth::id(),
             'original_filename' => $pdf->getClientOriginalName(),
             'disk_path' => $path,
+            'copies' => $this->copies,
             'status' => PrintJobStatus::Pending,
         ]);
 
         $this->reset('pdf');
+        $this->copies = 1;
 
         unset($this->jobs);
 
@@ -124,6 +129,14 @@ new #[Title('PDF Print')] class extends Component
                     </flux:field>
                 </div>
 
+                <div class="w-full sm:w-28">
+                    <flux:field>
+                        <flux:label>{{ __('Copies') }}</flux:label>
+                        <flux:input type="number" wire:model="copies" min="1" max="50" />
+                        <flux:error name="copies" />
+                    </flux:field>
+                </div>
+
                 <flux:button type="submit" variant="primary" wire:loading.attr="disabled">
                     <span wire:loading.remove wire:target="queuePrint,pdf">{{ __('Queue print') }}</span>
                     <span wire:loading wire:target="queuePrint,pdf">{{ __('Uploading...') }}</span>
@@ -147,6 +160,7 @@ new #[Title('PDF Print')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('ID') }}</flux:table.column>
                     <flux:table.column>{{ __('Filename') }}</flux:table.column>
+                    <flux:table.column>{{ __('Copies') }}</flux:table.column>
                     <flux:table.column>{{ __('Uploaded by') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
                     <flux:table.column>{{ __('Error') }}</flux:table.column>
@@ -160,6 +174,7 @@ new #[Title('PDF Print')] class extends Component
                         <flux:table.row wire:key="pdf-print-job-{{ $job->id }}">
                             <flux:table.cell>#{{ $job->id }}</flux:table.cell>
                             <flux:table.cell>{{ $job->original_filename }}</flux:table.cell>
+                            <flux:table.cell>{{ $job->copies }}</flux:table.cell>
                             <flux:table.cell>{{ $job->user?->name ?? '-' }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($job->status === App\Enums\PrintJobStatus::Pending)
@@ -196,7 +211,7 @@ new #[Title('PDF Print')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="8" class="text-center text-zinc-500">
+                            <flux:table.cell colspan="9" class="text-center text-zinc-500">
                                 {{ __('No PDF print jobs found.') }}
                             </flux:table.cell>
                         </flux:table.row>

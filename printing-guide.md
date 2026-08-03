@@ -509,7 +509,7 @@ PDF printing uses a **separate queue and agent** from thermal receipts.
 ### Server
 
 1. Set `PDF_PRINT_AGENT_TOKEN` in `.env` (different from the thermal token).
-2. Admins open **Administration → PDF Print** (`/admin/pdf-print`), upload a PDF, and queue it.
+2. Admins open **Administration → PDF Print** (`/admin/pdf-print`), upload a PDF, set the number of copies, and queue it.
 3. Agent API (Bearer `PDF_PRINT_AGENT_TOKEN`):
    - `GET /api/pdf-print-jobs/pending`
    - `GET /api/pdf-print-jobs/{job}/file`

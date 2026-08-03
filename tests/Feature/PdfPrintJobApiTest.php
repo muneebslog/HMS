@@ -21,7 +21,7 @@ function pdfAgentHeaders(): array
 }
 
 test('the agent can fetch pending pdf print jobs', function () {
-    $pending = PdfPrintJob::factory()->pending()->create();
+    $pending = PdfPrintJob::factory()->pending()->create(['copies' => 2]);
     PdfPrintJob::factory()->printed()->create();
     PdfPrintJob::factory()->failed()->create();
 
@@ -31,6 +31,7 @@ test('the agent can fetch pending pdf print jobs', function () {
         ->assertJsonPath('data.0.id', $pending->id)
         ->assertJsonPath('data.0.status', PrintJobStatus::Pending->value)
         ->assertJsonPath('data.0.original_filename', $pending->original_filename)
+        ->assertJsonPath('data.0.copies', 2)
         ->assertJsonPath('data.0.download_url', '/api/pdf-print-jobs/'.$pending->id.'/file');
 });
 
