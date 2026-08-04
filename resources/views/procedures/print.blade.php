@@ -187,15 +187,6 @@
                 font-weight: 700;
             }
 
-            .footer {
-                margin-top: 32px;
-                padding-top: 12px;
-                border-top: 1px solid #ccc;
-                font-size: 9pt;
-                color: #666;
-                text-align: center;
-            }
-
             .no-print {
                 margin-top: 24px;
                 text-align: center;
@@ -355,9 +346,6 @@
                 </div>
             </div>
 
-            <div class="footer">
-                {{ __('Printed on :date', ['date' => now()->format('M j, Y g:i A')]) }}
-            </div>
         </div>
 
         <div class="no-print">
