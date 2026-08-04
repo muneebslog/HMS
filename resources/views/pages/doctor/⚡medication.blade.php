@@ -922,10 +922,28 @@ new #[Title('Medication')] class extends Component
 
         <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div class="mb-3 flex items-center justify-between gap-2">
-                <flux:heading size="sm">{{ __('Vitals') }}</flux:heading>
-                @if ($activeRecheck?->isDue())
-                    <flux:badge color="amber">{{ __('Again') }}</flux:badge>
-                @endif
+                <div class="flex items-center gap-2">
+                    <flux:heading size="sm">{{ __('Vitals') }}</flux:heading>
+                    @if ($activeRecheck?->isDue())
+                        <flux:badge color="amber">{{ __('Again') }}</flux:badge>
+                    @endif
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    @unless ($showRecheckForm)
+                        <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openRecheckForm">
+                            {{ __('Set recheck timer') }}
+                            @if ($activeRecheck)
+                                <flux:badge size="sm" color="{{ $activeRecheck->isDue() ? 'amber' : 'zinc' }}" class="ms-1">
+                                    {{ $activeRecheck->isDue() ? __('Again') : $activeRecheck->timeRemainingLabel() }}
+                                </flux:badge>
+                            @endif
+                        </flux:button>
+                    @else
+                        <flux:button type="button" size="sm" variant="ghost" wire:click="closeRecheckForm">
+                            {{ __('Hide') }}
+                        </flux:button>
+                    @endunless
+                </div>
             </div>
             @if ($token?->vital)
                 <div class="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
@@ -961,26 +979,9 @@ new #[Title('Medication')] class extends Component
                     <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">{{ __('Again — recheck due') }}</p>
                 @endif
             @endif
-        </div>
 
-        <div>
-            @unless ($showRecheckForm)
-                <flux:button type="button" variant="ghost" icon="clock" wire:click="openRecheckForm" class="w-full">
-                    {{ __('Set recheck timer') }}
-                    @if ($activeRecheck)
-                        <flux:badge size="sm" color="{{ $activeRecheck->isDue() ? 'amber' : 'zinc' }}" class="ms-2">
-                            {{ $activeRecheck->isDue() ? __('Again') : $activeRecheck->timeRemainingLabel() }}
-                        </flux:badge>
-                    @endif
-                </flux:button>
-            @else
-                <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-                    <div class="mb-3 flex items-center justify-between gap-2">
-                        <flux:heading size="sm">{{ __('Recheck timer') }}</flux:heading>
-                        <flux:button type="button" size="sm" variant="ghost" wire:click="closeRecheckForm">
-                            {{ __('Hide') }}
-                        </flux:button>
-                    </div>
+            @if ($showRecheckForm)
+                <div class="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-700">
                     @if ($activeRecheck)
                         <p class="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
                             @if ($activeRecheck->isDue())
@@ -1015,7 +1016,7 @@ new #[Title('Medication')] class extends Component
                         </div>
                     </form>
                 </div>
-            @endunless
+            @endif
         </div>
 
         <div class="border-b border-zinc-200 dark:border-zinc-700">
