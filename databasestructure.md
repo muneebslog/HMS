@@ -412,10 +412,11 @@ One vitals row per queue token. Presence means vitals are done; token status is 
 | due_at | timestamp | IDX |
 | notified_at | timestamp | nullable — toast fired once |
 | acknowledged_at | timestamp | nullable — doctor cleared |
+| vitals_redone_at | timestamp | nullable — reception re-recorded vitals after due |
 | timestamps | | |
 | | | IDX `(due_at, acknowledged_at, notified_at)` |
 
-Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toast on the medication page and show **Again** in the queue list.
+Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toast on the medication page and show **Again** in the queue list. Admin monitors timers and whether vitals were redone after due.
 
 ### `medicines`
 | Column | Type | Notes |

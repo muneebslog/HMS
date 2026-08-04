@@ -31,6 +31,7 @@ class DoctorRecheckFactory extends Factory
             'due_at' => now()->addMinutes($minutes),
             'notified_at' => null,
             'acknowledged_at' => null,
+            'vitals_redone_at' => null,
         ];
     }
 
@@ -43,6 +44,7 @@ class DoctorRecheckFactory extends Factory
             'due_at' => now()->subMinute(),
             'notified_at' => null,
             'acknowledged_at' => null,
+            'vitals_redone_at' => null,
         ]);
     }
 
@@ -55,6 +57,20 @@ class DoctorRecheckFactory extends Factory
             'due_at' => now()->subMinute(),
             'notified_at' => now(),
             'acknowledged_at' => null,
+            'vitals_redone_at' => null,
+        ]);
+    }
+
+    /**
+     * Indicate that vitals were re-recorded after the timer.
+     */
+    public function vitalsRedone(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'due_at' => now()->subMinutes(10),
+            'notified_at' => now()->subMinutes(9),
+            'acknowledged_at' => null,
+            'vitals_redone_at' => now()->subMinute(),
         ]);
     }
 

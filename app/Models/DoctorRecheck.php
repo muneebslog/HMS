@@ -27,6 +27,7 @@ class DoctorRecheck extends Model
         'due_at',
         'notified_at',
         'acknowledged_at',
+        'vitals_redone_at',
     ];
 
     /**
@@ -41,6 +42,7 @@ class DoctorRecheck extends Model
             'due_at' => 'datetime',
             'notified_at' => 'datetime',
             'acknowledged_at' => 'datetime',
+            'vitals_redone_at' => 'datetime',
         ];
     }
 
@@ -67,11 +69,63 @@ class DoctorRecheck extends Model
     }
 
     /**
+     * Due rechecks that still need vitals re-recorded.
+     *
+     * @param  Builder<DoctorRecheck>  $query
+     * @return Builder<DoctorRecheck>
+     */
+    public function scopeAwaitingVitals(Builder $query): Builder
+    {
+        return $query->due()->whereNull('vitals_redone_at');
+    }
+
+    /**
      * Whether this recheck is due for attention.
      */
     public function isDue(): bool
     {
         return $this->acknowledged_at === null && $this->due_at->lte(now());
+    }
+
+    /**
+     * Whether vitals were re-recorded after the timer elapsed.
+     */
+    public function hasVitalsRedone(): bool
+    {
+        return $this->vitals_redone_at !== null;
+    }
+
+    /**
+     * Human-readable timer status for admin monitoring.
+     */
+    public function timerStatus(): string
+    {
+        if ($this->acknowledged_at !== null) {
+            return 'cleared';
+        }
+
+        if ($this->due_at->gt(now())) {
+            return 'on_timer';
+        }
+
+        if ($this->vitals_redone_at !== null) {
+            return 'vitals_redone';
+        }
+
+        return 'awaiting_vitals';
+    }
+
+    /**
+     * Translated label for the timer status.
+     */
+    public function timerStatusLabel(): string
+    {
+        return match ($this->timerStatus()) {
+            'cleared' => __('Cleared'),
+            'on_timer' => __('On timer'),
+            'vitals_redone' => __('Vitals redone'),
+            default => __('Awaiting vitals'),
+        };
     }
 
     /**

@@ -160,6 +160,9 @@
                         <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
                             {{ __('PDF Print') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
+                            {{ __('Recheck Timers') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
                             {{ __('Checklist Questions') }}
                         </flux:sidebar.item>

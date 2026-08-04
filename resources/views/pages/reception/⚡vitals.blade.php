@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\DoctorRecheck;
 use App\Models\QueueToken;
 use App\Models\Shift;
 use App\Models\Vital;
@@ -42,7 +43,7 @@ new #[Title('Vitals')] class extends Component
     }
 
     /**
-     * Waiting tokens that still need vitals for the current shift.
+     * Waiting tokens that still need vitals, plus due recheck patients awaiting redo.
      *
      * @return Collection<int, QueueToken>
      */
@@ -56,18 +57,33 @@ new #[Title('Vitals')] class extends Component
         }
 
         return QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor'])
-            ->where('status', 'waiting')
-            ->whereDoesntHave('vital')
-            ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->where('status', 'open')
-                    ->where('shift_id', $shift->id)
-                    ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_vitals', true));
+            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'activeRecheck'])
+            ->where(function ($query) use ($shift): void {
+                $query->where(function ($initial) use ($shift): void {
+                    $initial->where('status', 'waiting')
+                        ->whereDoesntHave('vital')
+                        ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
+                            $serviceQueue->where('status', 'open')
+                                ->where('shift_id', $shift->id)
+                                ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_vitals', true));
+                        });
+                })->orWhere(function ($recheck) use ($shift): void {
+                    $recheck->whereIn('status', ['waiting', 'serving'])
+                        ->whereHas('activeRecheck', fn ($activeRecheck) => $activeRecheck
+                            ->where('due_at', '<=', now())
+                            ->whereNull('vitals_redone_at'))
+                        ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
+                            $serviceQueue->where('status', 'open')
+                                ->where('shift_id', $shift->id);
+                        });
+                });
             })
             ->orderByRaw('arrived_at is null')
             ->orderBy('arrived_at')
             ->orderBy('token_number')
-            ->get();
+            ->get()
+            ->sortByDesc(fn (QueueToken $token): int => $this->isRecheckCapture($token) ? 1 : 0)
+            ->values();
     }
 
     /**
@@ -81,8 +97,20 @@ new #[Title('Vitals')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor'])
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'activeRecheck'])
                 ->find($this->selectedTokenId);
+    }
+
+    /**
+     * Whether this token is in the queue for a due recheck vitals redo.
+     */
+    private function isRecheckCapture(?QueueToken $token): bool
+    {
+        $recheck = $token?->activeRecheck;
+
+        return $recheck !== null
+            && $recheck->isDue()
+            && ! $recheck->hasVitalsRedone();
     }
 
     /**
@@ -100,6 +128,14 @@ new #[Title('Vitals')] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->resetCaptureFields();
+
+        if ($token->vital !== null && $this->isRecheckCapture($token)) {
+            $this->temperatureFahrenheit = (string) $token->vital->temperature;
+            $this->bpSystolic = (string) $token->vital->bp_systolic;
+            $this->bpDiastolic = (string) $token->vital->bp_diastolic;
+            $this->bsr = $token->vital->bsr !== null ? (string) $token->vital->bsr : '';
+        }
+
         $this->resetValidation();
     }
 
@@ -137,35 +173,60 @@ new #[Title('Vitals')] class extends Component
             return;
         }
 
-        if ($token->status !== 'waiting' || $token->vital()->exists()) {
+        $isRecheck = $this->isRecheckCapture($token);
+
+        if ($isRecheck) {
+            if (! in_array($token->status, ['waiting', 'serving'], true)) {
+                Flux::toast(variant: 'danger', text: __('Patient is no longer in the vitals queue.'));
+                $this->backToList();
+
+                return;
+            }
+        } elseif ($token->status !== 'waiting' || $token->vital()->exists()) {
             Flux::toast(variant: 'danger', text: __('Patient is no longer in the vitals queue.'));
             $this->backToList();
 
             return;
-        }
-
-        if (! $token->serviceQueue?->service?->needs_vitals) {
+        } elseif (! $token->serviceQueue?->service?->needs_vitals) {
             Flux::toast(variant: 'danger', text: __('This service does not require vitals.'));
             $this->backToList();
 
             return;
         }
 
-        Vital::create([
-            'queue_token_id' => $token->id,
+        $vitalAttributes = [
             'patient_id' => $token->patient_id,
             'recorded_by' => auth()->id(),
             'temperature' => $validated['temperatureFahrenheit'],
             'bp_systolic' => $validated['bpSystolic'],
             'bp_diastolic' => $validated['bpDiastolic'],
             'bsr' => filled($validated['bsr'] ?? null) ? $validated['bsr'] : null,
-        ]);
+        ];
+
+        if ($isRecheck) {
+            Vital::query()->updateOrCreate(
+                ['queue_token_id' => $token->id],
+                $vitalAttributes,
+            );
+
+            DoctorRecheck::query()
+                ->where('queue_token_id', $token->id)
+                ->whereNull('acknowledged_at')
+                ->whereNull('vitals_redone_at')
+                ->where('due_at', '<=', now())
+                ->update(['vitals_redone_at' => now()]);
+        } else {
+            Vital::create([
+                'queue_token_id' => $token->id,
+                ...$vitalAttributes,
+            ]);
+        }
 
         unset($this->queue);
 
         $nextToken = $this->queue->first();
 
-        Flux::toast(variant: 'success', text: __('Vitals saved.'));
+        Flux::toast(variant: 'success', text: $isRecheck ? __('Vitals updated (Again).') : __('Vitals saved.'));
 
         if ($nextToken === null) {
             $this->backToList();
@@ -177,6 +238,13 @@ new #[Title('Vitals')] class extends Component
         $this->resetCaptureFields();
         $this->resetValidation();
         unset($this->selectedToken);
+
+        if ($nextToken->vital !== null && $this->isRecheckCapture($nextToken)) {
+            $this->temperatureFahrenheit = (string) $nextToken->vital->temperature;
+            $this->bpSystolic = (string) $nextToken->vital->bp_systolic;
+            $this->bpDiastolic = (string) $nextToken->vital->bp_diastolic;
+            $this->bsr = $nextToken->vital->bsr !== null ? (string) $nextToken->vital->bsr : '';
+        }
     }
 
     /**
@@ -200,25 +268,34 @@ new #[Title('Vitals')] class extends Component
     </div>
 
     @if ($selectedTokenId === null)
-        <div class="flex flex-1 flex-col gap-2" wire:poll.20s>
+        <div class="flex flex-1 flex-col gap-2" wire:poll.10s>
             @forelse ($this->queue as $token)
+                @php($isAgain = $token->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
                 <button
                     type="button"
                     wire:key="vitals-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
-                    class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:border-zinc-700 dark:bg-zinc-800"
+                    class="flex w-full items-center gap-4 rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:bg-zinc-800 {{ $isAgain ? 'border-amber-400 dark:border-amber-500' : 'border-zinc-200 dark:border-zinc-700' }}"
                 >
                     <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
                         {{ $token->token_number }}
                     </span>
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                            {{ $token->patient?->name ?? __('Unknown') }}
+                        <span class="flex items-center gap-2">
+                            <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
+                                {{ $token->patient?->name ?? __('Unknown') }}
+                            </span>
+                            @if ($isAgain)
+                                <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
+                            @endif
                         </span>
                         <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
                             {{ $token->serviceQueue?->service?->name }}
                             @if ($token->serviceQueue?->doctor)
                                 · {{ $token->serviceQueue->doctor->name }}
+                            @endif
+                            @if ($isAgain && filled($token->activeRecheck?->note))
+                                · {{ $token->activeRecheck->note }}
                             @endif
                         </span>
                     </span>
@@ -234,6 +311,7 @@ new #[Title('Vitals')] class extends Component
         </div>
     @else
         @php($token = $this->selectedToken)
+        @php($isAgain = $token?->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
         <div class="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900 sm:mx-0 sm:rounded-xl sm:border">
             <div class="flex items-center gap-3">
                 <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-lg font-bold text-white dark:bg-white dark:text-zinc-900">
@@ -242,6 +320,9 @@ new #[Title('Vitals')] class extends Component
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-lg font-semibold text-zinc-900 dark:text-white">
                         {{ $token?->patient?->name ?? __('Unknown') }}
+                        @if ($isAgain)
+                            <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
+                        @endif
                     </p>
                     <p class="truncate text-sm text-zinc-500">
                         {{ $token?->serviceQueue?->service?->name }}
