@@ -30,6 +30,7 @@ class ServiceSeeder extends Seeder
             [
                 'name' => 'IV Drip',
                 'is_standalone' => true,
+                'is_drip' => true,
                 'token_reset_type' => TokenResetType::Shift,
             ],
             [

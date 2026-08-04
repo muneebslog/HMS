@@ -211,3 +211,43 @@ test('vitals capture requires temperature and blood pressure', function () {
         ->call('saveAndNext')
         ->assertHasErrors(['temperatureFahrenheit', 'bpSystolic', 'bpDiastolic']);
 });
+
+test('bsr is optional when saving vitals', function () {
+    [$user, , , , $patient, $token] = createVitalsQueuePatient();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.vitals')
+        ->call('selectToken', $token->id)
+        ->set('temperatureFahrenheit', '98.6')
+        ->set('bpSystolic', '120')
+        ->set('bpDiastolic', '80')
+        ->set('bsr', '')
+        ->call('saveAndNext')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('vitals', [
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'bsr' => null,
+    ]);
+});
+
+test('bsr is saved when provided', function () {
+    [$user, , , , $patient, $token] = createVitalsQueuePatient();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.vitals')
+        ->call('selectToken', $token->id)
+        ->set('temperatureFahrenheit', '98.6')
+        ->set('bpSystolic', '120')
+        ->set('bpDiastolic', '80')
+        ->set('bsr', '145')
+        ->call('saveAndNext')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('vitals', [
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'bsr' => 145,
+    ]);
+});

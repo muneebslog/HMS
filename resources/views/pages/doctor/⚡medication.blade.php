@@ -1,13 +1,17 @@
 <?php
 
+use App\Actions\ResolveDripShareDoctor;
+use App\Enums\DripChargeStatus;
 use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Models\DripBase;
+use App\Models\DripCharge;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
 use App\Models\Medicine;
 use App\Models\QueueToken;
+use App\Models\Service;
 use App\Models\Shift;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,6 +30,10 @@ new #[Title('Medication')] class extends Component
     public string $activeOrderTab = 'medicines';
 
     public string $notes = '';
+
+    public string $suggestedPrice = '';
+
+    public ?int $dripServiceId = null;
 
     /**
      * @var list<array{medicine_id: int|null, dose: string, days: string}>
@@ -83,6 +91,21 @@ new #[Title('Medication')] class extends Component
         return $this->queue->firstWhere('id', $this->selectedTokenId)
             ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
                 ->find($this->selectedTokenId);
+    }
+
+    /**
+     * Active drip billable services.
+     *
+     * @return Collection<int, Service>
+     */
+    #[Computed]
+    public function dripServices(): Collection
+    {
+        return Service::query()
+            ->active()
+            ->where('is_drip', true)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -272,6 +295,8 @@ new #[Title('Medication')] class extends Component
         $this->selectedTokenId = null;
         $this->showHistoryModal = false;
         $this->notes = '';
+        $this->suggestedPrice = '';
+        $this->dripServiceId = null;
         $this->medicineLines = [];
         $this->injectionLines = [];
         $this->dripLines = [];
@@ -549,6 +574,8 @@ new #[Title('Medication')] class extends Component
                     ]);
                 }
             }
+
+            $this->syncDripCharge($order, $token, $validated);
         });
 
         unset($this->queue, $this->selectedToken);
@@ -558,12 +585,69 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Create, update, or clear the pending drip charge for this order.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function syncDripCharge(MedicationOrder $order, QueueToken $token, array $validated): void
+    {
+        $pendingCharge = DripCharge::query()
+            ->where('queue_token_id', $token->id)
+            ->where('status', DripChargeStatus::Pending)
+            ->first();
+
+        if (! filled($validated['suggestedPrice'] ?? null)) {
+            $pendingCharge?->delete();
+
+            return;
+        }
+
+        $service = Service::query()
+            ->active()
+            ->where('is_drip', true)
+            ->find($validated['dripServiceId'] ?? null);
+
+        if ($service === null) {
+            return;
+        }
+
+        $share = app(ResolveDripShareDoctor::class)->resolve($service, auth()->user());
+
+        $attributes = [
+            'patient_id' => $token->patient_id,
+            'queue_token_id' => $token->id,
+            'medication_order_id' => $order->id,
+            'service_id' => $service->id,
+            'doctor_id' => $share['doctor']?->id,
+            'suggested_price' => $validated['suggestedPrice'],
+            'doctor_share' => $share['doctor_share'],
+            'status' => DripChargeStatus::Pending,
+            'suggested_by' => auth()->id(),
+        ];
+
+        if ($pendingCharge !== null) {
+            $pendingCharge->update($attributes);
+
+            return;
+        }
+
+        DripCharge::create($attributes);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function orderRules(): array
     {
         return [
             'notes' => ['nullable', 'string', 'max:2000'],
+            'suggestedPrice' => ['nullable', 'numeric', 'min:0'],
+            'dripServiceId' => [
+                'nullable',
+                'required_with:suggestedPrice',
+                'integer',
+                Rule::exists('services', 'id')->where(fn ($query) => $query->where('is_drip', true)->where('is_active', true)),
+            ],
             'medicineLines' => ['array'],
             'medicineLines.*.medicine_id' => ['nullable', 'integer', 'exists:medicines,id'],
             'medicineLines.*.dose' => ['required_with:medicineLines.*.medicine_id', 'string', Rule::enum(MedicineDose::class)],
@@ -586,6 +670,17 @@ new #[Title('Medication')] class extends Component
         $order = $token->medicationOrder()
             ->with(['medicines', 'injections', 'drips.additives'])
             ->first();
+
+        $pendingCharge = DripCharge::query()
+            ->where('queue_token_id', $token->id)
+            ->where('status', DripChargeStatus::Pending)
+            ->first();
+
+        $this->suggestedPrice = $pendingCharge !== null
+            ? (string) $pendingCharge->suggested_price
+            : '';
+        $this->dripServiceId = $pendingCharge?->service_id
+            ?? $this->dripServices->first()?->id;
 
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
@@ -699,7 +794,7 @@ new #[Title('Medication')] class extends Component
         <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <flux:heading size="sm" class="mb-3">{{ __('Vitals') }}</flux:heading>
             @if ($token?->vital)
-                <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                     <div>
                         <p class="text-xs text-zinc-500">{{ __('Temp (°F)') }}</p>
                         <p class="text-lg font-semibold">{{ $token->vital->temperature }}</p>
@@ -711,6 +806,10 @@ new #[Title('Medication')] class extends Component
                     <div>
                         <p class="text-xs text-zinc-500">{{ __('BP Diastolic') }}</p>
                         <p class="text-lg font-semibold">{{ $token->vital->bp_diastolic }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-zinc-500">{{ __('BSR') }}</p>
+                        <p class="text-lg font-semibold">{{ $token->vital->bsr ?? '—' }}</p>
                     </div>
                 </div>
             @else
@@ -852,6 +951,38 @@ new #[Title('Medication')] class extends Component
                 <flux:textarea wire:model="notes" rows="2" />
                 <flux:error name="notes" />
             </flux:field>
+
+            @if ($this->dripServices->isNotEmpty())
+                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                    <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        @if ($this->dripServices->count() > 1)
+                            <flux:field>
+                                <flux:label>{{ __('Drip service') }}</flux:label>
+                                <flux:select wire:model="dripServiceId">
+                                    <option value="">{{ __('Select drip service') }}</option>
+                                    @foreach ($this->dripServices as $dripService)
+                                        <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="dripServiceId" />
+                            </flux:field>
+                        @endif
+
+                        <flux:field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
+                            <flux:label>{{ __('Suggested price') }}</flux:label>
+                            <flux:input
+                                wire:model="suggestedPrice"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="{{ __('Optional') }}"
+                            />
+                            <flux:error name="suggestedPrice" />
+                        </flux:field>
+                    </div>
+                </div>
+            @endif
 
             <div class="mt-auto flex flex-col gap-3 pt-2">
                 <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">

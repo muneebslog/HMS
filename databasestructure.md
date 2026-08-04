@@ -132,6 +132,7 @@ Conventions used below:
 | is_standalone | boolean | default false |
 | needs_vitals | boolean | default false |
 | needs_medication | boolean | default false |
+| is_drip | boolean | default false — doctor can suggest price during medication |
 | token_reset_type | string | default `shift` (`TokenResetType`) |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
@@ -145,6 +146,26 @@ Conventions used below:
 | price | decimal(10,2) | |
 | doctor_share | decimal(5,2) | nullable |
 | timestamps | | |
+
+### `drip_charges`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| patient_id | FK → patients | cascadeOnDelete |
+| queue_token_id | FK → queue_tokens | nullable, nullOnDelete |
+| medication_order_id | FK → medication_orders | nullable, nullOnDelete |
+| service_id | FK → services | cascadeOnDelete (`is_drip` service) |
+| doctor_id | FK → doctors | nullable, nullOnDelete — share recipient |
+| suggested_price | decimal(10,2) | doctor-suggested amount |
+| doctor_share | decimal(5,2) | nullable, % snapshot at suggest time |
+| status | string | `pending` / `paid`, IDX |
+| invoice_id | FK → invoices | nullable, nullOnDelete |
+| suggested_by | FK → users | cascadeOnDelete |
+| paid_by | FK → users | nullable, nullOnDelete |
+| paid_at | timestamp | nullable |
+| timestamps | | |
+
+Pending drip bills from doctor medication; reception marks paid on walk-in (invoice + print slip).
 
 ### `lab_tests`
 | Column | Type | Notes |
@@ -374,6 +395,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | temperature | decimal(4,1) | °F |
 | bp_systolic | unsignedSmallInteger | mmHg |
 | bp_diastolic | unsignedSmallInteger | mmHg |
+| bsr | unsignedSmallInteger | nullable, mg/dL (blood sugar random) |
 | timestamps | | |
 
 One vitals row per queue token. Presence means vitals are done; token status is unchanged.
@@ -923,6 +945,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            ├── service_queues ── queue_tokens ──┬── patient_calls
         │            │                                    ├── vitals
         │            │                                    ├── ultrasound_reports
+        │            │                                    ├── drip_charges
         │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines
         │            │                                                           ├── medication_order_injections ── injections
         │            │                                                           └── medication_order_drips ──┬── drip_bases

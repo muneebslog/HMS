@@ -1,10 +1,13 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Actions\MarkDripChargePaid;
+use App\Enums\DripChargeStatus;
 use App\Enums\PaymentMode;
 use App\Enums\TokenResetType;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
+use App\Models\DripCharge;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Service;
@@ -49,6 +52,8 @@ new #[Title('Walk-in')] class extends Component
     #[Validate]
     public string $paymentMode = 'cash';
 
+    public string $dripPaymentMode = 'cash';
+
     /**
      * Get the validation rules for the walk-in form.
      *
@@ -70,6 +75,7 @@ new #[Title('Walk-in')] class extends Component
                 ),
             ],
             'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
+            'dripPaymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
         ];
     }
 
@@ -338,6 +344,76 @@ new #[Title('Walk-in')] class extends Component
     }
 
     /**
+     * Pending drip charges waiting for walk-in payment.
+     *
+     * @return Collection<int, DripCharge>
+     */
+    #[Computed]
+    public function pendingDripCharges(): Collection
+    {
+        return DripCharge::query()
+            ->with(['patient', 'service', 'doctor', 'suggestedBy.doctor'])
+            ->where('status', DripChargeStatus::Pending)
+            ->latest()
+            ->get();
+    }
+
+    /**
+     * Mark a doctor-suggested drip charge as paid and print the slip.
+     */
+    public function markDripPaid(int $chargeId): void
+    {
+        $this->validate([
+            'dripPaymentMode' => $this->rules()['dripPaymentMode'],
+        ]);
+
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+
+            return;
+        }
+
+        $charge = DripCharge::query()
+            ->where('status', DripChargeStatus::Pending)
+            ->find($chargeId);
+
+        if ($charge === null) {
+            Flux::toast(variant: 'danger', text: __('Drip charge not found or already paid.'));
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        $user = auth()->user();
+
+        if ($user === null) {
+            Flux::toast(variant: 'danger', text: __('You must be logged in.'));
+
+            return;
+        }
+
+        try {
+            $invoice = app(MarkDripChargePaid::class)->handle(
+                $charge,
+                $shift,
+                $user,
+                PaymentMode::from($this->dripPaymentMode),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: __($exception->getMessage()));
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        unset($this->pendingDripCharges);
+
+        Flux::toast(variant: 'success', text: __('Invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
+    }
+
+    /**
      * Get the expected token number for the item at the given index.
      */
     public function expectedTokenForItem(int $index): ?int
@@ -515,6 +591,66 @@ new #[Title('Walk-in')] class extends Component
                     {{ __('Reset') }}
                 </flux:button>
             </div>
+        </flux:card>
+
+        <flux:card wire:poll.20s>
+            <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <flux:heading level="2">{{ __('Pending drip charges') }}</flux:heading>
+                    <flux:text class="mt-1">{{ __('Doctor-suggested drip prices waiting for payment.') }}</flux:text>
+                </div>
+
+                <flux:field class="w-full sm:max-w-xs">
+                    <flux:label>{{ __('Payment mode') }}</flux:label>
+                    <flux:select wire:model="dripPaymentMode">
+                        @foreach (App\Enums\PaymentMode::cases() as $mode)
+                            <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="dripPaymentMode" />
+                </flux:field>
+            </div>
+
+            <flux:table>
+                <flux:table.columns>
+                    <flux:table.column>{{ __('Patient') }}</flux:table.column>
+                    <flux:table.column>{{ __('Service') }}</flux:table.column>
+                    <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                    <flux:table.column>{{ __('Price') }}</flux:table.column>
+                    <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                </flux:table.columns>
+
+                <flux:table.rows>
+                    @forelse ($this->pendingDripCharges as $charge)
+                        <flux:table.row wire:key="drip-charge-{{ $charge->id }}">
+                            <flux:table.cell>
+                                <div class="font-medium">{{ $charge->patient?->name ?? __('Unknown') }}</div>
+                                <div class="text-xs text-zinc-500">{{ $charge->patient?->mrn ?? __('No MRN') }}</div>
+                            </flux:table.cell>
+                            <flux:table.cell>{{ $charge->service?->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $charge->doctor?->name ?? '-' }}</flux:table.cell>
+                            <flux:table.cell>{{ number_format($charge->suggested_price, 2) }}</flux:table.cell>
+                            <flux:table.cell class="text-right">
+                                <flux:button
+                                    size="sm"
+                                    variant="primary"
+                                    icon="banknotes"
+                                    wire:click="markDripPaid({{ $charge->id }})"
+                                    wire:confirm="{{ __('Mark this drip charge as paid and print the slip?') }}"
+                                >
+                                    {{ __('Mark paid') }}
+                                </flux:button>
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @empty
+                        <flux:table.row>
+                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                {{ __('No pending drip charges.') }}
+                            </flux:table.cell>
+                        </flux:table.row>
+                    @endforelse
+                </flux:table.rows>
+            </flux:table>
         </flux:card>
     </div>
 

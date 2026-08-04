@@ -23,6 +23,7 @@ class ServiceFactory extends Factory
             'is_standalone' => fake()->boolean(),
             'needs_vitals' => false,
             'needs_medication' => false,
+            'is_drip' => false,
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
             'is_active' => true,
         ];
@@ -55,6 +56,16 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'needs_medication' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the service is a billable drip service.
+     */
+    public function drip(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_drip' => true,
         ]);
     }
 }

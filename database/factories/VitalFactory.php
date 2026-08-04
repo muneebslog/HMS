@@ -27,6 +27,7 @@ class VitalFactory extends Factory
             'temperature' => fake()->randomFloat(1, 96.8, 103.1),
             'bp_systolic' => fake()->numberBetween(90, 160),
             'bp_diastolic' => fake()->numberBetween(60, 100),
+            'bsr' => fake()->optional(0.5)->numberBetween(70, 200),
         ];
     }
 }

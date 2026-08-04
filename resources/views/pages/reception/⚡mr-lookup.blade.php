@@ -318,6 +318,7 @@ new #[Title('MR Lookup')] class extends Component
                                 <p class="text-sm text-zinc-700 dark:text-zinc-200">
                                     {{ __('Temp') }} {{ $vital->temperature ?? '-' }}
                                     · {{ __('BP') }} {{ $vital->bp_systolic ?? '-' }}/{{ $vital->bp_diastolic ?? '-' }}
+                                    · {{ __('BSR') }} {{ $vital->bsr ?? '-' }}
                                 </p>
                                 <p class="text-xs text-zinc-500">
                                     {{ $vital->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') }}

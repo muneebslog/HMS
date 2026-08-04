@@ -23,6 +23,9 @@ new #[Title('Vitals')] class extends Component
     #[Validate]
     public string $bpDiastolic = '';
 
+    #[Validate]
+    public string $bsr = '';
+
     /**
      * Get the validation rules for vitals capture.
      *
@@ -34,6 +37,7 @@ new #[Title('Vitals')] class extends Component
             'temperatureFahrenheit' => ['required', 'numeric', 'min:86', 'max:113'],
             'bpSystolic' => ['required', 'integer', 'min:50', 'max:300'],
             'bpDiastolic' => ['required', 'integer', 'min:30', 'max:200'],
+            'bsr' => ['nullable', 'integer', 'min:20', 'max:600'],
         ];
     }
 
@@ -154,6 +158,7 @@ new #[Title('Vitals')] class extends Component
             'temperature' => $validated['temperatureFahrenheit'],
             'bp_systolic' => $validated['bpSystolic'],
             'bp_diastolic' => $validated['bpDiastolic'],
+            'bsr' => filled($validated['bsr'] ?? null) ? $validated['bsr'] : null,
         ]);
 
         unset($this->queue);
@@ -182,6 +187,7 @@ new #[Title('Vitals')] class extends Component
         $this->temperatureFahrenheit = '';
         $this->bpSystolic = '';
         $this->bpDiastolic = '';
+        $this->bsr = '';
     }
 }; ?>
 
@@ -278,6 +284,7 @@ new #[Title('Vitals')] class extends Component
                     />
                     <flux:error name="bpSystolic" />
                 </flux:field>
+                /
 
                 <flux:field>
                     <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
@@ -293,6 +300,19 @@ new #[Title('Vitals')] class extends Component
                     <flux:error name="bpDiastolic" />
                 </flux:field>
             </div>
+
+            <flux:field>
+                <flux:label class="text-base">{{ __('BSR (mg/dL)') }}</flux:label>
+                <flux:input
+                    wire:model="bsr"
+                    type="number"
+                    inputmode="numeric"
+                    min="20"
+                    max="600"
+                    class="!h-14 !text-2xl"
+                />
+                <flux:error name="bsr" />
+            </flux:field>
 
             <div class="mt-auto flex flex-col gap-3 pt-4">
                 <flux:button type="submit" variant="primary" class="h-14 w-full text-lg font-semibold">

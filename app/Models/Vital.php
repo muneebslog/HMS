@@ -24,6 +24,7 @@ class Vital extends Model
         'temperature',
         'bp_systolic',
         'bp_diastolic',
+        'bsr',
     ];
 
     /**
@@ -37,6 +38,7 @@ class Vital extends Model
             'temperature' => 'decimal:1',
             'bp_systolic' => 'integer',
             'bp_diastolic' => 'integer',
+            'bsr' => 'integer',
         ];
     }
 

@@ -26,6 +26,7 @@ class Service extends Model
         'is_standalone',
         'needs_vitals',
         'needs_medication',
+        'is_drip',
         'token_reset_type',
         'is_active',
     ];
@@ -38,6 +39,7 @@ class Service extends Model
     protected $attributes = [
         'needs_vitals' => false,
         'needs_medication' => false,
+        'is_drip' => false,
         'is_active' => true,
     ];
 
@@ -52,6 +54,7 @@ class Service extends Model
             'is_standalone' => 'boolean',
             'needs_vitals' => 'boolean',
             'needs_medication' => 'boolean',
+            'is_drip' => 'boolean',
             'token_reset_type' => TokenResetType::class,
             'is_active' => 'boolean',
         ];
