@@ -40,6 +40,8 @@ new #[Title('Medication')] class extends Component
 
     public string $recheckNote = '';
 
+    public bool $showRecheckForm = false;
+
     /**
      * @var list<array{medicine_id: int|null, dose: string, days: string}>
      */
@@ -269,8 +271,26 @@ new #[Title('Medication')] class extends Component
         $this->activeOrderTab = 'medicines';
         $this->recheckMinutes = '15';
         $this->recheckNote = $token->activeRecheck?->note ?? '';
+        $this->showRecheckForm = false;
         $this->resetValidation();
         $this->loadOrderForm($token);
+    }
+
+    /**
+     * Show the recheck timer form.
+     */
+    public function openRecheckForm(): void
+    {
+        $this->showRecheckForm = true;
+    }
+
+    /**
+     * Hide the recheck timer form.
+     */
+    public function closeRecheckForm(): void
+    {
+        $this->showRecheckForm = false;
+        $this->resetValidation(['recheckMinutes', 'recheckNote']);
     }
 
     /**
@@ -390,6 +410,7 @@ new #[Title('Medication')] class extends Component
         $this->dripServiceId = null;
         $this->recheckMinutes = '15';
         $this->recheckNote = '';
+        $this->showRecheckForm = false;
         $this->medicineLines = [];
         $this->injectionLines = [];
         $this->dripLines = [];
@@ -942,40 +963,59 @@ new #[Title('Medication')] class extends Component
             @endif
         </div>
 
-        <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <flux:heading size="sm" class="mb-3">{{ __('Recheck timer') }}</flux:heading>
-            @if ($activeRecheck)
-                <p class="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
-                    @if ($activeRecheck->isDue())
-                        {{ __('Due now') }}{{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
-                    @else
-                        {{ __('Due at :time', ['time' => $activeRecheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}
-                        {{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
+        <div>
+            @unless ($showRecheckForm)
+                <flux:button type="button" variant="ghost" icon="clock" wire:click="openRecheckForm" class="w-full">
+                    {{ __('Set recheck timer') }}
+                    @if ($activeRecheck)
+                        <flux:badge size="sm" color="{{ $activeRecheck->isDue() ? 'amber' : 'zinc' }}" class="ms-2">
+                            {{ $activeRecheck->isDue() ? __('Again') : $activeRecheck->timeRemainingLabel() }}
+                        </flux:badge>
                     @endif
-                </p>
-                <div class="mb-4">
-                    <flux:button type="button" size="sm" variant="ghost" wire:click="acknowledgeRecheck({{ $token->id }})">
-                        {{ __('Clear recheck') }}
-                    </flux:button>
+                </flux:button>
+            @else
+                <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <flux:heading size="sm">{{ __('Recheck timer') }}</flux:heading>
+                        <flux:button type="button" size="sm" variant="ghost" wire:click="closeRecheckForm">
+                            {{ __('Hide') }}
+                        </flux:button>
+                    </div>
+                    @if ($activeRecheck)
+                        <p class="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
+                            @if ($activeRecheck->isDue())
+                                {{ __('Due now') }}{{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
+                            @else
+                                {{ $activeRecheck->timeRemainingLabel() }}
+                                · {{ __('Due at :time', ['time' => $activeRecheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}
+                                {{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
+                            @endif
+                        </p>
+                        <div class="mb-4">
+                            <flux:button type="button" size="sm" variant="ghost" wire:click="acknowledgeRecheck({{ $token->id }})">
+                                {{ __('Clear recheck') }}
+                            </flux:button>
+                        </div>
+                    @endif
+                    <form wire:submit="setRecheck" class="grid gap-3 sm:grid-cols-12">
+                        <flux:field class="sm:col-span-3">
+                            <flux:label>{{ __('Minutes') }}</flux:label>
+                            <flux:input wire:model="recheckMinutes" type="number" min="1" max="240" required />
+                            <flux:error name="recheckMinutes" />
+                        </flux:field>
+                        <flux:field class="sm:col-span-6">
+                            <flux:label>{{ __('Note') }}</flux:label>
+                            <flux:input wire:model="recheckNote" type="text" placeholder="{{ __('e.g. Check BP again') }}" />
+                            <flux:error name="recheckNote" />
+                        </flux:field>
+                        <div class="flex items-end sm:col-span-3">
+                            <flux:button type="submit" variant="primary" class="w-full" icon="clock">
+                                {{ __('Set timer') }}
+                            </flux:button>
+                        </div>
+                    </form>
                 </div>
-            @endif
-            <form wire:submit="setRecheck" class="grid gap-3 sm:grid-cols-12">
-                <flux:field class="sm:col-span-3">
-                    <flux:label>{{ __('Minutes') }}</flux:label>
-                    <flux:input wire:model="recheckMinutes" type="number" min="1" max="240" required />
-                    <flux:error name="recheckMinutes" />
-                </flux:field>
-                <flux:field class="sm:col-span-6">
-                    <flux:label>{{ __('Note') }}</flux:label>
-                    <flux:input wire:model="recheckNote" type="text" placeholder="{{ __('e.g. Check BP again') }}" />
-                    <flux:error name="recheckNote" />
-                </flux:field>
-                <div class="flex items-end sm:col-span-3">
-                    <flux:button type="submit" variant="primary" class="w-full" icon="clock">
-                        {{ __('Set timer') }}
-                    </flux:button>
-                </div>
-            </form>
+            @endunless
         </div>
 
         <div class="border-b border-zinc-200 dark:border-zinc-700">

@@ -111,7 +111,8 @@ test('admin rechecks page lists people on timer and vitals redo status', functio
         ->assertSee('Due Patient')
         ->assertSee(__('On timer'))
         ->assertSee(__('Awaiting vitals'))
-        ->assertSee(__('No'));
+        ->assertSee(__('No'))
+        ->assertSee(__('min left'));
 });
 
 test('admin can filter rechecks awaiting vitals', function () {

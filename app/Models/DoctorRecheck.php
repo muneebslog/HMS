@@ -129,6 +129,51 @@ class DoctorRecheck extends Model
     }
 
     /**
+     * Human-readable remaining or overdue duration.
+     */
+    public function timeRemainingLabel(): string
+    {
+        if ($this->acknowledged_at !== null) {
+            return '—';
+        }
+
+        $seconds = now()->diffInSeconds($this->due_at, false);
+
+        if ($seconds > 0) {
+            $minutes = (int) ceil($seconds / 60);
+
+            if ($minutes < 60) {
+                return __(':count min left', ['count' => $minutes]);
+            }
+
+            $hours = intdiv($minutes, 60);
+            $remainder = $minutes % 60;
+
+            return $remainder > 0
+                ? __(':hours h :minutes min left', ['hours' => $hours, 'minutes' => $remainder])
+                : __(':hours h left', ['hours' => $hours]);
+        }
+
+        $overdueSeconds = abs($seconds);
+        $overdueMinutes = (int) floor($overdueSeconds / 60);
+
+        if ($overdueMinutes < 1) {
+            return __('Due now');
+        }
+
+        if ($overdueMinutes < 60) {
+            return __(':count min overdue', ['count' => $overdueMinutes]);
+        }
+
+        $hours = intdiv($overdueMinutes, 60);
+        $remainder = $overdueMinutes % 60;
+
+        return $remainder > 0
+            ? __(':hours h :minutes min overdue', ['hours' => $hours, 'minutes' => $remainder])
+            : __(':hours h overdue', ['hours' => $hours]);
+    }
+
+    /**
      * @return BelongsTo<QueueToken, $this>
      */
     public function queueToken(): BelongsTo

@@ -94,6 +94,7 @@ new #[Title('Recheck Timers')] class extends Component
                 <flux:table.column>{{ __('Note') }}</flux:table.column>
                 <flux:table.column>{{ __('Set by') }}</flux:table.column>
                 <flux:table.column>{{ __('Timer') }}</flux:table.column>
+                <flux:table.column>{{ __('Time left') }}</flux:table.column>
                 <flux:table.column>{{ __('Due') }}</flux:table.column>
                 <flux:table.column>{{ __('Status') }}</flux:table.column>
                 <flux:table.column>{{ __('Vitals redone') }}</flux:table.column>
@@ -114,6 +115,16 @@ new #[Title('Recheck Timers')] class extends Component
                         <flux:table.cell>{{ $recheck->note ?: '—' }}</flux:table.cell>
                         <flux:table.cell>{{ $recheck->setBy?->name ?? '—' }}</flux:table.cell>
                         <flux:table.cell>{{ $recheck->minutes }} {{ __('min') }}</flux:table.cell>
+                        <flux:table.cell>
+                            <span @class([
+                                'font-medium',
+                                'text-sky-700 dark:text-sky-400' => $recheck->timerStatus() === 'on_timer',
+                                'text-amber-700 dark:text-amber-400' => in_array($recheck->timerStatus(), ['awaiting_vitals'], true),
+                                'text-zinc-500' => in_array($recheck->timerStatus(), ['cleared', 'vitals_redone'], true),
+                            ])>
+                                {{ $recheck->timeRemainingLabel() }}
+                            </span>
+                        </flux:table.cell>
                         <flux:table.cell>
                             {{ $recheck->due_at->timezone(config('app.timezone'))->format('d M, h:i A') }}
                         </flux:table.cell>
@@ -147,7 +158,7 @@ new #[Title('Recheck Timers')] class extends Component
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                        <flux:table.cell colspan="8" class="text-center text-zinc-500">
                             {{ __('No recheck timers found.') }}
                         </flux:table.cell>
                     </flux:table.row>
