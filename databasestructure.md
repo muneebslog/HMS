@@ -400,6 +400,23 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 
 One vitals row per queue token. Presence means vitals are done; token status is unchanged.
 
+### `doctor_rechecks`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| queue_token_id | FK → queue_tokens | cascadeOnDelete, IDX with acknowledged_at |
+| patient_id | FK → patients | cascadeOnDelete |
+| set_by | FK → users | cascadeOnDelete |
+| minutes | unsignedSmallInteger | timer length |
+| note | string | nullable, e.g. BP recheck |
+| due_at | timestamp | IDX |
+| notified_at | timestamp | nullable — toast fired once |
+| acknowledged_at | timestamp | nullable — doctor cleared |
+| timestamps | | |
+| | | IDX `(due_at, acknowledged_at, notified_at)` |
+
+Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toast on the medication page and show **Again** in the queue list.
+
 ### `medicines`
 | Column | Type | Notes |
 |--------|------|-------|
@@ -946,6 +963,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    ├── vitals
         │            │                                    ├── ultrasound_reports
         │            │                                    ├── drip_charges
+        │            │                                    ├── doctor_rechecks
         │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines
         │            │                                                           ├── medication_order_injections ── injections
         │            │                                                           └── medication_order_drips ──┬── drip_bases

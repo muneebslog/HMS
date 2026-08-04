@@ -284,7 +284,7 @@ new #[Title('Vitals')] class extends Component
                     />
                     <flux:error name="bpSystolic" />
                 </flux:field>
-<span>/</span>
+                <span>/</span>
 
                 <flux:field>
                     <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
