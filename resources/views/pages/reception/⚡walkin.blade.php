@@ -593,65 +593,67 @@ new #[Title('Walk-in')] class extends Component
             </div>
         </flux:card>
 
-        <flux:card wire:poll.20s>
-            <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <flux:heading level="2">{{ __('Pending drip charges') }}</flux:heading>
-                    <flux:text class="mt-1">{{ __('Doctor-suggested drip prices waiting for payment.') }}</flux:text>
+        <div wire:poll.10s>
+            <flux:card>
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <flux:heading level="2">{{ __('Pending drip charges') }}</flux:heading>
+                        <flux:text class="mt-1">{{ __('Doctor-suggested drip prices waiting for payment.') }}</flux:text>
+                    </div>
+
+                    <flux:field class="w-full sm:max-w-xs">
+                        <flux:label>{{ __('Payment mode') }}</flux:label>
+                        <flux:select wire:model="dripPaymentMode">
+                            @foreach (App\Enums\PaymentMode::cases() as $mode)
+                                <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="dripPaymentMode" />
+                    </flux:field>
                 </div>
 
-                <flux:field class="w-full sm:max-w-xs">
-                    <flux:label>{{ __('Payment mode') }}</flux:label>
-                    <flux:select wire:model="dripPaymentMode">
-                        @foreach (App\Enums\PaymentMode::cases() as $mode)
-                            <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="dripPaymentMode" />
-                </flux:field>
-            </div>
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column>{{ __('Patient') }}</flux:table.column>
+                        <flux:table.column>{{ __('Service') }}</flux:table.column>
+                        <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                        <flux:table.column>{{ __('Price') }}</flux:table.column>
+                        <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                    </flux:table.columns>
 
-            <flux:table>
-                <flux:table.columns>
-                    <flux:table.column>{{ __('Patient') }}</flux:table.column>
-                    <flux:table.column>{{ __('Service') }}</flux:table.column>
-                    <flux:table.column>{{ __('Doctor') }}</flux:table.column>
-                    <flux:table.column>{{ __('Price') }}</flux:table.column>
-                    <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                </flux:table.columns>
-
-                <flux:table.rows>
-                    @forelse ($this->pendingDripCharges as $charge)
-                        <flux:table.row wire:key="drip-charge-{{ $charge->id }}">
-                            <flux:table.cell>
-                                <div class="font-medium">{{ $charge->patient?->name ?? __('Unknown') }}</div>
-                                <div class="text-xs text-zinc-500">{{ $charge->patient?->mrn ?? __('No MRN') }}</div>
-                            </flux:table.cell>
-                            <flux:table.cell>{{ $charge->service?->name }}</flux:table.cell>
-                            <flux:table.cell>{{ $charge->doctor?->name ?? '-' }}</flux:table.cell>
-                            <flux:table.cell>{{ number_format($charge->suggested_price, 2) }}</flux:table.cell>
-                            <flux:table.cell class="text-right">
-                                <flux:button
-                                    size="sm"
-                                    variant="primary"
-                                    icon="banknotes"
-                                    wire:click="markDripPaid({{ $charge->id }})"
-                                    wire:confirm="{{ __('Mark this drip charge as paid and print the slip?') }}"
-                                >
-                                    {{ __('Mark paid') }}
-                                </flux:button>
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @empty
-                        <flux:table.row>
-                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
-                                {{ __('No pending drip charges.') }}
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @endforelse
-                </flux:table.rows>
-            </flux:table>
-        </flux:card>
+                    <flux:table.rows>
+                        @forelse ($this->pendingDripCharges as $charge)
+                            <flux:table.row wire:key="drip-charge-{{ $charge->id }}">
+                                <flux:table.cell>
+                                    <div class="font-medium">{{ $charge->patient?->name ?? __('Unknown') }}</div>
+                                    <div class="text-xs text-zinc-500">{{ $charge->patient?->mrn ?? __('No MRN') }}</div>
+                                </flux:table.cell>
+                                <flux:table.cell>{{ $charge->service?->name }}</flux:table.cell>
+                                <flux:table.cell>{{ $charge->doctor?->name ?? '-' }}</flux:table.cell>
+                                <flux:table.cell>{{ number_format($charge->suggested_price, 2) }}</flux:table.cell>
+                                <flux:table.cell class="text-right">
+                                    <flux:button
+                                        size="sm"
+                                        variant="primary"
+                                        icon="banknotes"
+                                        wire:click="markDripPaid({{ $charge->id }})"
+                                        wire:confirm="{{ __('Mark this drip charge as paid and print the slip?') }}"
+                                    >
+                                        {{ __('Mark paid') }}
+                                    </flux:button>
+                                </flux:table.cell>
+                            </flux:table.row>
+                        @empty
+                            <flux:table.row>
+                                <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    {{ __('No pending drip charges.') }}
+                                </flux:table.cell>
+                            </flux:table.row>
+                        @endforelse
+                    </flux:table.rows>
+                </flux:table>
+            </flux:card>
+        </div>
     </div>
 
     <flux:modal wire:model="showPriceModal" class="w-full max-w-sm">
