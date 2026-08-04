@@ -29,21 +29,85 @@
             }
 
             .header {
-                text-align: center;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 24px;
                 border-bottom: 2px solid #111;
-                padding-bottom: 16px;
+                padding-bottom: 14px;
                 margin-bottom: 20px;
             }
 
-            .header h1 {
-                margin: 0 0 4px;
-                font-size: 18pt;
+            .header-left {
+                flex: 1;
+                min-width: 0;
             }
 
-            .header p {
+            .header-left .facility-name {
+                margin: 0;
+                font-size: 16pt;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                line-height: 1.2;
+            }
+
+            .header-left .tagline {
+                margin: 4px 0 0;
+                font-size: 9pt;
+                color: #444;
+                font-style: italic;
+            }
+
+            .header-left .facility-meta {
+                margin: 8px 0 0;
+                padding: 0;
+                list-style: none;
+                font-size: 8.5pt;
+                color: #555;
+                line-height: 1.45;
+            }
+
+            .header-right {
+                text-align: right;
+                flex-shrink: 0;
+            }
+
+            .header-right .doc-title {
                 margin: 0;
                 font-size: 12pt;
-                color: #444;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            .header-right .bill-no {
+                margin: 4px 0 0;
+                font-size: 9pt;
+                color: #333;
+            }
+
+            .header-right .bill-date {
+                margin: 2px 0 0;
+                font-size: 8.5pt;
+                color: #555;
+            }
+
+            .header-right .barcode {
+                margin-top: 8px;
+                display: inline-block;
+            }
+
+            .header-right .barcode svg {
+                display: block;
+                margin-left: auto;
+            }
+
+            .header-right .barcode-label {
+                margin: 2px 0 0;
+                font-size: 8pt;
+                font-family: Consolas, "Courier New", monospace;
+                letter-spacing: 0.08em;
             }
 
             .section {
@@ -156,9 +220,38 @@
     </head>
     <body onload="window.print()">
         <div class="bill">
+            @php
+                $billNumber = 'PROC-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT);
+            @endphp
             <div class="header">
-                <h1>{{ config('app.name') }}</h1>
-                <p>{{ __('Procedure Bill') }}</p>
+                <div class="header-left">
+                    <h1 class="facility-name">{{ config('hospital.name') }}</h1>
+                    @if (filled(config('hospital.tagline')))
+                        <p class="tagline">{{ config('hospital.tagline') }}</p>
+                    @endif
+                    @if (filled(config('hospital.address')) || filled(config('hospital.phone')) || filled(config('hospital.email')))
+                        <ul class="facility-meta">
+                            @if (filled(config('hospital.address')))
+                                <li>{{ config('hospital.address') }}</li>
+                            @endif
+                            @if (filled(config('hospital.phone')))
+                                <li>{{ __('Tel') }}: {{ config('hospital.phone') }}</li>
+                            @endif
+                            @if (filled(config('hospital.email')))
+                                <li>{{ config('hospital.email') }}</li>
+                            @endif
+                        </ul>
+                    @endif
+                </div>
+                <div class="header-right">
+                    <p class="doc-title">{{ __('Procedure Bill') }}</p>
+                    <p class="bill-no">{{ __('Bill No.') }} {{ $billNumber }}</p>
+                    <p class="bill-date">{{ __('Date') }}: {{ now()->format('d M Y, g:i A') }}</p>
+                    <div class="barcode">
+                        {!! \App\Support\Code39Barcode::svg($billNumber, 36, 1.2) !!}
+                        <p class="barcode-label">{{ $billNumber }}</p>
+                    </div>
+                </div>
             </div>
 
             <div class="section">

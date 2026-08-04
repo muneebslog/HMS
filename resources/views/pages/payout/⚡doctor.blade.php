@@ -3,6 +3,7 @@
 use App\Models\Doctor;
 use App\Models\DoctorPayout;
 use App\Models\InvoiceItem;
+use App\Models\LabInvoice;
 use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -94,12 +95,37 @@ new #[Title('Doctor Payout')] class extends Component
     }
 
     /**
+     * Get lab invoices referred by the viewed doctor within the selected date range.
+     *
+     * @return Collection<int, LabInvoice>
+     */
+    #[Computed]
+    public function labInvoices(): Collection
+    {
+        $doctor = $this->viewedDoctor;
+
+        if ($doctor === null) {
+            return new Collection;
+        }
+
+        return LabInvoice::query()
+            ->where('referred_by_doctor_id', $doctor->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereBetween('created_at', [
+                Carbon::parse($this->fromDate)->startOfDay(),
+                Carbon::parse($this->toDate)->endOfDay(),
+            ])
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    /**
      * Get the total service amount for the viewed doctor within the selected range.
      */
     #[Computed]
     public function totalAmount(): float
     {
-        return $this->items->sum('price');
+        return round($this->items->sum('price') + $this->labInvoices->sum('total'), 2);
     }
 
     /**
@@ -131,7 +157,11 @@ new #[Title('Doctor Payout')] class extends Component
             return 0.0;
         }
 
-        return $doctor->calculateShareAmount($this->items, perDay: true);
+        return round(
+            $doctor->calculateShareAmount($this->items, perDay: true)
+            + $doctor->calculateLabShareAmount($this->labInvoices),
+            2
+        );
     }
 
     /**
@@ -350,12 +380,24 @@ new #[Title('Doctor Payout')] class extends Component
                                 <flux:table.cell>{{ number_format($this->itemShareAmounts[$item->id] ?? 0, 2) }}</flux:table.cell>
                             </flux:table.row>
                         @empty
-                            <flux:table.row>
-                                <flux:table.cell colspan="5" class="text-center text-zinc-500">
-                                    {{ __('No services recorded for this doctor in the selected range.') }}
-                                </flux:table.cell>
-                            </flux:table.row>
+                            @if ($this->labInvoices->isEmpty())
+                                <flux:table.row>
+                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                        {{ __('No services recorded for this doctor in the selected range.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endif
                         @endforelse
+                        @foreach ($this->labInvoices as $labInvoice)
+                            <flux:table.row wire:key="lab-invoice-{{ $labInvoice->id }}">
+                                <flux:table.cell>{{ $labInvoice->id }}</flux:table.cell>
+                                <flux:table.cell>{{ __('Lab') }} #{{ $labInvoice->invoice_number }}</flux:table.cell>
+                                <flux:table.cell>{{ $labInvoice->created_at->format('Y-m-d H:i') }}</flux:table.cell>
+                                <flux:table.cell>{{ number_format($labInvoice->total, 2) }}</flux:table.cell>
+                                <flux:table.cell>{{ $labInvoice->doctor_share !== null ? number_format($labInvoice->doctor_share, 2).'%' : '-' }}</flux:table.cell>
+                                <flux:table.cell>{{ number_format($labInvoice->doctorShareAmount(), 2) }}</flux:table.cell>
+                            </flux:table.row>
+                        @endforeach
                     </flux:table.rows>
                 </flux:table>
 

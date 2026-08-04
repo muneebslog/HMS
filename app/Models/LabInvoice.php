@@ -40,6 +40,8 @@ class LabInvoice extends Model
         'payment_mode',
         'created_by',
         'shift_id',
+        'referred_by_doctor_id',
+        'doctor_share',
     ];
 
     /**
@@ -54,6 +56,7 @@ class LabInvoice extends Model
             'discount_percentage' => 'float',
             'discount_amount' => 'float',
             'total' => 'float',
+            'doctor_share' => 'float',
             'payment_mode' => PaymentMode::class,
         ];
     }
@@ -88,6 +91,28 @@ class LabInvoice extends Model
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    /**
+     * Get the referring doctor for this lab invoice.
+     *
+     * @return BelongsTo<Doctor, $this>
+     */
+    public function referredByDoctor(): BelongsTo
+    {
+        return $this->belongsTo(Doctor::class, 'referred_by_doctor_id');
+    }
+
+    /**
+     * Get the referring doctor's share amount for this invoice.
+     */
+    public function doctorShareAmount(): float
+    {
+        if ($this->referred_by_doctor_id === null || $this->doctor_share === null) {
+            return 0.0;
+        }
+
+        return round($this->total * ($this->doctor_share / 100), 2);
     }
 
     /**

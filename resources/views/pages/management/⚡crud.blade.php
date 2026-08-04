@@ -4,6 +4,7 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
 use App\Models\Injection;
+use App\Models\LabDoctorShare;
 use App\Models\LabTest;
 use App\Models\Medicine;
 use App\Models\ProcedureType;
@@ -104,6 +105,12 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public string $priceDoctorShare = '';
+
+    #[Validate]
+    public ?int $labShareDoctorId = null;
+
+    #[Validate]
+    public string $labSharePercent = '';
 
     #[Validate]
     public string $labTestName = '';
@@ -223,6 +230,15 @@ new #[Title('Management')] class extends Component
                 'priceDoctorId' => ['nullable', 'integer', 'exists:doctors,id'],
                 'priceAmount' => ['required', 'numeric', 'min:0'],
                 'priceDoctorShare' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            ],
+            'labDoctorShares' => [
+                'labShareDoctorId' => [
+                    'required',
+                    'integer',
+                    'exists:doctors,id',
+                    Rule::unique('lab_doctor_shares', 'doctor_id')->ignore($this->editingId),
+                ],
+                'labSharePercent' => ['required', 'numeric', 'min:0', 'max:100'],
             ],
             'labTests' => [
                 'labTestName' => ['required', 'string', 'max:255'],
@@ -385,6 +401,7 @@ new #[Title('Management')] class extends Component
             'doctors' => $this->loadDoctor($id),
             'services' => $this->loadService($id),
             'servicePrices' => $this->loadServicePrice($id),
+            'labDoctorShares' => $this->loadLabDoctorShare($id),
             'labTests' => $this->loadLabTest($id),
             'medicines' => $this->loadMedicine($id),
             'injections' => $this->loadInjection($id),
@@ -438,6 +455,17 @@ new #[Title('Management')] class extends Component
         $this->priceDoctorId = $price->doctor_id;
         $this->priceAmount = (string) $price->price;
         $this->priceDoctorShare = $price->doctor_share !== null ? (string) $price->doctor_share : '';
+    }
+
+    /**
+     * Load lab doctor share data into the form.
+     */
+    private function loadLabDoctorShare(int $id): void
+    {
+        $share = LabDoctorShare::findOrFail($id);
+
+        $this->labShareDoctorId = $share->doctor_id;
+        $this->labSharePercent = (string) $share->share_percent;
     }
 
     /**
@@ -541,6 +569,8 @@ new #[Title('Management')] class extends Component
             'priceDoctorId',
             'priceAmount',
             'priceDoctorShare',
+            'labShareDoctorId',
+            'labSharePercent',
             'labTestName',
             'labTestCode',
             'labTestPrice',
@@ -601,6 +631,7 @@ new #[Title('Management')] class extends Component
             'doctors' => $this->saveDoctor($validated),
             'services' => $this->saveService($validated),
             'servicePrices' => $this->saveServicePrice($validated),
+            'labDoctorShares' => $this->saveLabDoctorShare($validated),
             'labTests' => $this->saveLabTest($validated),
             'medicines' => $this->saveMedicine($validated),
             'injections' => $this->saveInjection($validated),
@@ -751,6 +782,27 @@ new #[Title('Management')] class extends Component
         } else {
             ServicePrice::create($data);
             Flux::toast(variant: 'success', text: __('Service price created.'));
+        }
+    }
+
+    /**
+     * Persist lab doctor share data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveLabDoctorShare(array $validated): void
+    {
+        $data = [
+            'doctor_id' => $validated['labShareDoctorId'],
+            'share_percent' => $validated['labSharePercent'],
+        ];
+
+        if ($this->editingId) {
+            LabDoctorShare::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Lab doctor share updated.'));
+        } else {
+            LabDoctorShare::create($data);
+            Flux::toast(variant: 'success', text: __('Lab doctor share created.'));
         }
     }
 
@@ -1220,6 +1272,7 @@ new #[Title('Management')] class extends Component
             'doctors' => Doctor::findOrFail($id)->delete(),
             'services' => Service::findOrFail($id)->delete(),
             'servicePrices' => ServicePrice::findOrFail($id)->delete(),
+            'labDoctorShares' => LabDoctorShare::findOrFail($id)->delete(),
             'labTests' => LabTest::findOrFail($id)->delete(),
             'medicines' => Medicine::findOrFail($id)->delete(),
             'injections' => Injection::findOrFail($id)->delete(),
@@ -1274,6 +1327,17 @@ new #[Title('Management')] class extends Component
     public function servicePrices(): Collection
     {
         return ServicePrice::with(['service', 'doctor'])->orderBy('id', 'desc')->get();
+    }
+
+    /**
+     * Get the list of lab doctor shares.
+     *
+     * @return Collection<int, LabDoctorShare>
+     */
+    #[Computed]
+    public function labDoctorShares(): Collection
+    {
+        return LabDoctorShare::with('doctor')->orderBy('id', 'desc')->get();
     }
 
     /**
@@ -1403,6 +1467,13 @@ new #[Title('Management')] class extends Component
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'labTests' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
                             {{ __('Lab Tests') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('labDoctorShares')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'labDoctorShares' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Lab Doc Share') }}
                         </button>
                         <button
                             type="button"
@@ -1554,6 +1625,33 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row>
                                     <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                         {{ __('No lab tests found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'labDoctorShares')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Doctor') }}</flux:table.column>
+                            <flux:table.column>{{ __('Share') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->labDoctorShares as $share)
+                                <flux:table.row wire:key="lab-doctor-share-{{ $share->id }}">
+                                    <flux:table.cell>{{ $share->doctor->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ number_format($share->share_percent, 2) }}%</flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $share->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $share->id }})" wire:confirm="{{ __('Are you sure you want to delete this lab doctor share?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="3" class="text-center text-zinc-500">
+                                        {{ __('No lab doctor shares found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
@@ -1815,13 +1913,13 @@ new #[Title('Management')] class extends Component
     <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : 'max-w-lg' }}">
         <flux:heading level="2">
             @if ($editingId)
-                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @elseif ($activeTab === 'medicines')
                 {{ __('Bulk add medicines') }}
             @elseif ($activeTab === 'injections')
                 {{ __('Bulk add injections') }}
             @else
-                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @endif
         </flux:heading>
 
@@ -1934,6 +2032,23 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Doctor Share (%)') }}</flux:label>
                     <flux:input wire:model="priceDoctorShare" type="number" step="0.01" min="0" max="100" />
                     <flux:error name="priceDoctorShare" />
+                </flux:field>
+            @elseif ($activeTab === 'labDoctorShares')
+                <flux:field>
+                    <flux:label>{{ __('Doctor') }}</flux:label>
+                    <flux:select wire:model="labShareDoctorId" required>
+                        <option value="">{{ __('Select a doctor') }}</option>
+                        @foreach ($this->doctors as $doctor)
+                            <option value="{{ $doctor->id }}">{{ $doctor->name }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="labShareDoctorId" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Share (%)') }}</flux:label>
+                    <flux:input wire:model="labSharePercent" type="number" step="0.01" min="0" max="100" required />
+                    <flux:error name="labSharePercent" />
                 </flux:field>
             @elseif ($activeTab === 'procedureTypes')
                 <flux:field>

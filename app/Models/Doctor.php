@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Doctor extends Model
 {
@@ -98,7 +99,39 @@ class Doctor extends Model
     }
 
     /**
-     * Calculate the share amount for a collection of invoice items.
+     * Get the lab referral share configuration for this doctor.
+     *
+     * @return HasOne<LabDoctorShare, $this>
+     */
+    public function labDoctorShare(): HasOne
+    {
+        return $this->hasOne(LabDoctorShare::class);
+    }
+
+    /**
+     * Get the lab invoices referred by this doctor.
+     *
+     * @return HasMany<LabInvoice, $this>
+     */
+    public function referredLabInvoices(): HasMany
+    {
+        return $this->hasMany(LabInvoice::class, 'referred_by_doctor_id');
+    }
+
+    /**
+     * Calculate the share amount for a collection of referred lab invoices.
+     *
+     * @param  Collection<int, LabInvoice>  $labInvoices
+     */
+    public function calculateLabShareAmount(Collection $labInvoices): float
+    {
+        return round($labInvoices->sum(
+            fn (LabInvoice $invoice) => $invoice->doctorShareAmount()
+        ), 2);
+    }
+
+    /**
+     * Calculate the share amount for the collection of invoice items.
      *
      * When get_full_slips is enabled, the first N items (or first N per day)
      * are paid at the full price; remaining items use the configured share.

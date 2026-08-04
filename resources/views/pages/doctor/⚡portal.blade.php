@@ -3,8 +3,10 @@
 use App\Models\Doctor;
 use App\Models\DoctorPayout;
 use App\Models\InvoiceItem;
+use App\Models\LabInvoice;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -44,11 +46,36 @@ new #[Title('Doctor Portal')] class extends Component
         $doctor = $this->doctor;
 
         if ($doctor === null) {
-            return new Collection();
+            return new Collection;
         }
 
         return InvoiceItem::with(['invoice.patient'])
             ->where('doctor_id', $doctor->id)
+            ->whereBetween('created_at', [
+                Carbon::parse($this->fromDate)->startOfDay(),
+                Carbon::parse($this->toDate)->endOfDay(),
+            ])
+            ->orderByDesc('created_at')
+            ->get();
+    }
+
+    /**
+     * Get lab invoices referred by the doctor within the selected date range.
+     *
+     * @return Collection<int, LabInvoice>
+     */
+    #[Computed]
+    public function labInvoices(): Collection
+    {
+        $doctor = $this->doctor;
+
+        if ($doctor === null) {
+            return new Collection;
+        }
+
+        return LabInvoice::with('patient')
+            ->where('referred_by_doctor_id', $doctor->id)
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [
                 Carbon::parse($this->fromDate)->startOfDay(),
                 Carbon::parse($this->toDate)->endOfDay(),
@@ -75,6 +102,50 @@ new #[Title('Doctor Portal')] class extends Component
     }
 
     /**
+     * Combined recent activity rows (OPD services + lab referrals).
+     *
+     * @return SupportCollection<int, array{type: string, label: string, patient: string, date: Carbon, price: float, share_percent: ?float, share_amount: float, key: string}>
+     */
+    #[Computed]
+    public function activityRows(): SupportCollection
+    {
+        $doctor = $this->doctor;
+
+        if ($doctor === null) {
+            return collect();
+        }
+
+        $itemShares = $this->itemShareAmounts;
+
+        $opdRows = $this->items->map(fn (InvoiceItem $item) => [
+            'type' => 'opd',
+            'label' => $item->service_name,
+            'patient' => $item->invoice?->patient?->name ?? '-',
+            'date' => $item->created_at,
+            'price' => (float) $item->price,
+            'share_percent' => $item->doctor_share,
+            'share_amount' => $itemShares[$item->id] ?? 0.0,
+            'key' => 'opd-'.$item->id,
+        ]);
+
+        $labRows = $this->labInvoices->map(fn (LabInvoice $invoice) => [
+            'type' => 'lab',
+            'label' => __('Lab').' #'.$invoice->invoice_number,
+            'patient' => $invoice->patient?->name ?? '-',
+            'date' => $invoice->created_at,
+            'price' => (float) $invoice->total,
+            'share_percent' => $invoice->doctor_share,
+            'share_amount' => $invoice->doctorShareAmount(),
+            'key' => 'lab-'.$invoice->id,
+        ]);
+
+        return $opdRows
+            ->concat($labRows)
+            ->sortByDesc(fn (array $row) => $row['date']->timestamp)
+            ->values();
+    }
+
+    /**
      * Get the total calculated share for the selected range.
      */
     #[Computed]
@@ -86,7 +157,11 @@ new #[Title('Doctor Portal')] class extends Component
             return 0.0;
         }
 
-        return $doctor->calculateShareAmount($this->items, perDay: true);
+        return round(
+            $doctor->calculateShareAmount($this->items, perDay: true)
+            + $doctor->calculateLabShareAmount($this->labInvoices),
+            2
+        );
     }
 
     /**
@@ -95,11 +170,15 @@ new #[Title('Doctor Portal')] class extends Component
     #[Computed]
     public function patientsChecked(): int
     {
-        return $this->items
+        $opdPatients = $this->items
             ->pluck('invoice.patient_id')
-            ->filter()
-            ->unique()
-            ->count();
+            ->filter();
+
+        $labPatients = $this->labInvoices
+            ->pluck('patient_id')
+            ->filter();
+
+        return $opdPatients->concat($labPatients)->unique()->count();
     }
 
     /**
@@ -108,7 +187,7 @@ new #[Title('Doctor Portal')] class extends Component
     #[Computed]
     public function servicesPerformed(): int
     {
-        return $this->items->count();
+        return $this->items->count() + $this->labInvoices->count();
     }
 
     /**
@@ -151,7 +230,7 @@ new #[Title('Doctor Portal')] class extends Component
         $doctor = $this->doctor;
 
         if ($doctor === null) {
-            return new Collection();
+            return new Collection;
         }
 
         return DoctorPayout::where('doctor_id', $doctor->id)
@@ -256,14 +335,19 @@ new #[Title('Doctor Portal')] class extends Component
                             </flux:table.columns>
 
                             <flux:table.rows>
-                                @forelse ($this->items as $item)
-                                    <flux:table.row wire:key="item-{{ $item->id }}">
-                                        <flux:table.cell>{{ $item->service_name }}</flux:table.cell>
-                                        <flux:table.cell>{{ $item->invoice?->patient?->name ?? '-' }}</flux:table.cell>
-                                        <flux:table.cell>{{ $item->created_at->format('Y-m-d H:i') }}</flux:table.cell>
-                                        <flux:table.cell>{{ number_format($item->price, 2) }}</flux:table.cell>
-                                        <flux:table.cell>{{ $item->doctor_share !== null ? number_format($item->doctor_share, 2).'%' : '-' }}</flux:table.cell>
-                                        <flux:table.cell>{{ number_format($this->itemShareAmounts[$item->id] ?? 0, 2) }}</flux:table.cell>
+                                @forelse ($this->activityRows as $row)
+                                    <flux:table.row wire:key="{{ $row['key'] }}">
+                                        <flux:table.cell>
+                                            {{ $row['label'] }}
+                                            @if ($row['type'] === 'lab')
+                                                <flux:badge size="sm" color="teal" class="ms-2">{{ __('Lab') }}</flux:badge>
+                                            @endif
+                                        </flux:table.cell>
+                                        <flux:table.cell>{{ $row['patient'] }}</flux:table.cell>
+                                        <flux:table.cell>{{ $row['date']->format('Y-m-d H:i') }}</flux:table.cell>
+                                        <flux:table.cell>{{ number_format($row['price'], 2) }}</flux:table.cell>
+                                        <flux:table.cell>{{ $row['share_percent'] !== null ? number_format($row['share_percent'], 2).'%' : '-' }}</flux:table.cell>
+                                        <flux:table.cell>{{ number_format($row['share_amount'], 2) }}</flux:table.cell>
                                     </flux:table.row>
                                 @empty
                                     <flux:table.row>

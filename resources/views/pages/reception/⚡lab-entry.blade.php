@@ -4,6 +4,8 @@ use App\Actions\CreatePrintJob;
 use App\Enums\PaymentMode;
 use App\Jobs\SendLabCaseToLab;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
+use App\Models\Doctor;
+use App\Models\LabDoctorShare;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
@@ -12,6 +14,7 @@ use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -44,6 +47,9 @@ new #[Title('Lab Entry')] class extends Component
     public string $discountPercentage = '0';
 
     #[Validate]
+    public ?int $referredByDoctorId = null;
+
+    #[Validate]
     public string $paymentMode = 'cash';
 
     /**
@@ -60,6 +66,11 @@ new #[Title('Lab Entry')] class extends Component
             'patientAge' => ['required', 'integer', 'min:0', 'max:150'],
             'selectedLabTestId' => ['required', 'integer', 'exists:lab_tests,id'],
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'referredByDoctorId' => [
+                'nullable',
+                'integer',
+                Rule::exists('lab_doctor_shares', 'doctor_id'),
+            ],
             'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
         ];
     }
@@ -139,6 +150,7 @@ new #[Title('Lab Entry')] class extends Component
             'selectedLabTestId',
             'items',
             'discountPercentage',
+            'referredByDoctorId',
             'paymentMode',
         ]);
         $this->paymentMode = PaymentMode::Cash->value;
@@ -159,6 +171,7 @@ new #[Title('Lab Entry')] class extends Component
             'items.*.lab_test_id' => ['required', 'integer', 'exists:lab_tests,id'],
             'items.*.test_price' => ['required', 'numeric', 'min:0'],
             'discountPercentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'referredByDoctorId' => $this->rules()['referredByDoctorId'],
             'paymentMode' => $this->rules()['paymentMode'],
         ]);
 
@@ -170,7 +183,23 @@ new #[Title('Lab Entry')] class extends Component
             return;
         }
 
-        $invoice = DB::transaction(function () use ($shift, $validated) {
+        $doctorShare = null;
+
+        if ($validated['referredByDoctorId'] !== null) {
+            $labShare = LabDoctorShare::query()
+                ->where('doctor_id', $validated['referredByDoctorId'])
+                ->first();
+
+            if ($labShare === null) {
+                Flux::toast(variant: 'danger', text: __('Selected doctor does not have a lab share configured.'));
+
+                return;
+            }
+
+            $doctorShare = $labShare->share_percent;
+        }
+
+        $invoice = DB::transaction(function () use ($shift, $validated, $doctorShare) {
             $patient = $this->resolveIntakePatient([
                 'name' => $this->patientName,
                 'age' => $this->patientAge,
@@ -196,6 +225,8 @@ new #[Title('Lab Entry')] class extends Component
                 'payment_mode' => $validated['paymentMode'],
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
+                'referred_by_doctor_id' => $validated['referredByDoctorId'],
+                'doctor_share' => $doctorShare,
             ]);
 
             foreach ($this->items as $item) {
@@ -242,6 +273,52 @@ new #[Title('Lab Entry')] class extends Component
             })
             ->orderBy('test_name')
             ->get();
+    }
+
+    /**
+     * Get doctors that have a lab share configured.
+     *
+     * @return Collection<int, Doctor>
+     */
+    #[Computed]
+    public function referringDoctors(): Collection
+    {
+        return Doctor::query()
+            ->active()
+            ->whereHas('labDoctorShare')
+            ->with('labDoctorShare')
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Get the selected referring doctor's share percent.
+     */
+    #[Computed]
+    public function selectedDoctorSharePercent(): ?float
+    {
+        if ($this->referredByDoctorId === null) {
+            return null;
+        }
+
+        $doctor = $this->referringDoctors->firstWhere('id', $this->referredByDoctorId);
+
+        return $doctor?->labDoctorShare?->share_percent;
+    }
+
+    /**
+     * Get the estimated doctor share amount for the current bill.
+     */
+    #[Computed]
+    public function doctorShareAmount(): float
+    {
+        $percent = $this->selectedDoctorSharePercent;
+
+        if ($percent === null) {
+            return 0.0;
+        }
+
+        return round($this->total * ($percent / 100), 2);
     }
 
     /**
@@ -393,16 +470,29 @@ new #[Title('Lab Entry')] class extends Component
             @if (count($this->items) > 0)
                 <div class="mt-6 space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                        <div class="flex w-full flex-col gap-4 sm:max-w-md sm:flex-row">
+                        <div class="flex w-full flex-col gap-4 sm:max-w-xl sm:flex-row">
                             <flux:field class="w-full">
                                 <flux:label>{{ __('Discount (%)') }}</flux:label>
                                 <div class="flex gap-2">
-                                    <flux:input wire:model="discountPercentage" type="number" step="0.01" min="0" max="100" />
+                                    <flux:input wire:model.live="discountPercentage" type="number" step="0.01" min="0" max="100" />
                                     <flux:button type="button" variant="outline" wire:click="applyDiscount">
                                         {{ __('Apply') }}
                                     </flux:button>
                                 </div>
                                 <flux:error name="discountPercentage" />
+                            </flux:field>
+
+                            <flux:field class="w-full">
+                                <flux:label>{{ __('Referred by') }}</flux:label>
+                                <flux:select wire:model.live="referredByDoctorId">
+                                    <option value="">{{ __('Hospital') }}</option>
+                                    @foreach ($this->referringDoctors as $doctor)
+                                        <option value="{{ $doctor->id }}">
+                                            {{ $doctor->name }} ({{ number_format($doctor->labDoctorShare->share_percent, 2) }}%)
+                                        </option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="referredByDoctorId" />
                             </flux:field>
 
                             <flux:field class="w-full">
@@ -422,6 +512,11 @@ new #[Title('Lab Entry')] class extends Component
                                 <flux:text class="text-zinc-500">{{ __('Discount') }} ({{ number_format((float) $discountPercentage, 2) }}%): -{{ number_format($this->discountAmount, 2) }}</flux:text>
                             @endif
                             <flux:heading level="3">{{ __('Total') }}: {{ number_format($this->total, 2) }}</flux:heading>
+                            @if ($this->selectedDoctorSharePercent !== null)
+                                <flux:text class="text-zinc-500">
+                                    {{ __('Doctor share') }} ({{ number_format($this->selectedDoctorSharePercent, 2) }}%): {{ number_format($this->doctorShareAmount, 2) }}
+                                </flux:text>
+                            @endif
                         </div>
                     </div>
                 </div>

@@ -68,7 +68,10 @@ test('a receptionist with an open shift can view the procedure bill with latest 
         ->get(route('reception.procedures.print', $procedure));
 
     $response->assertOk()
+        ->assertSee(config('hospital.name'))
         ->assertSee(__('Procedure Bill'))
+        ->assertSee('Bill No.')
+        ->assertSee('PROC-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT))
         ->assertSee('Ayesha Khan')
         ->assertSee('Ali Khan')
         ->assertSee('Normal Delivery')

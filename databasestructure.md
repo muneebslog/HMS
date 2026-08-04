@@ -159,6 +159,14 @@ Conventions used below:
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
+### `lab_doctor_shares`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| doctor_id | FK → doctors | UQ, cascadeOnDelete |
+| share_percent | decimal(5,2) | |
+| timestamps | | |
+
 ---
 
 ## Billing — OPD / Services
@@ -207,6 +215,8 @@ Conventions used below:
 | payment_mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | nullable |
 | shift_id | FK → shifts | |
+| referred_by_doctor_id | FK → doctors | nullable, nullOnDelete |
+| doctor_share | decimal(5,2) | nullable, % snapshot at save |
 | timestamps | | |
 
 ### `lab_invoice_items`
@@ -902,7 +912,8 @@ Standard Laravel queue tables.
 ```
 users ──┬── shifts ──┬── invoices ──── invoice_items ──┬── services
         │            │                                 └── doctors
-        │            ├── lab_invoices ── lab_invoice_items ── lab_tests
+        │            ├── lab_invoices ──┬── lab_invoice_items ── lab_tests
+        │            │                 └── doctors (referred_by)
         │            ├── expenses
         │            ├── doctor_payouts ── doctors
         │            ├── procedures ──┬── patients ── families
@@ -922,7 +933,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         ├── drive_folders ──┬── drive_folders (parent)
         │                   └── drive_files
         ├── monthly_expenses
-        ├── doctors (optional user_id link)
+        ├── doctors (optional user_id link) ── lab_doctor_shares
         ├── medicines / injections / drip_bases (catalogs)
         ├── employees ──┬── employee_documents
         │               ├── employee_todos
