@@ -270,7 +270,7 @@ new #[Title('Vitals')] class extends Component
                 <flux:error name="temperatureFahrenheit" />
             </flux:field>
 
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-3 gap-3">
                 <flux:field>
                     <flux:label class="text-base">{{ __('BP Systolic') }}</flux:label>
                     <flux:input
@@ -284,7 +284,7 @@ new #[Title('Vitals')] class extends Component
                     />
                     <flux:error name="bpSystolic" />
                 </flux:field>
-                /
+<span>/</span>
 
                 <flux:field>
                     <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
