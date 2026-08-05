@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_07_31_221128_create_monthly_expenses_table`.
+> Last reviewed against migrations through `2026_08_05_191305_make_procedure_payments_shift_id_nullable`.
 
 Conventions used below:
 
@@ -575,7 +575,7 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | amount | decimal(12,2) | |
 | mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | cascadeOnDelete |
-| shift_id | FK → shifts | cascadeOnDelete |
+| shift_id | FK → shifts | nullable, nullOnDelete — null when marked paid off-shift |
 | timestamps | | |
 
 ---

@@ -29,4 +29,14 @@ class ProcedurePaymentFactory extends Factory
             'shift_id' => Shift::factory(),
         ];
     }
+
+    /**
+     * Indicate that the payment is not attributed to any shift.
+     */
+    public function withoutShift(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'shift_id' => null,
+        ]);
+    }
 }

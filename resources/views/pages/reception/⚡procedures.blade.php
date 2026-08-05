@@ -535,6 +535,52 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Mark the procedure as fully paid with a balance payment not tied to any shift.
+     */
+    public function markPaid(int $id): void
+    {
+        $procedure = Procedure::with('payments')->findOrFail($id);
+        $balance = $procedure->balance();
+
+        if ($balance <= 0) {
+            Flux::toast(variant: 'danger', text: __('This procedure is already fully paid.'));
+
+            return;
+        }
+
+        ProcedurePayment::create([
+            'procedure_id' => $procedure->id,
+            'amount' => $balance,
+            'mode' => PaymentMode::Cash,
+            'created_by' => auth()->id(),
+            'shift_id' => null,
+        ]);
+
+        $this->viewingProcedureId = $id;
+        $this->showPaymentLedger = true;
+        unset($this->viewedProcedure);
+
+        Flux::toast(variant: 'success', text: __('Procedure marked as paid.'));
+    }
+
+    /**
+     * Delete a procedure and its related payments.
+     */
+    public function deleteProcedure(int $id): void
+    {
+        $procedure = Procedure::findOrFail($id);
+        $procedure->delete();
+
+        if ($this->viewingProcedureId === $id) {
+            $this->closeViewModal();
+        }
+
+        unset($this->procedures);
+
+        Flux::toast(variant: 'success', text: __('Procedure deleted.'));
+    }
+
+    /**
      * Store a new payment for the selected procedure.
      */
     public function savePayment(): void
@@ -987,9 +1033,29 @@ new #[Title('Procedures')] class extends Component
                         {{ $this->viewedProcedure->patient->mrn ?? __('No MRN') }} · {{ $this->viewedProcedure->name }}
                     </flux:text>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap justify-end gap-2">
+                    @if ($viewedBalance > 0)
+                        <flux:button
+                            size="sm"
+                            variant="primary"
+                            icon="check-circle"
+                            wire:click="markPaid({{ $this->viewedProcedure->id }})"
+                            wire:confirm="{{ __('Mark this procedure as paid for :amount without adding it to any shift?', ['amount' => number_format($viewedBalance, 2)]) }}"
+                        >
+                            {{ __('Mark Paid') }}
+                        </flux:button>
+                    @endif
                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $this->viewedProcedure->id }})">
                         {{ __('Edit') }}
+                    </flux:button>
+                    <flux:button
+                        size="sm"
+                        variant="danger"
+                        icon="trash"
+                        wire:click="deleteProcedure({{ $this->viewedProcedure->id }})"
+                        wire:confirm="{{ __('Delete this procedure and all its payments? This cannot be undone.') }}"
+                    >
+                        {{ __('Delete') }}
                     </flux:button>
                 </div>
             </div>
