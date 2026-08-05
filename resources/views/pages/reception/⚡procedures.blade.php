@@ -13,6 +13,7 @@ use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -83,6 +84,10 @@ new #[Title('Procedures')] class extends Component
     #[Validate]
     public string $paymentMode = 'cash';
 
+    public bool $excludeFromCurrentShift = false;
+
+    public ?int $selectedPreviousShiftId = null;
+
     /**
      * Get the validation rules for the procedure form.
      *
@@ -119,6 +124,13 @@ new #[Title('Procedures')] class extends Component
             ],
             'paymentAmount' => ['required', 'numeric', 'min:0'],
             'paymentMode' => ['required', 'string', 'in:'.implode(',', PaymentMode::values())],
+            'excludeFromCurrentShift' => ['boolean'],
+            'selectedPreviousShiftId' => [
+                'exclude_unless:excludeFromCurrentShift,true',
+                'required',
+                'integer',
+                Rule::exists('shifts', 'id')->where('status', 'closed'),
+            ],
             'admissionCnic' => ['required', 'string', 'max:20'],
             'admissionRoomId' => ['required', 'integer', 'exists:rooms,id'],
         ];
@@ -300,9 +312,41 @@ new #[Title('Procedures')] class extends Component
      */
     private function resetPaymentForm(): void
     {
-        $this->reset(['paymentAmount']);
+        $this->reset(['paymentAmount', 'excludeFromCurrentShift', 'selectedPreviousShiftId']);
         $this->paymentMode = PaymentMode::Cash->value;
         $this->resetErrorBag();
+    }
+
+    /**
+     * Clear the previous-shift selection when the admin unchecks the option.
+     */
+    public function updatedExcludeFromCurrentShift(bool $value): void
+    {
+        if (! $value) {
+            $this->selectedPreviousShiftId = null;
+            $this->resetErrorBag('selectedPreviousShiftId');
+        }
+    }
+
+    /**
+     * Select a previous closed shift for the payment.
+     */
+    public function selectPreviousShift(int $shiftId): void
+    {
+        if (! auth()->user()?->isAdmin() || ! $this->excludeFromCurrentShift) {
+            return;
+        }
+
+        $shift = Shift::query()
+            ->where('status', 'closed')
+            ->find($shiftId);
+
+        if ($shift === null) {
+            return;
+        }
+
+        $this->selectedPreviousShiftId = $shift->id;
+        $this->resetErrorBag('selectedPreviousShiftId');
     }
 
     /**
@@ -335,9 +379,25 @@ new #[Title('Procedures')] class extends Component
             return null;
         }
 
-        return Procedure::with(['patient.family', 'doctor', 'payments.creator', 'shift', 'procedureType.documents'])
+        return Procedure::with(['patient.family', 'doctor', 'payments.creator', 'payments.shift', 'shift', 'procedureType.documents'])
             ->withSum('payments as payments_sum_amount', 'amount')
             ->find($this->viewingProcedureId);
+    }
+
+    /**
+     * Get recent closed shifts for admin backfill selection.
+     *
+     * @return Collection<int, Shift>
+     */
+    #[Computed]
+    public function previousShifts(): Collection
+    {
+        return Shift::query()
+            ->with('user')
+            ->where('status', 'closed')
+            ->latest('closed_at')
+            ->limit(20)
+            ->get();
     }
 
     /**
@@ -479,17 +539,46 @@ new #[Title('Procedures')] class extends Component
      */
     public function savePayment(): void
     {
-        $validated = $this->validate([
+        $user = auth()->user();
+        $canAssignPreviousShift = $user?->isAdmin() === true;
+
+        if (! $canAssignPreviousShift) {
+            $this->excludeFromCurrentShift = false;
+            $this->selectedPreviousShiftId = null;
+        }
+
+        $rules = [
             'paymentAmount' => $this->rules()['paymentAmount'],
             'paymentMode' => $this->rules()['paymentMode'],
-        ]);
+        ];
 
-        $shift = Shift::current();
+        if ($canAssignPreviousShift) {
+            $rules['excludeFromCurrentShift'] = $this->rules()['excludeFromCurrentShift'];
+            $rules['selectedPreviousShiftId'] = $this->rules()['selectedPreviousShiftId'];
+        }
 
-        if ($shift === null) {
-            Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+        $validated = $this->validate($rules);
 
-            return;
+        $shift = null;
+
+        if ($canAssignPreviousShift && $this->excludeFromCurrentShift) {
+            $shift = Shift::query()
+                ->where('status', 'closed')
+                ->find($validated['selectedPreviousShiftId'] ?? $this->selectedPreviousShiftId);
+
+            if ($shift === null) {
+                Flux::toast(variant: 'danger', text: __('Please select a previous shift.'));
+
+                return;
+            }
+        } else {
+            $shift = Shift::current();
+
+            if ($shift === null) {
+                Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+
+                return;
+            }
         }
 
         $procedure = Procedure::with('payments')->findOrFail($this->editingProcedureId);
@@ -796,7 +885,7 @@ new #[Title('Procedures')] class extends Component
         </form>
     </flux:modal>
 
-    <flux:modal wire:model="showPaymentModal" class="w-full max-w-sm">
+    <flux:modal wire:model="showPaymentModal" class="w-full {{ $excludeFromCurrentShift ? 'max-w-3xl' : 'max-w-sm' }}">
         <flux:heading level="2">{{ __('Add Payment') }}</flux:heading>
 
         <form wire:submit="savePayment" class="mt-6 space-y-6">
@@ -815,6 +904,63 @@ new #[Title('Procedures')] class extends Component
                 </flux:select>
                 <flux:error name="paymentMode" />
             </flux:field>
+
+            @if (auth()->user()?->isAdmin())
+                <div class="space-y-4">
+                    <flux:checkbox
+                        wire:model.live="excludeFromCurrentShift"
+                        label="{{ __('Do not add to current shift') }}"
+                    />
+
+                    @if ($excludeFromCurrentShift)
+                        <div class="space-y-3">
+                            <flux:text class="text-sm text-zinc-500">
+                                {{ __('Select the previous shift this payment belongs to.') }}
+                            </flux:text>
+
+                            <flux:table>
+                                <flux:table.columns>
+                                    <flux:table.column>{{ __('Opened By') }}</flux:table.column>
+                                    <flux:table.column>{{ __('Opened At') }}</flux:table.column>
+                                    <flux:table.column>{{ __('Closed At') }}</flux:table.column>
+                                    <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                                </flux:table.columns>
+
+                                <flux:table.rows>
+                                    @forelse ($this->previousShifts as $previousShift)
+                                        <flux:table.row
+                                            wire:key="previous-shift-{{ $previousShift->id }}"
+                                            class="{{ $selectedPreviousShiftId === $previousShift->id ? 'bg-zinc-100 dark:bg-zinc-800' : '' }}"
+                                        >
+                                            <flux:table.cell>{{ $previousShift->user->name }}</flux:table.cell>
+                                            <flux:table.cell>{{ $previousShift->opened_at->format('Y-m-d H:i') }}</flux:table.cell>
+                                            <flux:table.cell>{{ $previousShift->closed_at?->format('Y-m-d H:i') ?? '-' }}</flux:table.cell>
+                                            <flux:table.cell class="text-right">
+                                                <flux:button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="{{ $selectedPreviousShiftId === $previousShift->id ? 'primary' : 'ghost' }}"
+                                                    wire:click="selectPreviousShift({{ $previousShift->id }})"
+                                                >
+                                                    {{ $selectedPreviousShiftId === $previousShift->id ? __('Selected') : __('Select') }}
+                                                </flux:button>
+                                            </flux:table.cell>
+                                        </flux:table.row>
+                                    @empty
+                                        <flux:table.row>
+                                            <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                                {{ __('No previous shifts found.') }}
+                                            </flux:table.cell>
+                                        </flux:table.row>
+                                    @endforelse
+                                </flux:table.rows>
+                            </flux:table>
+
+                            <flux:error name="selectedPreviousShiftId" />
+                        </div>
+                    @endif
+                </div>
+            @endif
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="closePaymentModal">

@@ -91,8 +91,11 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
     });
 
-    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
+    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value.','.UserRole::Receptionist->value)->group(function () {
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
+    });
+
+    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
         Route::get('admin/drive/files/{driveFile}/download', [DriveFileController::class, 'download'])

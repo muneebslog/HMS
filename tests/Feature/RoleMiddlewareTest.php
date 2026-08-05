@@ -32,6 +32,7 @@ $routeMap = [
     'shared' => [
         'reception.shift',
         'dashboard',
+        'lab-entries',
     ],
 ];
 

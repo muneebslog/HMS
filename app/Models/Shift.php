@@ -77,6 +77,16 @@ class Shift extends Model
     }
 
     /**
+     * Get the procedure payments recorded against this shift.
+     *
+     * @return HasMany<ProcedurePayment, $this>
+     */
+    public function procedurePayments(): HasMany
+    {
+        return $this->hasMany(ProcedurePayment::class);
+    }
+
+    /**
      * Get the service queues opened during this shift.
      */
     public function serviceQueues(): HasMany
@@ -139,10 +149,7 @@ class Shift extends Model
      */
     public function totalProcedureSales(): float
     {
-        return $this->procedures()
-            ->withSum('payments', 'amount')
-            ->get()
-            ->sum('payments_sum_amount') ?: 0.0;
+        return (float) ($this->procedurePayments()->sum('amount') ?: 0.0);
     }
 
     /**

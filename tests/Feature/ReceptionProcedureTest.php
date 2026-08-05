@@ -679,3 +679,84 @@ test('inactive doctors are not available in procedures', function () {
                 && ! $doctors->contains('id', $inactiveDoctor->id);
         });
 });
+
+test('admin can add a procedure payment to a previous closed shift', function () {
+    $admin = User::factory()->admin()->create();
+    $receptionist = User::factory()->receptionist()->create();
+    $previousShift = Shift::factory()->for($receptionist)->closed()->create([
+        'opened_at' => now()->subDays(2),
+        'closed_at' => now()->subDay(),
+    ]);
+    $currentShift = Shift::factory()->for($admin)->open()->create();
+    $procedure = Procedure::factory()->for($previousShift)->create(['full_amount' => 5000]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::reception.procedures')
+        ->call('addPayment', $procedure->id)
+        ->set('paymentAmount', '1500')
+        ->set('excludeFromCurrentShift', true)
+        ->call('selectPreviousShift', $previousShift->id)
+        ->call('savePayment')
+        ->assertHasNoErrors();
+
+    $payment = ProcedurePayment::first();
+    expect($payment)->not->toBeNull()
+        ->amount->toBe(1500.0)
+        ->shift_id->toBe($previousShift->id)
+        ->and($payment->shift_id)->not->toBe($currentShift->id)
+        ->and($previousShift->fresh()->totalProcedureSales())->toBe(1500.0)
+        ->and($currentShift->fresh()->totalProcedureSales())->toBe(0.0);
+});
+
+test('admin must select a previous shift when excluding the current shift', function () {
+    $admin = User::factory()->admin()->create();
+    Shift::factory()->for($admin)->open()->create();
+    Shift::factory()->closed()->create();
+    $procedure = Procedure::factory()->create(['full_amount' => 5000]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::reception.procedures')
+        ->call('addPayment', $procedure->id)
+        ->set('paymentAmount', '1500')
+        ->set('excludeFromCurrentShift', true)
+        ->call('savePayment')
+        ->assertHasErrors(['selectedPreviousShiftId']);
+
+    expect(ProcedurePayment::count())->toBe(0);
+});
+
+test('non-admin payments always use the current shift even if previous shift fields are set', function () {
+    $user = User::factory()->receptionist()->create();
+    $previousShift = Shift::factory()->closed()->create();
+    $currentShift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($previousShift)->create(['full_amount' => 5000]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addPayment', $procedure->id)
+        ->set('paymentAmount', '1200')
+        ->set('excludeFromCurrentShift', true)
+        ->set('selectedPreviousShiftId', $previousShift->id)
+        ->call('savePayment')
+        ->assertHasNoErrors();
+
+    $payment = ProcedurePayment::first();
+    expect($payment)->not->toBeNull()
+        ->shift_id->toBe($currentShift->id);
+});
+
+test('procedure sales are attributed to the payment shift not the procedure shift', function () {
+    $user = User::factory()->create();
+    $procedureShift = Shift::factory()->for($user)->closed()->create();
+    $paymentShift = Shift::factory()->for($user)->closed()->create();
+    $procedure = Procedure::factory()->for($procedureShift)->create(['full_amount' => 5000]);
+
+    ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 2000,
+        'shift_id' => $paymentShift->id,
+        'created_by' => $user->id,
+    ]);
+
+    expect($paymentShift->fresh()->totalProcedureSales())->toBe(2000.0)
+        ->and($procedureShift->fresh()->totalProcedureSales())->toBe(0.0);
+});

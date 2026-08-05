@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\LabApiStatus;
-use App\Enums\UserRole;
 use App\Models\LabApiLog;
 use App\Models\LabInvoice;
 use App\Models\Patient;
@@ -38,16 +37,21 @@ test('management can visit the lab entries page', function () {
     $response->assertOk();
 });
 
-test('non-admins and non-management cannot visit the lab entries page', function (UserRole $role) {
-    $user = User::factory()->{$role->value}()->create();
+test('receptionists can visit the lab entries page', function () {
+    $receptionist = User::factory()->receptionist()->create();
 
-    $response = $this->actingAs($user)->get(route('lab-entries'));
+    $response = $this->actingAs($receptionist)->get(route('lab-entries'));
+
+    $response->assertOk();
+});
+
+test('doctors cannot visit the lab entries page', function () {
+    $doctor = User::factory()->doctor()->create();
+
+    $response = $this->actingAs($doctor)->get(route('lab-entries'));
 
     $response->assertForbidden();
-})->with([
-    'receptionist' => [UserRole::Receptionist],
-    'doctor' => [UserRole::Doctor],
-]);
+});
 
 test('users with the default user role are redirected to the pending role page', function () {
     $user = User::factory()->user()->create();

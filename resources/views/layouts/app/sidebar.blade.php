@@ -60,6 +60,11 @@
                         <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                             {{ __('Lab Entry') }}
                         </flux:sidebar.item>
+                        @if (auth()->user()->isReceptionist())
+                            <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                                {{ __('Lab Entries Listings') }}
+                            </flux:sidebar.item>
+                        @endif
                         <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
                             {{ __('Vitals') }}
                         </flux:sidebar.item>
