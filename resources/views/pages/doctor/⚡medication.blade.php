@@ -1096,10 +1096,9 @@ new #[Title('Medication')] class extends Component
                         </div>
                     @endforeach
                     <flux:error name="medicineLines" />
-                    <div class="flex flex-wrap items-center gap-3">
+                    <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
-                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
-                    </div>
+                    </flux:tooltip>
                 </div>
             @elseif ($activeOrderTab === 'injections')
                 <div class="space-y-3">
@@ -1128,10 +1127,9 @@ new #[Title('Medication')] class extends Component
                             </div>
                         </div>
                     @endforeach
-                    <div class="flex flex-wrap items-center gap-3">
+                    <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
-                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
-                    </div>
+                    </flux:tooltip>
                 </div>
             @else
                 <div class="space-y-4">
@@ -1178,10 +1176,9 @@ new #[Title('Medication')] class extends Component
                             </div>
                         </div>
                     @endforeach
-                    <div class="flex flex-wrap items-center gap-3">
+                    <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
-                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
-                    </div>
+                    </flux:tooltip>
                 </div>
             @endif
 
