@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 class ProcedureFileController extends Controller
 {
     /**
-     * Stream the combined printable procedure file.
+     * Stream the combined printable procedure file and mark it printed.
      */
     public function __invoke(Procedure $procedure, ProcedureFileBuilder $builder): Response
     {
@@ -30,6 +30,13 @@ class ProcedureFileController extends Controller
             ]);
 
             abort(404);
+        }
+
+        if ($procedure->file_printed_at === null) {
+            $procedure->update([
+                'file_printed_at' => now(),
+                'file_printed_by' => auth()->id(),
+            ]);
         }
 
         $mrn = $procedure->patient?->mrn ?? 'procedure';

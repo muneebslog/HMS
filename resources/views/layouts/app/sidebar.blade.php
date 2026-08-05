@@ -28,6 +28,15 @@
                         <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
                             {{ __('Medication') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
+                            {{ __('My Procedures') }}
+                        </flux:sidebar.item>
+                    @endif
+
+                    @if (auth()->user()->isIndoor() || auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isDoctor())
+                        <flux:sidebar.item icon="building-office-2" :href="route('indoor.ward')" :current="request()->routeIs('indoor.*')" wire:navigate>
+                            {{ __('Indoor Ward') }}
+                        </flux:sidebar.item>
                     @endif
 
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">

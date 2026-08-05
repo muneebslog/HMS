@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProcedureNoteStyle;
 use Database\Factories\ProcedureTypeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,9 @@ class ProcedureType extends Model
     protected $fillable = [
         'name',
         'is_active',
+        'requires_birth_certificate',
+        'requires_fetal_heart',
+        'note_style',
     ];
 
     /**
@@ -30,6 +34,9 @@ class ProcedureType extends Model
      */
     protected $attributes = [
         'is_active' => true,
+        'requires_birth_certificate' => false,
+        'requires_fetal_heart' => false,
+        'note_style' => 'operation',
     ];
 
     /**
@@ -55,6 +62,9 @@ class ProcedureType extends Model
     {
         return [
             'is_active' => 'boolean',
+            'requires_birth_certificate' => 'boolean',
+            'requires_fetal_heart' => 'boolean',
+            'note_style' => ProcedureNoteStyle::class,
         ];
     }
 

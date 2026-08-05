@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Events\AdminReportMessagePosted;
 use App\Events\ReceptionMemoPosted;
 use App\Models\AdminNotification;
@@ -13,6 +14,7 @@ use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\Patient;
+use App\Models\Procedure;
 use App\Models\QueueToken;
 use App\Models\ReceptionMemo;
 use App\Models\RoleRequest;
@@ -674,6 +676,69 @@ class NotificationService
             route('admin.supervisor-checklist'),
             [
                 'supervisor_id' => $receptionist->id,
+                'block_starts_at' => $blockStart->toDateTimeString(),
+                'block_ends_at' => $blockEnd->toDateTimeString(),
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an admitted procedure is missing hourly vitals or FHR.
+     */
+    public function notifyProcedureVitalsMissing(
+        Procedure $procedure,
+        bool $missingVitals,
+        bool $missingFhr,
+        CarbonInterface $blockStart,
+        CarbonInterface $blockEnd
+    ): ?AdminNotification {
+        $alreadyNotified = AdminNotification::where('type', 'procedure_vitals_missing')
+            ->whereJsonContains('metadata', ['procedure_id' => $procedure->id])
+            ->whereJsonContains('metadata', ['block_starts_at' => $blockStart->toDateTimeString()])
+            ->exists();
+
+        if ($alreadyNotified) {
+            return null;
+        }
+
+        $missing = collect([
+            $missingVitals ? __('vitals') : null,
+            $missingFhr ? __('fetal heart') : null,
+        ])->filter()->implode(' & ');
+
+        $patientName = $procedure->patient?->name ?? __('Unknown');
+        $room = $procedure->room?->number ?? $procedure->room_number ?? '-';
+
+        $title = __('⏰ Procedure Readings Missing');
+        $message = __(
+            'Procedure #:id (:patient, room :room) is missing hourly :missing for :start - :end.',
+            [
+                'id' => $procedure->id,
+                'patient' => $patientName,
+                'room' => $room,
+                'missing' => $missing,
+                'start' => $blockStart->format('H:i'),
+                'end' => $blockEnd->format('H:i'),
+            ]
+        );
+
+        $actor = User::query()->where('role', UserRole::Admin)->orderBy('id')->first()
+            ?? User::query()->orderBy('id')->first();
+
+        if ($actor === null) {
+            return null;
+        }
+
+        return $this->createAdminNotification(
+            $actor,
+            'procedure_vitals_missing',
+            $title,
+            $message,
+            route('indoor.procedure', $procedure),
+            [
+                'procedure_id' => $procedure->id,
+                'missing_vitals' => $missingVitals,
+                'missing_fhr' => $missingFhr,
                 'block_starts_at' => $blockStart->toDateTimeString(),
                 'block_ends_at' => $blockEnd->toDateTimeString(),
             ]

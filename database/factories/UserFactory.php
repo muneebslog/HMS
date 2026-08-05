@@ -89,6 +89,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user is indoor staff.
+     */
+    public function indoor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Indoor,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_05_191305_make_procedure_payments_shift_id_nullable`.
+> Last reviewed against migrations through `2026_08_06_040936_create_procedure_clinical_tables`.
 
 Conventions used below:
 
@@ -553,6 +553,9 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | id | bigint | PK |
 | name | string | UQ |
 | is_active | boolean | default true |
+| requires_birth_certificate | boolean | default false |
+| requires_fetal_heart | boolean | default false |
+| note_style | string | `operation` or `delivery`, default `operation` |
 | timestamps | | |
 
 ### `procedure_type_documents`
@@ -586,6 +589,18 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | room_number | string | nullable (legacy; prefer `room_id`) |
 | room_id | FK → rooms | nullable, nullOnDelete |
 | admitted_at | timestamp | nullable |
+| file_printed_at | timestamp | nullable |
+| file_printed_by | FK → users | nullable, nullOnDelete |
+| consent_completed_at | timestamp | nullable |
+| pre_op_completed_at | timestamp | nullable |
+| pre_op_done_by | string | nullable |
+| pre_op_completed_by | FK → users | nullable, nullOnDelete |
+| operation_started_at | timestamp | nullable |
+| operation_completed_at | timestamp | nullable |
+| post_op_completed_at | timestamp | nullable |
+| post_op_completed_by | FK → users | nullable, nullOnDelete |
+| discharged_at | timestamp | nullable |
+| discharged_by | FK → users | nullable, nullOnDelete |
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | created_by | FK → users | cascadeOnDelete |
 | shift_id | FK → shifts | cascadeOnDelete |
@@ -600,6 +615,154 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | mode | string | `cash` or `online`, defaults to `cash` |
 | created_by | FK → users | cascadeOnDelete |
 | shift_id | FK → shifts | nullable, nullOnDelete — null when marked paid off-shift |
+| timestamps | | |
+
+### `procedure_attachments`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| type | string | `consent`, `pre_op`, `operation`, `post_op`, `anaesthesia`, `other` |
+| path | string | local disk |
+| original_name | string | |
+| mime_type | string | nullable |
+| uploaded_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+
+### `procedure_vitals`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| recorded_at | timestamp | |
+| pulse / bp_systolic / bp_diastolic / resp_rate | unsignedSmallInteger | nullable |
+| temp | decimal(4,1) | nullable |
+| cvp / iv_fluid / oral_ng / urine / stool / aspirate / drain | string | nullable |
+| notes | text | nullable |
+| recorded_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+
+### `procedure_fetal_hearts`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| recorded_at | timestamp | |
+| fhr | unsignedSmallInteger | |
+| notes | text | nullable |
+| recorded_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+
+### `procedure_pre_op_orders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | UQ, cascadeOnDelete |
+| give_bath / provide_hospital_dress / mark_operation_site / shave_and_prepare | boolean | default false |
+| npo_from / send_to_ot_at / completed_at | timestamp | nullable |
+| blood_pints | unsignedTinyInteger | nullable |
+| investigations / pre_medication / other_orders | text | nullable |
+| operation_site / done_by | string | nullable |
+| completed_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+
+### `procedure_operation_notes`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | UQ, cascadeOnDelete |
+| operated_on | date | nullable |
+| started_at / ended_at | time | nullable |
+| operation / surgeon / nurse / anaesthesia | string | nullable |
+| findings / procedure_text / closure / drain / biopsy | text | nullable |
+| recorded_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+
+### `procedure_delivery_notes`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | UQ, cascadeOnDelete |
+| labour_type / procedure_name / obstetrician / assistant / analgesia | string | nullable |
+| delivered_at | timestamp | nullable |
+| delivery_details / complications | text | nullable |
+| labour_first_stage / labour_second_stage / labour_third_stage | string | nullable |
+| baby_sex / baby_weight / apgar_score / resuscitated_by | string | nullable |
+| recorded_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+
+### `procedure_post_op_orders`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | UQ, cascadeOnDelete |
+| maintain_intake_output | boolean | default false |
+| npo_till / completed_at | timestamp | nullable |
+| antibiotics / iv_fluids / analgesics / antiemetics / biopsy / others | text | nullable |
+| done_by | string | nullable |
+| completed_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+
+### `procedure_progress_notes`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| noted_at | timestamp | |
+| note | text | |
+| doctor_user_id | FK → users | cascadeOnDelete |
+| timestamps | | |
+
+### `procedure_medications`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| form | string | `tab`, `inj`, `drip` |
+| medicine_id / injection_id / drip_base_id | FK | nullable, nullOnDelete |
+| custom_name / dose / route | string | nullable (custom when outside catalog) |
+| notes | text | nullable |
+| schedule_type | string | `once_now`, `once_at`, `every_hour`, `now_and_at`, `at_times` |
+| schedule_times | json | nullable |
+| interval_hours | unsignedSmallInteger | nullable |
+| starts_at / ends_at | timestamp | nullable |
+| status | string | default `active` |
+| prescribed_by | FK → users | cascadeOnDelete |
+| timestamps | | |
+
+### `procedure_medication_doses`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_medication_id | FK → procedure_medications | cascadeOnDelete |
+| due_at | timestamp | |
+| status | string | `pending`, `given`, `skipped` |
+| given_at | timestamp | nullable |
+| given_by | FK → users | nullable, nullOnDelete |
+| notes | text | nullable |
+| timestamps | | |
+
+### `procedure_documents`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | cascadeOnDelete |
+| kind | string | `discharge_certificate`, `birth_certificate`, `bill` |
+| generated_at / printed_at | timestamp | nullable |
+| generated_by / printed_by | FK → users | nullable, nullOnDelete |
+| path | string | nullable |
+| timestamps | | |
+| unique | (procedure_id, kind) | |
+
+### `procedure_discharge_details`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| procedure_id | FK → procedures | UQ, cascadeOnDelete |
+| blood_group / indication / parity / baby_sex / baby_weight / baby_condition | string | nullable |
+| procedure_time | timestamp | nullable |
+| rx_text / outcome_summary | text | nullable |
+| stitch_removal_date | date | nullable |
 | timestamps | | |
 
 ---
@@ -983,7 +1146,15 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            ├── procedures ──┬── patients ── families
         │            │                ├── procedure_types ── procedure_type_documents
         │            │                ├── rooms
-        │            │                └── procedure_payments
+        │            │                ├── procedure_payments
+        │            │                ├── procedure_attachments
+        │            │                ├── procedure_vitals / procedure_fetal_hearts
+        │            │                ├── procedure_pre_op_orders / procedure_post_op_orders
+        │            │                ├── procedure_operation_notes / procedure_delivery_notes
+        │            │                ├── procedure_progress_notes
+        │            │                ├── procedure_medications ── procedure_medication_doses
+        │            │                ├── procedure_documents
+        │            │                └── procedure_discharge_details
         │            ├── service_queues ── queue_tokens ──┬── patient_calls
         │            │                                    ├── vitals
         │            │                                    ├── ultrasound_reports

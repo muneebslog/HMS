@@ -1106,29 +1106,54 @@ new #[Title('Procedures')] class extends Component
                 <flux:heading level="3" class="mb-4">{{ __('Steps') }}</flux:heading>
 
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <flux:button
-                        variant="{{ $this->viewedProcedure->isAdmitted() ? 'filled' : 'primary' }}"
-                        icon="home-modern"
-                        wire:click="addAdmission({{ $this->viewedProcedure->id }})"
-                        class="w-full"
-                    >
-                        {{ $this->viewedProcedure->isAdmitted() ? __('1. Admission') : __('1. Add Admission') }}
-                    </flux:button>
+                    @if ($this->viewedProcedure->isAdmitted())
+                        <div class="space-y-1">
+                            <flux:button
+                                variant="filled"
+                                icon="home-modern"
+                                disabled
+                                class="w-full"
+                            >
+                                {{ __('1. Admission') }}
+                            </flux:button>
+                            <flux:text class="text-center text-xs text-zinc-500">
+                                {{ __('Completed') }}
+                            </flux:text>
+                        </div>
+                    @else
+                        <flux:button
+                            variant="primary"
+                            icon="home-modern"
+                            wire:click="addAdmission({{ $this->viewedProcedure->id }})"
+                            class="w-full"
+                        >
+                            {{ __('1. Add Admission') }}
+                        </flux:button>
+                    @endif
 
                     @php
                         $hasPrintDocuments = ($this->viewedProcedure->procedureType?->documents?->isNotEmpty()) ?? false;
+                        $isFilePrinted = $this->viewedProcedure->isFilePrinted();
                     @endphp
 
                     @if ($hasPrintDocuments)
-                        <flux:button
-                            variant="filled"
-                            icon="printer"
-                            :href="route('reception.procedures.file', $this->viewedProcedure)"
-                            target="_blank"
-                            class="w-full"
-                        >
-                            {{ __('2. Print File') }}
-                        </flux:button>
+                        <div class="space-y-1">
+                            <flux:button
+                                variant="{{ $isFilePrinted ? 'filled' : 'primary' }}"
+                                icon="printer"
+                                :href="route('reception.procedures.file', $this->viewedProcedure)"
+                                target="_blank"
+                                class="w-full"
+                                wire:click="$refresh"
+                            >
+                                {{ $isFilePrinted ? __('2. File Printed') : __('2. Print File') }}
+                            </flux:button>
+                            @if ($isFilePrinted)
+                                <flux:text class="text-center text-xs text-zinc-500">
+                                    {{ __('Printed :date', ['date' => $this->viewedProcedure->file_printed_at->format('M j, g:i A')]) }}
+                                </flux:text>
+                            @endif
+                        </div>
                     @else
                         <div class="space-y-1">
                             <flux:button

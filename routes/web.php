@@ -6,6 +6,9 @@ use App\Http\Controllers\DriveFileController;
 use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\EmployeePhotoController;
 use App\Http\Controllers\EmployeeQualificationDownloadController;
+use App\Http\Controllers\Indoor\ProcedureAttachmentController;
+use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
+use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\ProcedureFileController;
@@ -78,6 +81,16 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
         Route::livewire('doctor/medication', 'pages::doctor.medication')->name('doctor.medication');
+        Route::livewire('doctor/procedures', 'pages::doctor.procedures')->name('doctor.procedures');
+    });
+
+    Route::middleware('role:'.UserRole::Indoor->value.','.UserRole::Admin->value.','.UserRole::Receptionist->value.','.UserRole::Doctor->value)->group(function () {
+        Route::livewire('indoor/ward', 'pages::indoor.ward')->name('indoor.ward');
+        Route::livewire('indoor/procedures/{procedure}', 'pages::indoor.procedure')->name('indoor.procedure');
+        Route::get('indoor/attachments/{attachment}', ProcedureAttachmentController::class)->name('indoor.attachments.show');
+        Route::get('indoor/procedures/{procedure}/discharge-certificate', ProcedureDischargeCertificateController::class)->name('indoor.procedures.discharge-certificate');
+        Route::get('indoor/procedures/{procedure}/birth-certificate', ProcedureBirthCertificateController::class)->name('indoor.procedures.birth-certificate');
+        Route::get('indoor/procedures/{procedure}/bill', ProcedurePrintController::class)->name('indoor.procedures.print');
     });
 
     Route::middleware('role:'.UserRole::Management->value)->group(function () {

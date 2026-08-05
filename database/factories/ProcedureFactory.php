@@ -37,6 +37,16 @@ class ProcedureFactory extends Factory
     }
 
     /**
+     * Mark the procedure as admitted.
+     */
+    public function admitted(): self
+    {
+        return $this->state(fn () => [
+            'admitted_at' => now(),
+        ]);
+    }
+
+    /**
      * Assign a doctor to the procedure.
      */
     public function withDoctor(): self

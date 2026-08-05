@@ -96,6 +96,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is indoor staff.
+     */
+    public function isIndoor(): bool
+    {
+        return $this->role === UserRole::Indoor;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool

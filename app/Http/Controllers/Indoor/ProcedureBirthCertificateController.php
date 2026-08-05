@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Reception;
+namespace App\Http\Controllers\Indoor;
 
 use App\Enums\ProcedureDocumentKind;
 use App\Http\Controllers\Controller;
@@ -8,10 +8,10 @@ use App\Models\Procedure;
 use App\Models\ProcedureDocument;
 use Illuminate\View\View;
 
-class ProcedurePrintController extends Controller
+class ProcedureBirthCertificateController extends Controller
 {
     /**
-     * Display the printable A4 procedure bill with the latest payment data.
+     * Display the printable birth certificate and track its generation.
      */
     public function __invoke(Procedure $procedure): View
     {
@@ -19,17 +19,18 @@ class ProcedurePrintController extends Controller
             'patient',
             'doctor',
             'procedureType',
-            'room',
-            'creator',
-            'payments' => fn ($query) => $query->orderBy('created_at')->orderBy('id'),
-            'payments.creator',
-            'payments.shift',
+            'dischargeDetail',
+            'deliveryNote',
         ]);
+
+        if (! $procedure->procedureType?->requires_birth_certificate) {
+            abort(404);
+        }
 
         $document = ProcedureDocument::query()->firstOrCreate(
             [
                 'procedure_id' => $procedure->id,
-                'kind' => ProcedureDocumentKind::Bill,
+                'kind' => ProcedureDocumentKind::BirthCertificate,
             ],
             [
                 'generated_at' => now(),
@@ -53,10 +54,10 @@ class ProcedurePrintController extends Controller
             $document->update($updates);
         }
 
-        return view('procedures.print', [
+        return view('procedures.birth-certificate', [
             'procedure' => $procedure,
-            'totalPaid' => $procedure->totalPaid(),
-            'balance' => $procedure->balance(),
+            'dischargeDetail' => $procedure->dischargeDetail,
+            'deliveryNote' => $procedure->deliveryNote,
         ]);
     }
 }

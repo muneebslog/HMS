@@ -2,6 +2,7 @@
 
 use App\Models\AdminNotification;
 use App\Models\EmployeeTodo;
+use App\Models\Procedure;
 use App\Models\Shift;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -17,6 +18,10 @@ new #[Title('Dashboard')] class extends Component
     {
         if (auth()->user()?->isDoctor()) {
             $this->redirect(route('doctor.portal'), navigate: true);
+        }
+
+        if (auth()->user()?->isIndoor()) {
+            $this->redirect(route('indoor.ward'), navigate: true);
         }
     }
 
@@ -109,6 +114,20 @@ new #[Title('Dashboard')] class extends Component
     }
 
     /**
+     * Count admitted procedures missing last-hour vitals or fetal heart readings.
+     */
+    #[Computed]
+    public function overdueProcedureReadingCount(): int
+    {
+        return Procedure::query()
+            ->onWard()
+            ->with('procedureType')
+            ->get()
+            ->filter(fn (Procedure $procedure) => $procedure->isVitalsOverdue() || $procedure->isFetalHeartOverdue())
+            ->count();
+    }
+
+    /**
      * Mark the given employee todo as done.
      */
     public function markEmployeeTodoDone(int $todoId): void
@@ -123,6 +142,21 @@ new #[Title('Dashboard')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
+        @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())
+            @if ($this->overdueProcedureReadingCount > 0)
+                <flux:callout variant="danger" icon="clock">
+                    <flux:callout.heading>{{ __('Overdue ward readings') }}</flux:callout.heading>
+                    <flux:callout.text>
+                        {{ __(':count admitted procedure(s) are missing hourly vitals or fetal heart readings.', ['count' => $this->overdueProcedureReadingCount]) }}
+                    </flux:callout.text>
+                    <x-slot:actions>
+                        <flux:button size="sm" variant="primary" :href="route('indoor.ward')" wire:navigate>
+                            {{ __('Open Indoor Ward') }}
+                        </flux:button>
+                    </x-slot:actions>
+                </flux:callout>
+            @endif
+        @endif
         @if (auth()->user()->isManagement())
             <div class="grid auto-rows-min gap-4 md:grid-cols-2" wire:poll.5s>
                 <flux:card>

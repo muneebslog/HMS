@@ -25,6 +25,10 @@ class LoginResponse implements LoginResponseContract
             return redirect()->to(route('doctor.portal'));
         }
 
+        if ($user !== null && $user->role === UserRole::Indoor) {
+            return redirect()->to(route('indoor.ward'));
+        }
+
         return redirect()->intended(config('fortify.home', '/dashboard'));
     }
 }

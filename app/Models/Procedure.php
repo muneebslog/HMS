@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Database\Factories\ProcedureFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Procedure extends Model
 {
@@ -27,6 +30,18 @@ class Procedure extends Model
         'room_number',
         'room_id',
         'admitted_at',
+        'file_printed_at',
+        'file_printed_by',
+        'consent_completed_at',
+        'pre_op_completed_at',
+        'pre_op_done_by',
+        'pre_op_completed_by',
+        'operation_started_at',
+        'operation_completed_at',
+        'post_op_completed_at',
+        'post_op_completed_by',
+        'discharged_at',
+        'discharged_by',
         'doctor_id',
         'created_by',
         'shift_id',
@@ -43,11 +58,18 @@ class Procedure extends Model
             'full_amount' => 'float',
             'expected_delivery_date' => 'date',
             'admitted_at' => 'datetime',
+            'file_printed_at' => 'datetime',
+            'consent_completed_at' => 'datetime',
+            'pre_op_completed_at' => 'datetime',
+            'operation_started_at' => 'datetime',
+            'operation_completed_at' => 'datetime',
+            'post_op_completed_at' => 'datetime',
+            'discharged_at' => 'datetime',
         ];
     }
 
     /**
-     * Get the patient for this procedure.
+     * @return BelongsTo<Patient, $this>
      */
     public function patient(): BelongsTo
     {
@@ -55,7 +77,7 @@ class Procedure extends Model
     }
 
     /**
-     * Get the procedure type for this procedure.
+     * @return BelongsTo<ProcedureType, $this>
      */
     public function procedureType(): BelongsTo
     {
@@ -63,7 +85,7 @@ class Procedure extends Model
     }
 
     /**
-     * Get the doctor for this procedure.
+     * @return BelongsTo<Doctor, $this>
      */
     public function doctor(): BelongsTo
     {
@@ -71,7 +93,7 @@ class Procedure extends Model
     }
 
     /**
-     * Get the room assigned to this procedure admission.
+     * @return BelongsTo<Room, $this>
      */
     public function room(): BelongsTo
     {
@@ -79,7 +101,7 @@ class Procedure extends Model
     }
 
     /**
-     * Get the user who created this procedure.
+     * @return BelongsTo<User, $this>
      */
     public function creator(): BelongsTo
     {
@@ -87,7 +109,7 @@ class Procedure extends Model
     }
 
     /**
-     * Get the shift this procedure belongs to.
+     * @return BelongsTo<Shift, $this>
      */
     public function shift(): BelongsTo
     {
@@ -95,13 +117,131 @@ class Procedure extends Model
     }
 
     /**
-     * Get the payments associated with this procedure.
-     *
+     * @return BelongsTo<User, $this>
+     */
+    public function filePrinter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'file_printed_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function preOpCompleter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pre_op_completed_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function postOpCompleter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'post_op_completed_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function discharger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'discharged_by');
+    }
+
+    /**
      * @return HasMany<ProcedurePayment, $this>
      */
     public function payments(): HasMany
     {
         return $this->hasMany(ProcedurePayment::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ProcedureAttachment::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureVital, $this>
+     */
+    public function vitals(): HasMany
+    {
+        return $this->hasMany(ProcedureVital::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureFetalHeart, $this>
+     */
+    public function fetalHearts(): HasMany
+    {
+        return $this->hasMany(ProcedureFetalHeart::class);
+    }
+
+    /**
+     * @return HasOne<ProcedurePreOpOrder, $this>
+     */
+    public function preOpOrder(): HasOne
+    {
+        return $this->hasOne(ProcedurePreOpOrder::class);
+    }
+
+    /**
+     * @return HasOne<ProcedureOperationNote, $this>
+     */
+    public function operationNote(): HasOne
+    {
+        return $this->hasOne(ProcedureOperationNote::class);
+    }
+
+    /**
+     * @return HasOne<ProcedureDeliveryNote, $this>
+     */
+    public function deliveryNote(): HasOne
+    {
+        return $this->hasOne(ProcedureDeliveryNote::class);
+    }
+
+    /**
+     * @return HasOne<ProcedurePostOpOrder, $this>
+     */
+    public function postOpOrder(): HasOne
+    {
+        return $this->hasOne(ProcedurePostOpOrder::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureProgressNote, $this>
+     */
+    public function progressNotes(): HasMany
+    {
+        return $this->hasMany(ProcedureProgressNote::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureMedication, $this>
+     */
+    public function medications(): HasMany
+    {
+        return $this->hasMany(ProcedureMedication::class);
+    }
+
+    /**
+     * @return HasMany<ProcedureDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ProcedureDocument::class);
+    }
+
+    /**
+     * @return HasOne<ProcedureDischargeDetail, $this>
+     */
+    public function dischargeDetail(): HasOne
+    {
+        return $this->hasOne(ProcedureDischargeDetail::class);
     }
 
     /**
@@ -134,5 +274,80 @@ class Procedure extends Model
     public function isAdmitted(): bool
     {
         return $this->admitted_at !== null;
+    }
+
+    /**
+     * Determine whether the procedure file has been printed.
+     */
+    public function isFilePrinted(): bool
+    {
+        return $this->file_printed_at !== null;
+    }
+
+    /**
+     * Determine whether the patient has been discharged.
+     */
+    public function isDischarged(): bool
+    {
+        return $this->discharged_at !== null;
+    }
+
+    /**
+     * Scope admitted patients who are still on the ward.
+     *
+     * @param  Builder<Procedure>  $query
+     * @return Builder<Procedure>
+     */
+    public function scopeOnWard(Builder $query): Builder
+    {
+        return $query->whereNotNull('admitted_at')->whereNull('discharged_at');
+    }
+
+    /**
+     * Determine whether vitals are overdue for the previous completed hour.
+     */
+    public function isVitalsOverdue(?CarbonInterface $reference = null): bool
+    {
+        if (! $this->isAdmitted() || $this->isDischarged()) {
+            return false;
+        }
+
+        $reference ??= now();
+        $hourStart = $reference->copy()->subHour()->startOfHour();
+        $hourEnd = $hourStart->copy()->endOfHour();
+
+        if ($this->admitted_at !== null && $this->admitted_at->gt($hourEnd)) {
+            return false;
+        }
+
+        return ! $this->vitals()
+            ->whereBetween('recorded_at', [$hourStart, $hourEnd])
+            ->exists();
+    }
+
+    /**
+     * Determine whether fetal heart readings are overdue for the previous completed hour.
+     */
+    public function isFetalHeartOverdue(?CarbonInterface $reference = null): bool
+    {
+        if (! $this->procedureType?->requires_fetal_heart) {
+            return false;
+        }
+
+        if (! $this->isAdmitted() || $this->isDischarged()) {
+            return false;
+        }
+
+        $reference ??= now();
+        $hourStart = $reference->copy()->subHour()->startOfHour();
+        $hourEnd = $hourStart->copy()->endOfHour();
+
+        if ($this->admitted_at !== null && $this->admitted_at->gt($hourEnd)) {
+            return false;
+        }
+
+        return ! $this->fetalHearts()
+            ->whereBetween('recorded_at', [$hourStart, $hourEnd])
+            ->exists();
     }
 }
