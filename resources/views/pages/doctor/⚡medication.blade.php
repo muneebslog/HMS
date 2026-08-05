@@ -424,6 +424,33 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->activeOrderTab = $tab;
+        $this->ensureFirstRowForTab($tab);
+    }
+
+    /**
+     * Add a blank row for the currently active order tab.
+     */
+    public function addRowForActiveTab(): void
+    {
+        match ($this->activeOrderTab) {
+            'medicines' => $this->addMedicineLine(),
+            'injections' => $this->addInjectionLine(),
+            'drips' => $this->addDripLine(),
+            default => null,
+        };
+    }
+
+    /**
+     * Ensure the active tab has at least one blank row to fill.
+     */
+    private function ensureFirstRowForTab(string $tab): void
+    {
+        match ($tab) {
+            'medicines' => $this->medicineLines === [] ? $this->addMedicineLine() : null,
+            'injections' => $this->injectionLines === [] ? $this->addInjectionLine() : null,
+            'drips' => $this->dripLines === [] ? $this->addDripLine() : null,
+            default => null,
+        };
     }
 
     public function addMedicineLine(): void
@@ -1033,7 +1060,12 @@ new #[Title('Medication')] class extends Component
             </nav>
         </div>
 
-        <form wire:submit="save" class="flex flex-1 flex-col gap-4">
+        <form
+            wire:submit="save"
+            class="flex flex-1 flex-col gap-4"
+            x-data
+            @keydown.shift.enter.prevent="$wire.addRowForActiveTab()"
+        >
             @if ($activeOrderTab === 'medicines')
                 <div class="space-y-3">
                     @foreach ($medicineLines as $index => $line)
@@ -1064,11 +1096,14 @@ new #[Title('Medication')] class extends Component
                         </div>
                     @endforeach
                     <flux:error name="medicineLines" />
-                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
+                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
+                    </div>
                 </div>
             @elseif ($activeOrderTab === 'injections')
                 <div class="space-y-3">
-                    @forelse ($injectionLines as $index => $line)
+                    @foreach ($injectionLines as $index => $line)
                         <div wire:key="injection-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
                             <div class="sm:col-span-5">
                                 <x-searchable-select
@@ -1092,14 +1127,15 @@ new #[Title('Medication')] class extends Component
                                 <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
                             </div>
                         </div>
-                    @empty
-                        <p class="text-sm text-zinc-500">{{ __('No injections added yet.') }}</p>
-                    @endforelse
-                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
+                    @endforeach
+                    <div class="flex flex-wrap items-center gap-3">
+                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
+                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
+                    </div>
                 </div>
             @else
                 <div class="space-y-4">
-                    @forelse ($dripLines as $dripIndex => $drip)
+                    @foreach ($dripLines as $dripIndex => $drip)
                         <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <div class="grid gap-2 sm:grid-cols-12">
                                 <div class="sm:col-span-7">
@@ -1141,10 +1177,11 @@ new #[Title('Medication')] class extends Component
                                 </flux:button>
                             </div>
                         </div>
-                    @empty
-                        <p class="text-sm text-zinc-500">{{ __('No drips added yet.') }}</p>
-                    @endforelse
-                    <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
+                    @endforeach
+                    <div class="flex flex-wrap items-center gap-3">
+                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
+                        <flux:text class="text-xs text-zinc-500">{{ __('Shift+Enter to add another row') }}</flux:text>
+                    </div>
                 </div>
             @endif
 

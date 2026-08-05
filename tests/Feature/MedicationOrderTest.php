@@ -267,13 +267,31 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee(__('Search medicine'))
         ->assertSee('PCM — Searchable Paracetamol')
         ->call('switchOrderTab', 'injections')
-        ->call('addInjectionLine')
         ->assertSee(__('Search injection'))
         ->assertSee('DIC — Searchable Diclofenac')
         ->call('switchOrderTab', 'drips')
-        ->call('addDripLine')
         ->assertSee(__('Search drip base'))
         ->assertSee('Searchable Saline');
+});
+
+test('switching to injections or drips seeds a first blank row', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertCount('medicineLines', 1)
+        ->assertCount('injectionLines', 0)
+        ->assertCount('dripLines', 0)
+        ->call('switchOrderTab', 'injections')
+        ->assertCount('injectionLines', 1)
+        ->call('switchOrderTab', 'drips')
+        ->assertCount('dripLines', 1)
+        ->call('addRowForActiveTab')
+        ->assertCount('dripLines', 2)
+        ->call('switchOrderTab', 'medicines')
+        ->call('addRowForActiveTab')
+        ->assertCount('medicineLines', 2);
 });
 
 test('doctor can open medication history modal for a patient', function () {
