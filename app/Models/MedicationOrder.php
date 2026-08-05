@@ -30,6 +30,7 @@ class MedicationOrder extends Model
         'status',
         'notes',
         'administered_by',
+        'administered_by_health_aide_id',
         'administered_at',
     ];
 
@@ -93,6 +94,53 @@ class MedicationOrder extends Model
     public function administeredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'administered_by');
+    }
+
+    /**
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function administeredByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'administered_by_health_aide_id');
+    }
+
+    /**
+     * Whether all medicines and injections on this order have been delivered.
+     * Returns false when the order has no medicine or injection lines.
+     */
+    public function allMedicinesAndInjectionsDelivered(): bool
+    {
+        $medicineCount = $this->medicines()->count();
+        $injectionCount = $this->injections()->count();
+
+        if ($medicineCount === 0 && $injectionCount === 0) {
+            return false;
+        }
+
+        $hasUndeliveredMedicine = $this->medicines()->whereNull('delivered_at')->exists();
+        $hasUndeliveredInjection = $this->injections()->whereNull('delivered_at')->exists();
+
+        return ! $hasUndeliveredMedicine && ! $hasUndeliveredInjection;
+    }
+
+    /**
+     * Mark the order administered by a health aide when all meds/injections are delivered.
+     */
+    public function markAdministeredByHealthAide(HealthAide $aide): void
+    {
+        if ($this->status === MedicationOrderStatus::Administered) {
+            return;
+        }
+
+        if (! $this->allMedicinesAndInjectionsDelivered()) {
+            return;
+        }
+
+        $this->update([
+            'status' => MedicationOrderStatus::Administered,
+            'administered_by_health_aide_id' => $aide->id,
+            'administered_at' => now(),
+        ]);
     }
 
     /**

@@ -1,0 +1,355 @@
+<?php
+
+use App\Enums\DripLineStatus;
+use App\Models\MedicationOrderDrip;
+use App\Models\Shift;
+use App\Services\HealthAidePinSession;
+use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+
+new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Component
+{
+    public string $pin = '';
+
+    public bool $showPinModal = false;
+
+    public ?string $pendingAction = null;
+
+    public ?int $pendingDripId = null;
+
+    public function mount(HealthAidePinSession $pinSession): void
+    {
+        if (! $pinSession->check()) {
+            $this->showPinModal = true;
+        }
+    }
+
+    /**
+     * Active-shift drip lines that are not done.
+     *
+     * @return Collection<int, MedicationOrderDrip>
+     */
+    #[Computed]
+    public function drips(): Collection
+    {
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        return MedicationOrderDrip::query()
+            ->with([
+                'additives',
+                'startedByHealthAide',
+                'medicationOrder.patient',
+                'medicationOrder.doctor',
+                'medicationOrder.queueToken.serviceQueue.service',
+            ])
+            ->whereIn('status', [DripLineStatus::Pending, DripLineStatus::Started])
+            ->whereHas('medicationOrder.queueToken.serviceQueue', function ($query) use ($shift): void {
+                $query->where('shift_id', $shift->id);
+            })
+            ->orderByRaw("CASE WHEN status = 'started' AND check_due_at IS NOT NULL AND check_due_at <= ? THEN 0 WHEN status = 'pending' THEN 1 ELSE 2 END", [now()])
+            ->orderBy('check_due_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    #[Computed]
+    public function currentAideName(): ?string
+    {
+        return app(HealthAidePinSession::class)->current()?->name;
+    }
+
+    public function requestStart(int $dripId): void
+    {
+        $this->pendingDripId = $dripId;
+        $this->requirePinThen('start');
+    }
+
+    public function requestMarkDone(int $dripId): void
+    {
+        $this->pendingDripId = $dripId;
+        $this->requirePinThen('done');
+    }
+
+    public function verifyPin(HealthAidePinSession $pinSession): void
+    {
+        $this->validate([
+            'pin' => ['required', 'digits_between:4,6'],
+        ]);
+
+        $aide = $pinSession->attempt($this->pin);
+
+        if ($aide === null) {
+            $this->addError('pin', __('Invalid PIN.'));
+
+            return;
+        }
+
+        $this->pin = '';
+        $this->showPinModal = false;
+        $this->resetValidation();
+
+        $action = $this->pendingAction;
+        $this->pendingAction = null;
+
+        if ($action === 'start') {
+            $this->startDrip();
+        } elseif ($action === 'done') {
+            $this->markDone();
+        }
+    }
+
+    public function lock(HealthAidePinSession $pinSession): void
+    {
+        $pinSession->forget();
+        $this->showPinModal = true;
+        $this->pendingAction = null;
+        $this->pendingDripId = null;
+        Flux::toast(text: __('Session locked.'));
+    }
+
+    public function notifyDueChecks(): void
+    {
+        $due = MedicationOrderDrip::query()
+            ->with(['medicationOrder.patient'])
+            ->where('status', DripLineStatus::Started)
+            ->whereNotNull('check_due_at')
+            ->where('check_due_at', '<=', now())
+            ->whereNull('check_notified_at')
+            ->get();
+
+        foreach ($due as $drip) {
+            $drip->update(['check_notified_at' => now()]);
+
+            $patient = $drip->medicationOrder?->patient?->name ?? __('Unknown');
+
+            Flux::toast(
+                variant: 'warning',
+                text: __('Check drip for :patient — :drip', [
+                    'patient' => $patient,
+                    'drip' => $drip->name,
+                ]),
+            );
+        }
+
+        if ($due->isNotEmpty()) {
+            unset($this->drips);
+        }
+    }
+
+    public function startDrip(): void
+    {
+        $aide = app(HealthAidePinSession::class)->current();
+
+        if ($aide === null) {
+            $this->requirePinThen('start');
+
+            return;
+        }
+
+        $drip = MedicationOrderDrip::query()->find($this->pendingDripId);
+
+        if ($drip === null || $drip->status !== DripLineStatus::Pending) {
+            Flux::toast(variant: 'danger', text: __('Drip is no longer pending.'));
+            $this->pendingDripId = null;
+            unset($this->drips);
+
+            return;
+        }
+
+        $drip->update([
+            'status' => DripLineStatus::Started,
+            'started_at' => now(),
+            'started_by_health_aide_id' => $aide->id,
+            'check_due_at' => now()->addMinutes(30),
+            'check_notified_at' => null,
+        ]);
+
+        $this->pendingDripId = null;
+        unset($this->drips);
+
+        Flux::toast(variant: 'success', text: __('Drip started. Check again in 30 minutes.'));
+    }
+
+    public function markDone(): void
+    {
+        $aide = app(HealthAidePinSession::class)->current();
+
+        if ($aide === null) {
+            $this->requirePinThen('done');
+
+            return;
+        }
+
+        $drip = MedicationOrderDrip::query()->find($this->pendingDripId);
+
+        if ($drip === null || $drip->status !== DripLineStatus::Started) {
+            Flux::toast(variant: 'danger', text: __('Drip cannot be marked done.'));
+            $this->pendingDripId = null;
+            unset($this->drips);
+
+            return;
+        }
+
+        $drip->update([
+            'status' => DripLineStatus::Done,
+            'done_at' => now(),
+            'done_by_health_aide_id' => $aide->id,
+        ]);
+
+        $this->pendingDripId = null;
+        unset($this->drips);
+
+        Flux::toast(variant: 'success', text: __('Drip marked done.'));
+    }
+
+    protected function requirePinThen(string $action): void
+    {
+        if (app(HealthAidePinSession::class)->check()) {
+            if ($action === 'start') {
+                $this->startDrip();
+            } elseif ($action === 'done') {
+                $this->markDone();
+            }
+
+            return;
+        }
+
+        $this->pendingAction = $action;
+        $this->pin = '';
+        $this->showPinModal = true;
+        $this->resetValidation();
+    }
+}; ?>
+
+<div class="flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.10s="notifyDueChecks">
+    <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
+        <div>
+            <flux:heading level="1" size="lg">{{ __('Drip Delivery') }}</flux:heading>
+            @if ($this->currentAideName)
+                <flux:text class="text-zinc-400">{{ __('Signed in as') }} {{ $this->currentAideName }}</flux:text>
+            @endif
+        </div>
+        <flux:button type="button" variant="ghost" icon="lock-closed" wire:click="lock">
+            {{ __('Lock') }}
+        </flux:button>
+    </div>
+
+    <div class="flex flex-1 flex-col gap-3 p-4">
+        <div class="flex items-center justify-between">
+            <flux:heading level="2" size="md">{{ __('Active drips') }}</flux:heading>
+            <flux:badge color="zinc" size="lg">{{ $this->drips->count() }}</flux:badge>
+        </div>
+
+        @forelse ($this->drips as $drip)
+            @php($order = $drip->medicationOrder)
+            @php($overdue = $drip->isCheckDue())
+            <div
+                wire:key="drip-delivery-{{ $drip->id }}"
+                @class([
+                    'rounded-xl border p-4',
+                    'border-amber-600 bg-amber-950/40' => $overdue,
+                    'border-zinc-800 bg-zinc-900' => ! $overdue,
+                ])
+            >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-3">
+                            <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-bold text-zinc-900">
+                                {{ $order?->queueToken?->token_number }}
+                            </span>
+                            <div class="min-w-0">
+                                <p class="truncate text-lg font-semibold">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                                <p class="truncate text-sm text-zinc-400">
+                                    {{ $order?->patient?->mrn ?? __('No MRN') }}
+                                    · {{ $order?->queueToken?->serviceQueue?->service?->name }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p class="mt-3 font-medium">
+                            {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                        </p>
+                        @foreach ($drip->additives as $additive)
+                            <p class="ms-3 text-sm text-zinc-400">
+                                + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
+                            </p>
+                        @endforeach
+
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($overdue ? 'amber' : 'sky')">
+                                {{ $drip->status->label() }}
+                                @if ($overdue)
+                                    · {{ __('Check due') }}
+                                @elseif ($drip->status === \App\Enums\DripLineStatus::Started && $drip->check_due_at)
+                                    · {{ __('Check at') }} {{ $drip->check_due_at->timezone(config('app.timezone'))->format('h:i A') }}
+                                @endif
+                            </flux:badge>
+                            @if ($drip->startedByHealthAide)
+                                <flux:text class="text-xs text-zinc-500">
+                                    {{ __('Started by') }} {{ $drip->startedByHealthAide->name }}
+                                </flux:text>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="flex shrink-0 flex-col gap-2">
+                        @if ($drip->status === \App\Enums\DripLineStatus::Pending)
+                            <flux:button type="button" variant="primary" wire:click="requestStart({{ $drip->id }})">
+                                {{ __('Start') }}
+                            </flux:button>
+                        @else
+                            <flux:button type="button" variant="primary" wire:click="requestMarkDone({{ $drip->id }})">
+                                {{ __('Mark done') }}
+                            </flux:button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700 px-6 py-16 text-center">
+                <flux:icon name="beaker" class="size-10 text-zinc-500" />
+                <p class="text-base font-medium">{{ __('No active drips') }}</p>
+                <p class="text-sm text-zinc-500">{{ __('Pending drip orders will appear here to start and check.') }}</p>
+            </div>
+        @endforelse
+    </div>
+
+    @if ($showPinModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">
+            <div class="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+                <flux:heading level="2" size="lg" class="text-center">
+                    {{ __('Enter PIN') }}
+                </flux:heading>
+                <flux:text class="mt-2 text-center text-zinc-500">
+                    {{ __('Enter your health aide PIN to continue. Session lasts 10 minutes.') }}
+                </flux:text>
+
+                <form wire:submit="verifyPin" class="mt-6 space-y-4">
+                    <flux:input
+                        type="password"
+                        wire:model="pin"
+                        inputmode="numeric"
+                        maxlength="6"
+                        placeholder="----"
+                        class="text-center text-2xl tracking-[0.5em]"
+                        autofocus
+                    />
+                    @error('pin')
+                        <flux:text variant="danger" class="text-center">{{ $message }}</flux:text>
+                    @enderror
+                    <flux:button type="submit" variant="primary" class="w-full">
+                        {{ __('Unlock') }}
+                    </flux:button>
+                </form>
+            </div>
+        </div>
+    @endif
+</div>

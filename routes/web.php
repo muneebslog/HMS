@@ -34,6 +34,12 @@ Route::livewire('display/tokens/control', 'pages::display.token-control')
     ->middleware(['auth'])
     ->name('display.tokens.control');
 
+Route::livewire('display/medication', 'pages::display.medication-delivery')
+    ->name('display.medication');
+
+Route::livewire('display/drips', 'pages::display.drip-delivery')
+    ->name('display.drips');
+
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 
@@ -52,6 +58,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
+        Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
         Route::livewire('admin/leave-calendar', 'pages::admin.leave-calendar')->name('admin.leave-calendar');
         Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
         Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])
@@ -111,7 +118,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/vitals', 'pages::reception.vitals')->name('reception.vitals');
-            Route::livewire('reception/medication-admin', 'pages::reception.medication-admin')->name('reception.medication-admin');
             Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');

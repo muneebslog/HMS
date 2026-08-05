@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\MedicationOrderStatus;
 use App\Models\Doctor;
+use App\Models\HealthAide;
 use App\Models\MedicationOrder;
 use App\Models\Patient;
 use App\Models\QueueToken;
@@ -52,6 +53,19 @@ class MedicationOrderFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => MedicationOrderStatus::Administered,
             'administered_by' => $by?->id ?? User::factory()->receptionist(),
+            'administered_at' => now(),
+        ]);
+    }
+
+    /**
+     * Indicate that the order was administered by a health aide.
+     */
+    public function administeredByAide(?HealthAide $aide = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => MedicationOrderStatus::Administered,
+            'administered_by' => null,
+            'administered_by_health_aide_id' => $aide?->id ?? HealthAide::factory(),
             'administered_at' => now(),
         ]);
     }

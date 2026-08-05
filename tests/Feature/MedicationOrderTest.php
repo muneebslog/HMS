@@ -211,50 +211,6 @@ test('medication order keeps the queue doctor when the service has one', functio
     ]);
 });
 
-test('receptionist can access medication admin with an open shift', function () {
-    $user = User::factory()->receptionist()->create();
-    Shift::factory()->for($user)->open()->create();
-
-    $this->actingAs($user)
-        ->get(route('reception.medication-admin'))
-        ->assertSuccessful();
-});
-
-test('receptionist is redirected to shift page when accessing medication admin without an open shift', function () {
-    $user = User::factory()->receptionist()->create();
-
-    $this->actingAs($user)
-        ->get(route('reception.medication-admin'))
-        ->assertRedirect(route('reception.shift'));
-});
-
-test('reception sees pending orders and can mark them administered', function () {
-    [$user, , $shift, , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
-    $receptionist = User::factory()->receptionist()->create();
-    $shift->update(['user_id' => $receptionist->id]);
-
-    $order = MedicationOrder::factory()->withoutDoctor()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'prescribed_by' => $user->id,
-        'status' => MedicationOrderStatus::Pending,
-    ]);
-
-    Livewire::actingAs($receptionist)
-        ->test('pages::reception.medication-admin')
-        ->assertSee($patient->name)
-        ->assertSee($patient->mrn)
-        ->call('selectOrder', $order->id)
-        ->call('markAdministered')
-        ->assertHasNoErrors();
-
-    $order->refresh();
-
-    expect($order->status)->toBe(MedicationOrderStatus::Administered)
-        ->and($order->administered_by)->toBe($receptionist->id)
-        ->and($order->administered_at)->not->toBeNull();
-});
-
 test('medication form uses searchable selects for catalog fields', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     Medicine::factory()->create(['name' => 'Searchable Paracetamol', 'short_form' => 'PCM']);

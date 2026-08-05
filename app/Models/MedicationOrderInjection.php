@@ -22,6 +22,8 @@ class MedicationOrderInjection extends Model
         'administration_type',
         'volume_ml',
         'name',
+        'delivered_at',
+        'delivered_by_health_aide_id',
     ];
 
     /**
@@ -34,7 +36,16 @@ class MedicationOrderInjection extends Model
         return [
             'administration_type' => InjectionAdministrationType::class,
             'volume_ml' => 'float',
+            'delivered_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether this line has been delivered.
+     */
+    public function isDelivered(): bool
+    {
+        return $this->delivered_at !== null;
     }
 
     /**
@@ -51,5 +62,13 @@ class MedicationOrderInjection extends Model
     public function injection(): BelongsTo
     {
         return $this->belongsTo(Injection::class);
+    }
+
+    /**
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function deliveredByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'delivered_by_health_aide_id');
     }
 }

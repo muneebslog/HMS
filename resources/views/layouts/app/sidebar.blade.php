@@ -68,9 +68,6 @@
                         <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
                             {{ __('Vitals') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="beaker" :href="route('reception.medication-admin')" :current="request()->routeIs('reception.medication-admin')" wire:navigate>
-                            {{ __('Medication Admin') }}
-                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
                             {{ __('Ultrasound') }}
                         </flux:sidebar.item>
@@ -135,6 +132,9 @@
                         <flux:sidebar.item icon="identification" :href="route('admin.employees')" :current="request()->routeIs('admin.employees*')" wire:navigate>
                             {{ __('Staff Profiles') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
+                            {{ __('Health Aides') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
                             {{ __('Leave Calendar') }}
                         </flux:sidebar.item>
@@ -186,6 +186,12 @@
 
                         <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
                             {{ __('Token Display') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="beaker" :href="route('display.medication')" :current="request()->routeIs('display.medication')" wire:navigate>
+                            {{ __('Medication Delivery') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
+                            {{ __('Drip Delivery') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                             {{ __('Shift') }}

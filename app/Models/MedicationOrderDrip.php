@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\DripLineStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property DripLineStatus $status
+ */
 class MedicationOrderDrip extends Model
 {
     /**
@@ -18,6 +22,23 @@ class MedicationOrderDrip extends Model
         'drip_base_id',
         'volume_ml',
         'name',
+        'status',
+        'started_at',
+        'started_by_health_aide_id',
+        'check_due_at',
+        'check_notified_at',
+        'done_at',
+        'done_by_health_aide_id',
+        'done_by_user_id',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'pending',
     ];
 
     /**
@@ -29,6 +50,11 @@ class MedicationOrderDrip extends Model
     {
         return [
             'volume_ml' => 'float',
+            'status' => DripLineStatus::class,
+            'started_at' => 'datetime',
+            'check_due_at' => 'datetime',
+            'check_notified_at' => 'datetime',
+            'done_at' => 'datetime',
         ];
     }
 
@@ -54,5 +80,39 @@ class MedicationOrderDrip extends Model
     public function additives(): HasMany
     {
         return $this->hasMany(MedicationOrderDripAdditive::class);
+    }
+
+    /**
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function startedByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'started_by_health_aide_id');
+    }
+
+    /**
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function doneByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'done_by_health_aide_id');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function doneByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'done_by_user_id');
+    }
+
+    /**
+     * Whether the 30-minute check is overdue.
+     */
+    public function isCheckDue(): bool
+    {
+        return $this->status === DripLineStatus::Started
+            && $this->check_due_at !== null
+            && $this->check_due_at->isPast();
     }
 }

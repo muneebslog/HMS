@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\DripLineStatus;
 use App\Models\DoctorRecheck;
+use App\Models\MedicationOrderDrip;
+use Flux\Flux;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -56,12 +60,128 @@ new #[Title('Recheck Timers')] class extends Component
 
         return $query->paginate(20);
     }
+
+    /**
+     * Started drips awaiting check or completion.
+     *
+     * @return Collection<int, MedicationOrderDrip>
+     */
+    #[Computed]
+    public function dripChecks(): Collection
+    {
+        return MedicationOrderDrip::query()
+            ->with([
+                'startedByHealthAide',
+                'medicationOrder.patient',
+                'medicationOrder.queueToken.serviceQueue.service',
+            ])
+            ->where('status', DripLineStatus::Started)
+            ->orderBy('check_due_at')
+            ->get();
+    }
+
+    public function markDripDone(int $dripId): void
+    {
+        $drip = MedicationOrderDrip::query()->find($dripId);
+
+        if ($drip === null || $drip->status !== DripLineStatus::Started) {
+            Flux::toast(variant: 'danger', text: __('Drip is no longer started.'));
+            unset($this->dripChecks);
+
+            return;
+        }
+
+        $drip->update([
+            'status' => DripLineStatus::Done,
+            'done_at' => now(),
+            'done_by_user_id' => auth()->id(),
+        ]);
+
+        unset($this->dripChecks);
+
+        Flux::toast(variant: 'success', text: __('Drip marked done.'));
+    }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6" wire:poll.10s>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <flux:heading level="1">{{ __('Recheck Timers') }}</flux:heading>
+        <div>
+            <flux:heading level="1">{{ __('Recheck Timers') }}</flux:heading>
+            <flux:text class="mt-1">{{ __('Doctor vitals rechecks and drip check reminders.') }}</flux:text>
+        </div>
     </div>
+
+    <flux:card>
+        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <flux:heading level="2">{{ __('Drip checks') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Started drips with a 30-minute check timer.') }}</flux:text>
+            </div>
+            <flux:badge color="zinc" size="lg">{{ $this->dripChecks->count() }}</flux:badge>
+        </div>
+
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Patient') }}</flux:table.column>
+                <flux:table.column>{{ __('Drip') }}</flux:table.column>
+                <flux:table.column>{{ __('Started by') }}</flux:table.column>
+                <flux:table.column>{{ __('Check due') }}</flux:table.column>
+                <flux:table.column>{{ __('Status') }}</flux:table.column>
+                <flux:table.column>{{ __('Actions') }}</flux:table.column>
+            </flux:table.columns>
+            <flux:table.rows>
+                @forelse ($this->dripChecks as $drip)
+                    @php($overdue = $drip->isCheckDue())
+                    <flux:table.row wire:key="admin-drip-check-{{ $drip->id }}">
+                        <flux:table.cell>
+                            <div class="font-medium">{{ $drip->medicationOrder?->patient?->name ?? __('Unknown') }}</div>
+                            <div class="text-xs text-zinc-500">
+                                {{ $drip->medicationOrder?->patient?->mrn ?? __('No MRN') }}
+                                @if ($drip->medicationOrder?->queueToken?->serviceQueue?->service)
+                                    · {{ $drip->medicationOrder->queueToken->serviceQueue->service->name }}
+                                @endif
+                            </div>
+                        </flux:table.cell>
+                        <flux:table.cell>
+                            {{ $drip->name }}
+                            <span class="text-zinc-500">
+                                — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                            </span>
+                        </flux:table.cell>
+                        <flux:table.cell>{{ $drip->startedByHealthAide?->name ?? '—' }}</flux:table.cell>
+                        <flux:table.cell>
+                            @if ($drip->check_due_at)
+                                {{ $drip->check_due_at->timezone(config('app.timezone'))->format('d M, h:i A') }}
+                            @else
+                                —
+                            @endif
+                        </flux:table.cell>
+                        <flux:table.cell>
+                            <flux:badge size="sm" :color="$overdue ? 'amber' : 'sky'">
+                                {{ $overdue ? __('Check due') : __('On timer') }}
+                            </flux:badge>
+                        </flux:table.cell>
+                        <flux:table.cell>
+                            <flux:button
+                                size="sm"
+                                variant="primary"
+                                wire:click="markDripDone({{ $drip->id }})"
+                                wire:confirm="{{ __('Mark this drip as done?') }}"
+                            >
+                                {{ __('Mark done') }}
+                            </flux:button>
+                        </flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row>
+                        <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                            {{ __('No started drips awaiting check.') }}
+                        </flux:table.cell>
+                    </flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </flux:card>
 
     <flux:card>
         <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

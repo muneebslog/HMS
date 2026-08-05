@@ -22,6 +22,8 @@ class MedicationOrderMedicine extends Model
         'dose',
         'days',
         'name',
+        'delivered_at',
+        'delivered_by_health_aide_id',
     ];
 
     /**
@@ -34,7 +36,16 @@ class MedicationOrderMedicine extends Model
         return [
             'dose' => MedicineDose::class,
             'days' => 'integer',
+            'delivered_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether this line has been delivered.
+     */
+    public function isDelivered(): bool
+    {
+        return $this->delivered_at !== null;
     }
 
     /**
@@ -51,5 +62,13 @@ class MedicationOrderMedicine extends Model
     public function medicine(): BelongsTo
     {
         return $this->belongsTo(Medicine::class);
+    }
+
+    /**
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function deliveredByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'delivered_by_health_aide_id');
     }
 }

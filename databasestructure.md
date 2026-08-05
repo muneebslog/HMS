@@ -447,6 +447,17 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
+### `health_aides`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| pin | string | hashed PIN (unique among active aides at validation) |
+| is_active | boolean | default true |
+| timestamps | | |
+
+Separate from `users` / staff profiles. Used for kiosk PIN identity when delivering medicines, injections, and drips.
+
 ### `medication_orders`
 | Column | Type | Notes |
 |--------|------|-------|
@@ -457,11 +468,12 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | prescribed_by | FK → users | cascadeOnDelete |
 | status | string | default `pending` (`MedicationOrderStatus`), IDX |
 | notes | text | nullable |
-| administered_by | FK → users | nullable, nullOnDelete |
+| administered_by | FK → users | nullable, nullOnDelete (legacy) |
+| administered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | administered_at | timestamp | nullable |
 | timestamps | | |
 
-One medication order per queue token. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. Status `pending` until reception marks administered.
+One medication order per queue token. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. Status becomes `administered` when all medicines and injections are delivered via the health aide kiosk (drips tracked separately).
 
 ### `medication_order_medicines`
 | Column | Type | Notes |
@@ -472,6 +484,8 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | dose | string | `MedicineDose` e.g. `1-0-0`, `1-0-1`, `1-1-1` |
 | days | unsignedInteger | duration in days |
 | name | string | snapshot |
+| delivered_at | timestamp | nullable |
+| delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | timestamps | | |
 
 ### `medication_order_injections`
@@ -483,6 +497,8 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | administration_type | string | `InjectionAdministrationType` (`im`, `iv`) |
 | volume_ml | decimal(8,2) | nullable |
 | name | string | snapshot |
+| delivered_at | timestamp | nullable |
+| delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | timestamps | | |
 
 ### `medication_order_drips`
@@ -493,6 +509,14 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | drip_base_id | FK → drip_bases | restrictOnDelete |
 | volume_ml | decimal(8,2) | |
 | name | string | snapshot |
+| status | string | default `pending` (`DripLineStatus`: pending/started/done), IDX |
+| started_at | timestamp | nullable |
+| started_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| check_due_at | timestamp | nullable, IDX — started_at + 30 minutes |
+| check_notified_at | timestamp | nullable — toast fired once when due |
+| done_at | timestamp | nullable |
+| done_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| done_by_user_id | FK → users | nullable, nullOnDelete — admin mark done |
 | timestamps | | |
 
 ### `medication_order_drip_additives`
