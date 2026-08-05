@@ -989,12 +989,13 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    ├── ultrasound_reports
         │            │                                    ├── drip_charges
         │            │                                    ├── doctor_rechecks
-        │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines
-        │            │                                                           ├── medication_order_injections ── injections
-        │            │                                                           └── medication_order_drips ──┬── drip_bases
+        │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines / health_aides
+        │            │                                                           ├── medication_order_injections ── injections / health_aides
+        │            │                                                           └── medication_order_drips ──┬── drip_bases / health_aides / users
         │            │                                                                                       └── medication_order_drip_additives ── injections
         │            └── print_jobs
         │
+        ├── health_aides
         ├── pdf_print_jobs
         ├── drive_folders ──┬── drive_folders (parent)
         │                   └── drive_files
