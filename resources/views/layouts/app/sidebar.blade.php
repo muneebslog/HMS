@@ -83,6 +83,9 @@
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                             {{ __('Procedures') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="home" :href="route('reception.rooms')" :current="request()->routeIs('reception.rooms')" wire:navigate>
+                            {{ __('Rooms') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="list-bullet" :href="route('reception.token-flow')" :current="request()->routeIs('reception.token-flow')" wire:navigate>
                             {{ __('Token Flow') }}
                         </flux:sidebar.item>

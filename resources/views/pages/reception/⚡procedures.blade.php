@@ -132,7 +132,24 @@ new #[Title('Procedures')] class extends Component
                 Rule::exists('shifts', 'id')->where('status', 'closed'),
             ],
             'admissionCnic' => ['required', 'string', 'max:20'],
-            'admissionRoomId' => ['required', 'integer', 'exists:rooms,id'],
+            'admissionRoomId' => [
+                'required',
+                'integer',
+                Rule::exists('rooms', 'id')->where('is_active', true),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $room = Room::query()->find($value);
+
+                    if ($room === null) {
+                        return;
+                    }
+
+                    $occupying = $room->currentAdmission;
+
+                    if ($occupying !== null && $occupying->id !== $this->admittingProcedureId) {
+                        $fail(__('This room is already occupied.'));
+                    }
+                },
+            ],
         ];
     }
 
@@ -690,14 +707,17 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Get the list of active rooms.
+     * Get the list of active rooms with occupancy status.
      *
      * @return Collection<int, Room>
      */
     #[Computed]
     public function rooms(): Collection
     {
-        return Room::active()->orderBy('number')->get();
+        return Room::active()
+            ->with('currentAdmission')
+            ->orderBy('number')
+            ->get();
     }
 
     /**
@@ -1265,7 +1285,20 @@ new #[Title('Procedures')] class extends Component
                 <flux:select wire:model="admissionRoomId" required>
                     <option value="">{{ __('Select a room') }}</option>
                     @foreach ($this->rooms as $room)
-                        <option value="{{ $room->id }}">{{ $room->number }}</option>
+                        @php
+                            $occupiedByOther = $room->isOccupied()
+                                && $room->currentAdmission?->id !== $admittingProcedureId;
+                        @endphp
+                        <option value="{{ $room->id }}" @disabled($occupiedByOther)>
+                            {{ $room->number }}
+                            @if ($occupiedByOther)
+                                — {{ __('Occupied') }}
+                            @elseif ($room->isOccupied())
+                                — {{ __('Current') }}
+                            @else
+                                — {{ __('Free') }}
+                            @endif
+                        </option>
                     @endforeach
                 </flux:select>
                 <flux:error name="admissionRoomId" />

@@ -667,6 +667,27 @@ test('only active rooms are available for admission', function () {
         });
 });
 
+test('an occupied room cannot be selected for another admission', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $room = Room::factory()->create(['number' => 'Room Taken']);
+    Procedure::factory()->for($shift)->admitted()->create([
+        'room_id' => $room->id,
+        'room_number' => $room->number,
+    ]);
+    $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addAdmission', $procedure->id)
+        ->set('admissionCnic', '35202-1234567-1')
+        ->set('admissionRoomId', $room->id)
+        ->call('admitPatient')
+        ->assertHasErrors(['admissionRoomId']);
+
+    expect($procedure->refresh()->isAdmitted())->toBeFalse();
+});
+
 test('inactive doctors are not available in procedures', function () {
     $user = User::factory()->create();
     $activeDoctor = Doctor::factory()->create(['is_active' => true]);
