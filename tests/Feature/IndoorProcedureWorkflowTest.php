@@ -13,6 +13,7 @@ use App\Models\Procedure;
 use App\Models\ProcedureAttachment;
 use App\Models\ProcedureDocument;
 use App\Models\ProcedureMedication;
+use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
 use App\Models\ProcedureVital;
 use App\Models\User;
@@ -34,6 +35,42 @@ test('indoor staff can visit the ward list of admitted procedures', function () 
         ->get(route('indoor.ward'))
         ->assertOk()
         ->assertSeeLivewire('pages::indoor.ward');
+});
+
+test('procedure chart header shows the patient balance', function () {
+    $user = User::factory()->indoor()->create();
+    $procedure = Procedure::factory()->admitted()->create([
+        'full_amount' => 5000,
+    ]);
+
+    ProcedurePayment::factory()->create([
+        'procedure_id' => $procedure->id,
+        'amount' => 1500,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('indoor.procedure', $procedure))
+        ->assertOk()
+        ->assertSee(__('Balance'))
+        ->assertSee('3,500.00');
+});
+
+test('procedure chart wizard tabs switch the visible section', function () {
+    $user = User::factory()->indoor()->create();
+    $procedure = Procedure::factory()->admitted()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::indoor.procedure', ['procedure' => $procedure])
+        ->assertSet('activeTab', 'consent')
+        ->assertSee(__('Mark consent complete'))
+        ->call('setActiveTab', 'vitals')
+        ->assertSet('activeTab', 'vitals')
+        ->assertSee(__('Record vitals'))
+        ->assertDontSee(__('Mark consent complete'))
+        ->call('nextTab')
+        ->assertSet('activeTab', 'medications')
+        ->call('previousTab')
+        ->assertSet('activeTab', 'vitals');
 });
 
 test('indoor staff can open an admitted procedure chart', function () {

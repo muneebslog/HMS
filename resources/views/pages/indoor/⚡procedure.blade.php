@@ -218,6 +218,8 @@ new #[Title('Procedure Chart')] class extends Component
 
     public string $dischargeOutcomeSummary = '';
 
+    public string $activeTab = 'consent';
+
     /**
      * Initialize the component with the given procedure.
      */
@@ -234,6 +236,48 @@ new #[Title('Procedure Chart')] class extends Component
         $this->hydrateDeliveryNoteForm($procedure);
         $this->hydratePostOpForm($procedure);
         $this->hydrateDischargeForm($procedure);
+    }
+
+    /**
+     * Switch the active chart wizard tab.
+     */
+    public function setActiveTab(string $tab): void
+    {
+        if (! array_key_exists($tab, $this->chartTabs)) {
+            return;
+        }
+
+        $this->activeTab = $tab;
+    }
+
+    /**
+     * Move to the previous chart wizard tab.
+     */
+    public function previousTab(): void
+    {
+        $keys = array_keys($this->chartTabs);
+        $index = array_search($this->activeTab, $keys, true);
+
+        if ($index === false || $index === 0) {
+            return;
+        }
+
+        $this->activeTab = $keys[$index - 1];
+    }
+
+    /**
+     * Move to the next chart wizard tab.
+     */
+    public function nextTab(): void
+    {
+        $keys = array_keys($this->chartTabs);
+        $index = array_search($this->activeTab, $keys, true);
+
+        if ($index === false || $index >= count($keys) - 1) {
+            return;
+        }
+
+        $this->activeTab = $keys[$index + 1];
     }
 
     /**
@@ -305,6 +349,64 @@ new #[Title('Procedure Chart')] class extends Component
     public function isReadOnly(): bool
     {
         return ! $this->procedure->isAdmitted() || $this->procedure->isDischarged();
+    }
+
+    /**
+     * Get the ordered chart wizard tabs for this procedure.
+     *
+     * @return array<string, string>
+     */
+    #[Computed]
+    public function chartTabs(): array
+    {
+        $tabs = [
+            'consent' => __('Consent'),
+            'pre-op' => __('Pre-op'),
+            'vitals' => __('Vitals'),
+        ];
+
+        if ($this->requiresFetalHeart) {
+            $tabs['fhr'] = __('FHR');
+        }
+
+        $tabs['medications'] = __('Medications');
+        $tabs['note'] = $this->noteStyle === ProcedureNoteStyle::Delivery
+            ? __('Delivery Note')
+            : __('Operation Note');
+        $tabs['post-op'] = __('Post-op');
+        $tabs['progress'] = __('Progress Notes');
+        $tabs['discharge'] = __('Discharge');
+
+        return $tabs;
+    }
+
+    /**
+     * Get the zero-based index of the active chart tab.
+     */
+    #[Computed]
+    public function activeTabIndex(): int
+    {
+        $index = array_search($this->activeTab, array_keys($this->chartTabs), true);
+
+        return $index === false ? 0 : $index;
+    }
+
+    /**
+     * Determine whether the active tab is the first wizard step.
+     */
+    #[Computed]
+    public function isFirstTab(): bool
+    {
+        return $this->activeTabIndex === 0;
+    }
+
+    /**
+     * Determine whether the active tab is the last wizard step.
+     */
+    #[Computed]
+    public function isLastTab(): bool
+    {
+        return $this->activeTabIndex === count($this->chartTabs) - 1;
     }
 
     /**
@@ -1229,7 +1331,11 @@ new #[Title('Procedure Chart')] class extends Component
                     </flux:text>
                 </div>
 
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    @php($patientBalance = $this->procedure->balance())
+                    <flux:badge size="lg" color="{{ $patientBalance > 0 ? 'amber' : 'green' }}">
+                        {{ __('Balance') }}: {{ number_format($patientBalance, 2) }}
+                    </flux:badge>
                     <flux:button size="sm" variant="ghost" icon="printer" :href="route('indoor.procedures.print', $this->procedure)" target="_blank">
                         {{ __('Bill') }}
                     </flux:button>
@@ -1269,23 +1375,29 @@ new #[Title('Procedure Chart')] class extends Component
             </div>
         </flux:card>
 
-        {{-- Quick nav --}}
-        <div class="flex flex-wrap gap-2 text-sm">
-            <a href="#consent" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Consent') }}</a>
-            <a href="#pre-op" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Pre-op') }}</a>
-            <a href="#vitals" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Vitals') }}</a>
-            @if ($this->requiresFetalHeart)
-                <a href="#fhr" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('FHR') }}</a>
-            @endif
-            <a href="#medications" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Medications') }}</a>
-            <a href="#note" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ $this->noteStyle === \App\Enums\ProcedureNoteStyle::Delivery ? __('Delivery Note') : __('Operation Note') }}</a>
-            <a href="#post-op" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Post-op') }}</a>
-            <a href="#progress" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Progress Notes') }}</a>
-            <a href="#discharge" class="rounded-full border border-zinc-200 px-3 py-1 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">{{ __('Discharge') }}</a>
+        {{-- Wizard tabs --}}
+        <div class="overflow-x-auto">
+            <div class="flex min-w-max gap-1 border-b border-zinc-200 dark:border-zinc-700" role="tablist">
+                @foreach ($this->chartTabs as $tabKey => $tabLabel)
+                    <button
+                        type="button"
+                        wire:key="chart-tab-{{ $tabKey }}"
+                        wire:click="setActiveTab('{{ $tabKey }}')"
+                        role="tab"
+                        aria-selected="{{ $activeTab === $tabKey ? 'true' : 'false' }}"
+                        class="shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition {{ $activeTab === $tabKey
+                            ? 'border-accent text-accent'
+                            : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-200' }}"
+                    >
+                        {{ $tabLabel }}
+                    </button>
+                @endforeach
+            </div>
         </div>
 
         {{-- B) Consent --}}
-        <flux:card id="consent">
+        @if ($activeTab === 'consent')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">{{ __('Consent') }}</flux:heading>
                 @if ($this->procedure->consent_completed_at)
@@ -1341,9 +1453,11 @@ new #[Title('Procedure Chart')] class extends Component
                 </div>
             @endif
         </flux:card>
+        @endif
 
         {{-- C) Pre-op orders --}}
-        <flux:card id="pre-op">
+        @if ($activeTab === 'pre-op')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">{{ __('Pre-op Orders') }}</flux:heading>
                 @if ($this->procedure->pre_op_completed_at)
@@ -1457,9 +1571,11 @@ new #[Title('Procedure Chart')] class extends Component
                 </div>
             @endif
         </flux:card>
+        @endif
 
         {{-- D) Vitals --}}
-        <flux:card id="vitals">
+        @if ($activeTab === 'vitals')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">{{ __('Vitals') }}</flux:heading>
                 @if ($this->procedure->isVitalsOverdue())
@@ -1580,10 +1696,11 @@ new #[Title('Procedure Chart')] class extends Component
                 </flux:table>
             </div>
         </flux:card>
+        @endif
 
         {{-- E) Fetal heart rate --}}
-        @if ($this->requiresFetalHeart)
-            <flux:card id="fhr">
+        @if ($activeTab === 'fhr' && $this->requiresFetalHeart)
+            <flux:card>
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <flux:heading level="2">{{ __('Fetal Heart Rate') }}</flux:heading>
                     @if ($this->procedure->isFetalHeartOverdue())
@@ -1642,7 +1759,8 @@ new #[Title('Procedure Chart')] class extends Component
         @endif
 
         {{-- F) Medications --}}
-        <flux:card id="medications">
+        @if ($activeTab === 'medications')
+        <flux:card>
             <flux:heading level="2">{{ __('Medications') }}</flux:heading>
 
             <fieldset @if ($this->isReadOnly) disabled @endif class="mt-4">
@@ -1812,9 +1930,11 @@ new #[Title('Procedure Chart')] class extends Component
                 @endforelse
             </div>
         </flux:card>
+        @endif
 
         {{-- G) Operation / Delivery note --}}
-        <flux:card id="note">
+        @if ($activeTab === 'note')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">
                     {{ $this->noteStyle === \App\Enums\ProcedureNoteStyle::Delivery ? __('Delivery Note') : __('Operation Note') }}
@@ -2003,9 +2123,11 @@ new #[Title('Procedure Chart')] class extends Component
                 </fieldset>
             @endif
         </flux:card>
+        @endif
 
         {{-- H) Post-op --}}
-        <flux:card id="post-op">
+        @if ($activeTab === 'post-op')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">{{ __('Post-op Orders') }}</flux:heading>
                 @if ($this->procedure->post_op_completed_at)
@@ -2103,9 +2225,11 @@ new #[Title('Procedure Chart')] class extends Component
                 </div>
             @endif
         </flux:card>
+        @endif
 
         {{-- I) Progress notes --}}
-        <flux:card id="progress">
+        @if ($activeTab === 'progress')
+        <flux:card>
             <flux:heading level="2">{{ __('Progress Notes') }}</flux:heading>
 
             <fieldset @if ($this->isReadOnly) disabled @endif class="mt-4">
@@ -2142,9 +2266,11 @@ new #[Title('Procedure Chart')] class extends Component
                 @endforelse
             </div>
         </flux:card>
+        @endif
 
         {{-- J) Discharge --}}
-        <flux:card id="discharge">
+        @if ($activeTab === 'discharge')
+        <flux:card>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading level="2">{{ __('Discharge') }}</flux:heading>
                 @if ($this->procedure->isDischarged())
@@ -2236,5 +2362,32 @@ new #[Title('Procedure Chart')] class extends Component
                 </div>
             </fieldset>
         </flux:card>
+        @endif
+
+        <div class="flex items-center justify-between gap-3">
+            <flux:button
+                type="button"
+                variant="ghost"
+                icon="arrow-left"
+                wire:click="previousTab"
+                :disabled="$this->isFirstTab"
+            >
+                {{ __('Previous') }}
+            </flux:button>
+
+            <flux:text class="text-sm text-zinc-500">
+                {{ __(':current of :total', ['current' => $this->activeTabIndex + 1, 'total' => count($this->chartTabs)]) }}
+            </flux:text>
+
+            <flux:button
+                type="button"
+                variant="primary"
+                icon-trailing="arrow-right"
+                wire:click="nextTab"
+                :disabled="$this->isLastTab"
+            >
+                {{ __('Next') }}
+            </flux:button>
+        </div>
     </div>
 </div>
