@@ -73,13 +73,17 @@ new #[Title('PDF Print')] class extends Component
     }
 
     /**
-     * Reset a failed PDF print job back to pending.
+     * Re-queue a failed or previously printed PDF print job.
      */
     public function retry(int $jobId): void
     {
         $job = PdfPrintJob::find($jobId);
 
         if ($job === null) {
+            return;
+        }
+
+        if (! in_array($job->status, [PrintJobStatus::Failed, PrintJobStatus::Printed], true)) {
             return;
         }
 
@@ -91,11 +95,14 @@ new #[Title('PDF Print')] class extends Component
 
         $job->update([
             'status' => PrintJobStatus::Pending,
+            'printed_at' => null,
             'failed_at' => null,
             'error_message' => null,
         ]);
 
         unset($this->jobs);
+
+        session()->flash('status', __('PDF re-queued for printing.'));
     }
 }; ?>
 
@@ -199,11 +206,12 @@ new #[Title('PDF Print')] class extends Component
                             <flux:table.cell>{{ $job->attempts }}</flux:table.cell>
                             <flux:table.cell>{{ $job->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                             <flux:table.cell class="text-right">
-                                @if ($job->status === App\Enums\PrintJobStatus::Failed)
+                                @if (in_array($job->status, [App\Enums\PrintJobStatus::Failed, App\Enums\PrintJobStatus::Printed], true))
                                     <flux:button
                                         size="sm"
                                         variant="ghost"
                                         icon="arrow-path"
+                                        title="{{ $job->status === App\Enums\PrintJobStatus::Printed ? __('Reprint') : __('Retry') }}"
                                         wire:click="retry({{ $job->id }})"
                                     />
                                 @endif

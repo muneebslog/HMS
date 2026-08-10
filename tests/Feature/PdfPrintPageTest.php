@@ -99,6 +99,26 @@ test('admins can retry a failed pdf print job', function () {
         ->error_message->toBeNull();
 });
 
+test('admins can reprint a successful pdf print job', function () {
+    $admin = User::factory()->admin()->create();
+    $job = PdfPrintJob::factory()->printed()->create([
+        'user_id' => $admin->id,
+        'attempts' => 1,
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.pdf-print')
+        ->call('retry', $job->id)
+        ->assertHasNoErrors();
+
+    expect($job->fresh())
+        ->status->toBe(PrintJobStatus::Pending)
+        ->printed_at->toBeNull()
+        ->failed_at->toBeNull()
+        ->error_message->toBeNull()
+        ->attempts->toBe(1);
+});
+
 test('the pdf print page shows the failure reason', function () {
     $admin = User::factory()->admin()->create();
     PdfPrintJob::factory()->failed()->create([
