@@ -28,13 +28,15 @@ uses(RefreshDatabase::class);
 
 test('indoor staff can visit the ward list of admitted procedures', function () {
     $user = User::factory()->indoor()->create();
-    Procedure::factory()->admitted()->create();
+    $admitted = Procedure::factory()->admitted()->create();
     Procedure::factory()->create(['admitted_at' => null]);
 
     $this->actingAs($user)
         ->get(route('indoor.ward'))
         ->assertOk()
-        ->assertSeeLivewire('pages::indoor.ward');
+        ->assertSeeLivewire('pages::indoor.ward')
+        ->assertSee($admitted->patient->name)
+        ->assertSee(__('Open Chart'));
 });
 
 test('procedure chart header shows the patient balance', function () {
