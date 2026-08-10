@@ -341,7 +341,7 @@ new #[Title('Vitals')] class extends Component
                         step="0.1"
                         min="86"
                         max="113"
-                        class="!h-14 !text-2xl"
+                        class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
                         autofocus
                         required
                     />
@@ -357,7 +357,7 @@ new #[Title('Vitals')] class extends Component
                             inputmode="numeric"
                             min="50"
                             max="300"
-                            class="!h-14 !text-2xl"
+                            class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
                             required
                         />
                         <flux:error name="bpSystolic" />
@@ -372,7 +372,7 @@ new #[Title('Vitals')] class extends Component
                             inputmode="numeric"
                             min="30"
                             max="200"
-                            class="!h-14 !text-2xl"
+                            class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
                             required
                         />
                         <flux:error name="bpDiastolic" />
@@ -387,7 +387,7 @@ new #[Title('Vitals')] class extends Component
                         inputmode="numeric"
                         min="20"
                         max="600"
-                        class="!h-14 !text-2xl"
+                        class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
                     />
                     <flux:error name="bsr" />
                 </flux:field>
