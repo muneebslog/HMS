@@ -63,6 +63,20 @@
     --paper-slip-hole: #262626;
 }
 
+/* Paper slips are always light; keep Flux text readable inside dark pages. */
+.paper-slip {
+    color-scheme: light;
+}
+
+.paper-slip [data-flux-label],
+.paper-slip [data-flux-text] {
+    color: var(--color-zinc-800) !important;
+}
+
+.paper-slip [data-flux-button][data-variant='ghost'] {
+    color: var(--color-zinc-700) !important;
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }

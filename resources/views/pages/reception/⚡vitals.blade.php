@@ -333,7 +333,7 @@ new #[Title('Vitals')] class extends Component
 
             <form wire:submit="saveAndNext" class="mt-2 flex flex-col gap-4 border-t border-dashed border-zinc-400/70 pt-4">
                 <flux:field>
-                    <flux:label class="text-base">{{ __('Temperature (°F)') }}</flux:label>
+                    <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('Temperature (°F)') }}</flux:label>
                     <flux:input
                         wire:model="temperatureFahrenheit"
                         type="number"
@@ -350,7 +350,7 @@ new #[Title('Vitals')] class extends Component
 
                 <div class="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
                     <flux:field>
-                        <flux:label class="text-base">{{ __('BP Systolic') }}</flux:label>
+                        <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BP Systolic') }}</flux:label>
                         <flux:input
                             wire:model="bpSystolic"
                             type="number"
@@ -365,7 +365,7 @@ new #[Title('Vitals')] class extends Component
                     <span class="pb-4 text-2xl font-light text-zinc-400">/</span>
 
                     <flux:field>
-                        <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
+                        <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BP Diastolic') }}</flux:label>
                         <flux:input
                             wire:model="bpDiastolic"
                             type="number"
@@ -380,7 +380,7 @@ new #[Title('Vitals')] class extends Component
                 </div>
 
                 <flux:field>
-                    <flux:label class="text-base">{{ __('BSR (mg/dL)') }}</flux:label>
+                    <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BSR (mg/dL)') }}</flux:label>
                     <flux:input
                         wire:model="bsr"
                         type="number"
