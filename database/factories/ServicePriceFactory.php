@@ -25,6 +25,17 @@ class ServicePriceFactory extends Factory
             'price' => fake()->randomFloat(2, 10, 1000),
             'doctor_share' => fake()->optional()->randomFloat(2, 0, 100),
             'token_starts_from' => 1,
+            'is_file_check' => false,
         ];
+    }
+
+    /**
+     * Indicate that tokens for this price appear in the file-check TV panel.
+     */
+    public function fileCheck(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_file_check' => true,
+        ]);
     }
 }

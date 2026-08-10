@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\QueueToken;
+use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +27,139 @@ class TokenDisplayService
             })
             ->orderByDesc('displayed_at')
             ->first();
+    }
+
+    /**
+     * Arrived waiting tokens for a queue, ordered by token number.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    public function waitingTokens(ServiceQueue $queue): Collection
+    {
+        return $queue->tokens()
+            ->where('status', 'waiting')
+            ->whereNotNull('arrived_at')
+            ->orderBy('token_number')
+            ->get();
+    }
+
+    /**
+     * Serving tokens for a queue, ordered by token number.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    public function servingTokens(ServiceQueue $queue): Collection
+    {
+        return $queue->tokens()
+            ->where('status', 'serving')
+            ->orderBy('token_number')
+            ->get();
+    }
+
+    /**
+     * Arrived waiting tokens across today's open file-check queues.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    public function fileCheckWaitingTokens(): Collection
+    {
+        return $this->tokensForQueues(
+            $this->fileCheckQueues()->modelKeys(),
+            'waiting',
+        );
+    }
+
+    /**
+     * Serving tokens across today's open file-check queues.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    public function fileCheckServingTokens(): Collection
+    {
+        return $this->tokensForQueues(
+            $this->fileCheckQueues()->modelKeys(),
+            'serving',
+        );
+    }
+
+    /**
+     * Open non-file-check queues for today (primary board picker).
+     *
+     * @return Collection<int, ServiceQueue>
+     */
+    public function primaryQueues(): Collection
+    {
+        return $this->openQueuesToday()
+            ->filter(fn (ServiceQueue $queue) => ! $this->isFileCheckQueue($queue))
+            ->values();
+    }
+
+    /**
+     * Open file-check queues for today.
+     *
+     * @return Collection<int, ServiceQueue>
+     */
+    public function fileCheckQueues(): Collection
+    {
+        return $this->openQueuesToday()
+            ->filter(fn (ServiceQueue $queue) => $this->isFileCheckQueue($queue))
+            ->values();
+    }
+
+    /**
+     * Whether the queue's service price is marked as file check.
+     */
+    public function isFileCheckQueue(ServiceQueue $queue): bool
+    {
+        return (bool) ServicePrice::query()
+            ->where('service_id', $queue->service_id)
+            ->where('doctor_id', $queue->doctor_id)
+            ->value('is_file_check');
+    }
+
+    /**
+     * Move an arrived waiting token to serving without affecting other serving tokens.
+     */
+    public function startServing(QueueToken $token): ?QueueToken
+    {
+        return DB::transaction(function () use ($token) {
+            $locked = QueueToken::query()
+                ->whereKey($token->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($locked === null || $locked->status !== 'waiting' || $locked->arrived_at === null) {
+                return null;
+            }
+
+            $locked->update([
+                'status' => 'serving',
+                'displayed_at' => now(),
+            ]);
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
+     * Mark a serving token as served.
+     */
+    public function markServed(QueueToken $token): ?QueueToken
+    {
+        return DB::transaction(function () use ($token) {
+            $locked = QueueToken::query()
+                ->whereKey($token->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($locked === null || $locked->status !== 'serving') {
+                return null;
+            }
+
+            $locked->update(['status' => 'served']);
+
+            return $locked->fresh();
+        });
     }
 
     /**
@@ -160,5 +296,42 @@ class TokenDisplayService
             'status' => 'serving',
             'displayed_at' => now(),
         ];
+    }
+
+    /**
+     * Open service queues for today with service and doctor relations.
+     *
+     * @return Collection<int, ServiceQueue>
+     */
+    private function openQueuesToday(): Collection
+    {
+        return ServiceQueue::with(['service', 'doctor'])
+            ->where('status', 'open')
+            ->whereDate('date', Carbon::today())
+            ->orderBy('opened_at')
+            ->get();
+    }
+
+    /**
+     * Tokens for the given queue IDs and status.
+     *
+     * @param  list<int|string>  $queueIds
+     * @return Collection<int, QueueToken>
+     */
+    private function tokensForQueues(array $queueIds, string $status): Collection
+    {
+        if ($queueIds === []) {
+            return new Collection;
+        }
+
+        return QueueToken::query()
+            ->with(['patient', 'invoiceItem.invoice.patient'])
+            ->whereIn('service_queue_id', $queueIds)
+            ->where('status', $status)
+            ->when($status === 'waiting', function (Builder $query) {
+                $query->whereNotNull('arrived_at');
+            })
+            ->orderBy('token_number')
+            ->get();
     }
 }

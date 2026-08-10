@@ -32,6 +32,8 @@ Route::post('display/tokens/tv/verify-pin', [TokenDisplayController::class, 'ver
 Route::get('display/tokens/tv/lock', [TokenDisplayController::class, 'lock'])->name('display.tokens.tv.lock');
 Route::post('display/tokens/tv/next', [TokenDisplayController::class, 'callNext'])->name('display.tokens.tv.next');
 Route::post('display/tokens/tv/back', [TokenDisplayController::class, 'callPrevious'])->name('display.tokens.tv.back');
+Route::post('display/tokens/tv/start-serving', [TokenDisplayController::class, 'startServing'])->name('display.tokens.tv.start-serving');
+Route::post('display/tokens/tv/mark-served', [TokenDisplayController::class, 'markServed'])->name('display.tokens.tv.mark-served');
 
 Route::livewire('display/tokens/control', 'pages::display.token-control')
     ->middleware(['auth'])

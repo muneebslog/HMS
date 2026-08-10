@@ -96,7 +96,7 @@ test('queues from other dates are not listed on the tv display page', function (
         ->assertDontSee($service->name);
 });
 
-test('selecting a queue shows the current serving token', function () {
+test('selecting a queue shows waiting and serving tokens', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
@@ -120,7 +120,7 @@ test('selecting a queue shows the current serving token', function () {
 
     $response->assertOk()
         ->assertSee($token->token_number)
-        ->assertSee($patient->name)
+        ->assertSee(__('Now Serving'))
         ->assertSee($doctor->name);
 });
 
@@ -239,7 +239,7 @@ test('the tv display page includes an auto refresh meta tag', function () {
         ->assertSee('http-equiv="refresh"', false);
 });
 
-test('tv display shows arrived badge for the current serving token', function () {
+test('tv display shows waiting tokens that have arrived', function () {
     $patient = Patient::factory()->create();
     $service = Service::factory()->create();
     $doctor = Doctor::factory()->create();
@@ -256,15 +256,16 @@ test('tv display shows arrived badge for the current serving token', function ()
         'service_queue_id' => $queue->id,
         'patient_id' => $patient->id,
         'token_number' => 5,
-        'status' => 'serving',
+        'status' => 'waiting',
         'origin' => 'reservation',
+        'arrived_at' => now(),
     ]);
 
     $response = $this->get(route('display.tokens.tv', ['queue' => $queue->id]));
 
     $response->assertOk()
-        ->assertSee(__('Arrived'))
-        ->assertSee($patient->name);
+        ->assertSee(__('Patients waiting'))
+        ->assertSee('5');
 });
 
 test('tv display calls the next token number in order', function () {
@@ -302,7 +303,7 @@ test('tv display calls the next token number in order', function () {
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('tv display shows a reserved token in numeric order without changing its status', function () {
+test('tv display call next still advances tokens for legacy controls', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -336,13 +337,6 @@ test('tv display shows a reserved token in numeric order without changing its st
 
     expect($nextToken->fresh()->status)->toBe('reserved')
         ->and($nextToken->fresh()->displayed_at)->not->toBeNull();
-
-    $response = $this->get(route('display.tokens.tv', ['queue' => $queue->id]));
-
-    $response->assertOk()
-        ->assertSee($nextToken->token_number)
-        ->assertSee($secondPatient->name)
-        ->assertSee(__('Not Arrived'));
 });
 
 test('entering the correct pin unlocks the tv controls', function () {

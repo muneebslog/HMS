@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_06_040936_create_procedure_clinical_tables`.
+> Last reviewed against migrations through `2026_08_10_192809_add_is_file_check_to_service_prices_table`.
 
 Conventions used below:
 
@@ -146,6 +146,7 @@ Conventions used below:
 | price | decimal(10,2) | |
 | doctor_share | decimal(5,2) | nullable |
 | token_starts_from | unsignedInteger | default 1 — first token number for this service+doctor queue |
+| is_file_check | boolean | default false — tokens for this price show in the TV file-check panel |
 | timestamps | | |
 
 ### `drip_charges`

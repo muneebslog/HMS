@@ -13,6 +13,13 @@ class ServicePrice extends Model
     use HasFactory;
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_file_check' => false,
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -23,6 +30,7 @@ class ServicePrice extends Model
         'price',
         'doctor_share',
         'token_starts_from',
+        'is_file_check',
     ];
 
     /**
@@ -36,6 +44,7 @@ class ServicePrice extends Model
             'price' => 'float',
             'doctor_share' => 'float',
             'token_starts_from' => 'integer',
+            'is_file_check' => 'boolean',
         ];
     }
 

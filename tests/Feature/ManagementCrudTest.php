@@ -182,6 +182,7 @@ test('authenticated users can create a service price', function () {
         ->set('priceAmount', '150.00')
         ->set('priceDoctorShare', '25.00')
         ->set('priceTokenStartsFrom', '201')
+        ->set('priceIsFileCheck', true)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -191,6 +192,7 @@ test('authenticated users can create a service price', function () {
         'price' => 150.00,
         'doctor_share' => 25.00,
         'token_starts_from' => 201,
+        'is_file_check' => true,
     ]);
 });
 

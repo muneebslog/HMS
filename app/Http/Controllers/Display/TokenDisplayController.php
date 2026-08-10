@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Display;
 
 use App\Http\Controllers\Controller;
+use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Services\TokenDisplayService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -22,12 +22,16 @@ class TokenDisplayController extends Controller
      */
     public function tv(Request $request): View
     {
+        $display = app(TokenDisplayService::class);
         $selectedQueue = $this->resolveSelectedQueue($request);
 
         return view('pages.display.token-display-tv', [
-            'queues' => $this->queues(),
+            'queues' => $display->primaryQueues(),
             'selectedQueue' => $selectedQueue,
-            'currentToken' => $selectedQueue !== null ? app(TokenDisplayService::class)->currentToken($selectedQueue) : null,
+            'waitingTokens' => $selectedQueue !== null ? $display->waitingTokens($selectedQueue) : new Collection,
+            'servingTokens' => $selectedQueue !== null ? $display->servingTokens($selectedQueue) : new Collection,
+            'fileCheckWaitingTokens' => $display->fileCheckWaitingTokens(),
+            'fileCheckServingTokens' => $display->fileCheckServingTokens(),
             'pinVerified' => $this->pinVerified(),
         ]);
     }
@@ -41,8 +45,12 @@ class TokenDisplayController extends Controller
             'queue' => ['required', 'integer', 'exists:service_queues,id'],
         ]);
 
+        $queue = ServiceQueue::findOrFail($request->integer('queue'));
+
+        abort_if(app(TokenDisplayService::class)->isFileCheckQueue($queue), 404);
+
         return redirect()->route('display.tokens.tv', [
-            'queue' => $request->integer('queue'),
+            'queue' => $queue->id,
         ]);
     }
 
@@ -66,6 +74,36 @@ class TokenDisplayController extends Controller
 
         return redirect()->route('display.tokens.tv', [
             'queue' => $request->input('queue'),
+        ]);
+    }
+
+    /**
+     * Move a waiting token to serving.
+     */
+    public function startServing(Request $request): RedirectResponse
+    {
+        $queue = $this->requireQueue($request);
+        $token = $this->requireBoardToken($request);
+
+        app(TokenDisplayService::class)->startServing($token);
+
+        return redirect()->route('display.tokens.tv', [
+            'queue' => $queue->id,
+        ]);
+    }
+
+    /**
+     * Mark a serving token as served.
+     */
+    public function markServed(Request $request): RedirectResponse
+    {
+        $queue = $this->requireQueue($request);
+        $token = $this->requireBoardToken($request);
+
+        app(TokenDisplayService::class)->markServed($token);
+
+        return redirect()->route('display.tokens.tv', [
+            'queue' => $queue->id,
         ]);
     }
 
@@ -110,20 +148,6 @@ class TokenDisplayController extends Controller
     }
 
     /**
-     * Get all open service queues for today.
-     *
-     * @return Collection<int, ServiceQueue>
-     */
-    private function queues(): Collection
-    {
-        return ServiceQueue::with(['service', 'doctor'])
-            ->where('status', 'open')
-            ->whereDate('date', Carbon::today())
-            ->orderBy('opened_at')
-            ->get();
-    }
-
-    /**
      * Resolve the queue selected by the request.
      */
     private function resolveSelectedQueue(Request $request): ?ServiceQueue
@@ -134,12 +158,18 @@ class TokenDisplayController extends Controller
             return null;
         }
 
-        return ServiceQueue::with([
+        $queue = ServiceQueue::with([
             'service',
             'doctor',
             'tokens.patient',
             'tokens.invoiceItem.invoice.patient',
         ])->find($queueId);
+
+        if ($queue === null || app(TokenDisplayService::class)->isFileCheckQueue($queue)) {
+            return null;
+        }
+
+        return $queue;
     }
 
     /**
@@ -154,6 +184,30 @@ class TokenDisplayController extends Controller
         abort_if($queue === null, 404);
 
         return $queue;
+    }
+
+    /**
+     * Require a token that belongs on the current board.
+     */
+    private function requireBoardToken(Request $request): QueueToken
+    {
+        $request->validate([
+            'token' => ['required', 'integer', 'exists:queue_tokens,id'],
+        ]);
+
+        $token = QueueToken::findOrFail($request->integer('token'));
+        $display = app(TokenDisplayService::class);
+        $selectedQueue = $this->resolveSelectedQueue($request);
+
+        $allowedQueueIds = collect([$selectedQueue?->id])
+            ->merge($display->fileCheckQueues()->modelKeys())
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        abort_unless(in_array((int) $token->service_queue_id, $allowedQueueIds, true), 404);
+
+        return $token;
     }
 
     /**

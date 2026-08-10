@@ -4,7 +4,6 @@ use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Services\TokenDisplayService;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -29,18 +28,14 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Get all open service queues for today.
+     * Open non-file-check queues for today.
      *
      * @return Collection<int, ServiceQueue>
      */
     #[Computed]
     public function queues(): Collection
     {
-        return ServiceQueue::with(['service', 'doctor'])
-            ->where('status', 'open')
-            ->whereDate('date', Carbon::today())
-            ->orderBy('opened_at')
-            ->get();
+        return app(TokenDisplayService::class)->primaryQueues();
     }
 
     /**
@@ -62,16 +57,55 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Get the token currently being served.
+     * Arrived waiting tokens for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
      */
     #[Computed]
-    public function currentToken(): ?QueueToken
+    public function waitingTokens(): Collection
     {
         if ($this->selectedQueue === null) {
-            return null;
+            return new Collection;
         }
 
-        return app(TokenDisplayService::class)->currentToken($this->selectedQueue);
+        return app(TokenDisplayService::class)->waitingTokens($this->selectedQueue);
+    }
+
+    /**
+     * Serving tokens for the selected queue.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function servingTokens(): Collection
+    {
+        if ($this->selectedQueue === null) {
+            return new Collection;
+        }
+
+        return app(TokenDisplayService::class)->servingTokens($this->selectedQueue);
+    }
+
+    /**
+     * File-check waiting tokens for today.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function fileCheckWaitingTokens(): Collection
+    {
+        return app(TokenDisplayService::class)->fileCheckWaitingTokens();
+    }
+
+    /**
+     * File-check serving tokens for today.
+     *
+     * @return Collection<int, QueueToken>
+     */
+    #[Computed]
+    public function fileCheckServingTokens(): Collection
+    {
+        return app(TokenDisplayService::class)->fileCheckServingTokens();
     }
 
     /**
@@ -79,6 +113,10 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
      */
     public function selectQueue(int $id): void
     {
+        $queue = ServiceQueue::findOrFail($id);
+
+        abort_if(app(TokenDisplayService::class)->isFileCheckQueue($queue), 404);
+
         $this->selectedQueueId = $id;
         $this->showQueueSelector = false;
     }
@@ -119,33 +157,30 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Call the next waiting token.
+     * Move a waiting token to now serving.
      */
-    public function callNext(): void
+    public function startServing(int $tokenId): void
     {
         $this->ensurePinVerified();
 
-        if ($this->selectedQueue === null) {
-            return;
-        }
+        $token = QueueToken::findOrFail($tokenId);
+        $this->ensureTokenOnBoard($token);
 
-        app(TokenDisplayService::class)->callNext($this->selectedQueue);
+        app(TokenDisplayService::class)->startServing($token);
     }
 
     /**
-     * Call the previous token.
+     * Mark a serving token as served.
      */
-    public function callPrevious(): void
+    public function markServed(int $tokenId): void
     {
         $this->ensurePinVerified();
 
-        if ($this->selectedQueue === null) {
-            return;
-        }
+        $token = QueueToken::findOrFail($tokenId);
+        $this->ensureTokenOnBoard($token);
 
-        app(TokenDisplayService::class)->callPrevious($this->selectedQueue);
+        app(TokenDisplayService::class)->markServed($token);
     }
-
 
     /**
      * Ensure the PIN has been verified before performing a control action.
@@ -153,6 +188,22 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     private function ensurePinVerified(): void
     {
         abort_if(! $this->pinVerified, 403);
+    }
+
+    /**
+     * Ensure the token belongs to the selected queue or a file-check queue.
+     */
+    private function ensureTokenOnBoard(QueueToken $token): void
+    {
+        $display = app(TokenDisplayService::class);
+
+        $allowedQueueIds = collect([$this->selectedQueueId])
+            ->merge($display->fileCheckQueues()->modelKeys())
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        abort_unless(in_array((int) $token->service_queue_id, $allowedQueueIds, true), 404);
     }
 }; ?>
 
@@ -242,41 +293,91 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
             @endif
         </div>
     @else
-        {{-- Token display --}}
-        <div class="flex flex-1 flex-col items-center justify-center p-6 pb-24 text-center">
-            @if ($this->currentToken)
-                <flux:text class="mb-4 text-xs font-medium uppercase tracking-widest text-zinc-500 sm:text-sm">
-                    {{ __('Now Serving') }}
-                </flux:text>
-
-                <div class="text-7xl font-black text-white sm:text-8xl md:text-9xl lg:text-[180px]">
-                    {{ $this->currentToken->token_number }}
+        {{-- Waiting room board --}}
+        <div class="flex flex-1 flex-col overflow-hidden">
+            {{-- Patients Waiting --}}
+            <section class="flex min-h-0 flex-1 flex-col border-b border-zinc-800 p-4 sm:p-6">
+                <div class="mb-4 shrink-0">
+                    <h2 class="text-2xl font-bold text-white sm:text-3xl">{{ __('Patients waiting') }}</h2>
+                    <p class="mt-1 text-sm text-zinc-400 sm:text-base">{{ __('(Arrived)') }}</p>
                 </div>
 
-                <div class="mt-4 text-2xl font-semibold text-white sm:text-3xl md:text-4xl lg:mt-6">
-                    {{ $this->currentToken->patient?->name ?? $this->currentToken->invoiceItem?->invoice?->patient?->name ?? '-' }}
-                </div>
+                <div class="flex min-h-0 flex-1 gap-4">
+                    <aside class="flex w-20 shrink-0 flex-col gap-3 overflow-y-auto border-r border-zinc-800 pr-4 sm:w-28 sm:gap-4">
+                        @forelse ($this->fileCheckWaitingTokens as $token)
+                            <button
+                                type="button"
+                                wire:key="file-wait-{{ $token->id }}"
+                                wire:click="startServing({{ $token->id }})"
+                                class="flex aspect-square items-center justify-center rounded-2xl border-2 border-amber-500/60 bg-amber-950/40 text-2xl font-black text-amber-200 transition hover:bg-amber-900/50 sm:text-3xl"
+                            >
+                                {{ $token->token_number }}
+                            </button>
+                        @empty
+                            <p class="text-center text-xs text-zinc-600">—</p>
+                        @endforelse
+                    </aside>
 
-                @if ($this->selectedQueue?->doctor)
-                    <div class="mt-2 text-lg text-zinc-400 lg:mt-3 lg:text-2xl">
-                        {{ $this->selectedQueue->doctor->name }}
+                    <div class="flex flex-1 flex-wrap content-start gap-3 overflow-y-auto sm:gap-4">
+                        @forelse ($this->waitingTokens as $token)
+                            <button
+                                type="button"
+                                wire:key="wait-{{ $token->id }}"
+                                wire:click="startServing({{ $token->id }})"
+                                class="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-zinc-600 bg-zinc-800 text-3xl font-black text-white transition hover:border-sky-400 hover:bg-zinc-700 sm:h-24 sm:w-24 sm:text-4xl"
+                            >
+                                {{ $token->token_number }}
+                            </button>
+                        @empty
+                            <p class="text-lg text-zinc-500">{{ __('No patients waiting.') }}</p>
+                        @endforelse
                     </div>
-                @endif
+                </div>
+            </section>
 
-                @if ($this->currentToken->arrived_at === null)
-                    <flux:badge variant="danger" size="lg" class="mt-4">{{ __('Not Arrived') }}</flux:badge>
-                @else
-                    <flux:badge variant="success" size="lg" class="mt-4">{{ __('Arrived') }}</flux:badge>
-                @endif
-            @else
-                <flux:heading level="2" size="xl" class="text-zinc-300">
-                    {{ __('No token being served') }}
-                </flux:heading>
+            {{-- Now Serving --}}
+            <section class="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+                <div class="mb-4 shrink-0 text-center sm:text-left">
+                    <h2 class="text-2xl font-bold text-white sm:text-3xl">{{ __('Now Serving') }}</h2>
+                    <p class="mt-1 text-lg text-zinc-300" dir="rtl">اب باری ہے</p>
+                </div>
 
-                <flux:text class="mt-4 text-zinc-500">
-                    {{ __('Use the controls to call the next token.') }}
-                </flux:text>
-            @endif
+                <div class="flex min-h-0 flex-1 gap-4">
+                    <div class="flex flex-1 flex-wrap content-start gap-3 overflow-y-auto sm:gap-4">
+                        @forelse ($this->servingTokens as $token)
+                            <button
+                                type="button"
+                                wire:key="serve-{{ $token->id }}"
+                                wire:click="markServed({{ $token->id }})"
+                                class="flex h-24 w-24 items-center justify-center rounded-2xl border-2 border-emerald-500 bg-emerald-950/50 text-4xl font-black text-emerald-300 transition hover:bg-emerald-900/60 sm:h-28 sm:w-28 sm:text-5xl"
+                            >
+                                {{ $token->token_number }}
+                            </button>
+                        @empty
+                            <p class="text-lg text-zinc-500">{{ __('No token being served') }}</p>
+                        @endforelse
+                    </div>
+
+                    <aside class="flex w-36 shrink-0 flex-col gap-3 overflow-y-auto border-l border-zinc-800 pl-4 sm:w-44">
+                        <p class="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+                            {{ __('File check for patients') }}
+                        </p>
+
+                        @forelse ($this->fileCheckServingTokens as $token)
+                            <button
+                                type="button"
+                                wire:key="file-serve-{{ $token->id }}"
+                                wire:click="markServed({{ $token->id }})"
+                                class="flex h-16 items-center justify-center rounded-2xl border-2 border-amber-500/60 bg-amber-950/40 text-2xl font-black text-amber-200 transition hover:bg-amber-900/50 sm:h-20 sm:text-3xl"
+                            >
+                                {{ $token->token_number }}
+                            </button>
+                        @empty
+                            <p class="text-sm text-zinc-600">—</p>
+                        @endforelse
+                    </aside>
+                </div>
+            </section>
         </div>
 
         {{-- PIN prompt --}}
@@ -312,30 +413,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                         </flux:button>
                     </form>
                 </div>
-            </div>
-        @endif
-
-        {{-- Controls --}}
-        @if ($pinVerified)
-            <div class="fixed bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 p-3 backdrop-blur sm:gap-3 lg:absolute lg:right-6 lg:bottom-6 lg:left-auto lg:w-auto lg:border-0 lg:bg-transparent lg:p-0">
-                <flux:button
-                    type="button"
-                    wire:click="callPrevious"
-                    icon="arrow-left"
-                    variant="primary"
-                    :disabled="! $this->currentToken"
-                >
-                    {{ __('Back') }}
-                </flux:button>
-
-                <flux:button
-                    type="button"
-                    wire:click="callNext"
-                    icon="arrow-right"
-                    variant="primary"
-                >
-                    {{ __('Next') }}
-                </flux:button>
             </div>
         @endif
     @endif
