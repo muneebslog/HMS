@@ -82,9 +82,11 @@ new #[Title('Indoor Ward')] class extends Component
                     $pendingDoses = $this->pendingDoseCount($procedure);
                     $hasAlerts = $procedure->isVitalsOverdue() || $procedure->isFetalHeartOverdue() || $pendingDoses > 0;
                 @endphp
-                <div
+                <a
+                    href="{{ route('indoor.procedure', $procedure) }}"
                     wire:key="ward-procedure-{{ $procedure->id }}"
-                    class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
+                    wire:navigate
+                    class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -126,20 +128,7 @@ new #[Title('Indoor Ward')] class extends Component
                             <flux:badge size="sm" color="green">{{ __('On track') }}</flux:badge>
                         @endif
                     </div>
-
-                    <div class="mt-auto border-t border-zinc-100 pt-3 dark:border-zinc-700">
-                        <flux:button
-                            size="sm"
-                            variant="primary"
-                            icon="clipboard-document-list"
-                            class="w-full"
-                            :href="route('indoor.procedure', $procedure)"
-                            wire:navigate
-                        >
-                            {{ __('Open Chart') }}
-                        </flux:button>
-                    </div>
-                </div>
+                </a>
             @empty
                 <div class="col-span-full flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 py-16 dark:border-zinc-700 dark:bg-zinc-900">
                     <flux:icon name="building-office-2" class="size-10 text-zinc-400" />

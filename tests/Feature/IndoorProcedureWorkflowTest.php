@@ -36,7 +36,7 @@ test('indoor staff can visit the ward list of admitted procedures', function () 
         ->assertOk()
         ->assertSeeLivewire('pages::indoor.ward')
         ->assertSee($admitted->patient->name)
-        ->assertSee(__('Open Chart'));
+        ->assertSee(route('indoor.procedure', $admitted), false);
 });
 
 test('procedure chart header shows the patient balance', function () {
