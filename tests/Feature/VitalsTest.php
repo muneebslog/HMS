@@ -88,7 +88,9 @@ test('vitals queue lists waiting tokens for services that need vitals', function
     Livewire::actingAs($user)
         ->test('pages::reception.vitals')
         ->assertSee($patient->name)
-        ->assertSee((string) $token->token_number);
+        ->assertSee((string) $token->token_number)
+        ->assertSee(__('Token'))
+        ->assertSee(__('Tap to record'));
 });
 
 test('vitals queue excludes tokens for services that do not need vitals', function () {

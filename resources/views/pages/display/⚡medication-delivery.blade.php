@@ -238,7 +238,7 @@ new #[Layout('layouts.display')] #[Title('Medication Delivery')] class extends C
     }
 }; ?>
 
-<div class="flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.30s>
+<div class="paper-slip-board flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.30s>
     <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div>
             <flux:heading level="1" size="lg">{{ __('Medication Delivery') }}</flux:heading>
@@ -258,30 +258,41 @@ new #[Layout('layouts.display')] #[Title('Medication Delivery')] class extends C
                 <flux:badge color="zinc" size="lg">{{ $this->orders->count() }}</flux:badge>
             </div>
 
-            <div class="flex flex-1 flex-col gap-2">
+            <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 @forelse ($this->orders as $order)
-                    <button
+                    @php
+                        $pendingMedicines = $order->medicines->whereNull('delivered_at')->count();
+                        $pendingInjections = $order->injections->whereNull('delivered_at')->count();
+                    @endphp
+                    <x-paper-slip
+                        as="button"
                         type="button"
+                        :token="$order->queueToken?->token_number"
                         wire:key="med-delivery-order-{{ $order->id }}"
                         wire:click="selectOrder({{ $order->id }})"
-                        class="flex w-full items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-4 text-left transition active:scale-[0.99]"
+                        class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
                     >
-                        <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-zinc-900">
-                            {{ $order->queueToken?->token_number }}
-                        </span>
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate text-lg font-semibold">
-                                {{ $order->patient?->name ?? __('Unknown') }}
-                            </span>
-                            <span class="mt-0.5 block truncate text-sm text-zinc-400">
-                                {{ $order->patient?->mrn ?? __('No MRN') }}
-                                · {{ $order->queueToken?->serviceQueue?->service?->name }}
-                            </span>
-                        </span>
-                        <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-500" />
-                    </button>
+                        <p class="truncate text-base font-semibold text-zinc-900">
+                            {{ $order->patient?->name ?? __('Unknown') }}
+                        </p>
+                        <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                            {{ $order->patient?->mrn ?? __('No MRN') }}
+                            · {{ $order->queueToken?->serviceQueue?->service?->name }}
+                        </p>
+                        <div class="mt-1 flex flex-wrap gap-2 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
+                            @if ($pendingMedicines > 0)
+                                <span>{{ $pendingMedicines }} {{ __('Medicines') }}</span>
+                            @endif
+                            @if ($pendingInjections > 0)
+                                <span>{{ $pendingInjections }} {{ __('Injections') }}</span>
+                            @endif
+                        </div>
+                        <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                            {{ __('Tap to deliver') }}
+                        </p>
+                    </x-paper-slip>
                 @empty
-                    <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700 px-6 py-16 text-center">
+                    <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">
                         <flux:icon name="clipboard-document-check" class="size-10 text-zinc-500" />
                         <p class="text-base font-medium">{{ __('No pending prescriptions') }}</p>
                         <p class="text-sm text-zinc-500">{{ __('Medicine and injection orders will appear here.') }}</p>
@@ -290,95 +301,95 @@ new #[Layout('layouts.display')] #[Title('Medication Delivery')] class extends C
             </div>
         @else
             @php($order = $this->selectedOrder)
-            <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                <div class="flex items-center gap-3">
-                    <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-bold text-zinc-900">
-                        {{ $order?->queueToken?->token_number }}
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate text-lg font-semibold">{{ $order?->patient?->name ?? __('Unknown') }}</p>
-                        <p class="truncate text-sm text-zinc-400">
-                            {{ $order?->patient?->mrn ?? __('No MRN') }}
-                            · {{ $order?->queueToken?->serviceQueue?->service?->name }}
-                        </p>
+            <x-paper-slip
+                :token="$order?->queueToken?->token_number"
+                class="mx-auto w-full max-w-lg"
+            >
+                <div class="space-y-1">
+                    <p class="truncate text-lg font-semibold text-zinc-900">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                    <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                        {{ $order?->patient?->mrn ?? __('No MRN') }}
+                        · {{ $order?->queueToken?->serviceQueue?->service?->name }}
+                    </p>
+                </div>
+
+                <div class="space-y-4 border-t border-dashed border-zinc-400/70 pt-3">
+                    <div>
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Medicines') }}</p>
+                        @forelse ($order?->medicines ?? [] as $medicine)
+                            @if ($medicine->delivered_at)
+                                <p class="mb-2 text-sm text-zinc-400 line-through">
+                                    {{ $medicine->name }} — {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}
+                                    <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
+                                </p>
+                            @else
+                                <label wire:key="med-line-{{ $medicine->id }}" class="mb-2 flex cursor-pointer items-start gap-3 text-sm text-zinc-800">
+                                    <input
+                                        type="checkbox"
+                                        value="{{ $medicine->id }}"
+                                        wire:model="selectedMedicineIds"
+                                        class="mt-0.5 size-5 rounded border-zinc-400 bg-white text-zinc-900"
+                                    >
+                                    <span>
+                                        {{ $medicine->name }}
+                                        <span class="text-zinc-500">— {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}</span>
+                                    </span>
+                                </label>
+                            @endif
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('None') }}</p>
+                        @endforelse
+                    </div>
+
+                    <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Injections') }}</p>
+                        @forelse ($order?->injections ?? [] as $injection)
+                            @if ($injection->delivered_at)
+                                <p class="mb-2 text-sm text-zinc-400 line-through">
+                                    {{ $injection->name }} — {{ $injection->administration_type->label() }}
+                                    <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
+                                </p>
+                            @else
+                                <label wire:key="inj-line-{{ $injection->id }}" class="mb-2 flex cursor-pointer items-start gap-3 text-sm text-zinc-800">
+                                    <input
+                                        type="checkbox"
+                                        value="{{ $injection->id }}"
+                                        wire:model="selectedInjectionIds"
+                                        class="mt-0.5 size-5 rounded border-zinc-400 bg-white text-zinc-900"
+                                    >
+                                    <span>
+                                        {{ $injection->name }}
+                                        <span class="text-zinc-500">
+                                            — {{ $injection->administration_type->label() }}
+                                            @if ($injection->volume_ml !== null)
+                                                · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
+                                            @endif
+                                        </span>
+                                    </span>
+                                </label>
+                            @endif
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('None') }}</p>
+                        @endforelse
                     </div>
                 </div>
-            </div>
 
-            <div class="space-y-4">
-                <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                    <flux:heading size="sm" class="mb-3">{{ __('Medicines') }}</flux:heading>
-                    @forelse ($order?->medicines ?? [] as $medicine)
-                        @if ($medicine->delivered_at)
-                            <p class="mb-2 text-sm text-zinc-500 line-through">
-                                {{ $medicine->name }} — {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}
-                                <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
-                            </p>
-                        @else
-                            <label wire:key="med-line-{{ $medicine->id }}" class="mb-2 flex cursor-pointer items-start gap-3 text-sm">
-                                <input
-                                    type="checkbox"
-                                    value="{{ $medicine->id }}"
-                                    wire:model="selectedMedicineIds"
-                                    class="mt-0.5 size-5 rounded border-zinc-600 bg-zinc-800 text-sky-500"
-                                >
-                                <span>
-                                    {{ $medicine->name }}
-                                    <span class="text-zinc-400">— {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}</span>
-                                </span>
-                            </label>
-                        @endif
-                    @empty
-                        <p class="text-sm text-zinc-500">{{ __('None') }}</p>
-                    @endforelse
-                </div>
-
-                <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                    <flux:heading size="sm" class="mb-3">{{ __('Injections') }}</flux:heading>
-                    @forelse ($order?->injections ?? [] as $injection)
-                        @if ($injection->delivered_at)
-                            <p class="mb-2 text-sm text-zinc-500 line-through">
-                                {{ $injection->name }} — {{ $injection->administration_type->label() }}
-                                <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
-                            </p>
-                        @else
-                            <label wire:key="inj-line-{{ $injection->id }}" class="mb-2 flex cursor-pointer items-start gap-3 text-sm">
-                                <input
-                                    type="checkbox"
-                                    value="{{ $injection->id }}"
-                                    wire:model="selectedInjectionIds"
-                                    class="mt-0.5 size-5 rounded border-zinc-600 bg-zinc-800 text-sky-500"
-                                >
-                                <span>
-                                    {{ $injection->name }}
-                                    <span class="text-zinc-400">
-                                        — {{ $injection->administration_type->label() }}
-                                        @if ($injection->volume_ml !== null)
-                                            · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
-                                        @endif
-                                    </span>
-                                </span>
-                            </label>
-                        @endif
-                    @empty
-                        <p class="text-sm text-zinc-500">{{ __('None') }}</p>
-                    @endforelse
-                </div>
-            </div>
-
-            <div class="mt-auto flex flex-col gap-3 pt-4">
-                <flux:button
-                    type="button"
-                    variant="primary"
-                    class="h-12 w-full text-base font-semibold"
-                    wire:click="requestNext"
-                >
-                    {{ __('Next') }}
-                </flux:button>
-                <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
-                    {{ __('Back to list') }}
-                </flux:button>
-            </div>
+                <x-slot:footer>
+                    <div class="flex flex-col gap-3">
+                        <flux:button
+                            type="button"
+                            variant="primary"
+                            class="h-12 w-full text-base font-semibold"
+                            wire:click="requestNext"
+                        >
+                            {{ __('Next') }}
+                        </flux:button>
+                        <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
+                            {{ __('Back to list') }}
+                        </flux:button>
+                    </div>
+                </x-slot:footer>
+            </x-paper-slip>
         @endif
     </div>
 

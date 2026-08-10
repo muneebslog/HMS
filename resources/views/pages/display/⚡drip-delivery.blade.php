@@ -229,7 +229,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
     }
 }; ?>
 
-<div class="flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.10s="notifyDueChecks">
+<div class="paper-slip-board flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.10s="notifyDueChecks">
     <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div>
             <flux:heading level="1" size="lg">{{ __('Drip Delivery') }}</flux:heading>
@@ -242,84 +242,76 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         </flux:button>
     </div>
 
-    <div class="flex flex-1 flex-col gap-3 p-4">
+    <div class="flex flex-1 flex-col gap-4 p-4">
         <div class="flex items-center justify-between">
             <flux:heading level="2" size="md">{{ __('Active drips') }}</flux:heading>
             <flux:badge color="zinc" size="lg">{{ $this->drips->count() }}</flux:badge>
         </div>
 
-        @forelse ($this->drips as $drip)
-            @php($order = $drip->medicationOrder)
-            @php($overdue = $drip->isCheckDue())
-            <div
-                wire:key="drip-delivery-{{ $drip->id }}"
-                @class([
-                    'rounded-xl border p-4',
-                    'border-amber-600 bg-amber-950/40' => $overdue,
-                    'border-zinc-800 bg-zinc-900' => ! $overdue,
-                ])
-            >
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-3">
-                            <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-bold text-zinc-900">
-                                {{ $order?->queueToken?->token_number }}
-                            </span>
-                            <div class="min-w-0">
-                                <p class="truncate text-lg font-semibold">{{ $order?->patient?->name ?? __('Unknown') }}</p>
-                                <p class="truncate text-sm text-zinc-400">
-                                    {{ $order?->patient?->mrn ?? __('No MRN') }}
-                                    · {{ $order?->queueToken?->serviceQueue?->service?->name }}
-                                </p>
-                            </div>
-                        </div>
+        <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            @forelse ($this->drips as $drip)
+                @php($order = $drip->medicationOrder)
+                @php($overdue = $drip->isCheckDue())
+                <x-paper-slip
+                    wire:key="drip-delivery-{{ $drip->id }}"
+                    :token="$order?->queueToken?->token_number"
+                    :tone="$overdue ? 'accent' : 'default'"
+                >
+                    <div class="space-y-1">
+                        <p class="truncate text-base font-semibold text-zinc-900">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                        <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                            {{ $order?->patient?->mrn ?? __('No MRN') }}
+                            · {{ $order?->queueToken?->serviceQueue?->service?->name }}
+                        </p>
+                    </div>
 
-                        <p class="mt-3 font-medium">
+                    <div class="border-t border-dashed border-zinc-400/70 pt-2">
+                        <p class="font-medium text-zinc-900">
                             {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
                         </p>
                         @foreach ($drip->additives as $additive)
-                            <p class="ms-3 text-sm text-zinc-400">
+                            <p class="ms-1 text-sm text-zinc-600">
                                 + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
                             </p>
                         @endforeach
-
-                        <div class="mt-2 flex flex-wrap gap-2">
-                            <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($overdue ? 'amber' : 'sky')">
-                                {{ $drip->status->label() }}
-                                @if ($overdue)
-                                    · {{ __('Check due') }}
-                                @elseif ($drip->status === \App\Enums\DripLineStatus::Started && $drip->check_due_at)
-                                    · {{ __('Check at') }} {{ $drip->check_due_at->timezone(config('app.timezone'))->format('h:i A') }}
-                                @endif
-                            </flux:badge>
-                            @if ($drip->startedByHealthAide)
-                                <flux:text class="text-xs text-zinc-500">
-                                    {{ __('Started by') }} {{ $drip->startedByHealthAide->name }}
-                                </flux:text>
-                            @endif
-                        </div>
                     </div>
 
-                    <div class="flex shrink-0 flex-col gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($overdue ? 'amber' : 'sky')">
+                            {{ $drip->status->label() }}
+                            @if ($overdue)
+                                · {{ __('Check due') }}
+                            @elseif ($drip->status === \App\Enums\DripLineStatus::Started && $drip->check_due_at)
+                                · {{ __('Check at') }} {{ $drip->check_due_at->timezone(config('app.timezone'))->format('h:i A') }}
+                            @endif
+                        </flux:badge>
+                        @if ($drip->startedByHealthAide)
+                            <span class="text-xs text-zinc-500">
+                                {{ __('Started by') }} {{ $drip->startedByHealthAide->name }}
+                            </span>
+                        @endif
+                    </div>
+
+                    <x-slot:footer>
                         @if ($drip->status === \App\Enums\DripLineStatus::Pending)
-                            <flux:button type="button" variant="primary" wire:click="requestStart({{ $drip->id }})">
+                            <flux:button type="button" variant="primary" class="w-full" wire:click="requestStart({{ $drip->id }})">
                                 {{ __('Start') }}
                             </flux:button>
                         @else
-                            <flux:button type="button" variant="primary" wire:click="requestMarkDone({{ $drip->id }})">
+                            <flux:button type="button" variant="primary" class="w-full" wire:click="requestMarkDone({{ $drip->id }})">
                                 {{ __('Mark done') }}
                             </flux:button>
                         @endif
-                    </div>
+                    </x-slot:footer>
+                </x-paper-slip>
+            @empty
+                <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">
+                    <flux:icon name="beaker" class="size-10 text-zinc-500" />
+                    <p class="text-base font-medium">{{ __('No active drips') }}</p>
+                    <p class="text-sm text-zinc-500">{{ __('Pending drip orders will appear here to start and check.') }}</p>
                 </div>
-            </div>
-        @empty
-            <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700 px-6 py-16 text-center">
-                <flux:icon name="beaker" class="size-10 text-zinc-500" />
-                <p class="text-base font-medium">{{ __('No active drips') }}</p>
-                <p class="text-sm text-zinc-500">{{ __('Pending drip orders will appear here to start and check.') }}</p>
-            </div>
-        @endforelse
+            @endforelse
+        </div>
     </div>
 
     @if ($showPinModal)

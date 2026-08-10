@@ -254,7 +254,7 @@ new #[Title('Vitals')] class extends Component
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-4">
+<div class="paper-slip-board-light flex h-full w-full flex-1 flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
         <flux:heading level="1">{{ __('Vitals') }}</flux:heading>
         @if ($selectedTokenId === null)
@@ -263,41 +263,45 @@ new #[Title('Vitals')] class extends Component
     </div>
 
     @if ($selectedTokenId === null)
-        <div class="flex flex-1 flex-col gap-2" wire:poll.10s>
+        <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3" wire:poll.10s>
             @forelse ($this->queue as $token)
                 @php($isAgain = $token->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
-                <button
+                <x-paper-slip
+                    as="button"
                     type="button"
+                    :token="$token->token_number"
+                    :tone="$isAgain ? 'accent' : 'default'"
                     wire:key="vitals-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
-                    class="flex w-full items-center gap-4 rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:bg-zinc-800 {{ $isAgain ? 'border-amber-400 dark:border-amber-500' : 'border-zinc-200 dark:border-zinc-700' }}"
+                    class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
                 >
-                    <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
-                        {{ $token->token_number }}
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="flex items-center gap-2">
-                            <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                                {{ $token->patient?->name ?? __('Unknown') }}
-                            </span>
-                            @if ($isAgain)
-                                <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
-                            @endif
-                        </span>
-                        <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                            {{ $token->serviceQueue?->service?->name }}
-                            @if ($token->serviceQueue?->doctor)
-                                · {{ $token->serviceQueue->doctor->name }}
-                            @endif
-                            @if ($isAgain && filled($token->activeRecheck?->note))
-                                · {{ $token->activeRecheck->note }}
-                            @endif
-                        </span>
-                    </span>
-                    <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-400" />
-                </button>
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="truncate text-base font-semibold text-zinc-900">
+                            {{ $token->patient?->name ?? __('Unknown') }}
+                        </p>
+                        @if ($isAgain)
+                            <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
+                        @endif
+                    </div>
+                    <p class="text-sm text-zinc-600">
+                        {{ $token->serviceQueue?->service?->name }}
+                    </p>
+                    @if ($token->serviceQueue?->doctor)
+                        <p class="text-xs uppercase tracking-wide text-zinc-500">
+                            {{ $token->serviceQueue->doctor->name }}
+                        </p>
+                    @endif
+                    @if ($isAgain && filled($token->activeRecheck?->note))
+                        <p class="border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
+                            {{ $token->activeRecheck->note }}
+                        </p>
+                    @endif
+                    <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                        {{ __('Tap to record') }}
+                    </p>
+                </x-paper-slip>
             @empty
-                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
+                <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-300 bg-[#f7f4ec]/60 px-6 py-16 text-center dark:border-zinc-600">
                     <flux:icon name="heart" class="size-10 text-zinc-400" />
                     <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No patients need vitals') }}</p>
                     <p class="text-sm text-zinc-500">{{ __('Waiting patients for services that need vitals will appear here.') }}</p>
@@ -307,97 +311,96 @@ new #[Title('Vitals')] class extends Component
     @else
         @php($token = $this->selectedToken)
         @php($isAgain = $token?->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
-        <div class="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900 sm:mx-0 sm:rounded-xl sm:border">
-            <div class="flex items-center gap-3">
-                <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-lg font-bold text-white dark:bg-white dark:text-zinc-900">
-                    {{ $token?->token_number }}
-                </span>
-                <div class="min-w-0 flex-1">
-                    <p class="truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                        {{ $token?->patient?->name ?? __('Unknown') }}
-                        @if ($isAgain)
-                            <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
-                        @endif
-                    </p>
-                    <p class="truncate text-sm text-zinc-500">
-                        {{ $token?->serviceQueue?->service?->name }}
-                        @if ($token?->serviceQueue?->doctor)
-                            · {{ $token->serviceQueue->doctor->name }}
-                        @endif
-                    </p>
+        <x-paper-slip
+            :token="$token?->token_number"
+            :tone="$isAgain ? 'accent' : 'default'"
+            class="mx-auto w-full max-w-lg"
+        >
+            <div class="space-y-1">
+                <p class="text-lg font-semibold text-zinc-900">
+                    {{ $token?->patient?->name ?? __('Unknown') }}
+                    @if ($isAgain)
+                        <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
+                    @endif
+                </p>
+                <p class="text-sm text-zinc-600">
+                    {{ $token?->serviceQueue?->service?->name }}
+                    @if ($token?->serviceQueue?->doctor)
+                        · {{ $token->serviceQueue->doctor->name }}
+                    @endif
+                </p>
+            </div>
+
+            <form wire:submit="saveAndNext" class="mt-2 flex flex-col gap-4 border-t border-dashed border-zinc-400/70 pt-4">
+                <flux:field>
+                    <flux:label class="text-base">{{ __('Temperature (°F)') }}</flux:label>
+                    <flux:input
+                        wire:model="temperatureFahrenheit"
+                        type="number"
+                        inputmode="decimal"
+                        step="0.1"
+                        min="86"
+                        max="113"
+                        class="!h-14 !text-2xl"
+                        autofocus
+                        required
+                    />
+                    <flux:error name="temperatureFahrenheit" />
+                </flux:field>
+
+                <div class="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
+                    <flux:field>
+                        <flux:label class="text-base">{{ __('BP Systolic') }}</flux:label>
+                        <flux:input
+                            wire:model="bpSystolic"
+                            type="number"
+                            inputmode="numeric"
+                            min="50"
+                            max="300"
+                            class="!h-14 !text-2xl"
+                            required
+                        />
+                        <flux:error name="bpSystolic" />
+                    </flux:field>
+                    <span class="pb-4 text-2xl font-light text-zinc-400">/</span>
+
+                    <flux:field>
+                        <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
+                        <flux:input
+                            wire:model="bpDiastolic"
+                            type="number"
+                            inputmode="numeric"
+                            min="30"
+                            max="200"
+                            class="!h-14 !text-2xl"
+                            required
+                        />
+                        <flux:error name="bpDiastolic" />
+                    </flux:field>
                 </div>
-            </div>
-        </div>
-
-        <form wire:submit="saveAndNext" class="flex flex-1 flex-col gap-5">
-            <flux:field>
-                <flux:label class="text-base">{{ __('Temperature (°F)') }}</flux:label>
-                <flux:input
-                    wire:model="temperatureFahrenheit"
-                    type="number"
-                    inputmode="decimal"
-                    step="0.1"
-                    min="86"
-                    max="113"
-                    class="!h-14 !text-2xl"
-                    autofocus
-                    required
-                />
-                <flux:error name="temperatureFahrenheit" />
-            </flux:field>
-
-            <div class="grid grid-cols-3 gap-3">
-                <flux:field>
-                    <flux:label class="text-base">{{ __('BP Systolic') }}</flux:label>
-                    <flux:input
-                        wire:model="bpSystolic"
-                        type="number"
-                        inputmode="numeric"
-                        min="50"
-                        max="300"
-                        class="!h-14 !text-2xl"
-                        required
-                    />
-                    <flux:error name="bpSystolic" />
-                </flux:field>
-                <span>/</span>
 
                 <flux:field>
-                    <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
+                    <flux:label class="text-base">{{ __('BSR (mg/dL)') }}</flux:label>
                     <flux:input
-                        wire:model="bpDiastolic"
+                        wire:model="bsr"
                         type="number"
                         inputmode="numeric"
-                        min="30"
-                        max="200"
+                        min="20"
+                        max="600"
                         class="!h-14 !text-2xl"
-                        required
                     />
-                    <flux:error name="bpDiastolic" />
+                    <flux:error name="bsr" />
                 </flux:field>
-            </div>
 
-            <flux:field>
-                <flux:label class="text-base">{{ __('BSR (mg/dL)') }}</flux:label>
-                <flux:input
-                    wire:model="bsr"
-                    type="number"
-                    inputmode="numeric"
-                    min="20"
-                    max="600"
-                    class="!h-14 !text-2xl"
-                />
-                <flux:error name="bsr" />
-            </flux:field>
-
-            <div class="mt-auto flex flex-col gap-3 pt-4">
-                <flux:button type="submit" variant="primary" class="h-14 w-full text-lg font-semibold">
-                    {{ __('Next') }}
-                </flux:button>
-                <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
-                    {{ __('Back to list') }}
-                </flux:button>
-            </div>
-        </form>
+                <div class="flex flex-col gap-3 pt-2">
+                    <flux:button type="submit" variant="primary" class="h-14 w-full text-lg font-semibold">
+                        {{ __('Next') }}
+                    </flux:button>
+                    <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
+                        {{ __('Back to list') }}
+                    </flux:button>
+                </div>
+            </form>
+        </x-paper-slip>
     @endif
 </div>

@@ -114,6 +114,8 @@ test('medication delivery lists pending medicine lines and delivers with pin', f
 
     Livewire::test('pages::display.medication-delivery')
         ->assertSee($patient->name)
+        ->assertSee(__('Token'))
+        ->assertSee(__('Tap to deliver'))
         ->set('pin', '1234')
         ->call('verifyPin')
         ->assertHasNoErrors()
@@ -174,6 +176,7 @@ test('drip start sets thirty minute check due and can be marked done from kiosk'
 
     Livewire::test('pages::display.drip-delivery')
         ->assertSee($patient->name)
+        ->assertSee(__('Token'))
         ->set('pin', '1234')
         ->call('verifyPin')
         ->call('requestStart', $drip->id)

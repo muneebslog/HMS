@@ -51,6 +51,18 @@
     }
 }
 
+.paper-slip-board {
+    --paper-slip-hole: #0a0a0a;
+}
+
+.paper-slip-board-light {
+    --paper-slip-hole: #ffffff;
+}
+
+.dark .paper-slip-board-light {
+    --paper-slip-hole: #262626;
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }
