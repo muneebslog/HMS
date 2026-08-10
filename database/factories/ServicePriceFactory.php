@@ -24,6 +24,7 @@ class ServicePriceFactory extends Factory
             'doctor_id' => fake()->optional(0.8)->passthrough(Doctor::factory()->create()->id),
             'price' => fake()->randomFloat(2, 10, 1000),
             'doctor_share' => fake()->optional()->randomFloat(2, 0, 100),
+            'token_starts_from' => 1,
         ];
     }
 }

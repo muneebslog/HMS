@@ -145,6 +145,7 @@ Conventions used below:
 | doctor_id | FK → doctors | nullable |
 | price | decimal(10,2) | |
 | doctor_share | decimal(5,2) | nullable |
+| token_starts_from | unsignedInteger | default 1 — first token number for this service+doctor queue |
 | timestamps | | |
 
 ### `drip_charges`

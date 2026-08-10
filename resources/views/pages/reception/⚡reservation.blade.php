@@ -278,6 +278,21 @@ new #[Title('Reservations')] class extends Component
     }
 
     /**
+     * First token number shown for the selected doctor's consultation price.
+     */
+    #[Computed]
+    public function tokenStartsFrom(): int
+    {
+        $service = $this->consultationService;
+
+        if ($service === null || $this->selectedDoctorId === null) {
+            return 1;
+        }
+
+        return app(QueueService::class)->tokenStartsFromFor($service->id, $this->selectedDoctorId);
+    }
+
+    /**
      * Get the tokens within the currently visible range for the current queue.
      *
      * @return \Illuminate\Support\Collection<int, QueueToken>
@@ -291,9 +306,12 @@ new #[Title('Reservations')] class extends Component
             return collect();
         }
 
+        $start = $this->tokenStartsFrom;
+        $end = $start + $this->visibleCount - 1;
+
         return QueueToken::with('patient')
             ->where('service_queue_id', $queue->id)
-            ->whereBetween('token_number', [1, $this->visibleCount])
+            ->whereBetween('token_number', [$start, $end])
             ->get()
             ->keyBy('token_number');
     }
@@ -355,7 +373,11 @@ new #[Title('Reservations')] class extends Component
                     </div>
 
                     <div class="grid grid-cols-5 gap-3">
-                        @for ($number = 1; $number <= $this->visibleCount; $number++)
+                        @php
+                            $tokenStartsFrom = $this->tokenStartsFrom;
+                            $tokenEndsAt = $tokenStartsFrom + $this->visibleCount - 1;
+                        @endphp
+                        @for ($number = $tokenStartsFrom; $number <= $tokenEndsAt; $number++)
                             @php
                                 $token = $this->tokensInRange->get($number);
                                 $isReserved = $token !== null && $token->status === 'reserved';
@@ -376,7 +398,7 @@ new #[Title('Reservations')] class extends Component
                                 <span class="text-lg font-semibold">{{ $number }}</span>
                                 @if ($dutyStart)
                                     <span class="mt-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-                                        {{ $dutyStart->copy()->addMinutes(($number - 1) * 5)->format('g:i A') }}
+                                        {{ $dutyStart->copy()->addMinutes(($number - $tokenStartsFrom) * 5)->format('g:i A') }}
                                     </span>
                                 @endif
                                 @if ($token?->patient)

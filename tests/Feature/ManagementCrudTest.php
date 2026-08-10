@@ -181,6 +181,7 @@ test('authenticated users can create a service price', function () {
         ->set('priceDoctorId', $doctor->id)
         ->set('priceAmount', '150.00')
         ->set('priceDoctorShare', '25.00')
+        ->set('priceTokenStartsFrom', '201')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -189,6 +190,7 @@ test('authenticated users can create a service price', function () {
         'doctor_id' => $doctor->id,
         'price' => 150.00,
         'doctor_share' => 25.00,
+        'token_starts_from' => 201,
     ]);
 });
 
@@ -204,6 +206,7 @@ test('service price doctor share can be null', function () {
         ->set('priceDoctorId', '')
         ->set('priceAmount', '99.99')
         ->set('priceDoctorShare', '')
+        ->set('priceTokenStartsFrom', '1')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -212,6 +215,7 @@ test('service price doctor share can be null', function () {
         'doctor_id' => null,
         'price' => 99.99,
         'doctor_share' => null,
+        'token_starts_from' => 1,
     ]);
 });
 

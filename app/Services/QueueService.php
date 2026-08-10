@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\QueueToken;
 use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use Carbon\Carbon;
@@ -96,13 +97,34 @@ class QueueService
             ->pluck('token_number')
             ->keyBy(fn (int $number) => $number);
 
-        $number = 1;
+        $number = $this->tokenStartsFrom($queue);
 
         while ($occupied->has($number)) {
             $number++;
         }
 
         return $number;
+    }
+
+    /**
+     * Resolve the first token number for the queue from its service price.
+     */
+    public function tokenStartsFrom(ServiceQueue $queue): int
+    {
+        return $this->tokenStartsFromFor($queue->service_id, $queue->doctor_id);
+    }
+
+    /**
+     * Resolve the first token number for a service and optional doctor.
+     */
+    public function tokenStartsFromFor(int $serviceId, ?int $doctorId): int
+    {
+        $startsFrom = ServicePrice::query()
+            ->where('service_id', $serviceId)
+            ->where('doctor_id', $doctorId)
+            ->value('token_starts_from');
+
+        return max(1, (int) ($startsFrom ?? 1));
     }
 
     /**

@@ -110,6 +110,9 @@ new #[Title('Management')] class extends Component
     public string $priceDoctorShare = '';
 
     #[Validate]
+    public string $priceTokenStartsFrom = '1';
+
+    #[Validate]
     public ?int $labShareDoctorId = null;
 
     #[Validate]
@@ -234,6 +237,7 @@ new #[Title('Management')] class extends Component
                 'priceDoctorId' => ['nullable', 'integer', 'exists:doctors,id'],
                 'priceAmount' => ['required', 'numeric', 'min:0'],
                 'priceDoctorShare' => ['nullable', 'numeric', 'min:0', 'max:100'],
+                'priceTokenStartsFrom' => ['required', 'integer', 'min:1'],
             ],
             'labDoctorShares' => [
                 'labShareDoctorId' => [
@@ -460,6 +464,7 @@ new #[Title('Management')] class extends Component
         $this->priceDoctorId = $price->doctor_id;
         $this->priceAmount = (string) $price->price;
         $this->priceDoctorShare = $price->doctor_share !== null ? (string) $price->doctor_share : '';
+        $this->priceTokenStartsFrom = (string) $price->token_starts_from;
     }
 
     /**
@@ -575,6 +580,7 @@ new #[Title('Management')] class extends Component
             'priceDoctorId',
             'priceAmount',
             'priceDoctorShare',
+            'priceTokenStartsFrom',
             'labShareDoctorId',
             'labSharePercent',
             'labTestName',
@@ -781,6 +787,7 @@ new #[Title('Management')] class extends Component
             'doctor_id' => $validated['priceDoctorId'],
             'price' => $validated['priceAmount'],
             'doctor_share' => $validated['priceDoctorShare'] !== '' ? $validated['priceDoctorShare'] : null,
+            'token_starts_from' => $validated['priceTokenStartsFrom'],
         ];
 
         if ($this->editingId) {
@@ -1896,6 +1903,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Doctor') }}</flux:table.column>
                             <flux:table.column>{{ __('Price') }}</flux:table.column>
                             <flux:table.column>{{ __('Doctor Share') }}</flux:table.column>
+                            <flux:table.column>{{ __('Token starts from') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -1906,6 +1914,7 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>{{ $price->doctor?->name ?? '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ number_format($price->price, 2) }}</flux:table.cell>
                                     <flux:table.cell>{{ $price->doctor_share !== null ? number_format($price->doctor_share, 2).'%' : '-' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $price->token_starts_from }}</flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $price->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $price->id }})" wire:confirm="{{ __('Are you sure you want to delete this service price?') }}" />
@@ -1913,7 +1922,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                         {{ __('No service prices found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2052,6 +2061,12 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Doctor Share (%)') }}</flux:label>
                     <flux:input wire:model="priceDoctorShare" type="number" step="0.01" min="0" max="100" />
                     <flux:error name="priceDoctorShare" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Token starts from') }}</flux:label>
+                    <flux:input wire:model="priceTokenStartsFrom" type="number" min="1" step="1" required />
+                    <flux:error name="priceTokenStartsFrom" />
                 </flux:field>
             @elseif ($activeTab === 'labDoctorShares')
                 <flux:field>

@@ -71,6 +71,40 @@ test('tokens increment sequentially within the same queue', function () {
         ->and(ServiceQueue::count())->toBe(1);
 });
 
+test('tokens start from the service price token_starts_from value', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create([
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 100.00,
+        'token_starts_from' => 201,
+    ]);
+
+    $createInvoice = function () use ($user, $service): Invoice {
+        Livewire::actingAs($user)
+            ->test('pages::reception.walkin')
+            ->set('patientName', 'Test Patient')->set('hasNoPhone', true)
+            ->set('selectedServiceId', $service->id)
+            ->call('add')
+            ->call('saveInvoice')
+            ->assertHasNoErrors();
+
+        return Invoice::query()->orderByDesc('id')->firstOrFail();
+    };
+
+    $firstInvoice = $createInvoice();
+    $secondInvoice = $createInvoice();
+
+    expect($firstInvoice->items->first()->queueToken->token_number)->toBe(201)
+        ->and($secondInvoice->items->first()->queueToken->token_number)->toBe(202);
+});
+
 test('shift reset services start a new queue on the next shift', function () {
     $user = User::factory()->create();
     $firstShift = Shift::factory()->for($user)->open()->create();

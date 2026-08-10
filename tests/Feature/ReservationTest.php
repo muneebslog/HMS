@@ -96,6 +96,38 @@ test('a token can be reserved for a doctor', function () {
     expect($token->patient->contactPhone())->toBe(validPhone());
 });
 
+test('reservation tokens respect service price token_starts_from', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'price' => 250.00,
+        'token_starts_from' => 201,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id);
+
+    expect($component->get('tokenStartsFrom'))->toBe(201);
+
+    $component
+        ->assertSee('201')
+        ->call('selectToken', 201)
+        ->set('patientName', 'Reserved Patient')
+        ->set('patientPhone', validPhone())
+        ->call('reserve')
+        ->assertHasNoErrors();
+
+    $token = QueueToken::first();
+    expect($token)->not->toBeNull()
+        ->token_number->toBe(201)
+        ->status->toBe('reserved');
+});
+
 test('reserving an already used token fails', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();

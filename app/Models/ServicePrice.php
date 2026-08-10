@@ -22,6 +22,7 @@ class ServicePrice extends Model
         'doctor_id',
         'price',
         'doctor_share',
+        'token_starts_from',
     ];
 
     /**
@@ -34,6 +35,7 @@ class ServicePrice extends Model
         return [
             'price' => 'float',
             'doctor_share' => 'float',
+            'token_starts_from' => 'integer',
         ];
     }
 
