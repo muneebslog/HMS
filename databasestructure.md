@@ -391,7 +391,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint | PK |
-| queue_token_id | FK → queue_tokens | unique, cascadeOnDelete |
+| queue_token_id | FK → queue_tokens | cascadeOnDelete, IDX (multiple rows per token for rechecks) |
 | patient_id | FK → patients | cascadeOnDelete |
 | recorded_by | FK → users | cascadeOnDelete |
 | temperature | decimal(4,1) | °F |
@@ -400,7 +400,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | bsr | unsignedSmallInteger | nullable, mg/dL (blood sugar random) |
 | timestamps | | |
 
-One vitals row per queue token. Presence means vitals are done; token status is unchanged.
+One or more vitals rows per queue token (initial capture plus doctor-requested rechecks). Presence of any row means initial vitals are done; token status is unchanged. Latest row is the current reading.
 
 ### `doctor_rechecks`
 | Column | Type | Notes |

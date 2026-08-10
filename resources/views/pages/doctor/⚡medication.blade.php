@@ -72,8 +72,15 @@ new #[Title('Medication')] class extends Component
         }
 
         return QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'medicationOrder', 'activeRecheck'])
+            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder', 'activeRecheck'])
             ->whereIn('status', ['waiting', 'serving'])
+            ->where(function ($query): void {
+                $query->whereDoesntHave('medicationOrder')
+                    ->orWhereHas(
+                        'doctorRechecks',
+                        fn ($recheckQuery) => $recheckQuery->whereNull('acknowledged_at')
+                    );
+            })
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
                 $query->where('status', 'open')
                     ->where('shift_id', $shift->id)
@@ -98,7 +105,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
                 ->find($this->selectedTokenId);
     }
 
@@ -972,34 +979,32 @@ new #[Title('Medication')] class extends Component
                     @endunless
                 </div>
             </div>
-            @if ($token?->vital)
-                <div class="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-                    <div>
-                        <p class="text-xs text-zinc-500">{{ __('Temp (°F)') }}</p>
-                        <p class="text-lg font-semibold">{{ $token->vital->temperature }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-zinc-500">{{ __('BP Systolic') }}</p>
-                        <p class="text-lg font-semibold">{{ $token->vital->bp_systolic }}</p>
-                        @if ($activeRecheck?->isDue())
-                            <p class="text-xs font-medium text-amber-600 dark:text-amber-400">{{ __('Again') }}</p>
-                        @endif
-                    </div>
-                    <div>
-                        <p class="text-xs text-zinc-500">{{ __('BP Diastolic') }}</p>
-                        <p class="text-lg font-semibold">{{ $token->vital->bp_diastolic }}</p>
-                        @if ($activeRecheck?->isDue())
-                            <p class="text-xs font-medium text-amber-600 dark:text-amber-400">{{ __('Again') }}</p>
-                        @endif
-                    </div>
-                    <div>
-                        <p class="text-xs text-zinc-500">{{ __('BSR') }}</p>
-                        <p class="text-lg font-semibold">{{ $token->vital->bsr ?? '—' }}</p>
-                        @if ($activeRecheck?->isDue())
-                            <p class="text-xs font-medium text-amber-600 dark:text-amber-400">{{ __('Again') }}</p>
-                        @endif
-                    </div>
+            @if ($token?->vitals->isNotEmpty())
+                <div class="overflow-x-auto">
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Time') }}</flux:table.column>
+                            <flux:table.column>{{ __('Temp (°F)') }}</flux:table.column>
+                            <flux:table.column>{{ __('BP') }}</flux:table.column>
+                            <flux:table.column>{{ __('BSR') }}</flux:table.column>
+                            <flux:table.column>{{ __('By') }}</flux:table.column>
+                        </flux:table.columns>
+                        <flux:table.rows>
+                            @foreach ($token->vitals as $vital)
+                                <flux:table.row wire:key="vital-{{ $vital->id }}">
+                                    <flux:table.cell>{{ $vital->created_at->timezone(config('app.timezone'))->format('d M, g:i A') }}</flux:table.cell>
+                                    <flux:table.cell>{{ $vital->temperature }}</flux:table.cell>
+                                    <flux:table.cell>{{ $vital->bp_systolic }}/{{ $vital->bp_diastolic }}</flux:table.cell>
+                                    <flux:table.cell>{{ $vital->bsr ?? '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $vital->recordedBy?->name ?? '—' }}</flux:table.cell>
+                                </flux:table.row>
+                            @endforeach
+                        </flux:table.rows>
+                    </flux:table>
                 </div>
+                @if ($activeRecheck?->isDue())
+                    <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">{{ __('Again — recheck due') }}</p>
+                @endif
             @else
                 <p class="text-sm text-zinc-500">{{ __('No vitals recorded for this visit.') }}</p>
                 @if ($activeRecheck?->isDue())

@@ -203,30 +203,25 @@ new #[Title('Vitals')] class extends Component
             'bsr' => filled($validated['bsr'] ?? null) ? $validated['bsr'] : null,
         ];
 
-        if ($isRecheck) {
-            Vital::query()->updateOrCreate(
-                ['queue_token_id' => $token->id],
-                $vitalAttributes,
-            );
+        Vital::create([
+            'queue_token_id' => $token->id,
+            ...$vitalAttributes,
+        ]);
 
+        if ($isRecheck) {
             DoctorRecheck::query()
                 ->where('queue_token_id', $token->id)
                 ->whereNull('acknowledged_at')
                 ->whereNull('vitals_redone_at')
                 ->where('due_at', '<=', now())
                 ->update(['vitals_redone_at' => now()]);
-        } else {
-            Vital::create([
-                'queue_token_id' => $token->id,
-                ...$vitalAttributes,
-            ]);
         }
 
         unset($this->queue);
 
         $nextToken = $this->queue->first();
 
-        Flux::toast(variant: 'success', text: $isRecheck ? __('Vitals updated (Again).') : __('Vitals saved.'));
+        Flux::toast(variant: 'success', text: $isRecheck ? __('Vitals recorded (Again).') : __('Vitals saved.'));
 
         if ($nextToken === null) {
             $this->backToList();

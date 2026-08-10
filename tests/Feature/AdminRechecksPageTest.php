@@ -176,5 +176,12 @@ test('vitals page includes due recheck patients and marks vitals redone', functi
         'bsr' => 110,
     ]);
 
+    $this->assertDatabaseHas('vitals', [
+        'queue_token_id' => $token->id,
+        'bp_systolic' => 170,
+        'bp_diastolic' => 100,
+    ]);
+
+    expect(Vital::where('queue_token_id', $token->id)->count())->toBe(2);
     expect(DoctorRecheck::where('queue_token_id', $token->id)->value('vitals_redone_at'))->not->toBeNull();
 });

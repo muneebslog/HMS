@@ -74,13 +74,23 @@ class QueueToken extends Model
     }
 
     /**
-     * Get the vitals recorded for this token.
+     * Get all vitals recorded for this token (newest first).
+     *
+     * @return HasMany<Vital, $this>
+     */
+    public function vitals(): HasMany
+    {
+        return $this->hasMany(Vital::class)->latest('id');
+    }
+
+    /**
+     * Get the latest vitals recorded for this token.
      *
      * @return HasOne<Vital, $this>
      */
     public function vital(): HasOne
     {
-        return $this->hasOne(Vital::class);
+        return $this->hasOne(Vital::class)->latestOfMany();
     }
 
     /**

@@ -4,6 +4,7 @@ use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
+use App\Models\DoctorRecheck;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
@@ -122,6 +123,113 @@ test('doctor sees vitals for the selected token', function () {
         ->assertSee('98.6')
         ->assertSee('120')
         ->assertSee('80');
+});
+
+test('doctor sees vitals history table with multiple readings', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $recorder = User::factory()->receptionist()->create(['name' => 'Vitals Nurse']);
+
+    Vital::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'recorded_by' => $recorder->id,
+        'temperature' => 98.6,
+        'bp_systolic' => 180,
+        'bp_diastolic' => 110,
+        'bsr' => 140,
+    ]);
+
+    Vital::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'recorded_by' => $recorder->id,
+        'temperature' => 98.2,
+        'bp_systolic' => 130,
+        'bp_diastolic' => 85,
+        'bsr' => 110,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee('180/110')
+        ->assertSee('130/85')
+        ->assertSee('140')
+        ->assertSee('110')
+        ->assertSee('Vitals Nurse');
+});
+
+test('medication queue excludes patients after an order is saved', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->call('selectToken', $token->id)
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-0',
+            'days' => '3',
+        ]])
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertDontSee($patient->name);
+});
+
+test('medication queue keeps patients with an active recheck after an order is saved', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-0',
+            'days' => '3',
+        ]])
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertDontSee($patient->name);
+
+    DoctorRecheck::factory()->due()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'set_by' => $user->id,
+        'note' => 'BP',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertSee(__('Again'));
+});
+
+test('medication queue removes patients after recheck is acknowledged when order exists', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    MedicationOrder::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+
+    $recheck = DoctorRecheck::factory()->due()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'set_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->call('acknowledgeRecheck', $token->id)
+        ->assertHasNoErrors()
+        ->assertDontSee($patient->name);
+
+    expect($recheck->fresh()->acknowledged_at)->not->toBeNull();
 });
 
 test('doctor can save a medication order for a standalone service without a doctor', function () {
@@ -292,6 +400,10 @@ test('medication history excludes the current visit order', function () {
     [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create(['name' => 'Only On Current Visit']);
 
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id);
+
     $currentOrder = MedicationOrder::factory()->withoutDoctor()->create([
         'queue_token_id' => $token->id,
         'patient_id' => $patient->id,
@@ -305,9 +417,7 @@ test('medication history excludes the current visit order', function () {
         'name' => 'Only On Current Visit',
     ]);
 
-    $component = Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->call('selectToken', $token->id)
+    $component
         ->call('openHistory')
         ->assertSee(__('No previous medication records'));
 
