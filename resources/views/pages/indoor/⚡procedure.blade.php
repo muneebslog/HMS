@@ -486,6 +486,16 @@ new #[Title('Procedure Chart')] class extends Component
             return;
         }
 
+        $consentPhotoCount = $this->procedure->attachments
+            ->where('type', ProcedureAttachmentType::Consent)
+            ->count();
+
+        if ($consentPhotoCount < 2) {
+            Flux::toast(variant: 'danger', text: __('Upload at least 2 consent photos before marking consent complete.'));
+
+            return;
+        }
+
         $this->procedure->update(['consent_completed_at' => now()]);
         unset($this->procedure);
 
@@ -1405,6 +1415,8 @@ new #[Title('Procedure Chart')] class extends Component
                 @endif
             </div>
 
+            @php($consentAttachments = $this->procedure->attachments->where('type', \App\Enums\ProcedureAttachmentType::Consent))
+
             <fieldset @if ($this->isReadOnly) disabled @endif class="mt-4 space-y-4">
                 <form wire:submit="saveConsentPhotos" class="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div class="flex-1">
@@ -1417,6 +1429,9 @@ new #[Title('Procedure Chart')] class extends Component
                             class="mt-1 block w-full text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white dark:text-zinc-300 dark:file:bg-white dark:file:text-zinc-900"
                         />
                         <div wire:loading wire:target="consentPhotos" class="mt-1 text-xs text-zinc-500">{{ __('Uploading...') }}</div>
+                        <flux:text class="mt-1 text-xs text-zinc-500">
+                            {{ __(':count of 2 uploaded', ['count' => $consentAttachments->count()]) }}
+                        </flux:text>
                         <flux:error name="consentPhotos" />
                         <flux:error name="consentPhotos.*" />
                     </div>
@@ -1424,13 +1439,23 @@ new #[Title('Procedure Chart')] class extends Component
                 </form>
 
                 @unless ($this->procedure->consent_completed_at)
-                    <flux:button size="sm" variant="primary" icon="check-circle" wire:click="markConsentComplete">
+                    <flux:button
+                        size="sm"
+                        variant="primary"
+                        icon="check-circle"
+                        wire:click="markConsentComplete"
+                        :disabled="$consentAttachments->count() < 2"
+                    >
                         {{ __('Mark consent complete') }}
                     </flux:button>
+                    @if ($consentAttachments->count() < 2)
+                        <flux:text class="text-sm text-zinc-500">
+                            {{ __('Upload at least 2 consent photos before marking consent complete.') }}
+                        </flux:text>
+                    @endif
                 @endunless
             </fieldset>
 
-            @php($consentAttachments = $this->procedure->attachments->where('type', \App\Enums\ProcedureAttachmentType::Consent))
             @if ($consentAttachments->isNotEmpty())
                 <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
                     @foreach ($consentAttachments as $attachment)

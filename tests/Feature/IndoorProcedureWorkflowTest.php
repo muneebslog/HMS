@@ -94,13 +94,34 @@ test('indoor staff can upload consent photos and mark consent complete', functio
     Livewire::actingAs($user)
         ->test('pages::indoor.procedure', ['procedure' => $procedure])
         ->set('consentPhotos', [
-            UploadedFile::fake()->image('consent.jpg'),
+            UploadedFile::fake()->image('consent-1.jpg'),
+            UploadedFile::fake()->image('consent-2.jpg'),
         ])
         ->call('saveConsentPhotos')
         ->call('markConsentComplete')
         ->assertHasNoErrors();
 
     expect($procedure->fresh()->consent_completed_at)->not->toBeNull()
+        ->and(ProcedureAttachment::where('procedure_id', $procedure->id)->where('type', ProcedureAttachmentType::Consent)->count())
+        ->toBe(2);
+});
+
+test('consent cannot be marked complete with fewer than two photos', function () {
+    Storage::fake('local');
+
+    $user = User::factory()->indoor()->create();
+    $procedure = Procedure::factory()->admitted()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::indoor.procedure', ['procedure' => $procedure])
+        ->set('consentPhotos', [
+            UploadedFile::fake()->image('consent.jpg'),
+        ])
+        ->call('saveConsentPhotos')
+        ->call('markConsentComplete')
+        ->assertSee(__('Upload at least 2 consent photos before marking consent complete.'));
+
+    expect($procedure->fresh()->consent_completed_at)->toBeNull()
         ->and(ProcedureAttachment::where('procedure_id', $procedure->id)->where('type', ProcedureAttachmentType::Consent)->count())
         ->toBe(1);
 });
