@@ -80,6 +80,23 @@ test('authenticated users can create a drip service', function () {
     ]);
 });
 
+test('drip charge section only appears on the drips tab', function () {
+    [$user, , , , , , , $token] = createDripMedicationContext();
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSet('activeOrderTab', 'medicines')
+        ->assertDontSee(__('Drip charge'))
+        ->assertDontSee(__('Suggested price'))
+        ->call('switchOrderTab', 'injections')
+        ->assertDontSee(__('Drip charge'))
+        ->assertDontSee(__('Suggested price'))
+        ->call('switchOrderTab', 'drips')
+        ->assertSee(__('Drip charge'))
+        ->assertSee(__('Suggested price'));
+});
+
 test('doctor medication can suggest a drip price using logged-in doctor share', function () {
     [$user, $doctor, , , $dripService, , $patient, $token] = createDripMedicationContext();
     $medicine = Medicine::factory()->create();

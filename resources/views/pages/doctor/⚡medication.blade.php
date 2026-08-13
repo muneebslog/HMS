@@ -1184,6 +1184,38 @@ new #[Title('Medication')] class extends Component
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
                     </flux:tooltip>
+
+                    @if ($this->dripServices->isNotEmpty())
+                        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                            <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                @if ($this->dripServices->count() > 1)
+                                    <flux:field>
+                                        <flux:label>{{ __('Drip service') }}</flux:label>
+                                        <flux:select wire:model="dripServiceId">
+                                            <option value="">{{ __('Select drip service') }}</option>
+                                            @foreach ($this->dripServices as $dripService)
+                                                <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:error name="dripServiceId" />
+                                    </flux:field>
+                                @endif
+
+                                <flux:field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
+                                    <flux:label>{{ __('Suggested price') }}</flux:label>
+                                    <flux:input
+                                        wire:model="suggestedPrice"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="{{ __('Optional') }}"
+                                    />
+                                    <flux:error name="suggestedPrice" />
+                                </flux:field>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
 
@@ -1192,38 +1224,6 @@ new #[Title('Medication')] class extends Component
                 <flux:textarea wire:model="notes" rows="2" />
                 <flux:error name="notes" />
             </flux:field>
-
-            @if ($this->dripServices->isNotEmpty())
-                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-                    <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        @if ($this->dripServices->count() > 1)
-                            <flux:field>
-                                <flux:label>{{ __('Drip service') }}</flux:label>
-                                <flux:select wire:model="dripServiceId">
-                                    <option value="">{{ __('Select drip service') }}</option>
-                                    @foreach ($this->dripServices as $dripService)
-                                        <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="dripServiceId" />
-                            </flux:field>
-                        @endif
-
-                        <flux:field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
-                            <flux:label>{{ __('Suggested price') }}</flux:label>
-                            <flux:input
-                                wire:model="suggestedPrice"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="{{ __('Optional') }}"
-                            />
-                            <flux:error name="suggestedPrice" />
-                        </flux:field>
-                    </div>
-                </div>
-            @endif
 
             <div class="mt-auto flex flex-col gap-3 pt-2">
                 <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">
