@@ -133,6 +133,7 @@ Conventions used below:
 | needs_vitals | boolean | default false |
 | needs_medication | boolean | default false |
 | is_drip | boolean | default false — doctor can suggest price during medication |
+| appear_on_er | boolean | default false — patient appears on ER station page |
 | token_reset_type | string | default `shift` (`TokenResetType`) |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
@@ -459,6 +460,19 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | timestamps | | |
 
 Separate from `users` / staff profiles. Used for kiosk PIN identity when delivering medicines, injections, and drips.
+
+### `station_sessions`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| station | string | UQ — `er` / `drip` (`StationType`) |
+| health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| authenticated_at | timestamp | nullable |
+| expires_at | timestamp | nullable |
+| last_seen_at | timestamp | nullable |
+| timestamps | | |
+
+One row per kiosk station. Updated when a health aide unlocks ER or Drip with PIN; expired when `expires_at <= now()`.
 
 ### `medication_orders`
 | Column | Type | Notes |
@@ -1169,6 +1183,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            └── print_jobs
         │
         ├── health_aides
+        ├── station_sessions ── health_aides
         ├── pdf_print_jobs
         ├── drive_folders ──┬── drive_folders (parent)
         │                   └── drive_files

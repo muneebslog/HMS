@@ -24,6 +24,7 @@ class ServiceFactory extends Factory
             'needs_vitals' => false,
             'needs_medication' => false,
             'is_drip' => false,
+            'appear_on_er' => false,
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
             'is_active' => true,
         ];
@@ -66,6 +67,16 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_drip' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the service appears on the ER station page.
+     */
+    public function appearOnEr(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'appear_on_er' => true,
         ]);
     }
 }

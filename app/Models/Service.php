@@ -27,6 +27,7 @@ class Service extends Model
         'needs_vitals',
         'needs_medication',
         'is_drip',
+        'appear_on_er',
         'token_reset_type',
         'is_active',
     ];
@@ -40,6 +41,7 @@ class Service extends Model
         'needs_vitals' => false,
         'needs_medication' => false,
         'is_drip' => false,
+        'appear_on_er' => false,
         'is_active' => true,
     ];
 
@@ -55,6 +57,7 @@ class Service extends Model
             'needs_vitals' => 'boolean',
             'needs_medication' => 'boolean',
             'is_drip' => 'boolean',
+            'appear_on_er' => 'boolean',
             'token_reset_type' => TokenResetType::class,
             'is_active' => 'boolean',
         ];

@@ -1,0 +1,236 @@
+<?php
+
+use App\Enums\ClinicStation;
+use App\Enums\DripChargeStatus;
+use App\Enums\DripLineStatus;
+use App\Enums\MedicationOrderStatus;
+use App\Enums\MedicineDose;
+use App\Enums\StationType;
+use App\Enums\TokenResetType;
+use App\Models\DripBase;
+use App\Models\DripCharge;
+use App\Models\HealthAide;
+use App\Models\MedicationOrder;
+use App\Models\Medicine;
+use App\Models\Patient;
+use App\Models\QueueToken;
+use App\Models\Service;
+use App\Models\ServiceQueue;
+use App\Models\Shift;
+use App\Models\StationSession;
+use App\Models\User;
+use App\Models\Vital;
+use App\Services\PatientFlowBoardService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+
+/**
+ * @return array{0: Shift, 1: ServiceQueue, 2: QueueToken, 3: Patient}
+ */
+function createFlowToken(array $serviceAttrs = [], string $status = 'waiting'): array
+{
+    $shift = Shift::factory()->open()->create();
+    $service = Service::factory()->create(array_merge([
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ], $serviceAttrs));
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $shift->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+        'opened_at' => now(),
+    ]);
+    $patient = Patient::factory()->create();
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 1,
+        'status' => $status,
+        'arrived_at' => now()->subMinutes(15),
+    ]);
+
+    return [$shift, $queue, $token->fresh(['serviceQueue.service', 'patient', 'vital', 'medicationOrder']), $patient];
+}
+
+test('admin can view patient flow board', function () {
+    $admin = User::factory()->admin()->create();
+    Shift::factory()->open()->create();
+
+    $this->actingAs($admin)
+        ->get(route('admin.patient-flow'))
+        ->assertSuccessful()
+        ->assertSee(__('Patient Flow'));
+});
+
+test('patient needing vitals is placed in vitals column', function () {
+    [, , $token] = createFlowToken(['needs_vitals' => true, 'needs_medication' => true]);
+
+    $board = app(PatientFlowBoardService::class)->board();
+
+    expect(collect($board['stations']['vitals'])->pluck('token_id'))->toContain($token->id);
+});
+
+test('patient waiting for doctor medication is placed in doctor column', function () {
+    [, , $token] = createFlowToken(['needs_vitals' => false, 'needs_medication' => true]);
+
+    $board = app(PatientFlowBoardService::class)->board();
+
+    expect(collect($board['stations']['doctor'])->pluck('token_id'))->toContain($token->id);
+});
+
+test('patient with unpaid drip charge is placed in reception column', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken(['needs_medication' => true]);
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+    $dripService = Service::factory()->drip()->create();
+    DripCharge::factory()->create([
+        'patient_id' => $patient->id,
+        'queue_token_id' => $token->id,
+        'medication_order_id' => $order->id,
+        'service_id' => $dripService->id,
+        'status' => DripChargeStatus::Pending,
+        'suggested_by' => $user->id,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $resolved = app(PatientFlowBoardService::class)->resolveStation($token, collect([$token->id]));
+
+    expect($resolved['station'])->toBe(ClinicStation::Reception);
+});
+
+test('patient with pending drip line is placed in drip column', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken(['needs_medication' => true]);
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+    $dripBase = DripBase::factory()->create();
+    $order->drips()->create([
+        'drip_base_id' => $dripBase->id,
+        'volume_ml' => 100,
+        'name' => $dripBase->name,
+        'status' => DripLineStatus::Pending,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $resolved = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    expect($resolved['station'])->toBe(ClinicStation::Drip);
+});
+
+test('patient with undelivered medicines is placed in er column', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken(['needs_medication' => true]);
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+    $medicine = Medicine::factory()->create();
+    $order->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'days' => 3,
+        'name' => $medicine->name,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $resolved = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    expect($resolved['station'])->toBe(ClinicStation::Er);
+});
+
+test('appear_on_er service token is placed in er column', function () {
+    [, , $token] = createFlowToken(['appear_on_er' => true, 'needs_medication' => false]);
+
+    $board = app(PatientFlowBoardService::class)->board();
+
+    expect(collect($board['stations']['er'])->pluck('token_id'))->toContain($token->id)
+        ->and(collect($board['stations']['doctor'])->pluck('token_id'))->not->toContain($token->id);
+});
+
+test('board shows expired aide login status', function () {
+    Shift::factory()->open()->create();
+    $aide = HealthAide::factory()->create(['name' => 'Expired Aide']);
+    StationSession::factory()->expired()->create([
+        'station' => StationType::Er,
+        'health_aide_id' => $aide->id,
+    ]);
+
+    $board = app(PatientFlowBoardService::class)->board();
+
+    expect($board['aide_sessions']['er']['status'])->toBe('expired')
+        ->and($board['aide_sessions']['er']['aide_name'])->toBe('Expired Aide');
+});
+
+test('vitals recorded patient moves past vitals stage', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken(['needs_vitals' => true, 'needs_medication' => true]);
+    Vital::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'recorded_by' => $user->id,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $resolved = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    expect($resolved['station'])->toBe(ClinicStation::Doctor);
+});
+
+test('patient flow livewire page renders station columns', function () {
+    $admin = User::factory()->admin()->create();
+    [, , $token] = createFlowToken(['appear_on_er' => true]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.patient-flow')
+        ->assertSee(__('ER Station'))
+        ->assertSee(__('Vitals'))
+        ->assertSee($token->patient->name);
+});

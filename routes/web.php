@@ -39,6 +39,9 @@ Route::livewire('display/tokens/control', 'pages::display.token-control')
     ->middleware(['auth'])
     ->name('display.tokens.control');
 
+Route::livewire('display/er', 'pages::display.medication-delivery')
+    ->name('display.er');
+
 Route::livewire('display/medication', 'pages::display.medication-delivery')
     ->name('display.medication');
 
@@ -72,6 +75,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/monthly-report', 'pages::admin.monthly-report')->name('admin.monthly-report');
         Route::livewire('admin/pdf-print', 'pages::admin.pdf-print')->name('admin.pdf-print');
         Route::livewire('admin/rechecks', 'pages::admin.rechecks')->name('admin.rechecks');
+        Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {

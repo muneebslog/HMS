@@ -92,6 +92,9 @@ new #[Title('Management')] class extends Component
     public bool $serviceIsDrip = false;
 
     #[Validate]
+    public bool $serviceAppearOnEr = false;
+
+    #[Validate]
     public string $serviceTokenResetType = 'shift';
 
     #[Validate]
@@ -232,6 +235,7 @@ new #[Title('Management')] class extends Component
                 'serviceNeedsVitals' => ['boolean'],
                 'serviceNeedsMedication' => ['boolean'],
                 'serviceIsDrip' => ['boolean'],
+                'serviceAppearOnEr' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
                 'serviceIsActive' => ['boolean'],
             ],
@@ -453,6 +457,7 @@ new #[Title('Management')] class extends Component
         $this->serviceNeedsVitals = $service->needs_vitals;
         $this->serviceNeedsMedication = $service->needs_medication;
         $this->serviceIsDrip = $service->is_drip;
+        $this->serviceAppearOnEr = $service->appear_on_er;
         $this->serviceTokenResetType = $service->token_reset_type->value;
         $this->serviceIsActive = $service->is_active;
     }
@@ -579,6 +584,7 @@ new #[Title('Management')] class extends Component
             'serviceNeedsVitals',
             'serviceNeedsMedication',
             'serviceIsDrip',
+            'serviceAppearOnEr',
             'serviceTokenResetType',
             'serviceIsActive',
             'priceServiceId',
@@ -768,6 +774,7 @@ new #[Title('Management')] class extends Component
             'needs_vitals' => $validated['serviceNeedsVitals'],
             'needs_medication' => $validated['serviceNeedsMedication'],
             'is_drip' => $validated['serviceIsDrip'],
+            'appear_on_er' => $validated['serviceAppearOnEr'],
             'token_reset_type' => $validated['serviceTokenResetType'],
             'is_active' => $validated['serviceIsActive'],
         ];
@@ -1741,6 +1748,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Needs Vitals') }}</flux:table.column>
                             <flux:table.column>{{ __('Needs Medication') }}</flux:table.column>
                             <flux:table.column>{{ __('Is Drip') }}</flux:table.column>
+                            <flux:table.column>{{ __('Appear on ER') }}</flux:table.column>
                             <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -1778,6 +1786,13 @@ new #[Title('Management')] class extends Component
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
                                     </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->appear_on_er)
+                                            <flux:badge size="sm" color="rose">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>{{ $service->token_reset_type->label() }}</flux:table.cell>
                                     <flux:table.cell>
                                         @if ($service->is_active)
@@ -1793,7 +1808,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="9" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2021,6 +2036,11 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="serviceIsDrip" :label="__('Is drip')" />
                     <flux:error name="serviceIsDrip" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceAppearOnEr" :label="__('Appear on ER page')" />
+                    <flux:error name="serviceAppearOnEr" />
                 </flux:field>
 
                 <flux:field>

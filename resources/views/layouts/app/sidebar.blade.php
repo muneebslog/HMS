@@ -180,6 +180,9 @@
                         <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
                             {{ __('Recheck Timers') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="map" :href="route('admin.patient-flow')" :current="request()->routeIs('admin.patient-flow')" wire:navigate>
+                            {{ __('Patient Flow') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
                             {{ __('Checklist Questions') }}
                         </flux:sidebar.item>
@@ -199,8 +202,8 @@
                         <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
                             {{ __('Token Display') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="beaker" :href="route('display.medication')" :current="request()->routeIs('display.medication')" wire:navigate>
-                            {{ __('Medication Delivery') }}
+                        <flux:sidebar.item icon="beaker" :href="route('display.er')" :current="request()->routeIs('display.er')" wire:navigate>
+                            {{ __('ER Station') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
                             {{ __('Drip Delivery') }}

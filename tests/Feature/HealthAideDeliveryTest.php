@@ -113,6 +113,7 @@ test('medication delivery lists pending medicine lines and delivers with pin', f
     $injection = $order->injections->first();
 
     Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('ER Station'))
         ->assertSee($patient->name)
         ->assertSee(__('Token'))
         ->assertSee(__('Tap to deliver'))

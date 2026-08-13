@@ -1,9 +1,11 @@
 <?php
 
 use App\Enums\DripLineStatus;
+use App\Enums\StationType;
 use App\Models\MedicationOrderDrip;
 use App\Models\Shift;
 use App\Services\HealthAidePinSession;
+use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
@@ -78,7 +80,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         $this->requirePinThen('done');
     }
 
-    public function verifyPin(HealthAidePinSession $pinSession): void
+    public function verifyPin(HealthAidePinSession $pinSession, StationSessionService $stationSessions): void
     {
         $this->validate([
             'pin' => ['required', 'digits_between:4,6'],
@@ -91,6 +93,8 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
 
             return;
         }
+
+        $stationSessions->touch(StationType::Drip, $aide);
 
         $this->pin = '';
         $this->showPinModal = false;
@@ -106,9 +110,10 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         }
     }
 
-    public function lock(HealthAidePinSession $pinSession): void
+    public function lock(HealthAidePinSession $pinSession, StationSessionService $stationSessions): void
     {
         $pinSession->forget();
+        $stationSessions->clear(StationType::Drip);
         $this->showPinModal = true;
         $this->pendingAction = null;
         $this->pendingDripId = null;
@@ -172,6 +177,8 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             'check_notified_at' => null,
         ]);
 
+        app(StationSessionService::class)->bump(StationType::Drip, $aide);
+
         $this->pendingDripId = null;
         unset($this->drips);
 
@@ -203,6 +210,8 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             'done_at' => now(),
             'done_by_health_aide_id' => $aide->id,
         ]);
+
+        app(StationSessionService::class)->bump(StationType::Drip, $aide);
 
         $this->pendingDripId = null;
         unset($this->drips);
