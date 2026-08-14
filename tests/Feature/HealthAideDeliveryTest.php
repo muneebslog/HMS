@@ -180,6 +180,30 @@ test('drip-only orders do not appear on medication delivery page', function () {
         ->assertDontSee($patient->name);
 });
 
+test('er slip shows only drips enabled in management', function () {
+    [$order] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
+    $visibleDrip = $order->drips->first();
+    $visibleDrip->dripBase->update(['show_on_er' => true]);
+
+    $hiddenDripBase = DripBase::factory()->create([
+        'name' => 'Hidden ER Drip',
+        'show_on_er' => false,
+    ]);
+    $order->drips()->create([
+        'drip_base_id' => $hiddenDripBase->id,
+        'volume_ml' => 250,
+        'name' => 'Hidden ER Drip',
+        'status' => DripLineStatus::Pending,
+    ]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('Drips'))
+        ->call('selectOrder', $order->id)
+        ->assertSee($visibleDrip->name)
+        ->assertSee(__('Start and complete drips at the Drip Station.'))
+        ->assertDontSee('Hidden ER Drip');
+});
+
 test('drip start sets thirty minute check due and can be marked done from kiosk', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
     $aide = HealthAide::factory()->create(['pin' => '1234']);

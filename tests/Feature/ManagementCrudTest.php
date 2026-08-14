@@ -2,6 +2,7 @@
 
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
+use App\Models\DripBase;
 use App\Models\LabTest;
 use App\Models\ProcedureType;
 use App\Models\ProcedureTypeDocument;
@@ -27,6 +28,25 @@ test('authenticated users can visit the management page', function () {
     $response = $this->actingAs($user)->get(route('management.crud'));
 
     $response->assertOk();
+});
+
+test('authenticated users can configure a drip base to show on er', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'dripBases')
+        ->call('create')
+        ->set('dripBaseName', 'ER Normal Saline')
+        ->set('dripBaseDefaultVolumeMl', '500')
+        ->set('dripBaseShowOnEr', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $dripBase = DripBase::query()->where('name', 'ER Normal Saline')->first();
+
+    expect($dripBase)->not->toBeNull()
+        ->and($dripBase->show_on_er)->toBeTrue();
 });
 
 test('management page displays current server time', function () {

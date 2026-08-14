@@ -20,6 +20,7 @@ class DripBaseFactory extends Factory
         return [
             'name' => fake()->randomElement(['Normal Saline', 'Ringer Lactate', 'Dextrose 5%']),
             'default_volume_ml' => fake()->randomElement([100, 250, 500, 1000]),
+            'show_on_er' => false,
             'is_active' => true,
         ];
     }

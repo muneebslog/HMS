@@ -20,6 +20,7 @@ class DripBase extends Model
     protected $fillable = [
         'name',
         'default_volume_ml',
+        'show_on_er',
         'is_active',
     ];
 
@@ -29,6 +30,7 @@ class DripBase extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'show_on_er' => false,
         'is_active' => true,
     ];
 
@@ -41,6 +43,7 @@ class DripBase extends Model
     {
         return [
             'default_volume_ml' => 'float',
+            'show_on_er' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

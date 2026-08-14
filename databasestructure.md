@@ -448,6 +448,7 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | id | bigint | PK |
 | name | string | |
 | default_volume_ml | decimal(8,2) | |
+| show_on_er | boolean | default false; displays the drip on its medication order's ER slip |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 

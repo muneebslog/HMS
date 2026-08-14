@@ -179,6 +179,9 @@ new #[Title('Management')] class extends Component
     public string $dripBaseDefaultVolumeMl = '';
 
     #[Validate]
+    public bool $dripBaseShowOnEr = false;
+
+    #[Validate]
     public bool $dripBaseIsActive = true;
 
     #[Validate]
@@ -300,6 +303,7 @@ new #[Title('Management')] class extends Component
             'dripBases' => [
                 'dripBaseName' => ['required', 'string', 'max:255'],
                 'dripBaseDefaultVolumeMl' => ['required', 'numeric', 'min:0'],
+                'dripBaseShowOnEr' => ['boolean'],
                 'dripBaseIsActive' => ['boolean'],
             ],
             'procedureTypes' => [
@@ -546,6 +550,7 @@ new #[Title('Management')] class extends Component
 
         $this->dripBaseName = $dripBase->name;
         $this->dripBaseDefaultVolumeMl = (string) $dripBase->default_volume_ml;
+        $this->dripBaseShowOnEr = $dripBase->show_on_er;
         $this->dripBaseIsActive = $dripBase->is_active;
     }
 
@@ -618,6 +623,7 @@ new #[Title('Management')] class extends Component
             'injectionIsActive',
             'dripBaseName',
             'dripBaseDefaultVolumeMl',
+            'dripBaseShowOnEr',
             'dripBaseIsActive',
             'procedureTypeName',
             'procedureTypeIsActive',
@@ -915,6 +921,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['dripBaseName'],
             'default_volume_ml' => $validated['dripBaseDefaultVolumeMl'],
+            'show_on_er' => $validated['dripBaseShowOnEr'],
             'is_active' => $validated['dripBaseIsActive'],
         ];
 
@@ -1905,6 +1912,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
+                            <flux:table.column>{{ __('Show on ER') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -1914,6 +1922,11 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row wire:key="drip-base-{{ $dripBase->id }}">
                                     <flux:table.cell>{{ $dripBase->name }}</flux:table.cell>
                                     <flux:table.cell>{{ rtrim(rtrim(number_format($dripBase->default_volume_ml, 2), '0'), '.') }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $dripBase->show_on_er ? 'rose' : 'zinc' }}">
+                                            {{ $dripBase->show_on_er ? __('Yes') : __('No') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $dripBase->is_active ? 'green' : 'zinc' }}">
                                             {{ $dripBase->is_active ? __('Active') : __('Inactive') }}
@@ -1926,7 +1939,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
                                         {{ __('No drip bases found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2281,6 +2294,11 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
                     <flux:input wire:model="dripBaseDefaultVolumeMl" type="number" step="0.01" min="0" required />
                     <flux:error name="dripBaseDefaultVolumeMl" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="dripBaseShowOnEr" :label="__('Show on ER station')" />
+                    <flux:error name="dripBaseShowOnEr" />
                 </flux:field>
 
                 <flux:field>

@@ -61,6 +61,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 'queueToken.serviceQueue.service',
                 'medicines',
                 'injections',
+                'drips.dripBase',
+                'drips.additives',
             ])
             ->where('status', MedicationOrderStatus::Pending)
             ->where(function ($query): void {
@@ -154,6 +156,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 'queueToken.serviceQueue.service',
                 'medicines',
                 'injections',
+                'drips.dripBase',
+                'drips.additives',
             ])->find($this->selectedOrderId);
     }
 
@@ -454,6 +458,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             $order = $item['order'];
                             $pendingMedicines = $order->medicines->whereNull('delivered_at')->count();
                             $pendingInjections = $order->injections->whereNull('delivered_at')->count();
+                            $erDrips = $order->drips->filter(fn ($drip) => $drip->dripBase?->show_on_er);
                         @endphp
                         <x-paper-slip
                             as="button"
@@ -476,6 +481,9 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                 @endif
                                 @if ($pendingInjections > 0)
                                     <span>{{ $pendingInjections }} {{ __('Injections') }}</span>
+                                @endif
+                                @if ($erDrips->isNotEmpty())
+                                    <span>{{ $erDrips->count() }} {{ __('Drips') }}</span>
                                 @endif
                             </div>
                             @if (filled($order->notes))
@@ -594,6 +602,26 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             <p class="text-sm text-zinc-500">{{ __('None') }}</p>
                         @endforelse
                     </div>
+
+                    @php($erDrips = ($order?->drips ?? collect())->filter(fn ($drip) => $drip->dripBase?->show_on_er))
+                    @if ($erDrips->isNotEmpty())
+                        <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                            <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Drips') }}</p>
+                            @foreach ($erDrips as $drip)
+                                <div wire:key="er-drip-{{ $drip->id }}" class="mb-2">
+                                    <p class="text-sm font-medium text-zinc-800">
+                                        {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                                    </p>
+                                    @foreach ($drip->additives as $additive)
+                                        <p class="ms-3 text-sm text-zinc-600">
+                                            + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
+                                        </p>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                            <p class="text-xs text-zinc-500">{{ __('Start and complete drips at the Drip Station.') }}</p>
+                        </div>
+                    @endif
 
                     @if (filled($order?->notes))
                         <div class="border-t border-dashed border-zinc-400/70 pt-3">
