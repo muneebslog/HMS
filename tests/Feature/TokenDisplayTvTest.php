@@ -199,6 +199,55 @@ test('the single-token layout shows next and previous token controls', function 
         ->and($next->fresh()->status)->toBe('serving');
 });
 
+test('the single-token layout hides manual controls for doctor medication services', function () {
+    $service = Service::factory()->create([
+        'needs_medication' => true,
+    ]);
+    $doctor = Doctor::factory()->create();
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $current = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 1,
+        'status' => 'serving',
+    ]);
+
+    $next = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    $this->get(route('display.tokens.tv', ['queue' => $queue->id]))
+        ->assertOk()
+        ->assertDontSee(__('Next Token'))
+        ->assertDontSee(__('Previous Token'));
+
+    $this->post(route('display.tokens.tv.next'), [
+        'queue' => $queue->id,
+    ])->assertForbidden();
+
+    $this->post(route('display.tokens.tv.back'), [
+        'queue' => $queue->id,
+    ])->assertForbidden();
+
+    expect($current->fresh()->status)->toBe('serving')
+        ->and($next->fresh()->status)->toBe('waiting');
+});
+
 test('guests can select a queue on the tv display', function () {
     $service = Service::factory()->create();
 

@@ -133,6 +133,14 @@ class TokenDisplayService
     }
 
     /**
+     * Determine whether the TV may manually control the queue.
+     */
+    public function allowsManualTokenControls(ServiceQueue $queue): bool
+    {
+        return ! $queue->service?->needs_medication;
+    }
+
+    /**
      * Move an arrived waiting token to serving without affecting other serving tokens.
      */
     public function startServing(QueueToken $token): ?QueueToken

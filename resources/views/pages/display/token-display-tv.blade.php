@@ -297,23 +297,25 @@
                         <p class="token-empty" style="margin-top: 48px; font-size: 48px;">{{ __('No token being served') }}</p>
                     @endif
 
-                    <div class="single-token-controls">
-                        <form method="POST" action="{{ route('display.tokens.tv.back') }}">
-                            @csrf
-                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <button type="submit" class="token-control-button">
-                                {{ __('Previous Token') }}
-                            </button>
-                        </form>
+                    @if ($showTokenControls)
+                        <div class="single-token-controls">
+                            <form method="POST" action="{{ route('display.tokens.tv.back') }}">
+                                @csrf
+                                <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+                                <button type="submit" class="token-control-button">
+                                    {{ __('Previous Token') }}
+                                </button>
+                            </form>
 
-                        <form method="POST" action="{{ route('display.tokens.tv.next') }}">
-                            @csrf
-                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-                            <button type="submit" class="token-control-button token-control-button-primary">
-                                {{ __('Next Token') }}
-                            </button>
-                        </form>
-                    </div>
+                            <form method="POST" action="{{ route('display.tokens.tv.next') }}">
+                                @csrf
+                                <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+                                <button type="submit" class="token-control-button token-control-button-primary">
+                                    {{ __('Next Token') }}
+                                </button>
+                            </form>
+                        </div>
+                    @endif
                 </main>
             @else
                 <div class="token-board">

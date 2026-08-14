@@ -31,6 +31,7 @@ class TokenDisplayController extends Controller
             'servingTokens' => $selectedQueue !== null ? $display->servingTokens($selectedQueue) : new Collection,
             'currentToken' => $selectedQueue !== null ? $display->currentToken($selectedQueue) : null,
             'usesSingleTokenLayout' => $selectedQueue !== null && $display->isSingleTokenQueue($selectedQueue),
+            'showTokenControls' => $selectedQueue !== null && $display->allowsManualTokenControls($selectedQueue),
             'fileCheckWaitingTokens' => $display->fileCheckWaitingTokens(),
             'fileCheckServingTokens' => $display->fileCheckServingTokens(),
         ]);
@@ -91,6 +92,8 @@ class TokenDisplayController extends Controller
     {
         $queue = $this->requireQueue($request);
 
+        abort_unless(app(TokenDisplayService::class)->allowsManualTokenControls($queue), 403);
+
         app(TokenDisplayService::class)->callNext($queue);
 
         return redirect()->route('display.tokens.tv', [
@@ -104,6 +107,8 @@ class TokenDisplayController extends Controller
     public function callPrevious(Request $request): RedirectResponse
     {
         $queue = $this->requireQueue($request);
+
+        abort_unless(app(TokenDisplayService::class)->allowsManualTokenControls($queue), 403);
 
         app(TokenDisplayService::class)->callPrevious($queue);
 
