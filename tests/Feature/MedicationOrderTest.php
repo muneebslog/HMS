@@ -177,6 +177,67 @@ test('medication queue excludes patients after an order is saved', function () {
         ->assertDontSee($patient->name);
 });
 
+test('doctor previews an order as an er slip before confirming it', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Preview Paracetamol']);
+    $injection = Injection::factory()->create(['name' => 'Preview Diclofenac']);
+    $visibleDrip = DripBase::factory()->create([
+        'name' => 'Preview Saline',
+        'show_on_er' => true,
+    ]);
+    $hiddenDrip = DripBase::factory()->create([
+        'name' => 'Ward-only Saline',
+        'show_on_er' => false,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-1',
+            'days' => '5',
+        ]])
+        ->set('injectionLines', [[
+            'injection_id' => $injection->id,
+            'administration_type' => 'iv',
+            'volume_ml' => '3',
+        ]])
+        ->set('dripLines', [
+            [
+                'drip_base_id' => $visibleDrip->id,
+                'volume_ml' => '100',
+                'additives' => [],
+            ],
+            [
+                'drip_base_id' => $hiddenDrip->id,
+                'volume_ml' => '250',
+                'additives' => [],
+            ],
+        ])
+        ->set('notes', 'Give after food.')
+        ->call('previewOrder')
+        ->assertHasNoErrors()
+        ->assertSet('showOrderPreviewModal', true)
+        ->assertSee(__('ER order preview'))
+        ->assertSee($patient->name)
+        ->assertSee('Preview Paracetamol')
+        ->assertSee('Preview Diclofenac')
+        ->assertSee('Preview Saline')
+        ->assertSee('Give after food.');
+
+    expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse()
+        ->and($component->get('orderPreview.drips'))->toHaveCount(1)
+        ->and($component->get('orderPreview.drips.0.name'))->toBe('Preview Saline');
+
+    $component
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertSet('showOrderPreviewModal', false);
+
+    expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeTrue();
+});
+
 test('medication queue keeps patients with an active recheck after an order is saved', function () {
     [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create();

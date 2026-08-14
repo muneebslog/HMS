@@ -28,6 +28,23 @@ new #[Title('Medication')] class extends Component
 
     public bool $showHistoryModal = false;
 
+    public bool $showOrderPreviewModal = false;
+
+    /**
+     * @var array{
+     *     medicines: list<array{name: string, dose: string, days: int}>,
+     *     injections: list<array{name: string, administration_type: string, volume_ml: string|null}>,
+     *     drips: list<array{name: string, volume_ml: string, additives: list<array{name: string, volume_ml: string}>}>,
+     *     notes: string|null
+     * }
+     */
+    public array $orderPreview = [
+        'medicines' => [],
+        'injections' => [],
+        'drips' => [],
+        'notes' => null,
+    ];
+
     public string $activeOrderTab = 'medicines';
 
     public string $notes = '';
@@ -422,6 +439,8 @@ new #[Title('Medication')] class extends Component
     {
         $this->selectedTokenId = null;
         $this->showHistoryModal = false;
+        $this->showOrderPreviewModal = false;
+        $this->resetOrderPreview();
         $this->notes = '';
         $this->suggestedPrice = '';
         $this->dripServiceId = null;
@@ -639,6 +658,100 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Validate the order and show it as it will appear at the ER station.
+     */
+    public function previewOrder(): void
+    {
+        $orderData = $this->validatedOrderData();
+
+        if ($orderData === null) {
+            return;
+        }
+
+        [
+            'validated' => $validated,
+            'medicineLines' => $medicineLines,
+            'injectionLines' => $injectionLines,
+            'dripLines' => $dripLines,
+            'medicinesById' => $medicinesById,
+            'injectionsById' => $injectionsById,
+            'dripBasesById' => $dripBasesById,
+        ] = $orderData;
+
+        $this->orderPreview = [
+            'medicines' => $medicineLines
+                ->map(fn (array $line): ?array => $this->resolveMedicineLine($line, $medicinesById))
+                ->filter()
+                ->map(fn (array $line): array => [
+                    'name' => $line['name'],
+                    'dose' => MedicineDose::from($line['dose'])->label(),
+                    'days' => $line['days'],
+                ])
+                ->values()
+                ->all(),
+            'injections' => $injectionLines
+                ->map(function (array $line) use ($injectionsById): ?array {
+                    $injection = $injectionsById->get((int) $line['injection_id']);
+
+                    if ($injection === null) {
+                        return null;
+                    }
+
+                    return [
+                        'name' => $injection->name,
+                        'administration_type' => InjectionAdministrationType::from($line['administration_type'])->label(),
+                        'volume_ml' => filled($line['volume_ml'] ?? null)
+                            ? rtrim(rtrim(number_format((float) $line['volume_ml'], 2), '0'), '.')
+                            : null,
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all(),
+            'drips' => $dripLines
+                ->map(function (array $line) use ($dripBasesById, $injectionsById): ?array {
+                    $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
+
+                    if ($dripBase === null || ! $dripBase->show_on_er) {
+                        return null;
+                    }
+
+                    return [
+                        'name' => $dripBase->name,
+                        'volume_ml' => rtrim(rtrim(number_format((float) $line['volume_ml'], 2), '0'), '.'),
+                        'additives' => collect($line['additives'] ?? [])
+                            ->map(function (array $additive) use ($injectionsById): ?array {
+                                $injection = $injectionsById->get((int) ($additive['injection_id'] ?? 0));
+
+                                if ($injection === null) {
+                                    return null;
+                                }
+
+                                return [
+                                    'name' => $injection->name,
+                                    'volume_ml' => rtrim(rtrim(number_format((float) $additive['volume_ml'], 2), '0'), '.'),
+                                ];
+                            })
+                            ->filter()
+                            ->values()
+                            ->all(),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all(),
+            'notes' => filled($validated['notes']) ? $validated['notes'] : null,
+        ];
+        $this->showOrderPreviewModal = true;
+    }
+
+    public function closeOrderPreview(): void
+    {
+        $this->showOrderPreviewModal = false;
+        $this->resetOrderPreview();
+    }
+
+    /**
      * Save or update the medication order for the selected token.
      */
     public function save(): void
@@ -675,49 +788,21 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
-        $validated = $this->validate($this->orderRules());
+        $orderData = $this->validatedOrderData();
 
-        $medicineLines = collect($validated['medicineLines'] ?? [])
-            ->filter(fn (array $line): bool => $this->medicineLineHasSelection($line))
-            ->values();
-        $injectionLines = collect($validated['injectionLines'] ?? [])
-            ->filter(fn (array $line): bool => filled($line['injection_id'] ?? null))
-            ->values();
-        $dripLines = collect($validated['dripLines'] ?? [])
-            ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
-            ->values();
-
-        if ($medicineLines->isEmpty() && $injectionLines->isEmpty() && $dripLines->isEmpty()) {
-            $this->addError('medicineLines', __('Add at least one medicine, injection, or drip.'));
-
+        if ($orderData === null) {
             return;
         }
 
-        $medicinesById = Medicine::query()
-            ->whereIn(
-                'id',
-                $medicineLines
-                    ->pluck('medicine_id')
-                    ->filter(fn (mixed $id): bool => is_numeric($id))
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->all()
-            )
-            ->get()
-            ->keyBy('id');
-        $injectionsById = Injection::query()
-            ->whereIn(
-                'id',
-                $injectionLines->pluck('injection_id')
-                    ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
-                    ->filter()
-                    ->all()
-            )
-            ->get()
-            ->keyBy('id');
-        $dripBasesById = DripBase::query()
-            ->whereIn('id', $dripLines->pluck('drip_base_id')->filter()->all())
-            ->get()
-            ->keyBy('id');
+        [
+            'validated' => $validated,
+            'medicineLines' => $medicineLines,
+            'injectionLines' => $injectionLines,
+            'dripLines' => $dripLines,
+            'medicinesById' => $medicinesById,
+            'injectionsById' => $injectionsById,
+            'dripBasesById' => $dripBasesById,
+        ] = $orderData;
 
         DB::transaction(function () use ($token, $validated, $medicineLines, $injectionLines, $dripLines, $medicinesById, $injectionsById, $dripBasesById, $existing): void {
             $order = $existing ?? new MedicationOrder([
@@ -803,6 +888,86 @@ new #[Title('Medication')] class extends Component
 
         Flux::toast(variant: 'success', text: __('Medication order saved.'));
         $this->backToList();
+    }
+
+    /**
+     * Validate and resolve the entered order lines.
+     *
+     * @return array{
+     *     validated: array<string, mixed>,
+     *     medicineLines: \Illuminate\Support\Collection<int, array<string, mixed>>,
+     *     injectionLines: \Illuminate\Support\Collection<int, array<string, mixed>>,
+     *     dripLines: \Illuminate\Support\Collection<int, array<string, mixed>>,
+     *     medicinesById: Collection<int, Medicine>,
+     *     injectionsById: Collection<int, Injection>,
+     *     dripBasesById: Collection<int, DripBase>
+     * }|null
+     */
+    private function validatedOrderData(): ?array
+    {
+        $validated = $this->validate($this->orderRules());
+
+        $medicineLines = collect($validated['medicineLines'] ?? [])
+            ->filter(fn (array $line): bool => $this->medicineLineHasSelection($line))
+            ->values();
+        $injectionLines = collect($validated['injectionLines'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['injection_id'] ?? null))
+            ->values();
+        $dripLines = collect($validated['dripLines'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
+            ->values();
+
+        if ($medicineLines->isEmpty() && $injectionLines->isEmpty() && $dripLines->isEmpty()) {
+            $this->addError('medicineLines', __('Add at least one medicine, injection, or drip.'));
+
+            return null;
+        }
+
+        $medicinesById = Medicine::query()
+            ->whereIn(
+                'id',
+                $medicineLines
+                    ->pluck('medicine_id')
+                    ->filter(fn (mixed $id): bool => is_numeric($id))
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all()
+            )
+            ->get()
+            ->keyBy('id');
+        $injectionsById = Injection::query()
+            ->whereIn(
+                'id',
+                $injectionLines->pluck('injection_id')
+                    ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
+                    ->filter()
+                    ->all()
+            )
+            ->get()
+            ->keyBy('id');
+        $dripBasesById = DripBase::query()
+            ->whereIn('id', $dripLines->pluck('drip_base_id')->filter()->all())
+            ->get()
+            ->keyBy('id');
+
+        return compact(
+            'validated',
+            'medicineLines',
+            'injectionLines',
+            'dripLines',
+            'medicinesById',
+            'injectionsById',
+            'dripBasesById',
+        );
+    }
+
+    private function resetOrderPreview(): void
+    {
+        $this->orderPreview = [
+            'medicines' => [],
+            'injections' => [],
+            'drips' => [],
+            'notes' => null,
+        ];
     }
 
     /**
@@ -1237,7 +1402,7 @@ new #[Title('Medication')] class extends Component
         </div>
 
         <form
-            wire:submit="save"
+            wire:submit="previewOrder"
             class="flex flex-1 flex-col gap-4"
             x-data
             @keydown.shift.enter.prevent="$wire.addRowForActiveTab()"
@@ -1450,6 +1615,94 @@ new #[Title('Medication')] class extends Component
                 </flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showOrderPreviewModal" class="w-full max-w-xl">
+        <div class="space-y-4">
+            <div>
+                <flux:heading level="2">{{ __('ER order preview') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Review how this order will appear at the ER station before sending it.') }}</flux:text>
+            </div>
+
+            <x-paper-slip
+                :token="$this->selectedToken?->token_number"
+                class="mx-auto w-full max-w-lg"
+            >
+                <div class="space-y-1">
+                    <p class="truncate text-lg font-semibold text-zinc-900">{{ $this->selectedToken?->patient?->name ?? __('Unknown') }}</p>
+                    <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                        {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
+                        · {{ $this->selectedToken?->serviceQueue?->service?->name }}
+                    </p>
+                </div>
+
+                <div class="space-y-4 border-t border-dashed border-zinc-400/70 pt-3">
+                    <div>
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Medicines') }}</p>
+                        @forelse ($orderPreview['medicines'] as $index => $medicine)
+                            <p wire:key="preview-medicine-{{ $index }}" class="mb-2 text-sm text-zinc-800">
+                                {{ $medicine['name'] }}
+                                <span class="text-zinc-500">— {{ $medicine['dose'] }} · {{ $medicine['days'] }} {{ __('days') }}</span>
+                            </p>
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('None') }}</p>
+                        @endforelse
+                    </div>
+
+                    <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                        <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Injections') }}</p>
+                        @forelse ($orderPreview['injections'] as $index => $injection)
+                            <p wire:key="preview-injection-{{ $index }}" class="mb-2 text-sm text-zinc-800">
+                                {{ $injection['name'] }}
+                                <span class="text-zinc-500">
+                                    — {{ $injection['administration_type'] }}
+                                    @if ($injection['volume_ml'] !== null)
+                                        · {{ $injection['volume_ml'] }} ml
+                                    @endif
+                                </span>
+                            </p>
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('None') }}</p>
+                        @endforelse
+                    </div>
+
+                    @if ($orderPreview['drips'] !== [])
+                        <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                            <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Drips') }}</p>
+                            @foreach ($orderPreview['drips'] as $index => $drip)
+                                <div wire:key="preview-drip-{{ $index }}" class="mb-2">
+                                    <p class="text-sm font-medium text-zinc-800">
+                                        {{ $drip['name'] }} — {{ $drip['volume_ml'] }} ml
+                                    </p>
+                                    @foreach ($drip['additives'] as $additiveIndex => $additive)
+                                        <p wire:key="preview-drip-{{ $index }}-additive-{{ $additiveIndex }}" class="ms-3 text-sm text-zinc-600">
+                                            + {{ $additive['volume_ml'] }} ml {{ $additive['name'] }}
+                                        </p>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                            <p class="text-xs text-zinc-500">{{ __('Start and complete drips at the Drip Station.') }}</p>
+                        </div>
+                    @endif
+
+                    @if (filled($orderPreview['notes']))
+                        <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                            <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Notes') }}</p>
+                            <p class="whitespace-pre-line text-sm text-zinc-800">{{ $orderPreview['notes'] }}</p>
+                        </div>
+                    @endif
+                </div>
+            </x-paper-slip>
+
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeOrderPreview">
+                    {{ __('Edit order') }}
+                </flux:button>
+                <flux:button type="button" variant="primary" wire:click="save">
+                    {{ __('Confirm and send to ER') }}
+                </flux:button>
+            </div>
+        </div>
     </flux:modal>
 
     <flux:modal wire:model="showHistoryModal" class="w-full max-w-2xl">
