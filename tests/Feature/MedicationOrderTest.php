@@ -592,3 +592,87 @@ test('doctor can write a medicine that is not in the catalog', function () {
         'name' => 'Augmentin 625mg',
     ]);
 });
+
+test('doctor can write an injection and a drip additive that are not in the catalog', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('switchOrderTab', 'injections')
+        ->assertSee(__('Search injection or type a new name'))
+        ->set('injectionLines', [[
+            'injection_id' => 'custom:Ketorolac 30mg',
+            'administration_type' => 'im',
+            'volume_ml' => '2',
+        ]])
+        ->set('dripLines', [[
+            'drip_base_id' => $dripBase->id,
+            'volume_ml' => '100',
+            'additives' => [[
+                'injection_id' => 'custom:Vitamin C 500mg',
+                'volume_ml' => '5',
+            ]],
+        ]])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->injections)->toHaveCount(1)
+        ->and($order->drips->first()->additives)->toHaveCount(1);
+
+    $this->assertDatabaseHas('medication_order_injections', [
+        'medication_order_id' => $order->id,
+        'injection_id' => null,
+        'administration_type' => 'im',
+        'volume_ml' => 2,
+        'name' => 'Ketorolac 30mg',
+    ]);
+
+    $this->assertDatabaseHas('medication_order_drip_additives', [
+        'injection_id' => null,
+        'volume_ml' => 5,
+        'name' => 'Vitamin C 500mg',
+    ]);
+
+    $component->call('selectToken', $token->id);
+
+    expect($component->get('injectionLines.0.injection_id'))->toBe('custom:Ketorolac 30mg')
+        ->and($component->get('dripLines.0.additives.0.injection_id'))->toBe('custom:Vitamin C 500mg');
+});
+
+test('written injections appear in the er order preview', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('injectionLines', [[
+            'injection_id' => 'custom:Ketorolac 30mg',
+            'administration_type' => 'iv',
+            'volume_ml' => '2',
+        ]])
+        ->call('previewOrder')
+        ->assertHasNoErrors()
+        ->assertSet('showOrderPreviewModal', true)
+        ->assertSee('Ketorolac 30mg');
+});
+
+test('a blank written injection name is rejected', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('injectionLines', [[
+            'injection_id' => 'custom:   ',
+            'administration_type' => 'im',
+            'volume_ml' => '2',
+        ]])
+        ->call('save')
+        ->assertHasErrors('injectionLines.0.injection_id');
+
+    expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
+});

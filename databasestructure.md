@@ -511,10 +511,10 @@ One medication order per queue token. `doctor_id` is null for standalone service
 |--------|------|-------|
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
-| injection_id | FK → injections | restrictOnDelete |
+| injection_id | FK → injections | nullable, restrictOnDelete — null when the doctor writes an injection not in the catalog |
 | administration_type | string | `InjectionAdministrationType` (`im`, `iv`) |
 | volume_ml | decimal(8,2) | nullable |
-| name | string | snapshot |
+| name | string | snapshot of catalog name, or the written custom injection name |
 | delivered_at | timestamp | nullable |
 | delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | timestamps | | |
@@ -542,9 +542,9 @@ One medication order per queue token. `doctor_id` is null for standalone service
 |--------|------|-------|
 | id | bigint | PK |
 | medication_order_drip_id | FK → medication_order_drips | cascadeOnDelete |
-| injection_id | FK → injections | restrictOnDelete |
+| injection_id | FK → injections | nullable, restrictOnDelete — null when the doctor writes an injection not in the catalog |
 | volume_ml | decimal(8,2) | |
-| name | string | snapshot |
+| name | string | snapshot of catalog name, or the written custom injection name |
 | timestamps | | |
 
 ### `sms_logs`

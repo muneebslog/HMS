@@ -65,12 +65,12 @@ new #[Title('Medication')] class extends Component
     public array $medicineLines = [];
 
     /**
-     * @var list<array{injection_id: int|null, administration_type: string, volume_ml: string}>
+     * @var list<array{injection_id: int|string|null, administration_type: string, volume_ml: string}>
      */
     public array $injectionLines = [];
 
     /**
-     * @var list<array{drip_base_id: int|null, volume_ml: string, additives: list<array{injection_id: int|null, volume_ml: string}>}>
+     * @var list<array{drip_base_id: int|null, volume_ml: string, additives: list<array{injection_id: int|string|null, volume_ml: string}>}>
      */
     public array $dripLines = [];
 
@@ -519,7 +519,7 @@ new #[Title('Medication')] class extends Component
         $index = (int) explode('.', $key)[0];
         $injectionId = $this->injectionLines[$index]['injection_id'] ?? null;
 
-        if ($injectionId === null || $injectionId === '') {
+        if (! is_numeric($injectionId)) {
             return;
         }
 
@@ -632,14 +632,14 @@ new #[Title('Medication')] class extends Component
                 ->all(),
             'injections' => $injectionLines
                 ->map(function (array $line) use ($injectionsById): ?array {
-                    $injection = $injectionsById->get((int) $line['injection_id']);
+                    $resolved = $this->resolveInjection($line['injection_id'] ?? null, $injectionsById);
 
-                    if ($injection === null) {
+                    if ($resolved === null) {
                         return null;
                     }
 
                     return [
-                        'name' => $injection->name,
+                        'name' => $resolved['name'],
                         'administration_type' => InjectionAdministrationType::from($line['administration_type'])->label(),
                         'volume_ml' => filled($line['volume_ml'] ?? null)
                             ? rtrim(rtrim(number_format((float) $line['volume_ml'], 2), '0'), '.')
@@ -662,14 +662,14 @@ new #[Title('Medication')] class extends Component
                         'volume_ml' => rtrim(rtrim(number_format((float) $line['volume_ml'], 2), '0'), '.'),
                         'additives' => collect($line['additives'] ?? [])
                             ->map(function (array $additive) use ($injectionsById): ?array {
-                                $injection = $injectionsById->get((int) ($additive['injection_id'] ?? 0));
+                                $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
 
-                                if ($injection === null) {
+                                if ($resolved === null) {
                                     return null;
                                 }
 
                                 return [
-                                    'name' => $injection->name,
+                                    'name' => $resolved['name'],
                                     'volume_ml' => rtrim(rtrim(number_format((float) $additive['volume_ml'], 2), '0'), '.'),
                                 ];
                             })
@@ -787,17 +787,17 @@ new #[Title('Medication')] class extends Component
             }
 
             foreach ($injectionLines as $line) {
-                $injection = $injectionsById->get((int) $line['injection_id']);
+                $resolved = $this->resolveInjection($line['injection_id'] ?? null, $injectionsById);
 
-                if ($injection === null) {
+                if ($resolved === null) {
                     continue;
                 }
 
                 $order->injections()->create([
-                    'injection_id' => $injection->id,
+                    'injection_id' => $resolved['injection_id'],
                     'administration_type' => $line['administration_type'],
                     'volume_ml' => filled($line['volume_ml'] ?? null) ? $line['volume_ml'] : null,
-                    'name' => $injection->name,
+                    'name' => $resolved['name'],
                 ]);
             }
 
@@ -815,20 +815,16 @@ new #[Title('Medication')] class extends Component
                 ]);
 
                 foreach ($line['additives'] ?? [] as $additive) {
-                    if (! filled($additive['injection_id'] ?? null)) {
-                        continue;
-                    }
+                    $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
 
-                    $injection = $injectionsById->get((int) $additive['injection_id']);
-
-                    if ($injection === null) {
+                    if ($resolved === null) {
                         continue;
                     }
 
                     $drip->additives()->create([
-                        'injection_id' => $injection->id,
+                        'injection_id' => $resolved['injection_id'],
                         'volume_ml' => $additive['volume_ml'],
-                        'name' => $injection->name,
+                        'name' => $resolved['name'],
                     ]);
                 }
             }
@@ -863,7 +859,7 @@ new #[Title('Medication')] class extends Component
             ->filter(fn (array $line): bool => $this->medicineLineHasSelection($line))
             ->values();
         $injectionLines = collect($validated['injectionLines'] ?? [])
-            ->filter(fn (array $line): bool => filled($line['injection_id'] ?? null))
+            ->filter(fn (array $line): bool => $this->injectionLineHasSelection($line))
             ->values();
         $dripLines = collect($validated['dripLines'] ?? [])
             ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
@@ -891,7 +887,8 @@ new #[Title('Medication')] class extends Component
                 'id',
                 $injectionLines->pluck('injection_id')
                     ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
-                    ->filter()
+                    ->filter(fn (mixed $id): bool => is_numeric($id))
+                    ->map(fn (mixed $id): int => (int) $id)
                     ->all()
             )
             ->get()
@@ -1000,7 +997,7 @@ new #[Title('Medication')] class extends Component
                     return;
                 }
 
-                $name = $this->customMedicineName($value);
+                $name = $this->customLineName($value);
 
                 if ($name === '' || mb_strlen($name) > 255) {
                     $fail(__('Medicine name must be 255 characters or fewer.'));
@@ -1009,16 +1006,42 @@ new #[Title('Medication')] class extends Component
             'medicineLines.*.dose' => ['required_with:medicineLines.*.medicine_id', 'string', Rule::enum(MedicineDose::class)],
             'medicineLines.*.days' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1', 'max:365'],
             'injectionLines' => ['array'],
-            'injectionLines.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
+            'injectionLines.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
             'injectionLines.*.administration_type' => ['required_with:injectionLines.*.injection_id', 'string', Rule::enum(InjectionAdministrationType::class)],
             'injectionLines.*.volume_ml' => ['nullable', 'numeric', 'min:0'],
             'dripLines' => ['array'],
             'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
             'dripLines.*.volume_ml' => ['required_with:dripLines.*.drip_base_id', 'numeric', 'min:0'],
             'dripLines.*.additives' => ['array'],
-            'dripLines.*.additives.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
+            'dripLines.*.additives.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
             'dripLines.*.additives.*.volume_ml' => ['required_with:dripLines.*.additives.*.injection_id', 'numeric', 'min:0'],
         ];
+    }
+
+    /**
+     * Accept either a catalog injection id or a name written by the doctor.
+     */
+    private function injectionSelectionRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! filled($value)) {
+                return;
+            }
+
+            if (is_numeric($value)) {
+                if (! Injection::query()->whereKey((int) $value)->exists()) {
+                    $fail(__('The selected injection is invalid.'));
+                }
+
+                return;
+            }
+
+            $name = $this->customLineName($value);
+
+            if ($name === '' || mb_strlen($name) > 255) {
+                $fail(__('Injection name must be 255 characters or fewer.'));
+            }
+        };
     }
 
     /**
@@ -1034,13 +1057,29 @@ new #[Title('Medication')] class extends Component
             return false;
         }
 
-        return is_numeric($raw) || $this->customMedicineName($raw) !== '';
+        return is_numeric($raw) || $this->customLineName($raw) !== '';
     }
 
     /**
-     * Resolve a written custom medicine name from the searchable select value.
+     * Whether an injection row has a catalog selection or a written name.
+     *
+     * @param  array{injection_id?: int|string|null}  $line
      */
-    private function customMedicineName(mixed $value): string
+    private function injectionLineHasSelection(array $line): bool
+    {
+        $raw = $line['injection_id'] ?? null;
+
+        if (! filled($raw)) {
+            return false;
+        }
+
+        return is_numeric($raw) || $this->customLineName($raw) !== '';
+    }
+
+    /**
+     * Resolve a written custom catalog name from the searchable select value.
+     */
+    private function customLineName(mixed $value): string
     {
         if (! is_string($value)) {
             return '';
@@ -1079,7 +1118,7 @@ new #[Title('Medication')] class extends Component
             ];
         }
 
-        $name = $this->customMedicineName($raw);
+        $name = $this->customLineName($raw);
 
         if ($name === '') {
             return null;
@@ -1089,6 +1128,39 @@ new #[Title('Medication')] class extends Component
             'medicine_id' => null,
             'dose' => $line['dose'],
             'days' => (int) $line['days'],
+            'name' => $name,
+        ];
+    }
+
+    /**
+     * Turn an injection or drip additive selection into a catalog id and display name.
+     *
+     * @param  Collection<int, Injection>  $injectionsById
+     * @return array{injection_id: int|null, name: string}|null
+     */
+    private function resolveInjection(mixed $raw, Collection $injectionsById): ?array
+    {
+        if (is_numeric($raw)) {
+            $injection = $injectionsById->get((int) $raw);
+
+            if ($injection === null) {
+                return null;
+            }
+
+            return [
+                'injection_id' => $injection->id,
+                'name' => $injection->name,
+            ];
+        }
+
+        $name = $this->customLineName($raw);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return [
+            'injection_id' => null,
             'name' => $name,
         ];
     }
@@ -1128,7 +1200,7 @@ new #[Title('Medication')] class extends Component
         ])->values()->all();
 
         $this->injectionLines = $order->injections->map(fn ($line) => [
-            'injection_id' => $line->injection_id,
+            'injection_id' => $line->injection_id ?? 'custom:'.$line->name,
             'administration_type' => $line->administration_type->value,
             'volume_ml' => $line->volume_ml !== null ? (string) $line->volume_ml : '',
         ])->values()->all();
@@ -1137,7 +1209,7 @@ new #[Title('Medication')] class extends Component
             'drip_base_id' => $drip->drip_base_id,
             'volume_ml' => (string) $drip->volume_ml,
             'additives' => $drip->additives->map(fn ($additive) => [
-                'injection_id' => $additive->injection_id,
+                'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
                 'volume_ml' => (string) $additive->volume_ml,
             ])->values()->all(),
         ])->values()->all();
@@ -1417,8 +1489,10 @@ new #[Title('Medication')] class extends Component
                                 <x-searchable-select
                                     wire:model.live="injectionLines.{{ $index }}.injection_id"
                                     :options="$this->injectionOptions"
-                                    :placeholder="__('Search injection')"
+                                    :placeholder="__('Search injection or type a new name')"
+                                    allow-custom
                                 />
+                                <flux:error name="injectionLines.{{ $index }}.injection_id" />
                             </div>
                             <div class="sm:col-span-3">
                                 <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
@@ -1468,7 +1542,8 @@ new #[Title('Medication')] class extends Component
                                             <x-searchable-select
                                                 wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
                                                 :options="$this->injectionOptions"
-                                                :placeholder="__('Search injection')"
+                                                :placeholder="__('Search injection or type a new name')"
+                                                allow-custom
                                             />
                                         </div>
                                         <div class="sm:col-span-4">
