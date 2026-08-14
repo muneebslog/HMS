@@ -256,13 +256,8 @@ test('only one medication modal is open at a time', function () {
         ->assertHasNoErrors()
         ->assertSet('showOrderPreviewModal', true)
         ->assertSet('showHistoryModal', false)
-        ->assertSet('showNewMedicineModal', false)
         ->call('openHistory')
         ->assertSet('showHistoryModal', true)
-        ->assertSet('showOrderPreviewModal', false)
-        ->call('openNewMedicineForm', 0)
-        ->assertSet('showNewMedicineModal', true)
-        ->assertSet('showHistoryModal', false)
         ->assertSet('showOrderPreviewModal', false);
 });
 
@@ -272,7 +267,6 @@ test('medication modals render with unique flux names', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSeeHtml('data-modal="medication-new-medicine"')
         ->assertSeeHtml('data-modal="medication-order-preview"')
         ->assertSeeHtml('data-modal="medication-history"');
 });
@@ -428,7 +422,7 @@ test('medication form uses searchable selects for catalog fields', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Search or write medicine'))
+        ->assertSee(__('Search medicine or type a new name'))
         ->assertSee('PCM — Searchable Paracetamol')
         ->call('switchOrderTab', 'injections')
         ->assertSee(__('Search injection'))
@@ -438,28 +432,15 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee('Searchable Saline');
 });
 
-test('doctor can add a missing medicine and select it for the current order line', function () {
+test('doctor cannot add medicines to the catalog from the order form', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
 
-    $component = Livewire::actingAs($user)
+    Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->call('openNewMedicineForm', 0)
-        ->assertSet('showNewMedicineModal', true)
-        ->set('newMedicineName', '  New Catalog Medicine  ')
-        ->set('newMedicineShortForm', ' NCM ')
-        ->set('newMedicineUnit', ' tablet ')
-        ->call('createMedicine')
-        ->assertHasNoErrors()
-        ->assertSet('showNewMedicineModal', false);
-
-    $medicine = Medicine::query()->where('name', 'New Catalog Medicine')->first();
-
-    expect($medicine)->not->toBeNull()
-        ->and($medicine->short_form)->toBe('NCM')
-        ->and($medicine->unit)->toBe('tablet')
-        ->and($medicine->is_active)->toBeTrue()
-        ->and($component->get('medicineLines.0.medicine_id'))->toBe($medicine->id);
+        ->assertDontSee(__('Medicine not listed? Add it'))
+        ->assertDontSeeHtml('data-modal="medication-new-medicine"')
+        ->assertSee(__('Search medicine or type a new name'));
 });
 
 test('doctor medication queue uses paper slips', function () {
@@ -565,7 +546,7 @@ test('doctor can write a medicine that is not in the catalog', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Search or write medicine'))
+        ->assertSee(__('Search medicine or type a new name'))
         ->set('medicineLines', [[
             'medicine_id' => 'custom:Augmentin 625mg',
             'dose' => '1-0-1',

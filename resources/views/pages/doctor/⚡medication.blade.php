@@ -59,16 +59,6 @@ new #[Title('Medication')] class extends Component
 
     public bool $showRecheckForm = false;
 
-    public bool $showNewMedicineModal = false;
-
-    public ?int $newMedicineLineIndex = null;
-
-    public string $newMedicineName = '';
-
-    public string $newMedicineShortForm = '';
-
-    public string $newMedicineUnit = 'tablet';
-
     /**
      * @var list<array{medicine_id: int|string|null, dose: string, days: string}>
      */
@@ -505,68 +495,6 @@ new #[Title('Medication')] class extends Component
         $this->medicineLines = array_values($this->medicineLines);
     }
 
-    public function openNewMedicineForm(int $index): void
-    {
-        if (! isset($this->medicineLines[$index])) {
-            return;
-        }
-
-        $this->closeModals();
-        $this->newMedicineLineIndex = $index;
-        $this->newMedicineName = '';
-        $this->newMedicineShortForm = '';
-        $this->newMedicineUnit = 'tablet';
-        $this->showNewMedicineModal = true;
-        $this->resetValidation([
-            'newMedicineName',
-            'newMedicineShortForm',
-            'newMedicineUnit',
-        ]);
-    }
-
-    public function closeNewMedicineForm(): void
-    {
-        $this->showNewMedicineModal = false;
-        $this->newMedicineLineIndex = null;
-        $this->resetValidation([
-            'newMedicineName',
-            'newMedicineShortForm',
-            'newMedicineUnit',
-        ]);
-    }
-
-    public function createMedicine(): void
-    {
-        if ($this->newMedicineLineIndex === null || ! isset($this->medicineLines[$this->newMedicineLineIndex])) {
-            $this->closeNewMedicineForm();
-
-            return;
-        }
-
-        $this->newMedicineName = trim($this->newMedicineName);
-        $this->newMedicineShortForm = trim($this->newMedicineShortForm);
-        $this->newMedicineUnit = trim($this->newMedicineUnit);
-
-        $validated = $this->validate([
-            'newMedicineName' => ['required', 'string', 'max:255', Rule::unique('medicines', 'name')],
-            'newMedicineShortForm' => ['nullable', 'string', 'max:50'],
-            'newMedicineUnit' => ['required', 'string', 'max:100'],
-        ]);
-
-        $medicine = Medicine::create([
-            'name' => $validated['newMedicineName'],
-            'short_form' => filled($validated['newMedicineShortForm']) ? $validated['newMedicineShortForm'] : null,
-            'unit' => $validated['newMedicineUnit'],
-            'is_active' => true,
-        ]);
-
-        $this->medicineLines[$this->newMedicineLineIndex]['medicine_id'] = $medicine->id;
-        unset($this->medicines, $this->medicineOptions);
-
-        $this->closeNewMedicineForm();
-        Flux::toast(variant: 'success', text: __('Medicine added and selected.'));
-    }
-
     public function addInjectionLine(): void
     {
         $this->injectionLines[] = [
@@ -762,7 +690,6 @@ new #[Title('Medication')] class extends Component
     private function closeModals(): void
     {
         $this->showHistoryModal = false;
-        $this->showNewMedicineModal = false;
         $this->showOrderPreviewModal = false;
         $this->resetOrderPreview();
     }
@@ -1431,17 +1358,10 @@ new #[Title('Medication')] class extends Component
                                 <x-searchable-select
                                     wire:model="medicineLines.{{ $index }}.medicine_id"
                                     :options="$this->medicineOptions"
-                                    :placeholder="__('Search or write medicine')"
+                                    :placeholder="__('Search medicine or type a new name')"
                                     allow-custom
                                 />
                                 <flux:error name="medicineLines.{{ $index }}.medicine_id" />
-                                <button
-                                    type="button"
-                                    wire:click="openNewMedicineForm({{ $index }})"
-                                    class="mt-1 text-xs font-medium text-zinc-500 underline decoration-dotted underline-offset-2 hover:text-zinc-900 dark:hover:text-white"
-                                >
-                                    {{ __('Medicine not listed? Add it') }}
-                                </button>
                             </div>
                             <div class="sm:col-span-3">
                                 <flux:select wire:model="medicineLines.{{ $index }}.dose">
@@ -1595,43 +1515,6 @@ new #[Title('Medication')] class extends Component
             </div>
         </form>
     @endif
-
-    <flux:modal name="medication-new-medicine" wire:model="showNewMedicineModal" class="w-full max-w-md">
-        <form wire:submit="createMedicine" class="space-y-5">
-            <div>
-                <flux:heading level="2">{{ __('Add medicine') }}</flux:heading>
-                <flux:text class="mt-1">{{ __('This medicine will be added to the catalog and selected for this order.') }}</flux:text>
-            </div>
-
-            <flux:field>
-                <flux:label>{{ __('Medicine name') }}</flux:label>
-                <flux:input wire:model="newMedicineName" type="text" autofocus />
-                <flux:error name="newMedicineName" />
-            </flux:field>
-
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:field>
-                    <flux:label>{{ __('Short form') }}</flux:label>
-                    <flux:input wire:model="newMedicineShortForm" type="text" placeholder="{{ __('Optional') }}" />
-                    <flux:error name="newMedicineShortForm" />
-                </flux:field>
-                <flux:field>
-                    <flux:label>{{ __('Unit') }}</flux:label>
-                    <flux:input wire:model="newMedicineUnit" type="text" placeholder="{{ __('tablet, syrup, capsule') }}" />
-                    <flux:error name="newMedicineUnit" />
-                </flux:field>
-            </div>
-
-            <div class="flex justify-end gap-2">
-                <flux:button type="button" variant="ghost" wire:click="closeNewMedicineForm">
-                    {{ __('Cancel') }}
-                </flux:button>
-                <flux:button type="submit" variant="primary">
-                    {{ __('Add and select') }}
-                </flux:button>
-            </div>
-        </form>
-    </flux:modal>
 
     <flux:modal name="medication-order-preview" wire:model="showOrderPreviewModal" class="w-full max-w-xl">
         <div class="space-y-4">
