@@ -224,6 +224,37 @@ test('vitals recorded patient moves past vitals stage', function () {
     expect($resolved['station'])->toBe(ClinicStation::Doctor);
 });
 
+test('service ending at vitals is done after vitals are recorded', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken([
+        'ends_at_vitals' => true,
+        'needs_medication' => true,
+        'appear_on_er' => true,
+    ]);
+
+    $beforeVitals = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    Vital::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'recorded_by' => $user->id,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $afterVitals = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    expect($beforeVitals['station'])->toBe(ClinicStation::Vitals)
+        ->and($afterVitals['station'])->toBe(ClinicStation::Done);
+});
+
 test('patient flow livewire page renders station columns', function () {
     $admin = User::factory()->admin()->create();
     [, , $token] = createFlowToken(['appear_on_er' => true]);

@@ -107,23 +107,24 @@ test('authenticated users can delete a doctor', function () {
     ]);
 });
 
-test('authenticated users can create a service with needs vitals', function () {
+test('authenticated users can create a service that ends at vitals', function () {
     $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
         ->set('activeTab', 'services')
         ->call('create')
-        ->set('serviceName', 'Consultation With Vitals')
+        ->set('serviceName', 'Vitals Only')
         ->set('serviceIsStandalone', false)
-        ->set('serviceNeedsVitals', true)
+        ->set('serviceEndsAtVitals', true)
         ->set('serviceTokenResetType', TokenResetType::Shift->value)
         ->call('save')
         ->assertHasNoErrors();
 
     $this->assertDatabaseHas('services', [
-        'name' => 'Consultation With Vitals',
+        'name' => 'Vitals Only',
         'needs_vitals' => true,
+        'ends_at_vitals' => true,
         'token_reset_type' => TokenResetType::Shift->value,
     ]);
 });

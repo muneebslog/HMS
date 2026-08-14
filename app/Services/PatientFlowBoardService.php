@@ -102,10 +102,17 @@ class PatientFlowBoardService
         $order = $token->medicationOrder;
         $arrivedAt = $token->arrived_at ?? $token->created_at ?? now();
 
-        if ($service?->needs_vitals && $token->vital === null) {
+        if (($service?->needs_vitals || $service?->ends_at_vitals) && $token->vital === null) {
             return [
                 'station' => ClinicStation::Vitals,
                 'started_at' => $arrivedAt,
+            ];
+        }
+
+        if ($service?->ends_at_vitals) {
+            return [
+                'station' => ClinicStation::Done,
+                'started_at' => $token->vital?->created_at ?? $token->updated_at ?? $arrivedAt,
             ];
         }
 

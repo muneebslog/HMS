@@ -22,6 +22,7 @@ class ServiceFactory extends Factory
             'name' => fake()->words(3, true),
             'is_standalone' => fake()->boolean(),
             'needs_vitals' => false,
+            'ends_at_vitals' => false,
             'needs_medication' => false,
             'is_drip' => false,
             'appear_on_er' => false,
@@ -47,6 +48,17 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'needs_vitals' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the service finishes after vitals are recorded.
+     */
+    public function endsAtVitals(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'needs_vitals' => true,
+            'ends_at_vitals' => true,
         ]);
     }
 

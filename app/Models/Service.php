@@ -25,6 +25,7 @@ class Service extends Model
         'name',
         'is_standalone',
         'needs_vitals',
+        'ends_at_vitals',
         'needs_medication',
         'is_drip',
         'appear_on_er',
@@ -39,6 +40,7 @@ class Service extends Model
      */
     protected $attributes = [
         'needs_vitals' => false,
+        'ends_at_vitals' => false,
         'needs_medication' => false,
         'is_drip' => false,
         'appear_on_er' => false,
@@ -55,6 +57,7 @@ class Service extends Model
         return [
             'is_standalone' => 'boolean',
             'needs_vitals' => 'boolean',
+            'ends_at_vitals' => 'boolean',
             'needs_medication' => 'boolean',
             'is_drip' => 'boolean',
             'appear_on_er' => 'boolean',

@@ -86,6 +86,9 @@ new #[Title('Management')] class extends Component
     public bool $serviceNeedsVitals = false;
 
     #[Validate]
+    public bool $serviceEndsAtVitals = false;
+
+    #[Validate]
     public bool $serviceNeedsMedication = false;
 
     #[Validate]
@@ -233,6 +236,7 @@ new #[Title('Management')] class extends Component
                 ],
                 'serviceIsStandalone' => ['boolean'],
                 'serviceNeedsVitals' => ['boolean'],
+                'serviceEndsAtVitals' => ['boolean'],
                 'serviceNeedsMedication' => ['boolean'],
                 'serviceIsDrip' => ['boolean'],
                 'serviceAppearOnEr' => ['boolean'],
@@ -455,6 +459,7 @@ new #[Title('Management')] class extends Component
         $this->serviceName = $service->name;
         $this->serviceIsStandalone = $service->is_standalone;
         $this->serviceNeedsVitals = $service->needs_vitals;
+        $this->serviceEndsAtVitals = $service->ends_at_vitals;
         $this->serviceNeedsMedication = $service->needs_medication;
         $this->serviceIsDrip = $service->is_drip;
         $this->serviceAppearOnEr = $service->appear_on_er;
@@ -582,6 +587,7 @@ new #[Title('Management')] class extends Component
             'serviceName',
             'serviceIsStandalone',
             'serviceNeedsVitals',
+            'serviceEndsAtVitals',
             'serviceNeedsMedication',
             'serviceIsDrip',
             'serviceAppearOnEr',
@@ -771,7 +777,8 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['serviceName'],
             'is_standalone' => $validated['serviceIsStandalone'],
-            'needs_vitals' => $validated['serviceNeedsVitals'],
+            'needs_vitals' => $validated['serviceNeedsVitals'] || $validated['serviceEndsAtVitals'],
+            'ends_at_vitals' => $validated['serviceEndsAtVitals'],
             'needs_medication' => $validated['serviceNeedsMedication'],
             'is_drip' => $validated['serviceIsDrip'],
             'appear_on_er' => $validated['serviceAppearOnEr'],
@@ -1746,6 +1753,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Standalone') }}</flux:table.column>
                             <flux:table.column>{{ __('Needs Vitals') }}</flux:table.column>
+                            <flux:table.column>{{ __('Ends at Vitals') }}</flux:table.column>
                             <flux:table.column>{{ __('Needs Medication') }}</flux:table.column>
                             <flux:table.column>{{ __('Is Drip') }}</flux:table.column>
                             <flux:table.column>{{ __('Appear on ER') }}</flux:table.column>
@@ -1768,6 +1776,13 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>
                                         @if ($service->needs_vitals)
                                             <flux:badge size="sm" color="amber">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->ends_at_vitals)
+                                            <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
                                         @else
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
@@ -1808,7 +1823,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="9" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="10" class="text-center text-zinc-500">
                                         {{ __('No services found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2026,6 +2041,12 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="serviceNeedsVitals" :label="__('Needs vitals')" />
                     <flux:error name="serviceNeedsVitals" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceEndsAtVitals" :label="__('Ends at vitals')" />
+                    <flux:description>{{ __('Patient is marked served after vitals and will not continue to the doctor or ER.') }}</flux:description>
+                    <flux:error name="serviceEndsAtVitals" />
                 </flux:field>
 
                 <flux:field>

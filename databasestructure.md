@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_10_192809_add_is_file_check_to_service_prices_table`.
+> Last reviewed against migrations through `2026_08_14_161607_add_ends_at_vitals_to_services_table`.
 
 Conventions used below:
 
@@ -131,6 +131,7 @@ Conventions used below:
 | name | string | |
 | is_standalone | boolean | default false |
 | needs_vitals | boolean | default false |
+| ends_at_vitals | boolean | default false — token is marked served after initial vitals |
 | needs_medication | boolean | default false |
 | is_drip | boolean | default false — doctor can suggest price during medication |
 | appear_on_er | boolean | default false — patient appears on ER station page |
@@ -401,7 +402,7 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | bsr | unsignedSmallInteger | nullable, mg/dL (blood sugar random) |
 | timestamps | | |
 
-One or more vitals rows per queue token (initial capture plus doctor-requested rechecks). Presence of any row means initial vitals are done; token status is unchanged. Latest row is the current reading.
+One or more vitals rows per queue token (initial capture plus doctor-requested rechecks). Presence of any row means initial vitals are done. The token status is normally unchanged, but becomes `served` after initial capture when its service has `ends_at_vitals` enabled. Latest row is the current reading.
 
 ### `doctor_rechecks`
 | Column | Type | Notes |

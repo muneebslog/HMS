@@ -65,7 +65,9 @@ new #[Title('Vitals')] class extends Component
                         ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
                             $serviceQueue->where('status', 'open')
                                 ->where('shift_id', $shift->id)
-                                ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_vitals', true));
+                                ->whereHas('service', fn ($serviceQuery) => $serviceQuery
+                                    ->where('needs_vitals', true)
+                                    ->orWhere('ends_at_vitals', true));
                         });
                 })->orWhere(function ($recheck) use ($shift): void {
                     $recheck->whereIn('status', ['waiting', 'serving'])
@@ -187,7 +189,7 @@ new #[Title('Vitals')] class extends Component
             $this->backToList();
 
             return;
-        } elseif (! $token->serviceQueue?->service?->needs_vitals) {
+        } elseif (! $token->serviceQueue?->service?->needs_vitals && ! $token->serviceQueue?->service?->ends_at_vitals) {
             Flux::toast(variant: 'danger', text: __('This service does not require vitals.'));
             $this->backToList();
 
@@ -207,6 +209,10 @@ new #[Title('Vitals')] class extends Component
             'queue_token_id' => $token->id,
             ...$vitalAttributes,
         ]);
+
+        if (! $isRecheck && $token->serviceQueue?->service?->ends_at_vitals) {
+            $token->update(['status' => 'served']);
+        }
 
         if ($isRecheck) {
             DoctorRecheck::query()

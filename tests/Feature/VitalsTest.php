@@ -102,6 +102,25 @@ test('vitals queue excludes tokens for services that do not need vitals', functi
         ->assertSee(__('No patients need vitals'));
 });
 
+test('service ending at vitals appears only in vitals and marks its token served', function () {
+    [$user, , $service, , $patient, $token] = createVitalsQueuePatient(needsVitals: false);
+    $service->update(['ends_at_vitals' => true]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.vitals')
+        ->assertSee($patient->name)
+        ->call('selectToken', $token->id)
+        ->set('temperatureFahrenheit', '98.6')
+        ->set('bpSystolic', '120')
+        ->set('bpDiastolic', '80')
+        ->call('saveAndNext')
+        ->assertHasNoErrors()
+        ->assertDontSee($patient->name);
+
+    expect($token->fresh()->status)->toBe('served')
+        ->and(Vital::where('queue_token_id', $token->id)->exists())->toBeTrue();
+});
+
 test('vitals queue excludes tokens that already have vitals recorded', function () {
     [$user, , , , $patient, $token] = createVitalsQueuePatient();
 
