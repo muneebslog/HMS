@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TokenDisplayLayout;
 use App\Models\QueueToken;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
@@ -18,6 +19,7 @@ class TokenDisplayService
     public function currentToken(ServiceQueue $queue): ?QueueToken
     {
         return $queue->tokens()
+            ->with('patient')
             ->where(function ($query) {
                 $query->where('status', 'serving')
                     ->orWhere(function ($query) {
@@ -111,10 +113,23 @@ class TokenDisplayService
      */
     public function isFileCheckQueue(ServiceQueue $queue): bool
     {
-        return (bool) ServicePrice::query()
-            ->where('service_id', $queue->service_id)
-            ->where('doctor_id', $queue->doctor_id)
-            ->value('is_file_check');
+        return $this->servicePriceForQueue($queue)?->is_file_check ?? false;
+    }
+
+    /**
+     * Get the configured TV layout for a queue.
+     */
+    public function displayLayout(ServiceQueue $queue): TokenDisplayLayout
+    {
+        return $this->servicePriceForQueue($queue)?->display_layout ?? TokenDisplayLayout::Board;
+    }
+
+    /**
+     * Determine whether a queue uses the single-token TV layout.
+     */
+    public function isSingleTokenQueue(ServiceQueue $queue): bool
+    {
+        return $this->displayLayout($queue) === TokenDisplayLayout::SingleToken;
     }
 
     /**
@@ -333,5 +348,16 @@ class TokenDisplayService
             })
             ->orderBy('token_number')
             ->get();
+    }
+
+    /**
+     * Get the service price attached to the queue's service and doctor.
+     */
+    private function servicePriceForQueue(ServiceQueue $queue): ?ServicePrice
+    {
+        return ServicePrice::query()
+            ->where('service_id', $queue->service_id)
+            ->where('doctor_id', $queue->doctor_id)
+            ->first();
     }
 }

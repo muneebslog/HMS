@@ -14,6 +14,7 @@ use App\Models\Medicine;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\Shift;
+use App\Services\TokenDisplayService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -124,6 +125,18 @@ new #[Title('Medication')] class extends Component
         return $this->queue->firstWhere('id', $this->selectedTokenId)
             ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
                 ->find($this->selectedTokenId);
+    }
+
+    /**
+     * Whether the selected patient's queue uses the single-token TV layout.
+     */
+    #[Computed]
+    public function usesSingleTokenLayout(): bool
+    {
+        $queue = $this->selectedToken?->serviceQueue;
+
+        return $queue !== null
+            && app(TokenDisplayService::class)->isSingleTokenQueue($queue);
     }
 
     /**
@@ -708,6 +721,22 @@ new #[Title('Medication')] class extends Component
      */
     public function save(): void
     {
+        $this->saveOrder();
+    }
+
+    /**
+     * Save the order, complete the current token, and call the next patient.
+     */
+    public function saveAndNext(): void
+    {
+        $this->saveOrder(advanceQueue: true);
+    }
+
+    /**
+     * Save or update the selected patient's medication order.
+     */
+    private function saveOrder(bool $advanceQueue = false): void
+    {
         $token = $this->selectedToken;
 
         if ($token === null || $token->patient_id === null) {
@@ -729,6 +758,10 @@ new #[Title('Medication')] class extends Component
             $this->backToList();
 
             return;
+        }
+
+        if ($advanceQueue && ! app(TokenDisplayService::class)->isSingleTokenQueue($token->serviceQueue)) {
+            abort(403);
         }
 
         $existing = $token->medicationOrder;
@@ -833,6 +866,24 @@ new #[Title('Medication')] class extends Component
         });
 
         unset($this->queue, $this->selectedToken);
+
+        if ($advanceQueue) {
+            $nextToken = app(TokenDisplayService::class)->callNext($token->serviceQueue);
+
+            Flux::toast(variant: 'success', text: __('Medication order saved. Next patient called.'));
+
+            if ($nextToken !== null) {
+                $this->backToList();
+                unset($this->queue, $this->selectedToken);
+                $this->selectToken($nextToken->id);
+
+                return;
+            }
+
+            $this->backToList();
+
+            return;
+        }
 
         Flux::toast(variant: 'success', text: __('Medication order saved.'));
         $this->backToList();
@@ -1658,6 +1709,11 @@ new #[Title('Medication')] class extends Component
                 <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">
                     {{ __('Save order') }}
                 </flux:button>
+                @if ($this->usesSingleTokenLayout)
+                    <flux:button type="button" variant="primary" wire:click="saveAndNext" icon="arrow-right" class="h-12 w-full text-base font-semibold">
+                        {{ __('Save & Next Patient') }}
+                    </flux:button>
+                @endif
                 <flux:button type="button" variant="ghost" wire:click="backToList" class="w-full">
                     {{ __('Back to list') }}
                 </flux:button>

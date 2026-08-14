@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
@@ -204,6 +205,7 @@ test('authenticated users can create a service price', function () {
         ->set('priceDoctorShare', '25.00')
         ->set('priceTokenStartsFrom', '201')
         ->set('priceIsFileCheck', true)
+        ->set('priceDisplayLayout', TokenDisplayLayout::SingleToken->value)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -214,7 +216,17 @@ test('authenticated users can create a service price', function () {
         'doctor_share' => 25.00,
         'token_starts_from' => 201,
         'is_file_check' => true,
+        'display_layout' => TokenDisplayLayout::SingleToken->value,
     ]);
+});
+
+test('service management describes medication services as attached to doctor medication', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('switchTab', 'services')
+        ->assertSee(__('Attach to doctor medication'));
 });
 
 test('service price doctor share can be null', function () {

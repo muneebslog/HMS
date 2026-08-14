@@ -134,6 +134,33 @@
             color: #71717a;
         }
 
+        .single-token-display {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            text-align: center;
+        }
+
+        .single-token-number {
+            margin: 32px 0 0;
+            font-size: min(32vw, 360px);
+            line-height: 0.9;
+            font-weight: 900;
+            color: #6ee7b7;
+        }
+
+        .single-token-name {
+            max-width: 1100px;
+            margin: 32px 0 0;
+            font-size: min(7vw, 88px);
+            line-height: 1.1;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
         .token-pin-overlay {
             position: fixed;
             inset: 0;
@@ -278,7 +305,20 @@
                 @endif
             </div>
         @else
-            <div class="token-board">
+            @if ($usesSingleTokenLayout)
+                <main class="single-token-display">
+                    <h2 class="token-board-heading">{{ __('Now Serving') }}</h2>
+                    <p class="token-board-urdu" dir="rtl">اب باری ہے</p>
+
+                    @if ($currentToken)
+                        <p class="single-token-number">{{ $currentToken->token_number }}</p>
+                        <p class="single-token-name">{{ $currentToken->patient?->name ?? __('Unknown patient') }}</p>
+                    @else
+                        <p class="token-empty" style="margin-top: 48px; font-size: 48px;">{{ __('No token being served') }}</p>
+                    @endif
+                </main>
+            @else
+                <div class="token-board">
                 <section class="token-board-section token-board-section-waiting">
                     <h2 class="token-board-heading">{{ __('Patients waiting') }}</h2>
                     <p class="token-board-subheading">{{ __('(Arrived)') }}</p>
@@ -354,9 +394,10 @@
                         </aside>
                     </div>
                 </section>
-            </div>
+                </div>
+            @endif
 
-            @if (! $pinVerified)
+            @if (! $pinVerified && ! $usesSingleTokenLayout)
                 <div class="token-pin-overlay">
                     <div class="token-pin-box">
                         <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600; color: #ffffff;">

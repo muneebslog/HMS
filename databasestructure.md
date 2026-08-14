@@ -149,6 +149,7 @@ Conventions used below:
 | doctor_share | decimal(5,2) | nullable |
 | token_starts_from | unsignedInteger | default 1 — first token number for this service+doctor queue |
 | is_file_check | boolean | default false — tokens for this price show in the TV file-check panel |
+| display_layout | string | default `board` (`TokenDisplayLayout`: `board` / `single_token`) — TV layout for this service+doctor queue |
 | timestamps | | |
 
 ### `drip_charges`

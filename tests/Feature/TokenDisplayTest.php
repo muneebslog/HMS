@@ -124,6 +124,40 @@ test('selecting a queue shows waiting and serving tokens', function () {
         ->assertSee(__('Now Serving'));
 });
 
+test('single-token queues show only the current token and patient name', function () {
+    $patient = Patient::factory()->create(['name' => 'Ayesha Khan']);
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 18,
+        'status' => 'serving',
+        'displayed_at' => now(),
+    ]);
+
+    Livewire::test('pages::display.token-display')
+        ->call('selectQueue', $queue->id)
+        ->assertSee('18')
+        ->assertSee($patient->name)
+        ->assertSee(__('Now Serving'))
+        ->assertDontSee(__('Patients waiting'));
+});
+
 test('guests cannot start serving without verifying the pin', function () {
     $service = Service::factory()->create();
 

@@ -12,6 +12,7 @@ use App\Models\Medicine;
 use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
@@ -175,6 +176,48 @@ test('medication queue excludes patients after an order is saved', function () {
         ->call('save')
         ->assertHasNoErrors()
         ->assertDontSee($patient->name);
+});
+
+test('doctor can save an order and call the next patient for a single-token queue', function () {
+    [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving');
+    $medicine = Medicine::factory()->create();
+    $nextPatient = Patient::factory()->create(['name' => 'Next Patient']);
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $nextToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $nextPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $currentToken->id)
+        ->assertSee(__('Save & Next Patient'))
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-0',
+            'days' => '3',
+        ]])
+        ->call('saveAndNext')
+        ->assertHasNoErrors()
+        ->assertSet('selectedTokenId', $nextToken->id)
+        ->assertSee($nextPatient->name);
+
+    expect($currentToken->fresh()->status)->toBe('served')
+        ->and($nextToken->fresh()->status)->toBe('serving')
+        ->and($nextToken->fresh()->displayed_at)->not->toBeNull();
+
+    $this->assertDatabaseHas('medication_orders', [
+        'queue_token_id' => $currentToken->id,
+        'patient_id' => $currentToken->patient_id,
+    ]);
 });
 
 test('doctor previews an order as an er slip before confirming it', function () {

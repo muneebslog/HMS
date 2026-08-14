@@ -30,6 +30,8 @@ class TokenDisplayController extends Controller
             'selectedQueue' => $selectedQueue,
             'waitingTokens' => $selectedQueue !== null ? $display->waitingTokens($selectedQueue) : new Collection,
             'servingTokens' => $selectedQueue !== null ? $display->servingTokens($selectedQueue) : new Collection,
+            'currentToken' => $selectedQueue !== null ? $display->currentToken($selectedQueue) : null,
+            'usesSingleTokenLayout' => $selectedQueue !== null && $display->isSingleTokenQueue($selectedQueue),
             'fileCheckWaitingTokens' => $display->fileCheckWaitingTokens(),
             'fileCheckServingTokens' => $display->fileCheckServingTokens(),
             'pinVerified' => $this->pinVerified(),

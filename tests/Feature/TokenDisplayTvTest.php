@@ -5,6 +5,7 @@ use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
+use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -122,6 +123,41 @@ test('selecting a queue shows waiting and serving tokens', function () {
         ->assertSee($token->token_number)
         ->assertSee(__('Now Serving'))
         ->assertSee($doctor->name);
+});
+
+test('tv display uses the centered single-token layout configured for the service and doctor', function () {
+    $patient = Patient::factory()->create(['name' => 'Hina Ahmed']);
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 27,
+        'status' => 'serving',
+        'displayed_at' => now(),
+    ]);
+
+    $this->get(route('display.tokens.tv', ['queue' => $queue->id]))
+        ->assertOk()
+        ->assertSee('27')
+        ->assertSee($patient->name)
+        ->assertSee('single-token-display', false)
+        ->assertDontSee(__('Patients waiting'))
+        ->assertDontSee(__('Enter PIN'));
 });
 
 test('guests can select a queue on the tv display', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TokenDisplayLayout;
 use Database\Factories\ServicePriceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,7 @@ class ServicePrice extends Model
      */
     protected $attributes = [
         'is_file_check' => false,
+        'display_layout' => TokenDisplayLayout::Board->value,
     ];
 
     /**
@@ -31,6 +33,7 @@ class ServicePrice extends Model
         'doctor_share',
         'token_starts_from',
         'is_file_check',
+        'display_layout',
     ];
 
     /**
@@ -45,6 +48,7 @@ class ServicePrice extends Model
             'doctor_share' => 'float',
             'token_starts_from' => 'integer',
             'is_file_check' => 'boolean',
+            'display_layout' => TokenDisplayLayout::class,
         ];
     }
 

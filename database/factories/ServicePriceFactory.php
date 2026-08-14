@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\TokenDisplayLayout;
 use App\Models\Doctor;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -26,6 +27,7 @@ class ServicePriceFactory extends Factory
             'doctor_share' => fake()->optional()->randomFloat(2, 0, 100),
             'token_starts_from' => 1,
             'is_file_check' => false,
+            'display_layout' => TokenDisplayLayout::Board,
         ];
     }
 
@@ -36,6 +38,16 @@ class ServicePriceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_file_check' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that this price uses the centered single-token TV layout.
+     */
+    public function singleTokenDisplay(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'display_layout' => TokenDisplayLayout::SingleToken,
         ]);
     }
 }

@@ -87,6 +87,29 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
+     * Get the token currently shown for the selected queue.
+     */
+    #[Computed]
+    public function currentToken(): ?QueueToken
+    {
+        if ($this->selectedQueue === null) {
+            return null;
+        }
+
+        return app(TokenDisplayService::class)->currentToken($this->selectedQueue);
+    }
+
+    /**
+     * Whether the selected queue uses the centered single-token layout.
+     */
+    #[Computed]
+    public function usesSingleTokenLayout(): bool
+    {
+        return $this->selectedQueue !== null
+            && app(TokenDisplayService::class)->isSingleTokenQueue($this->selectedQueue);
+    }
+
+    /**
      * File-check waiting tokens for today.
      *
      * @return Collection<int, QueueToken>
@@ -292,6 +315,26 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                 </div>
             @endif
         </div>
+    @elseif ($this->usesSingleTokenLayout)
+        <main class="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center sm:gap-10">
+            <div>
+                <h2 class="text-3xl font-bold text-white sm:text-5xl">{{ __('Now Serving') }}</h2>
+                <p class="mt-2 text-xl text-zinc-300 sm:text-3xl" dir="rtl">اب باری ہے</p>
+            </div>
+
+            @if ($this->currentToken)
+                <div wire:key="current-token-{{ $this->currentToken->id }}" class="flex max-w-6xl flex-col items-center gap-6">
+                    <p class="text-[clamp(8rem,32vw,24rem)] leading-none font-black tracking-tight text-emerald-300">
+                        {{ $this->currentToken->token_number }}
+                    </p>
+                    <p class="max-w-5xl text-[clamp(2rem,7vw,6rem)] leading-tight font-bold text-white">
+                        {{ $this->currentToken->patient?->name ?? __('Unknown patient') }}
+                    </p>
+                </div>
+            @else
+                <p class="text-3xl text-zinc-500 sm:text-5xl">{{ __('No token being served') }}</p>
+            @endif
+        </main>
     @else
         {{-- Waiting room board --}}
         <div class="flex flex-1 flex-col overflow-hidden">

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
@@ -120,6 +121,9 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $priceIsFileCheck = false;
+
+    #[Validate]
+    public string $priceDisplayLayout = 'board';
 
     #[Validate]
     public ?int $labShareDoctorId = null;
@@ -253,6 +257,7 @@ new #[Title('Management')] class extends Component
                 'priceDoctorShare' => ['nullable', 'numeric', 'min:0', 'max:100'],
                 'priceTokenStartsFrom' => ['required', 'integer', 'min:1'],
                 'priceIsFileCheck' => ['boolean'],
+                'priceDisplayLayout' => ['required', Rule::enum(TokenDisplayLayout::class)],
             ],
             'labDoctorShares' => [
                 'labShareDoctorId' => [
@@ -484,6 +489,7 @@ new #[Title('Management')] class extends Component
         $this->priceDoctorShare = $price->doctor_share !== null ? (string) $price->doctor_share : '';
         $this->priceTokenStartsFrom = (string) $price->token_starts_from;
         $this->priceIsFileCheck = $price->is_file_check;
+        $this->priceDisplayLayout = $price->display_layout->value;
     }
 
     /**
@@ -604,6 +610,7 @@ new #[Title('Management')] class extends Component
             'priceDoctorShare',
             'priceTokenStartsFrom',
             'priceIsFileCheck',
+            'priceDisplayLayout',
             'labShareDoctorId',
             'labSharePercent',
             'labTestName',
@@ -815,6 +822,7 @@ new #[Title('Management')] class extends Component
             'doctor_share' => $validated['priceDoctorShare'] !== '' ? $validated['priceDoctorShare'] : null,
             'token_starts_from' => $validated['priceTokenStartsFrom'],
             'is_file_check' => $validated['priceIsFileCheck'] ?? false,
+            'display_layout' => $validated['priceDisplayLayout'],
         ];
 
         if ($this->editingId) {
@@ -1955,6 +1963,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Doctor Share') }}</flux:table.column>
                             <flux:table.column>{{ __('Token starts from') }}</flux:table.column>
                             <flux:table.column>{{ __('File check') }}</flux:table.column>
+                            <flux:table.column>{{ __('TV layout') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
 
@@ -1967,6 +1976,7 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>{{ $price->doctor_share !== null ? number_format($price->doctor_share, 2).'%' : '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ $price->token_starts_from }}</flux:table.cell>
                                     <flux:table.cell>{{ $price->is_file_check ? __('Yes') : __('No') }}</flux:table.cell>
+                                    <flux:table.cell>{{ $price->display_layout->label() }}</flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $price->id }})" />
                                         <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $price->id }})" wire:confirm="{{ __('Are you sure you want to delete this service price?') }}" />
@@ -1974,7 +1984,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                         {{ __('No service prices found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2063,7 +2073,7 @@ new #[Title('Management')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:switch wire:model="serviceNeedsMedication" :label="__('Needs doctor medication')" />
+                    <flux:switch wire:model="serviceNeedsMedication" :label="__('Attach to doctor medication')" />
                     <flux:error name="serviceNeedsMedication" />
                 </flux:field>
 
@@ -2135,6 +2145,16 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="priceIsFileCheck" :label="__('File check token')" />
                     <flux:error name="priceIsFileCheck" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('TV layout') }}</flux:label>
+                    <flux:select wire:model="priceDisplayLayout" required>
+                        @foreach (TokenDisplayLayout::cases() as $layout)
+                            <option value="{{ $layout->value }}">{{ $layout->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="priceDisplayLayout" />
                 </flux:field>
             @elseif ($activeTab === 'labDoctorShares')
                 <flux:field>
