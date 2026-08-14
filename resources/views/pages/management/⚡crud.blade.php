@@ -93,6 +93,9 @@ new #[Title('Management')] class extends Component
     public bool $serviceNeedsMedication = false;
 
     #[Validate]
+    public bool $serviceFollowsDoctorToken = false;
+
+    #[Validate]
     public bool $serviceIsDrip = false;
 
     #[Validate]
@@ -245,6 +248,7 @@ new #[Title('Management')] class extends Component
                 'serviceNeedsVitals' => ['boolean'],
                 'serviceEndsAtVitals' => ['boolean'],
                 'serviceNeedsMedication' => ['boolean'],
+                'serviceFollowsDoctorToken' => ['boolean'],
                 'serviceIsDrip' => ['boolean'],
                 'serviceAppearOnEr' => ['boolean'],
                 'serviceTokenResetType' => ['required', 'string', 'in:'.implode(',', array_column(TokenResetType::cases(), 'value'))],
@@ -470,6 +474,7 @@ new #[Title('Management')] class extends Component
         $this->serviceNeedsVitals = $service->needs_vitals;
         $this->serviceEndsAtVitals = $service->ends_at_vitals;
         $this->serviceNeedsMedication = $service->needs_medication;
+        $this->serviceFollowsDoctorToken = $service->follows_doctor_token;
         $this->serviceIsDrip = $service->is_drip;
         $this->serviceAppearOnEr = $service->appear_on_er;
         $this->serviceTokenResetType = $service->token_reset_type->value;
@@ -600,6 +605,7 @@ new #[Title('Management')] class extends Component
             'serviceNeedsVitals',
             'serviceEndsAtVitals',
             'serviceNeedsMedication',
+            'serviceFollowsDoctorToken',
             'serviceIsDrip',
             'serviceAppearOnEr',
             'serviceTokenResetType',
@@ -793,6 +799,7 @@ new #[Title('Management')] class extends Component
             'needs_vitals' => $validated['serviceNeedsVitals'] || $validated['serviceEndsAtVitals'],
             'ends_at_vitals' => $validated['serviceEndsAtVitals'],
             'needs_medication' => $validated['serviceNeedsMedication'],
+            'follows_doctor_token' => $validated['serviceFollowsDoctorToken'],
             'is_drip' => $validated['serviceIsDrip'],
             'appear_on_er' => $validated['serviceAppearOnEr'],
             'token_reset_type' => $validated['serviceTokenResetType'],
@@ -1770,6 +1777,7 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Needs Vitals') }}</flux:table.column>
                             <flux:table.column>{{ __('Ends at Vitals') }}</flux:table.column>
                             <flux:table.column>{{ __('Needs Medication') }}</flux:table.column>
+                            <flux:table.column>{{ __('Follow Doc for Token') }}</flux:table.column>
                             <flux:table.column>{{ __('Is Drip') }}</flux:table.column>
                             <flux:table.column>{{ __('Appear on ER') }}</flux:table.column>
                             <flux:table.column>{{ __('Token Reset') }}</flux:table.column>
@@ -1805,6 +1813,13 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>
                                         @if ($service->needs_medication)
                                             <flux:badge size="sm" color="sky">{{ __('Yes') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($service->follows_doctor_token)
+                                            <flux:badge size="sm" color="amber">{{ __('Yes') }}</flux:badge>
                                         @else
                                             <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
                                         @endif
@@ -2076,6 +2091,12 @@ new #[Title('Management')] class extends Component
                     <flux:switch wire:model="serviceNeedsMedication" :label="__('Needs medication')" />
                     <flux:description>{{ __('Waiting or serving patients for this service appear on the Doctor Medication page.') }}</flux:description>
                     <flux:error name="serviceNeedsMedication" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="serviceFollowsDoctorToken" :label="__('Follow doc for token')" />
+                    <flux:description>{{ __('The display token changes when the doctor moves to the next patient. On-screen Next and Back controls are hidden.') }}</flux:description>
+                    <flux:error name="serviceFollowsDoctorToken" />
                 </flux:field>
 
                 <flux:field>

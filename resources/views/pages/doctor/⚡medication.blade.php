@@ -140,6 +140,18 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Whether saving the order should advance the displayed token.
+     */
+    #[Computed]
+    public function advancesDisplayToken(): bool
+    {
+        $queue = $this->selectedToken?->serviceQueue;
+
+        return $queue !== null
+            && app(TokenDisplayService::class)->followsDoctorToken($queue);
+    }
+
+    /**
      * Active drip billable services.
      *
      * @return Collection<int, Service>
@@ -760,7 +772,7 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
-        if ($advanceQueue && ! app(TokenDisplayService::class)->isSingleTokenQueue($token->serviceQueue)) {
+        if ($advanceQueue && ! app(TokenDisplayService::class)->followsDoctorToken($token->serviceQueue)) {
             abort(403);
         }
 
@@ -1709,7 +1721,7 @@ new #[Title('Medication')] class extends Component
                 <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">
                     {{ __('Save order') }}
                 </flux:button>
-                @if ($this->usesSingleTokenLayout)
+                @if ($this->advancesDisplayToken)
                     <flux:button type="button" variant="primary" wire:click="saveAndNext" icon="arrow-right" class="h-12 w-full text-base font-semibold">
                         {{ __('Save & Next Patient') }}
                     </flux:button>

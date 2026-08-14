@@ -30,6 +30,7 @@ function createMedicationQueuePatient(
     string $tokenStatus = 'waiting',
     ?Doctor $doctor = null,
     bool $withDoctor = true,
+    bool $followsDoctorToken = false,
 ): array {
     $user = User::factory()->doctor()->create();
     $doctor = $withDoctor ? ($doctor ?? Doctor::factory()->create()) : null;
@@ -38,6 +39,7 @@ function createMedicationQueuePatient(
         'name' => 'General Checkup',
         'is_standalone' => ! $withDoctor,
         'needs_medication' => $needsMedication,
+        'follows_doctor_token' => $followsDoctorToken,
         'token_reset_type' => TokenResetType::Shift,
     ]);
     $queue = ServiceQueue::factory()->create([
@@ -218,8 +220,8 @@ test('medication queue excludes patients after an order is saved', function () {
         ->assertDontSee($patient->name);
 });
 
-test('doctor can save an order and call the next patient for a single-token queue', function () {
-    [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving');
+test('doctor can save an order and call the next patient when the token follows the doctor', function () {
+    [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving', followsDoctorToken: true);
     $medicine = Medicine::factory()->create();
     $nextPatient = Patient::factory()->create(['name' => 'Next Patient']);
 
@@ -258,6 +260,38 @@ test('doctor can save an order and call the next patient for a single-token queu
         'queue_token_id' => $currentToken->id,
         'patient_id' => $currentToken->patient_id,
     ]);
+});
+
+test('medication services that do not follow the doctor cannot advance the display token', function () {
+    [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving');
+    $medicine = Medicine::factory()->create();
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $nextToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $currentToken->id)
+        ->assertDontSee(__('Save & Next Patient'))
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-0',
+            'days' => '3',
+        ]])
+        ->call('saveAndNext')
+        ->assertForbidden();
+
+    expect($currentToken->fresh()->status)->toBe('serving')
+        ->and($nextToken->fresh()->status)->toBe('waiting');
 });
 
 test('doctor previews an order as an er slip before confirming it', function () {

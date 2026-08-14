@@ -24,6 +24,7 @@ class ServiceFactory extends Factory
             'needs_vitals' => false,
             'ends_at_vitals' => false,
             'needs_medication' => false,
+            'follows_doctor_token' => false,
             'is_drip' => false,
             'appear_on_er' => false,
             'token_reset_type' => fake()->randomElement(array_column(TokenResetType::cases(), 'value')),
@@ -69,6 +70,16 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'needs_medication' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the TV token follows the doctor instead of on-screen controls.
+     */
+    public function followsDoctorToken(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'follows_doctor_token' => true,
         ]);
     }
 

@@ -162,10 +162,20 @@ class TokenDisplayService
 
     /**
      * Determine whether the TV may manually control the queue.
+     *
+     * Queues that follow the doctor are advanced from the medication page instead.
      */
     public function allowsManualTokenControls(ServiceQueue $queue): bool
     {
-        return ! $queue->service?->needs_medication;
+        return ! $this->followsDoctorToken($queue);
+    }
+
+    /**
+     * Determine whether the doctor advances this queue's displayed token.
+     */
+    public function followsDoctorToken(ServiceQueue $queue): bool
+    {
+        return (bool) $queue->service?->follows_doctor_token;
     }
 
     /**

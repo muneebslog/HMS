@@ -2,12 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Service;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\CarbonPeriod;
 
 class ServiceStatisticsService
 {
@@ -29,17 +27,21 @@ class ServiceStatisticsService
         string $timeFrom,
         string $timeTo,
     ): array {
-        $dailyTotals = [];
+        $currentDate = $dateFrom->copy()->startOfDay();
+        $dailyTotals = [$currentDate->toDateString() => 0];
+        $timeFromWithSeconds = $timeFrom.':00';
+        $timeToWithSeconds = $timeTo.':59';
 
-        foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
-            $dailyTotals[$date->toDateString()] = 0;
+        while ($currentDate->isBefore($dateTo)) {
+            $currentDate->addDay();
+            $dailyTotals[$currentDate->toDateString()] = 0;
         }
 
         $items = InvoiceItem::query()
             ->select(['id', 'invoice_id'])
             ->with('invoice:id,created_at')
             ->where('service_id', $service->id)
-            ->whereHas('invoice', function (Builder $query) use ($dateFrom, $dateTo, $timeFrom, $timeTo): void {
+            ->whereHas('invoice', function (Builder $query) use ($dateFrom, $dateTo, $timeFrom, $timeFromWithSeconds, $timeTo, $timeToWithSeconds): void {
                 $query
                     ->where('status', '!=', 'cancelled')
                     ->whereBetween('created_at', [
@@ -47,7 +49,19 @@ class ServiceStatisticsService
                         $dateTo->copy()->endOfDay(),
                     ]);
 
-                $this->applyTimeRange($query, $timeFrom, $timeTo);
+                if ($timeFrom <= $timeTo) {
+                    $query
+                        ->whereTime('created_at', '>=', $timeFromWithSeconds)
+                        ->whereTime('created_at', '<=', $timeToWithSeconds);
+
+                    return;
+                }
+
+                $query->where(function (Builder $overnightQuery) use ($timeFromWithSeconds, $timeToWithSeconds): void {
+                    $overnightQuery
+                        ->whereTime('created_at', '>=', $timeFromWithSeconds)
+                        ->orWhereTime('created_at', '<=', $timeToWithSeconds);
+                });
             })
             ->get();
 
@@ -73,27 +87,5 @@ class ServiceStatisticsService
             'lowest_usage' => ['date' => $lowestDate, 'total' => $lowestTotal],
             'daily_usage' => $dailyUsage,
         ];
-    }
-
-    /**
-     * Apply a daily time window, including windows that cross midnight.
-     *
-     * @param  Builder<Invoice>  $query
-     */
-    private function applyTimeRange(Builder $query, string $timeFrom, string $timeTo): void
-    {
-        if ($timeFrom <= $timeTo) {
-            $query
-                ->whereTime('created_at', '>=', $timeFrom)
-                ->whereTime('created_at', '<=', $timeTo);
-
-            return;
-        }
-
-        $query->where(function (Builder $overnightQuery) use ($timeFrom, $timeTo): void {
-            $overnightQuery
-                ->whereTime('created_at', '>=', $timeFrom)
-                ->orWhereTime('created_at', '<=', $timeTo);
-        });
     }
 }

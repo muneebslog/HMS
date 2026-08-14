@@ -43,6 +43,8 @@ class InvoiceItem extends Model
 
     /**
      * Get the invoice for this item.
+     *
+     * @return BelongsTo<Invoice, $this>
      */
     public function invoice(): BelongsTo
     {

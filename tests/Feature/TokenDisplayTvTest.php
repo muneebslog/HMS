@@ -237,9 +237,9 @@ test('the single-token layout shows next and previous token controls', function 
         ->and($next->fresh()->status)->toBe('serving');
 });
 
-test('the single-token layout hides manual controls for doctor medication services', function () {
+test('the single-token layout hides manual controls when the token follows the doctor', function () {
     $service = Service::factory()->create([
-        'needs_medication' => true,
+        'follows_doctor_token' => true,
     ]);
     $doctor = Doctor::factory()->create();
 

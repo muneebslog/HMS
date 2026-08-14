@@ -133,6 +133,7 @@ Conventions used below:
 | needs_vitals | boolean | default false |
 | ends_at_vitals | boolean | default false — token is marked served after initial vitals |
 | needs_medication | boolean | default false |
+| follows_doctor_token | boolean | default false — display token is advanced by the doctor instead of the on-screen controls |
 | is_drip | boolean | default false — doctor can suggest price during medication |
 | appear_on_er | boolean | default false — patient appears on ER station page |
 | token_reset_type | string | default `shift` (`TokenResetType`) |
