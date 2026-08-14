@@ -97,6 +97,46 @@ test('medication queue excludes tokens for services that do not need medication'
         ->assertSee(__('No patients need medication'));
 });
 
+test('medication queue includes overnight daily queues after midnight', function () {
+    $user = User::factory()->doctor()->create();
+    $shift = Shift::factory()->open()->create([
+        'opened_at' => now()->subDay()->setTime(18, 0),
+    ]);
+    $earlierShift = Shift::factory()->closed()->create([
+        'opened_at' => now()->subDay()->setTime(8, 0),
+        'closed_at' => now()->subDay()->setTime(17, 0),
+    ]);
+    $service = Service::factory()->create([
+        'name' => 'Overnight Checkup',
+        'is_standalone' => true,
+        'needs_medication' => true,
+        'token_reset_type' => TokenResetType::Daily,
+    ]);
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $earlierShift->id,
+        'date' => $shift->opened_at->toDateString(),
+        'reset_type' => TokenResetType::Daily,
+        'status' => 'open',
+        'opened_at' => $earlierShift->opened_at,
+    ]);
+    $patient = Patient::factory()->create();
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 4,
+        'status' => 'waiting',
+        'arrived_at' => now()->subHour(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertSee((string) $token->token_number)
+        ->assertDontSee(__('No patients need medication'));
+});
+
 test('any doctor login can prescribe for patients in the medication queue', function () {
     [, , , , , $patient] = createMedicationQueuePatient(withDoctor: false);
     $unlinkedUser = User::factory()->doctor()->create();

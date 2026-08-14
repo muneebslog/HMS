@@ -72,7 +72,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             })
             ->whereDoesntHave('drips', fn ($q) => $q->whereIn('status', DripLineStatus::activeCases()))
             ->whereHas('queueToken.serviceQueue', function ($query) use ($shift): void {
-                $query->where('shift_id', $shift->id);
+                $query->forShift($shift);
             })
             ->orderBy('created_at')
             ->get();
@@ -83,7 +83,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             ->with(['patient', 'serviceQueue.service', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips'])
             ->whereIn('status', ['waiting', 'serving'])
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->where('shift_id', $shift->id)
+                $query->forShift($shift)
                     ->where('status', 'open')
                     ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('appear_on_er', true));
             })

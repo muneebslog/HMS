@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\TokenResetType;
 use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
@@ -63,18 +62,10 @@ new #[Title('Queue')] class extends Component
             return new Collection;
         }
 
-        $shiftDate = $currentShift->opened_at->toDateString();
-
         return ServiceQueue::with(['service', 'doctor'])
             ->withCount('tokens')
             ->where('status', 'open')
-            ->where(function ($query) use ($currentShift, $shiftDate) {
-                $query->where('shift_id', $currentShift->id)
-                    ->orWhere(function ($q) use ($shiftDate) {
-                        $q->where('reset_type', TokenResetType::Daily->value)
-                            ->whereDate('date', $shiftDate);
-                    });
-            })
+            ->forShift($currentShift)
             ->orderBy('opened_at')
             ->get();
     }

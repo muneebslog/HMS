@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TokenResetType;
 use Database\Factories\ServiceQueueFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -48,6 +49,28 @@ class ServiceQueue extends Model
             'last_token_number' => 'integer',
             'reset_type' => TokenResetType::class,
         ];
+    }
+
+    /**
+     * Limit to queues that belong to the given open shift.
+     *
+     * Shift-reset queues match by shift id. Daily-reset queues match by the
+     * shift's opened date so overnight shifts keep seeing the same queue.
+     *
+     * @param  Builder<ServiceQueue>  $query
+     * @return Builder<ServiceQueue>
+     */
+    public function scopeForShift(Builder $query, Shift $shift): Builder
+    {
+        $shiftDate = $shift->opened_at->toDateString();
+
+        return $query->where(function (Builder $shiftQuery) use ($shift, $shiftDate): void {
+            $shiftQuery->where('shift_id', $shift->id)
+                ->orWhere(function (Builder $dailyQuery) use ($shiftDate): void {
+                    $dailyQuery->where('reset_type', TokenResetType::Daily)
+                        ->whereDate('date', $shiftDate);
+                });
+        });
     }
 
     /**

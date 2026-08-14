@@ -370,7 +370,7 @@ new #[Title('Ultrasound')] class extends Component
         return ServiceQueue::with('doctor')
             ->where('service_id', $service->id)
             ->where('status', 'open')
-            ->where('shift_id', $shift->id)
+            ->forShift($shift)
             ->orderBy('id')
             ->get();
     }

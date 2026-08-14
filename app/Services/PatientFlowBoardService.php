@@ -57,8 +57,8 @@ class PatientFlowBoardService
                 'medicationOrder.drips',
             ])
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->where('shift_id', $shift->id)
-                    ->where('status', 'open');
+                $query->where('status', 'open')
+                    ->forShift($shift);
             })
             ->whereIn('status', ['waiting', 'serving', 'served'])
             ->orderBy('token_number')

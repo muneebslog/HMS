@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Reception;
 
-use App\Enums\TokenResetType;
 use App\Http\Controllers\Controller;
 use App\Models\QueueToken;
 use App\Models\ServiceQueue;
@@ -45,18 +44,10 @@ class QueueTvController extends Controller
             return new Collection;
         }
 
-        $shiftDate = $currentShift->opened_at->toDateString();
-
         return ServiceQueue::with(['service', 'doctor'])
             ->withCount('tokens')
             ->where('status', 'open')
-            ->where(function ($query) use ($currentShift, $shiftDate): void {
-                $query->where('shift_id', $currentShift->id)
-                    ->orWhere(function ($q) use ($shiftDate): void {
-                        $q->where('reset_type', TokenResetType::Daily->value)
-                            ->whereDate('date', $shiftDate);
-                    });
-            })
+            ->forShift($currentShift)
             ->orderBy('opened_at')
             ->get();
     }

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\TokenDisplayLayout;
-use App\Enums\TokenResetType;
 use App\Models\QueueToken;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
@@ -106,17 +105,9 @@ class TokenDisplayService
                 ->get();
         }
 
-        $shiftDate = $shift->opened_at->toDateString();
-
         return ServiceQueue::with(['service', 'doctor'])
             ->where('status', 'open')
-            ->where(function ($query) use ($shift, $shiftDate): void {
-                $query->where('shift_id', $shift->id)
-                    ->orWhere(function ($dailyQuery) use ($shiftDate): void {
-                        $dailyQuery->where('reset_type', TokenResetType::Daily)
-                            ->whereDate('date', $shiftDate);
-                    });
-            })
+            ->forShift($shift)
             ->orderBy('opened_at')
             ->get();
     }

@@ -54,7 +54,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             ])
             ->whereIn('status', DripLineStatus::activeCases())
             ->whereHas('medicationOrder.queueToken.serviceQueue', function ($query) use ($shift): void {
-                $query->where('shift_id', $shift->id);
+                $query->forShift($shift);
             })
             ->orderByRaw("CASE WHEN status = 'started' AND check_due_at IS NOT NULL AND check_due_at <= ? THEN 0 WHEN status = 'pending' THEN 1 ELSE 2 END", [now()])
             ->orderBy('check_due_at')

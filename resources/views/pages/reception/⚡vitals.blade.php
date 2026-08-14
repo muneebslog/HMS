@@ -64,7 +64,7 @@ new #[Title('Vitals')] class extends Component
                         ->whereDoesntHave('vital')
                         ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
                             $serviceQueue->where('status', 'open')
-                                ->where('shift_id', $shift->id)
+                                ->forShift($shift)
                                 ->whereHas('service', fn ($serviceQuery) => $serviceQuery
                                     ->where('needs_vitals', true)
                                     ->orWhere('ends_at_vitals', true));
@@ -76,7 +76,7 @@ new #[Title('Vitals')] class extends Component
                             ->whereNull('vitals_redone_at'))
                         ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
                             $serviceQueue->where('status', 'open')
-                                ->where('shift_id', $shift->id);
+                                ->forShift($shift);
                         });
                 });
             })

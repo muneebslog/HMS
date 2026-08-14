@@ -101,7 +101,7 @@ new #[Title('Medication')] class extends Component
             })
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
                 $query->where('status', 'open')
-                    ->where('shift_id', $shift->id)
+                    ->forShift($shift)
                     ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
             })
             ->orderByRaw('arrived_at is null')
