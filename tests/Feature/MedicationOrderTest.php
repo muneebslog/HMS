@@ -707,6 +707,28 @@ test('written injections appear in the er order preview', function () {
         ->assertSee('Ketorolac 30mg');
 });
 
+test('order rows sit in one block and support alt arrow navigation', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id);
+
+    $component
+        ->assertSeeHtml('@keydown.alt.arrow-up.prevent')
+        ->assertSeeHtml('@keydown.alt.arrow-down.prevent')
+        ->assertSeeHtml('@keydown.alt.arrow-left.prevent')
+        ->assertSeeHtml('@keydown.alt.arrow-right.prevent')
+        ->assertSeeHtml('data-nav-row')
+        ->assertSeeHtml('data-nav-field')
+        ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
+
+    $component
+        ->call('switchOrderTab', 'injections')
+        ->assertSeeHtml('data-nav-row')
+        ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
+});
+
 test('a blank written injection name is rejected', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
 

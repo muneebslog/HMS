@@ -1443,39 +1443,85 @@ new #[Title('Medication')] class extends Component
         <form
             wire:submit="previewOrder"
             class="flex flex-1 flex-col gap-4"
-            x-data
+            x-data="{
+                navigate(direction) {
+                    const rows = Array.from(this.$el.querySelectorAll('[data-nav-row]'))
+                        .map((row) => Array.from(row.querySelectorAll('[data-nav-field]')))
+                        .filter((fields) => fields.length > 0);
+
+                    if (rows.length === 0) {
+                        return;
+                    }
+
+                    const current = document.activeElement?.closest('[data-nav-field]');
+                    const rowIndex = rows.findIndex((fields) => fields.includes(current));
+
+                    if (rowIndex === -1) {
+                        this.focusField(rows[0][0]);
+
+                        return;
+                    }
+
+                    if (direction === 'up' || direction === 'down') {
+                        const target = rows[rowIndex + (direction === 'down' ? 1 : -1)];
+
+                        if (! target) {
+                            return;
+                        }
+
+                        const column = Math.min(rows[rowIndex].indexOf(current), target.length - 1);
+
+                        this.focusField(target[column]);
+
+                        return;
+                    }
+
+                    const fields = rows.flat();
+
+                    this.focusField(fields[fields.indexOf(current) + (direction === 'right' ? 1 : -1)]);
+                },
+                focusField(field) {
+                    field?.querySelector('input:not([type=hidden]), select, textarea, button')?.focus();
+                },
+            }"
             @keydown.shift.enter.prevent="$wire.addRowForActiveTab()"
+            @keydown.alt.arrow-up.prevent="navigate('up')"
+            @keydown.alt.arrow-down.prevent="navigate('down')"
+            @keydown.alt.arrow-left.prevent="navigate('left')"
+            @keydown.alt.arrow-right.prevent="navigate('right')"
         >
             @if ($activeOrderTab === 'medicines')
                 <div class="space-y-3">
-                    @foreach ($medicineLines as $index => $line)
-                        <div wire:key="medicine-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
-                            <div class="sm:col-span-5">
-                                <x-searchable-select
-                                    wire:model="medicineLines.{{ $index }}.medicine_id"
-                                    :options="$this->medicineOptions"
-                                    :placeholder="__('Search medicine or type a new name')"
-                                    allow-custom
-                                />
-                                <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        @foreach ($medicineLines as $index => $line)
+                            <div wire:key="medicine-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                <div class="sm:col-span-5" data-nav-field>
+                                    <x-searchable-select
+                                        wire:model="medicineLines.{{ $index }}.medicine_id"
+                                        :options="$this->medicineOptions"
+                                        :placeholder="__('Search medicine or type a new name')"
+                                        allow-custom
+                                    />
+                                    <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:select wire:model="medicineLines.{{ $index }}.dose">
+                                        @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                            <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="medicineLines.{{ $index }}.dose" />
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:input wire:model="medicineLines.{{ $index }}.days" type="number" min="1" max="365" placeholder="{{ __('Days') }}" />
+                                    <flux:error name="medicineLines.{{ $index }}.days" />
+                                </div>
+                                <div class="flex items-start sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
+                                </div>
                             </div>
-                            <div class="sm:col-span-3">
-                                <flux:select wire:model="medicineLines.{{ $index }}.dose">
-                                    @foreach (\App\Enums\MedicineDose::cases() as $dose)
-                                        <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="medicineLines.{{ $index }}.dose" />
-                            </div>
-                            <div class="sm:col-span-3">
-                                <flux:input wire:model="medicineLines.{{ $index }}.days" type="number" min="1" max="365" placeholder="{{ __('Days') }}" />
-                                <flux:error name="medicineLines.{{ $index }}.days" />
-                            </div>
-                            <div class="flex items-start sm:col-span-1">
-                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
-                            </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                     <flux:error name="medicineLines" />
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
@@ -1483,33 +1529,35 @@ new #[Title('Medication')] class extends Component
                 </div>
             @elseif ($activeOrderTab === 'injections')
                 <div class="space-y-3">
-                    @foreach ($injectionLines as $index => $line)
-                        <div wire:key="injection-line-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
-                            <div class="sm:col-span-5">
-                                <x-searchable-select
-                                    wire:model.live="injectionLines.{{ $index }}.injection_id"
-                                    :options="$this->injectionOptions"
-                                    :placeholder="__('Search injection or type a new name')"
-                                    allow-custom
-                                />
-                                <flux:error name="injectionLines.{{ $index }}.injection_id" />
+                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        @foreach ($injectionLines as $index => $line)
+                            <div wire:key="injection-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                <div class="sm:col-span-5" data-nav-field>
+                                    <x-searchable-select
+                                        wire:model.live="injectionLines.{{ $index }}.injection_id"
+                                        :options="$this->injectionOptions"
+                                        :placeholder="__('Search injection or type a new name')"
+                                        allow-custom
+                                    />
+                                    <flux:error name="injectionLines.{{ $index }}.injection_id" />
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
+                                        @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="injectionLines.{{ $index }}.administration_type" />
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:input wire:model="injectionLines.{{ $index }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
+                                </div>
+                                <div class="flex items-start sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
+                                </div>
                             </div>
-                            <div class="sm:col-span-3">
-                                <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
-                                    @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
-                                        <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="injectionLines.{{ $index }}.administration_type" />
-                            </div>
-                            <div class="sm:col-span-3">
-                                <flux:input wire:model="injectionLines.{{ $index }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
-                            </div>
-                            <div class="flex items-start sm:col-span-1">
-                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
-                            </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
                     </flux:tooltip>
@@ -1518,15 +1566,15 @@ new #[Title('Medication')] class extends Component
                 <div class="space-y-4">
                     @foreach ($dripLines as $dripIndex => $drip)
                         <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <div class="grid gap-2 sm:grid-cols-12">
-                                <div class="sm:col-span-7">
+                            <div class="grid gap-2 sm:grid-cols-12" data-nav-row>
+                                <div class="sm:col-span-7" data-nav-field>
                                     <x-searchable-select
                                         wire:model.live="dripLines.{{ $dripIndex }}.drip_base_id"
                                         :options="$this->dripBaseOptions"
                                         :placeholder="__('Search drip base')"
                                     />
                                 </div>
-                                <div class="sm:col-span-4">
+                                <div class="sm:col-span-4" data-nav-field>
                                     <flux:input wire:model="dripLines.{{ $dripIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
                                 </div>
                                 <div class="flex items-start sm:col-span-1">
@@ -1537,8 +1585,8 @@ new #[Title('Medication')] class extends Component
                             <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
                                 <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
                                 @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
-                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="grid gap-2 sm:grid-cols-12">
-                                        <div class="sm:col-span-7">
+                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                        <div class="sm:col-span-7" data-nav-field>
                                             <x-searchable-select
                                                 wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
                                                 :options="$this->injectionOptions"
@@ -1546,7 +1594,7 @@ new #[Title('Medication')] class extends Component
                                                 allow-custom
                                             />
                                         </div>
-                                        <div class="sm:col-span-4">
+                                        <div class="sm:col-span-4" data-nav-field>
                                             <flux:input wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('ml') }}" />
                                         </div>
                                         <div class="flex items-start sm:col-span-1">
@@ -1567,9 +1615,9 @@ new #[Title('Medication')] class extends Component
                     @if ($this->dripServices->isNotEmpty())
                         <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                             <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
-                            <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="grid gap-3 sm:grid-cols-2" data-nav-row>
                                 @if ($this->dripServices->count() > 1)
-                                    <flux:field>
+                                    <flux:field data-nav-field>
                                         <flux:label>{{ __('Drip service') }}</flux:label>
                                         <flux:select wire:model="dripServiceId">
                                             <option value="">{{ __('Select drip service') }}</option>
@@ -1581,7 +1629,7 @@ new #[Title('Medication')] class extends Component
                                     </flux:field>
                                 @endif
 
-                                <flux:field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
+                                <flux:field data-nav-field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
                                     <flux:label>{{ __('Suggested price') }}</flux:label>
                                     <flux:input
                                         wire:model="suggestedPrice"
@@ -1598,11 +1646,13 @@ new #[Title('Medication')] class extends Component
                 </div>
             @endif
 
-            <flux:field>
-                <flux:label>{{ __('Notes') }}</flux:label>
-                <flux:textarea wire:model="notes" rows="2" />
-                <flux:error name="notes" />
-            </flux:field>
+            <div data-nav-row>
+                <flux:field data-nav-field>
+                    <flux:label>{{ __('Notes') }}</flux:label>
+                    <flux:textarea wire:model="notes" rows="2" />
+                    <flux:error name="notes" />
+                </flux:field>
+            </div>
 
             <div class="mt-auto flex flex-col gap-3 pt-2">
                 <flux:button type="submit" variant="primary" class="h-12 w-full text-base font-semibold">

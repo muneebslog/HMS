@@ -123,6 +123,7 @@
         ->class('relative') }}
     @click.outside="closeList()"
     @keydown.escape.window="if (open) closeList()"
+    @focusin.window="if (open && ! $el.contains($event.target)) closeList()"
 >
     <button
         type="button"
@@ -149,8 +150,8 @@
                 type="text"
                 x-model="search"
                 @keydown.enter.prevent="selectHighlighted()"
-                @keydown.arrow-down.prevent="moveHighlight(1)"
-                @keydown.arrow-up.prevent="moveHighlight(-1)"
+                @keydown.arrow-down.prevent="if (! $event.altKey) moveHighlight(1)"
+                @keydown.arrow-up.prevent="if (! $event.altKey) moveHighlight(-1)"
                 @input="highlight = 0"
                 class="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-accent dark:border-white/10 dark:bg-white/10 dark:text-zinc-300"
                 :placeholder="placeholder"
