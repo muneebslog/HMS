@@ -285,7 +285,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                         @endforeach
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex flex-wrap items-center text-black gap-2">
                         <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($overdue ? 'amber' : 'sky')">
                             {{ $drip->status->label() }}
                             @if ($overdue)
