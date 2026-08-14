@@ -139,6 +139,18 @@ test('medication delivery lists pending medicine lines and delivers with pin', f
         ->and($order->administered_at)->not->toBeNull();
 });
 
+test('er station paper slips show medication order notes', function () {
+    [$order] = createDeliveryOrderContext();
+    $order->update(['notes' => "Give after food.\nWatch for dizziness."]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('Notes:'))
+        ->assertSee('Give after food.')
+        ->call('selectOrder', $order->id)
+        ->assertSee(__('Notes'))
+        ->assertSee('Watch for dizziness.');
+});
+
 test('partial delivery does not mark order administered', function () {
     [$order] = createDeliveryOrderContext(withMedicine: true, withInjection: true);
     HealthAide::factory()->create(['pin' => '1234']);

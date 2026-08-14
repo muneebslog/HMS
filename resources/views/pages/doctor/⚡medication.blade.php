@@ -42,6 +42,16 @@ new #[Title('Medication')] class extends Component
 
     public bool $showRecheckForm = false;
 
+    public bool $showNewMedicineModal = false;
+
+    public ?int $newMedicineLineIndex = null;
+
+    public string $newMedicineName = '';
+
+    public string $newMedicineShortForm = '';
+
+    public string $newMedicineUnit = 'tablet';
+
     /**
      * @var list<array{medicine_id: int|null, dose: string, days: string}>
      */
@@ -475,6 +485,67 @@ new #[Title('Medication')] class extends Component
         $this->medicineLines = array_values($this->medicineLines);
     }
 
+    public function openNewMedicineForm(int $index): void
+    {
+        if (! isset($this->medicineLines[$index])) {
+            return;
+        }
+
+        $this->newMedicineLineIndex = $index;
+        $this->newMedicineName = '';
+        $this->newMedicineShortForm = '';
+        $this->newMedicineUnit = 'tablet';
+        $this->showNewMedicineModal = true;
+        $this->resetValidation([
+            'newMedicineName',
+            'newMedicineShortForm',
+            'newMedicineUnit',
+        ]);
+    }
+
+    public function closeNewMedicineForm(): void
+    {
+        $this->showNewMedicineModal = false;
+        $this->newMedicineLineIndex = null;
+        $this->resetValidation([
+            'newMedicineName',
+            'newMedicineShortForm',
+            'newMedicineUnit',
+        ]);
+    }
+
+    public function createMedicine(): void
+    {
+        if ($this->newMedicineLineIndex === null || ! isset($this->medicineLines[$this->newMedicineLineIndex])) {
+            $this->closeNewMedicineForm();
+
+            return;
+        }
+
+        $this->newMedicineName = trim($this->newMedicineName);
+        $this->newMedicineShortForm = trim($this->newMedicineShortForm);
+        $this->newMedicineUnit = trim($this->newMedicineUnit);
+
+        $validated = $this->validate([
+            'newMedicineName' => ['required', 'string', 'max:255', Rule::unique('medicines', 'name')],
+            'newMedicineShortForm' => ['nullable', 'string', 'max:50'],
+            'newMedicineUnit' => ['required', 'string', 'max:100'],
+        ]);
+
+        $medicine = Medicine::create([
+            'name' => $validated['newMedicineName'],
+            'short_form' => filled($validated['newMedicineShortForm']) ? $validated['newMedicineShortForm'] : null,
+            'unit' => $validated['newMedicineUnit'],
+            'is_active' => true,
+        ]);
+
+        $this->medicineLines[$this->newMedicineLineIndex]['medicine_id'] = $medicine->id;
+        unset($this->medicines, $this->medicineOptions);
+
+        $this->closeNewMedicineForm();
+        Flux::toast(variant: 'success', text: __('Medicine added and selected.'));
+    }
+
     public function addInjectionLine(): void
     {
         $this->injectionLines[] = [
@@ -884,44 +955,48 @@ new #[Title('Medication')] class extends Component
     </div>
 
     @if ($selectedTokenId === null)
-        <div class="flex flex-1 flex-col gap-2">
+        <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @forelse ($this->queue as $token)
                 @php($recheck = $token->activeRecheck)
-                <button
+                <x-paper-slip
+                    as="button"
                     type="button"
+                    :token="$token->token_number"
+                    :tone="$recheck?->isDue() ? 'accent' : 'default'"
                     wire:key="medication-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
-                    class="flex w-full items-center gap-4 rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition active:scale-[0.99] dark:bg-zinc-800 {{ $recheck?->isDue() ? 'border-amber-400 dark:border-amber-500' : 'border-zinc-200 dark:border-zinc-700' }}"
+                    class="min-h-48 active:scale-[0.99] hover:-translate-y-0.5"
                 >
-                    <span class="flex size-14 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-xl font-bold text-white dark:bg-white dark:text-zinc-900">
-                        {{ $token->token_number }}
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="flex items-center gap-2">
-                            <span class="block truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                                {{ $token->patient?->name ?? __('Unknown') }}
-                            </span>
-                            @if ($recheck?->isDue())
-                                <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
-                            @elseif ($recheck)
-                                <flux:badge size="sm" color="zinc">{{ __('Recheck :time', ['time' => $recheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}</flux:badge>
-                            @endif
-                        </span>
-                        <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                            {{ $token->patient?->mrn ?? __('No MRN') }}
-                            · {{ $token->serviceQueue?->service?->name }}
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="truncate text-lg font-semibold text-zinc-900">
+                            {{ $token->patient?->name ?? __('Unknown') }}
+                        </p>
+                        @if ($recheck?->isDue())
+                            <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
+                        @elseif ($recheck)
+                            <flux:badge size="sm" color="zinc">{{ __('Recheck :time', ['time' => $recheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}</flux:badge>
+                        @endif
+                    </div>
+                    <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                        {{ $token->patient?->mrn ?? __('No MRN') }}
+                        · {{ $token->serviceQueue?->service?->name }}
+                    </p>
+                    @if ($token->medicationOrder || $recheck?->isDue())
+                        <div class="mt-1 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
                             @if ($token->medicationOrder)
-                                · {{ $token->medicationOrder->status->label() }}
+                                {{ $token->medicationOrder->status->label() }}
                             @endif
                             @if ($recheck?->isDue())
-                                · {{ __('Again') }}{{ filled($recheck->note) ? ' — '.$recheck->note : '' }}
+                                {{ $token->medicationOrder ? ' · ' : '' }}{{ __('Again') }}{{ filled($recheck->note) ? ' — '.$recheck->note : '' }}
                             @endif
-                        </span>
-                    </span>
-                    <flux:icon name="chevron-right" class="size-5 shrink-0 text-zinc-400" />
-                </button>
+                        </div>
+                    @endif
+                    <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                        {{ __('Tap to prescribe') }}
+                    </p>
+                </x-paper-slip>
             @empty
-                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
+                <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
                     <flux:icon name="beaker" class="size-10 text-zinc-400" />
                     <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">{{ __('No patients need medication') }}</p>
                     <p class="text-sm text-zinc-500">{{ __('Waiting or serving patients for services that need medication will appear here.') }}</p>
@@ -980,27 +1055,31 @@ new #[Title('Medication')] class extends Component
                 </div>
             </div>
             @if ($token?->vitals->isNotEmpty())
-                <div class="overflow-x-auto">
-                    <flux:table>
-                        <flux:table.columns>
-                            <flux:table.column>{{ __('Time') }}</flux:table.column>
-                            <flux:table.column>{{ __('Temp (°F)') }}</flux:table.column>
-                            <flux:table.column>{{ __('BP') }}</flux:table.column>
-                            <flux:table.column>{{ __('BSR') }}</flux:table.column>
-                            <flux:table.column>{{ __('By') }}</flux:table.column>
-                        </flux:table.columns>
-                        <flux:table.rows>
-                            @foreach ($token->vitals as $vital)
-                                <flux:table.row wire:key="vital-{{ $vital->id }}">
-                                    <flux:table.cell>{{ $vital->created_at->timezone(config('app.timezone'))->format('d M, g:i A') }}</flux:table.cell>
-                                    <flux:table.cell>{{ $vital->temperature }}</flux:table.cell>
-                                    <flux:table.cell>{{ $vital->bp_systolic }}/{{ $vital->bp_diastolic }}</flux:table.cell>
-                                    <flux:table.cell>{{ $vital->bsr ?? '—' }}</flux:table.cell>
-                                    <flux:table.cell>{{ $vital->recordedBy?->name ?? '—' }}</flux:table.cell>
-                                </flux:table.row>
-                            @endforeach
-                        </flux:table.rows>
-                    </flux:table>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    @foreach ($token->vitals as $vital)
+                        <x-paper-slip wire:key="vital-{{ $vital->id }}" class="shadow-sm">
+                            <div class="flex items-center justify-between gap-2 border-b border-dashed border-zinc-400/70 pb-2">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                                    {{ $vital->created_at->timezone(config('app.timezone'))->format('d M, g:i A') }}
+                                </p>
+                                <p class="truncate text-xs text-zinc-500">{{ $vital->recordedBy?->name ?? '—' }}</p>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('Temp') }}</p>
+                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->temperature }}°F</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('BP') }}</p>
+                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->bp_systolic }}/{{ $vital->bp_diastolic }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('BSR') }}</p>
+                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->bsr ?? '—' }}</p>
+                                </div>
+                            </div>
+                        </x-paper-slip>
+                    @endforeach
                 </div>
                 @if ($activeRecheck?->isDue())
                     <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">{{ __('Again — recheck due') }}</p>
@@ -1082,6 +1161,13 @@ new #[Title('Medication')] class extends Component
                                     :placeholder="__('Search medicine')"
                                 />
                                 <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                                <button
+                                    type="button"
+                                    wire:click="openNewMedicineForm({{ $index }})"
+                                    class="mt-1 text-xs font-medium text-zinc-500 underline decoration-dotted underline-offset-2 hover:text-zinc-900 dark:hover:text-white"
+                                >
+                                    {{ __('Medicine not listed? Add it') }}
+                                </button>
                             </div>
                             <div class="sm:col-span-3">
                                 <flux:select wire:model="medicineLines.{{ $index }}.dose">
@@ -1235,6 +1321,43 @@ new #[Title('Medication')] class extends Component
             </div>
         </form>
     @endif
+
+    <flux:modal wire:model="showNewMedicineModal" class="w-full max-w-md">
+        <form wire:submit="createMedicine" class="space-y-5">
+            <div>
+                <flux:heading level="2">{{ __('Add medicine') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('This medicine will be added to the catalog and selected for this order.') }}</flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('Medicine name') }}</flux:label>
+                <flux:input wire:model="newMedicineName" type="text" autofocus />
+                <flux:error name="newMedicineName" />
+            </flux:field>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <flux:field>
+                    <flux:label>{{ __('Short form') }}</flux:label>
+                    <flux:input wire:model="newMedicineShortForm" type="text" placeholder="{{ __('Optional') }}" />
+                    <flux:error name="newMedicineShortForm" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>{{ __('Unit') }}</flux:label>
+                    <flux:input wire:model="newMedicineUnit" type="text" placeholder="{{ __('tablet, syrup, capsule') }}" />
+                    <flux:error name="newMedicineUnit" />
+                </flux:field>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:button type="button" variant="ghost" wire:click="closeNewMedicineForm">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Add and select') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <flux:modal wire:model="showHistoryModal" class="w-full max-w-2xl">
         <div class="space-y-4">
