@@ -161,45 +161,6 @@
             color: #ffffff;
         }
 
-        .token-pin-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(9, 9, 11, 0.95);
-        }
-
-        .token-pin-box {
-            width: 100%;
-            max-width: 360px;
-            padding: 32px;
-            text-align: center;
-            background-color: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 16px;
-        }
-
-        .token-pin-input {
-            width: 100%;
-            padding: 16px;
-            font-size: 32px;
-            font-weight: 700;
-            text-align: center;
-            letter-spacing: 0.25em;
-            color: #ffffff;
-            background-color: #27272a;
-            border: 1px solid #3f3f46;
-            border-radius: 12px;
-        }
-
-        .token-pin-error {
-            margin-top: 12px;
-            font-size: 14px;
-            color: #ef4444;
-        }
-
         @media (max-width: 1023px) {
             .token-board-heading {
                 font-size: 24px;
@@ -250,15 +211,6 @@
 
             @if ($selectedQueue)
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    @if ($pinVerified)
-                        <a
-                            href="{{ route('display.tokens.tv.lock', ['queue' => $selectedQueue->id]) }}"
-                            style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
-                        >
-                            {{ __('Lock') }}
-                        </a>
-                    @endif
-
                     <a
                         href="{{ route('display.tokens.tv') }}"
                         style="display: inline-flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #ffffff; background-color: transparent; border: 1px solid #3f3f46; border-radius: 8px;"
@@ -397,47 +349,6 @@
                 </div>
             @endif
 
-            @if (! $pinVerified && ! $usesSingleTokenLayout)
-                <div class="token-pin-overlay">
-                    <div class="token-pin-box">
-                        <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600; color: #ffffff;">
-                            {{ __('Enter PIN') }}
-                        </h2>
-
-                        <p style="margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa;">
-                            {{ __('Enter the 4-digit PIN to unlock the controls.') }}
-                        </p>
-
-                        <form method="POST" action="{{ route('display.tokens.tv.verify-pin') }}">
-                            @csrf
-                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
-
-                            <input
-                                type="password"
-                                name="pin"
-                                inputmode="numeric"
-                                pattern="[0-9]{4}"
-                                maxlength="4"
-                                class="token-pin-input"
-                                placeholder="----"
-                                required
-                                autofocus
-                            >
-
-                            @error('pin')
-                                <p class="token-pin-error">{{ $message }}</p>
-                            @enderror
-
-                            <button
-                                type="submit"
-                                style="width: 100%; margin-top: 24px; padding: 14px; font-size: 16px; font-weight: 600; color: #ffffff; background-color: #2563eb; border: none; border-radius: 10px;"
-                            >
-                                {{ __('Unlock') }}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            @endif
         @endif
     </div>
 @endsection

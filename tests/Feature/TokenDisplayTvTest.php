@@ -13,10 +13,6 @@ uses(RefreshDatabase::class);
 
 const TV_USER_AGENT = 'Mozilla/5.0 (Linux; Android 5.1.1; SMART_TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.90 Safari/537.36';
 
-beforeEach(function () {
-    config()->set('display.pin', '1234');
-});
-
 test('guests can view the tv display page', function () {
     $response = $this->get(route('display.tokens.tv'));
 
@@ -179,7 +175,7 @@ test('guests can select a queue on the tv display', function () {
     ]));
 });
 
-test('guests cannot call the next token on the tv display without a pin', function () {
+test('display controls can call the next token without a pin', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -193,10 +189,10 @@ test('guests cannot call the next token on the tv display without a pin', functi
         'queue' => $queue->id,
     ]);
 
-    $response->assertForbidden();
+    $response->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]));
 });
 
-test('verified users can call the next token on the tv display', function () {
+test('display controls can call the next token', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -224,16 +220,15 @@ test('verified users can call the next token on the tv display', function () {
         'created_at' => now(),
     ]);
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.next'), [
-            'queue' => $queue->id,
-        ]);
+    $this->post(route('display.tokens.tv.next'), [
+        'queue' => $queue->id,
+    ]);
 
     expect($currentToken->fresh()->status)->toBe('served')
         ->and($nextToken->fresh()->status)->toBe('serving');
 });
 
-test('verified users can call the previous token on the tv display', function () {
+test('display controls can call the previous token', function () {
     $firstPatient = Patient::factory()->create();
     $secondPatient = Patient::factory()->create();
     $service = Service::factory()->create();
@@ -259,10 +254,9 @@ test('verified users can call the previous token on the tv display', function ()
         'status' => 'serving',
     ]);
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.back'), [
-            'queue' => $queue->id,
-        ]);
+    $this->post(route('display.tokens.tv.back'), [
+        'queue' => $queue->id,
+    ]);
 
     expect($currentToken->fresh()->status)->toBe('waiting')
         ->and($previousToken->fresh()->status)->toBe('serving');
@@ -330,10 +324,9 @@ test('tv display calls the next token number in order', function () {
         'status' => 'waiting',
     ]);
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.next'), [
-            'queue' => $queue->id,
-        ]);
+    $this->post(route('display.tokens.tv.next'), [
+        'queue' => $queue->id,
+    ]);
 
     expect($currentToken->fresh()->status)->toBe('served')
         ->and($nextToken->fresh()->status)->toBe('serving');
@@ -366,68 +359,10 @@ test('tv display call next still advances tokens for legacy controls', function 
         'token_number' => 2,
     ]);
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.next'), [
-            'queue' => $queue->id,
-        ]);
+    $this->post(route('display.tokens.tv.next'), [
+        'queue' => $queue->id,
+    ]);
 
     expect($nextToken->fresh()->status)->toBe('reserved')
         ->and($nextToken->fresh()->displayed_at)->not->toBeNull();
-});
-
-test('entering the correct pin unlocks the tv controls', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $response = $this->post(route('display.tokens.tv.verify-pin'), [
-        'queue' => $queue->id,
-        'pin' => '1234',
-    ]);
-
-    $response->assertRedirect(route('display.tokens.tv', [
-        'queue' => $queue->id,
-    ]))
-        ->assertSessionHas('display_pin_verified', true);
-});
-
-test('entering an incorrect pin does not unlock the tv controls', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $response = $this->post(route('display.tokens.tv.verify-pin'), [
-        'queue' => $queue->id,
-        'pin' => '0000',
-    ]);
-
-    $response->assertSessionHasErrors('pin')
-        ->assertSessionMissing('display_pin_verified');
-});
-
-test('locking the tv controls clears the verified pin session', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $response = $this->withSession(['display_pin_verified' => true])
-        ->get(route('display.tokens.tv.lock', ['queue' => $queue->id]));
-
-    $response->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]))
-        ->assertSessionMissing('display_pin_verified');
 });

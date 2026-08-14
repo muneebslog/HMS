@@ -15,18 +15,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
     public bool $showQueueSelector = true;
 
-    public ?string $pin = '';
-
-    public bool $pinVerified = false;
-
-    /**
-     * Initialize the component state.
-     */
-    public function mount(): void
-    {
-        $this->pinVerified = (bool) session('display_pin_verified', false);
-    }
-
     /**
      * Open non-file-check queues for today.
      *
@@ -154,38 +142,10 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
     }
 
     /**
-     * Verify the display PIN and unlock the controls.
-     */
-    public function verifyPin(): void
-    {
-        if ($this->pin !== config('display.pin')) {
-            $this->addError('pin', __('Invalid PIN.'));
-
-            return;
-        }
-
-        session(['display_pin_verified' => true]);
-        $this->pinVerified = true;
-        $this->pin = '';
-        $this->resetErrorBag();
-    }
-
-    /**
-     * Lock the controls by clearing the verified PIN session.
-     */
-    public function lock(): void
-    {
-        session()->forget('display_pin_verified');
-        $this->pinVerified = false;
-    }
-
-    /**
      * Move a waiting token to now serving.
      */
     public function startServing(int $tokenId): void
     {
-        $this->ensurePinVerified();
-
         $token = QueueToken::findOrFail($tokenId);
         $this->ensureTokenOnBoard($token);
 
@@ -197,20 +157,10 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
      */
     public function markServed(int $tokenId): void
     {
-        $this->ensurePinVerified();
-
         $token = QueueToken::findOrFail($tokenId);
         $this->ensureTokenOnBoard($token);
 
         app(TokenDisplayService::class)->markServed($token);
-    }
-
-    /**
-     * Ensure the PIN has been verified before performing a control action.
-     */
-    private function ensurePinVerified(): void
-    {
-        abort_if(! $this->pinVerified, 403);
     }
 
     /**
@@ -253,18 +203,6 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
 
         <div class="flex items-center gap-2">
             @if ($this->selectedQueue)
-                @if ($pinVerified)
-                    <flux:button
-                        type="button"
-                        variant="ghost"
-                        icon="lock-closed"
-                        wire:click="lock"
-                        class="hidden sm:inline-flex"
-                    >
-                        {{ __('Lock') }}
-                    </flux:button>
-                @endif
-
                 <flux:button
                     type="button"
                     variant="ghost"
@@ -422,41 +360,5 @@ new #[Layout('layouts.display')] #[Title('Token Display')] class extends Compone
                 </div>
             </section>
         </div>
-
-        {{-- PIN prompt --}}
-        @if (! $pinVerified)
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">
-                <div class="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
-                    <flux:heading level="2" size="lg" class="text-center">
-                        {{ __('Enter PIN') }}
-                    </flux:heading>
-
-                    <flux:text class="mt-2 text-center text-zinc-500">
-                        {{ __('Enter the 4-digit PIN to unlock the controls.') }}
-                    </flux:text>
-
-                    <form wire:submit="verifyPin" class="mt-6 space-y-4">
-                        <flux:input
-                            type="password"
-                            wire:model="pin"
-                            inputmode="numeric"
-                            pattern="[0-9]{4}"
-                            maxlength="4"
-                            placeholder="----"
-                            class="text-center text-2xl tracking-[0.5em]"
-                            autofocus
-                        />
-
-                        @error('pin')
-                            <flux:text variant="danger" class="text-center">{{ $message }}</flux:text>
-                        @enderror
-
-                        <flux:button type="submit" variant="primary" class="w-full">
-                            {{ __('Unlock') }}
-                        </flux:button>
-                    </form>
-                </div>
-            </div>
-        @endif
     @endif
 </div>

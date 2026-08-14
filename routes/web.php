@@ -28,8 +28,6 @@ Route::livewire('display/tokens', 'pages::display.token-display')
 Route::get('display/tokens/tv', [TokenDisplayController::class, 'tv'])->name('display.tokens.tv');
 
 Route::post('display/tokens/tv/select', [TokenDisplayController::class, 'selectQueue'])->name('display.tokens.tv.select');
-Route::post('display/tokens/tv/verify-pin', [TokenDisplayController::class, 'verifyPin'])->name('display.tokens.tv.verify-pin');
-Route::get('display/tokens/tv/lock', [TokenDisplayController::class, 'lock'])->name('display.tokens.tv.lock');
 Route::post('display/tokens/tv/next', [TokenDisplayController::class, 'callNext'])->name('display.tokens.tv.next');
 Route::post('display/tokens/tv/back', [TokenDisplayController::class, 'callPrevious'])->name('display.tokens.tv.back');
 Route::post('display/tokens/tv/start-serving', [TokenDisplayController::class, 'startServing'])->name('display.tokens.tv.start-serving');

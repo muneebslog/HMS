@@ -13,10 +13,6 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-beforeEach(function () {
-    config()->set('display.pin', '1234');
-});
-
 test('guests can view the display page', function () {
     $response = $this->get(route('display.tokens'));
 
@@ -158,7 +154,7 @@ test('single-token queues show only the current token and patient name', functio
         ->assertDontSee(__('Patients waiting'));
 });
 
-test('guests cannot start serving without verifying the pin', function () {
+test('display controls can start serving without a pin', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -177,11 +173,12 @@ test('guests cannot start serving without verifying the pin', function () {
 
     Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
-        ->call('startServing', $token->id)
-        ->assertStatus(403);
+        ->call('startServing', $token->id);
+
+    expect($token->fresh()->status)->toBe('serving');
 });
 
-test('verified users can move a waiting token to serving', function () {
+test('display controls can move a waiting token to serving', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -204,8 +201,6 @@ test('verified users can move a waiting token to serving', function () {
         'status' => 'serving',
     ]);
 
-    $this->withSession(['display_pin_verified' => true]);
-
     Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
         ->call('startServing', $waiting->id);
@@ -214,7 +209,7 @@ test('verified users can move a waiting token to serving', function () {
         ->and($alreadyServing->fresh()->status)->toBe('serving');
 });
 
-test('verified users can mark a serving token as served', function () {
+test('display controls can mark a serving token as served', function () {
     $service = Service::factory()->create();
 
     $queue = ServiceQueue::factory()->create([
@@ -229,8 +224,6 @@ test('verified users can mark a serving token as served', function () {
         'token_number' => 3,
         'status' => 'serving',
     ]);
-
-    $this->withSession(['display_pin_verified' => true]);
 
     Livewire::test('pages::display.token-display')
         ->call('selectQueue', $queue->id)
@@ -331,59 +324,4 @@ test('file check tokens appear in the file check panels', function () {
         ->assertSee('201')
         ->assertSee('202')
         ->assertSee(__('File check for patients'));
-});
-
-test('entering the correct pin unlocks the display controls', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    Livewire::test('pages::display.token-display')
-        ->call('selectQueue', $queue->id)
-        ->set('pin', '1234')
-        ->call('verifyPin')
-        ->assertSet('pinVerified', true)
-        ->assertHasNoErrors('pin');
-});
-
-test('entering an incorrect pin does not unlock the display controls', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    Livewire::test('pages::display.token-display')
-        ->call('selectQueue', $queue->id)
-        ->set('pin', '0000')
-        ->call('verifyPin')
-        ->assertSet('pinVerified', false)
-        ->assertHasErrors('pin');
-});
-
-test('locking the controls clears the verified pin session', function () {
-    $service = Service::factory()->create();
-
-    $queue = ServiceQueue::factory()->create([
-        'service_id' => $service->id,
-        'date' => today(),
-        'reset_type' => TokenResetType::Shift,
-        'status' => 'open',
-    ]);
-
-    $this->withSession(['display_pin_verified' => true]);
-
-    Livewire::test('pages::display.token-display')
-        ->call('selectQueue', $queue->id)
-        ->assertSet('pinVerified', true)
-        ->call('lock')
-        ->assertSet('pinVerified', false);
 });

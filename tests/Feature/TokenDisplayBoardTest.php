@@ -119,20 +119,18 @@ test('tv board lists waiting and serving tokens and supports click actions', fun
         ->assertSee('3')
         ->assertSee('اب باری ہے');
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.start-serving'), [
-            'queue' => $queue->id,
-            'token' => $waiting->id,
-        ])
+    $this->post(route('display.tokens.tv.start-serving'), [
+        'queue' => $queue->id,
+        'token' => $waiting->id,
+    ])
         ->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]));
 
     expect($waiting->fresh()->status)->toBe('serving');
 
-    $this->withSession(['display_pin_verified' => true])
-        ->post(route('display.tokens.tv.mark-served'), [
-            'queue' => $queue->id,
-            'token' => $serving->id,
-        ])
+    $this->post(route('display.tokens.tv.mark-served'), [
+        'queue' => $queue->id,
+        'token' => $serving->id,
+    ])
         ->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]));
 
     expect($serving->fresh()->status)->toBe('served');
