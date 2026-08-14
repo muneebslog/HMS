@@ -4,124 +4,96 @@ namespace App\Services;
 
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
-use App\Models\QueueToken;
 use App\Models\Service;
-use App\Models\Shift;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\CarbonPeriod;
 
 class ServiceStatisticsService
 {
     /**
-     * Get services sold during the selected shift.
-     *
-     * @return Collection<int, Service>
-     */
-    public function servicesForShift(Shift $shift): Collection
-    {
-        return Service::query()
-            ->select(['id', 'name'])
-            ->whereIn('id', $this->invoiceItemsQuery($shift)->select('service_id'))
-            ->orderBy('name')
-            ->get();
-    }
-
-    /**
-     * Build operational and financial statistics for a service in a shift.
+     * Build daily usage statistics for a service in a date and time range.
      *
      * @return array{
-     *     total_visits: int,
-     *     unique_patients: int,
-     *     revenue: float,
-     *     average_wait_minutes: ?int,
-     *     statuses: array<string, int>,
-     *     doctor_breakdown: list<array{doctor_name: string, visits: int, revenue: float}>
+     *     total: int,
+     *     average_per_day: float,
+     *     highest_usage: array{date: string, total: int},
+     *     lowest_usage: array{date: string, total: int},
+     *     daily_usage: list<array{date: string, total: int}>
      * }
      */
-    public function forShiftAndService(Shift $shift, Service $service): array
-    {
-        $invoiceItems = $this->invoiceItemsQuery($shift, $service);
-        $totals = (clone $invoiceItems)
-            ->selectRaw('COUNT(*) as total_visits, COALESCE(SUM(price), 0) as revenue')
-            ->first();
+    public function forDateAndTimeRange(
+        Service $service,
+        Carbon $dateFrom,
+        Carbon $dateTo,
+        string $timeFrom,
+        string $timeTo,
+    ): array {
+        $dailyTotals = [];
 
-        $tokenQuery = QueueToken::query()
-            ->whereIn('invoice_item_id', $this->invoiceItemsQuery($shift, $service)->select('id'));
-
-        $statusRows = (clone $tokenQuery)
-            ->selectRaw('status, COUNT(*) as total')
-            ->groupBy('status')
-            ->get();
-        $statuses = [];
-
-        foreach ($statusRows as $statusRow) {
-            $statuses[(string) $statusRow->getAttribute('status')] = (int) $statusRow->getAttribute('total');
+        foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
+            $dailyTotals[$date->toDateString()] = 0;
         }
 
-        $waitTimes = (clone $tokenQuery)
-            ->whereNotNull('arrived_at')
-            ->whereNotNull('displayed_at')
-            ->get(['arrived_at', 'displayed_at'])
-            ->map(fn (QueueToken $token): int => (int) round($token->arrived_at->diffInMinutes($token->displayed_at, true)));
+        $items = InvoiceItem::query()
+            ->select(['id', 'invoice_id'])
+            ->with('invoice:id,created_at')
+            ->where('service_id', $service->id)
+            ->whereHas('invoice', function (Builder $query) use ($dateFrom, $dateTo, $timeFrom, $timeTo): void {
+                $query
+                    ->where('status', '!=', 'cancelled')
+                    ->whereBetween('created_at', [
+                        $dateFrom->copy()->startOfDay(),
+                        $dateTo->copy()->endOfDay(),
+                    ]);
 
-        $doctorRows = (clone $invoiceItems)
-            ->selectRaw("COALESCE(doctor_name, 'Unassigned') as doctor_name, COUNT(*) as visits, COALESCE(SUM(price), 0) as revenue")
-            ->groupBy('doctor_id', 'doctor_name')
-            ->orderByDesc('visits')
+                $this->applyTimeRange($query, $timeFrom, $timeTo);
+            })
             ->get();
-        $doctorBreakdown = [];
 
-        foreach ($doctorRows as $doctorRow) {
-            $doctorBreakdown[] = [
-                'doctor_name' => (string) $doctorRow->getAttribute('doctor_name'),
-                'visits' => (int) $doctorRow->getAttribute('visits'),
-                'revenue' => (float) $doctorRow->getAttribute('revenue'),
-            ];
+        foreach ($items as $item) {
+            $date = $item->invoice->created_at->toDateString();
+            $dailyTotals[$date]++;
         }
 
-        $uniquePatients = Invoice::query()
-            ->where('shift_id', $shift->id)
-            ->where('status', '!=', 'cancelled')
-            ->whereHas('items', fn (Builder $query) => $query->where('service_id', $service->id))
-            ->distinct()
-            ->count('patient_id');
+        $highestTotal = max($dailyTotals);
+        $lowestTotal = min($dailyTotals);
+        $highestDate = (string) array_search($highestTotal, $dailyTotals, true);
+        $lowestDate = (string) array_search($lowestTotal, $dailyTotals, true);
+        $dailyUsage = [];
+
+        foreach ($dailyTotals as $date => $total) {
+            $dailyUsage[] = ['date' => $date, 'total' => $total];
+        }
 
         return [
-            'total_visits' => (int) ($totals?->getAttribute('total_visits') ?? 0),
-            'unique_patients' => $uniquePatients,
-            'revenue' => (float) ($totals?->getAttribute('revenue') ?? 0),
-            'average_wait_minutes' => $waitTimes->isEmpty() ? null : (int) round($waitTimes->average()),
-            'statuses' => $statuses,
-            'doctor_breakdown' => $doctorBreakdown,
+            'total' => $items->count(),
+            'average_per_day' => round($items->count() / count($dailyTotals), 1),
+            'highest_usage' => ['date' => $highestDate, 'total' => $highestTotal],
+            'lowest_usage' => ['date' => $lowestDate, 'total' => $lowestTotal],
+            'daily_usage' => $dailyUsage,
         ];
     }
 
     /**
-     * Build the reusable invoice item query.
+     * Apply a daily time window, including windows that cross midnight.
      *
-     * @return Builder<InvoiceItem>
+     * @param  Builder<Invoice>  $query
      */
-    private function invoiceItemsQuery(Shift $shift, ?Service $service = null): Builder
+    private function applyTimeRange(Builder $query, string $timeFrom, string $timeTo): void
     {
-        $query = InvoiceItem::query();
+        if ($timeFrom <= $timeTo) {
+            $query
+                ->whereTime('created_at', '>=', $timeFrom)
+                ->whereTime('created_at', '<=', $timeTo);
 
-        return $this->constrainInvoiceItems($query, $shift, $service);
-    }
+            return;
+        }
 
-    /**
-     * Apply shift, service, and cancellation constraints.
-     *
-     * @param  Builder<InvoiceItem>  $query
-     * @return Builder<InvoiceItem>
-     */
-    private function constrainInvoiceItems(Builder $query, Shift $shift, ?Service $service = null): Builder
-    {
-        return $query
-            ->when($service !== null, fn (Builder $serviceQuery) => $serviceQuery->where('service_id', $service->id))
-            ->whereHas('invoice', function (Builder $invoiceQuery) use ($shift): void {
-                $invoiceQuery
-                    ->where('shift_id', $shift->id)
-                    ->where('status', '!=', 'cancelled');
-            });
+        $query->where(function (Builder $overnightQuery) use ($timeFrom, $timeTo): void {
+            $overnightQuery
+                ->whereTime('created_at', '>=', $timeFrom)
+                ->orWhereTime('created_at', '<=', $timeTo);
+        });
     }
 }
