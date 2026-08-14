@@ -420,6 +420,7 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
+        $this->closeModals();
         $this->showHistoryModal = true;
         unset($this->medicationHistory);
     }
@@ -510,6 +511,7 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
+        $this->closeModals();
         $this->newMedicineLineIndex = $index;
         $this->newMedicineName = '';
         $this->newMedicineShortForm = '';
@@ -678,6 +680,8 @@ new #[Title('Medication')] class extends Component
             'dripBasesById' => $dripBasesById,
         ] = $orderData;
 
+        $this->closeModals();
+
         $this->orderPreview = [
             'medicines' => $medicineLines
                 ->map(fn (array $line): ?array => $this->resolveMedicineLine($line, $medicinesById))
@@ -742,11 +746,23 @@ new #[Title('Medication')] class extends Component
                 ->all(),
             'notes' => filled($validated['notes']) ? $validated['notes'] : null,
         ];
+
         $this->showOrderPreviewModal = true;
     }
 
     public function closeOrderPreview(): void
     {
+        $this->showOrderPreviewModal = false;
+        $this->resetOrderPreview();
+    }
+
+    /**
+     * Only one modal may be open at a time, otherwise a stale flag reopens it on the next render.
+     */
+    private function closeModals(): void
+    {
+        $this->showHistoryModal = false;
+        $this->showNewMedicineModal = false;
         $this->showOrderPreviewModal = false;
         $this->resetOrderPreview();
     }
@@ -1580,7 +1596,7 @@ new #[Title('Medication')] class extends Component
         </form>
     @endif
 
-    <flux:modal wire:model="showNewMedicineModal" class="w-full max-w-md">
+    <flux:modal name="medication-new-medicine" wire:model="showNewMedicineModal" class="w-full max-w-md">
         <form wire:submit="createMedicine" class="space-y-5">
             <div>
                 <flux:heading level="2">{{ __('Add medicine') }}</flux:heading>
@@ -1617,7 +1633,7 @@ new #[Title('Medication')] class extends Component
         </form>
     </flux:modal>
 
-    <flux:modal wire:model="showOrderPreviewModal" class="w-full max-w-xl">
+    <flux:modal name="medication-order-preview" wire:model="showOrderPreviewModal" class="w-full max-w-xl">
         <div class="space-y-4">
             <div>
                 <flux:heading level="2">{{ __('ER order preview') }}</flux:heading>
@@ -1705,7 +1721,7 @@ new #[Title('Medication')] class extends Component
         </div>
     </flux:modal>
 
-    <flux:modal wire:model="showHistoryModal" class="w-full max-w-2xl">
+    <flux:modal name="medication-history" wire:model="showHistoryModal" class="w-full max-w-2xl">
         <div class="space-y-4">
             <flux:heading level="2">{{ __('Medication history') }}</flux:heading>
             <p class="text-sm text-zinc-500">

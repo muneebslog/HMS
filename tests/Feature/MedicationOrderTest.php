@@ -238,6 +238,45 @@ test('doctor previews an order as an er slip before confirming it', function () 
     expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeTrue();
 });
 
+test('only one medication modal is open at a time', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->assertSet('showHistoryModal', true)
+        ->set('medicineLines', [[
+            'medicine_id' => $medicine->id,
+            'dose' => '1-0-0',
+            'days' => '3',
+        ]])
+        ->call('previewOrder')
+        ->assertHasNoErrors()
+        ->assertSet('showOrderPreviewModal', true)
+        ->assertSet('showHistoryModal', false)
+        ->assertSet('showNewMedicineModal', false)
+        ->call('openHistory')
+        ->assertSet('showHistoryModal', true)
+        ->assertSet('showOrderPreviewModal', false)
+        ->call('openNewMedicineForm', 0)
+        ->assertSet('showNewMedicineModal', true)
+        ->assertSet('showHistoryModal', false)
+        ->assertSet('showOrderPreviewModal', false);
+});
+
+test('medication modals render with unique flux names', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSeeHtml('data-modal="medication-new-medicine"')
+        ->assertSeeHtml('data-modal="medication-order-preview"')
+        ->assertSeeHtml('data-modal="medication-history"');
+});
+
 test('medication queue keeps patients with an active recheck after an order is saved', function () {
     [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create();
