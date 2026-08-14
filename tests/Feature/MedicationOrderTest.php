@@ -597,7 +597,7 @@ test('doctor can write an injection and a drip additive that are not in the cata
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
 
-    $component = Livewire::actingAs($user)
+    Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->call('switchOrderTab', 'injections')
@@ -636,11 +636,58 @@ test('doctor can write an injection and a drip additive that are not in the cata
         'volume_ml' => 5,
         'name' => 'Vitamin C 500mg',
     ]);
+});
 
-    $component->call('selectToken', $token->id);
+test('reopening an order restores written injection names', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
+
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+
+    $order->injections()->create([
+        'injection_id' => null,
+        'administration_type' => 'im',
+        'volume_ml' => 2,
+        'name' => 'Ketorolac 30mg',
+    ]);
+
+    $drip = $order->drips()->create([
+        'drip_base_id' => $dripBase->id,
+        'volume_ml' => 100,
+        'name' => 'Normal Saline',
+    ]);
+
+    $drip->additives()->create([
+        'injection_id' => null,
+        'volume_ml' => 5,
+        'name' => 'Vitamin C 500mg',
+    ]);
+
+    DoctorRecheck::factory()->due()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'set_by' => $user->id,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id);
 
     expect($component->get('injectionLines.0.injection_id'))->toBe('custom:Ketorolac 30mg')
         ->and($component->get('dripLines.0.additives.0.injection_id'))->toBe('custom:Vitamin C 500mg');
+
+    $component->call('save')->assertHasNoErrors();
+
+    $this->assertDatabaseHas('medication_order_injections', [
+        'medication_order_id' => $order->id,
+        'injection_id' => null,
+        'name' => 'Ketorolac 30mg',
+    ]);
 });
 
 test('written injections appear in the er order preview', function () {
