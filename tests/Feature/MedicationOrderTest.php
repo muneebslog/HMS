@@ -453,24 +453,48 @@ test('doctor medication queue uses paper slips', function () {
         ->assertSeeHtml('paper-slip');
 });
 
-test('switching to injections or drips seeds a first blank row', function () {
+test('medication form starts with common blank order rows', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertCount('medicineLines', 1)
-        ->assertCount('injectionLines', 0)
-        ->assertCount('dripLines', 0)
+        ->assertCount('medicineLines', 4)
+        ->assertCount('injectionLines', 2)
+        ->assertCount('dripLines', 1)
+        ->assertCount('dripLines.0.additives', 2)
         ->call('switchOrderTab', 'injections')
-        ->assertCount('injectionLines', 1)
+        ->assertCount('injectionLines', 2)
         ->call('switchOrderTab', 'drips')
         ->assertCount('dripLines', 1)
         ->call('addRowForActiveTab')
         ->assertCount('dripLines', 2)
+        ->assertCount('dripLines.1.additives', 2)
         ->call('switchOrderTab', 'medicines')
         ->call('addRowForActiveTab')
-        ->assertCount('medicineLines', 2);
+        ->assertCount('medicineLines', 5);
+});
+
+test('blank default order rows are ignored when saving', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Only Filled Medicine']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('medicineLines.0.medicine_id', $medicine->id)
+        ->set('medicineLines.0.dose', '1-0-1')
+        ->set('medicineLines.0.days', '5')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()
+        ->where('queue_token_id', $token->id)
+        ->firstOrFail();
+
+    expect($order->medicines)->toHaveCount(1)
+        ->and($order->injections)->toHaveCount(0)
+        ->and($order->drips)->toHaveCount(0);
 });
 
 test('doctor can open medication history modal for a patient', function () {

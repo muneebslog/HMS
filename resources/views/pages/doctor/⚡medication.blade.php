@@ -535,7 +535,16 @@ new #[Title('Medication')] class extends Component
         $this->dripLines[] = [
             'drip_base_id' => null,
             'volume_ml' => '',
-            'additives' => [],
+            'additives' => [
+                [
+                    'injection_id' => null,
+                    'volume_ml' => '',
+                ],
+                [
+                    'injection_id' => null,
+                    'volume_ml' => '',
+                ],
+            ],
         ];
     }
 
@@ -1103,13 +1112,10 @@ new #[Title('Medication')] class extends Component
 
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
-            $this->medicineLines = [[
-                'medicine_id' => null,
-                'dose' => MedicineDose::OneZeroZero->value,
-                'days' => '3',
-            ]];
+            $this->medicineLines = [];
             $this->injectionLines = [];
             $this->dripLines = [];
+            $this->ensureDefaultOrderLines();
 
             return;
         }
@@ -1120,14 +1126,6 @@ new #[Title('Medication')] class extends Component
             'dose' => $line->dose->value,
             'days' => (string) $line->days,
         ])->values()->all();
-
-        if ($this->medicineLines === []) {
-            $this->medicineLines = [[
-                'medicine_id' => null,
-                'dose' => MedicineDose::OneZeroZero->value,
-                'days' => '3',
-            ]];
-        }
 
         $this->injectionLines = $order->injections->map(fn ($line) => [
             'injection_id' => $line->injection_id,
@@ -1143,6 +1141,32 @@ new #[Title('Medication')] class extends Component
                 'volume_ml' => (string) $additive->volume_ml,
             ])->values()->all(),
         ])->values()->all();
+
+        $this->ensureDefaultOrderLines();
+    }
+
+    /**
+     * Pad a new or existing order with the rows doctors commonly need.
+     */
+    private function ensureDefaultOrderLines(): void
+    {
+        while (count($this->medicineLines) < 4) {
+            $this->addMedicineLine();
+        }
+
+        while (count($this->injectionLines) < 2) {
+            $this->addInjectionLine();
+        }
+
+        if ($this->dripLines === []) {
+            $this->addDripLine();
+        }
+
+        foreach (array_keys($this->dripLines) as $dripIndex) {
+            while (count($this->dripLines[$dripIndex]['additives'] ?? []) < 2) {
+                $this->addDripAdditive($dripIndex);
+            }
+        }
     }
 }; ?>
 
