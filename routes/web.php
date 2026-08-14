@@ -77,6 +77,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/pdf-print', 'pages::admin.pdf-print')->name('admin.pdf-print');
         Route::livewire('admin/rechecks', 'pages::admin.rechecks')->name('admin.rechecks');
         Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
+        Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {

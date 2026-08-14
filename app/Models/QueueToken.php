@@ -8,7 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $arrived_at
+ * @property Carbon|null $displayed_at
+ */
 class QueueToken extends Model
 {
     /** @use HasFactory<QueueTokenFactory> */

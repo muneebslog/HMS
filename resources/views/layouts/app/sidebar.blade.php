@@ -174,6 +174,9 @@
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
                             {{ __('Monthly Report') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
+                            {{ __('Service Statistics') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
                             {{ __('PDF Print') }}
                         </flux:sidebar.item>

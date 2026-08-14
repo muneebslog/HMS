@@ -2073,7 +2073,8 @@ new #[Title('Management')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:switch wire:model="serviceNeedsMedication" :label="__('Attach to doctor medication')" />
+                    <flux:switch wire:model="serviceNeedsMedication" :label="__('Needs medication')" />
+                    <flux:description>{{ __('Waiting or serving patients for this service appear on the Doctor Medication page.') }}</flux:description>
                     <flux:error name="serviceNeedsMedication" />
                 </flux:field>
 

@@ -226,7 +226,8 @@ test('service management describes medication services as attached to doctor med
     Livewire::actingAs($user)
         ->test('pages::management.crud')
         ->call('switchTab', 'services')
-        ->assertSee(__('Attach to doctor medication'));
+        ->assertSee(__('Needs medication'))
+        ->assertSee(__('Waiting or serving patients for this service appear on the Doctor Medication page.'));
 });
 
 test('service price doctor share can be null', function () {
