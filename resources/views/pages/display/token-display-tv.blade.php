@@ -161,6 +161,34 @@
             color: #ffffff;
         }
 
+        .single-token-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .token-control-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 220px;
+            padding: 20px 40px;
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            background-color: #27272a;
+            border: 2px solid #52525b;
+            border-radius: 16px;
+        }
+
+        .token-control-button-primary {
+            color: #052e16;
+            background-color: #34d399;
+            border-color: #10b981;
+        }
+
         @media (max-width: 1023px) {
             .token-board-heading {
                 font-size: 24px;
@@ -268,6 +296,24 @@
                     @else
                         <p class="token-empty" style="margin-top: 48px; font-size: 48px;">{{ __('No token being served') }}</p>
                     @endif
+
+                    <div class="single-token-controls">
+                        <form method="POST" action="{{ route('display.tokens.tv.back') }}">
+                            @csrf
+                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+                            <button type="submit" class="token-control-button">
+                                {{ __('Previous Token') }}
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('display.tokens.tv.next') }}">
+                            @csrf
+                            <input type="hidden" name="queue" value="{{ $selectedQueue->id }}">
+                            <button type="submit" class="token-control-button token-control-button-primary">
+                                {{ __('Next Token') }}
+                            </button>
+                        </form>
+                    </div>
                 </main>
             @else
                 <div class="token-board">

@@ -156,6 +156,49 @@ test('tv display uses the centered single-token layout configured for the servic
         ->assertDontSee(__('Enter PIN'));
 });
 
+test('the single-token layout shows next and previous token controls', function () {
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+
+    ServicePrice::factory()->singleTokenDisplay()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+    ]);
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $current = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 1,
+        'status' => 'serving',
+    ]);
+
+    $next = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    $this->get(route('display.tokens.tv', ['queue' => $queue->id]))
+        ->assertOk()
+        ->assertSee(__('Next Token'))
+        ->assertSee(__('Previous Token'));
+
+    $this->post(route('display.tokens.tv.next'), [
+        'queue' => $queue->id,
+    ])->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]));
+
+    expect($current->fresh()->status)->toBe('served')
+        ->and($next->fresh()->status)->toBe('serving');
+});
+
 test('guests can select a queue on the tv display', function () {
     $service = Service::factory()->create();
 

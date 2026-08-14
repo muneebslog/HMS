@@ -189,7 +189,7 @@ test('tv board shows file check tokens in the file check panels', function () {
         ->assertDontSee('File Desk');
 });
 
-test('guests cannot start serving on the tv display without a pin', function () {
+test('tv display controls start serving without a pin', function () {
     $queue = ServiceQueue::factory()->create([
         'date' => today(),
         'reset_type' => TokenResetType::Shift,
@@ -206,5 +206,7 @@ test('guests cannot start serving on the tv display without a pin', function () 
     $this->post(route('display.tokens.tv.start-serving'), [
         'queue' => $queue->id,
         'token' => $token->id,
-    ])->assertForbidden();
+    ])->assertRedirect(route('display.tokens.tv', ['queue' => $queue->id]));
+
+    expect($token->fresh()->status)->toBe('serving');
 });
