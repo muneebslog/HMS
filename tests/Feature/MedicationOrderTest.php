@@ -338,6 +338,40 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee('Searchable Saline');
 });
 
+test('doctor can add a missing medicine and select it for the current order line', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openNewMedicineForm', 0)
+        ->assertSet('showNewMedicineModal', true)
+        ->set('newMedicineName', '  New Catalog Medicine  ')
+        ->set('newMedicineShortForm', ' NCM ')
+        ->set('newMedicineUnit', ' tablet ')
+        ->call('createMedicine')
+        ->assertHasNoErrors()
+        ->assertSet('showNewMedicineModal', false);
+
+    $medicine = Medicine::query()->where('name', 'New Catalog Medicine')->first();
+
+    expect($medicine)->not->toBeNull()
+        ->and($medicine->short_form)->toBe('NCM')
+        ->and($medicine->unit)->toBe('tablet')
+        ->and($medicine->is_active)->toBeTrue()
+        ->and($component->get('medicineLines.0.medicine_id'))->toBe($medicine->id);
+});
+
+test('doctor medication queue uses paper slips', function () {
+    [$user, , , , , $patient] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertSee(__('Tap to prescribe'))
+        ->assertSeeHtml('paper-slip');
+});
+
 test('switching to injections or drips seeds a first blank row', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
 

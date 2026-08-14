@@ -478,6 +478,12 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                     <span>{{ $pendingInjections }} {{ __('Injections') }}</span>
                                 @endif
                             </div>
+                            @if (filled($order->notes))
+                                <div class="border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-700">
+                                    <span class="font-semibold">{{ __('Notes:') }}</span>
+                                    <span class="whitespace-pre-line">{{ $order->notes }}</span>
+                                </div>
+                            @endif
                             <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                                 {{ __('Tap to deliver') }}
                             </p>
@@ -588,6 +594,13 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             <p class="text-sm text-zinc-500">{{ __('None') }}</p>
                         @endforelse
                     </div>
+
+                    @if (filled($order?->notes))
+                        <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                            <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Notes') }}</p>
+                            <p class="whitespace-pre-line text-sm text-zinc-800">{{ $order->notes }}</p>
+                        </div>
+                    @endif
                 </div>
 
                 <x-slot:footer>
