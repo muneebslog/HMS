@@ -328,7 +328,7 @@ test('medication form uses searchable selects for catalog fields', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Search medicine'))
+        ->assertSee(__('Search or write medicine'))
         ->assertSee('PCM — Searchable Paracetamol')
         ->call('switchOrderTab', 'injections')
         ->assertSee(__('Search injection'))
@@ -423,4 +423,33 @@ test('medication history excludes the current visit order', function () {
 
     expect($component->get('showHistoryModal'))->toBeTrue()
         ->and($component->instance()->medicationHistory)->toHaveCount(0);
+});
+
+test('doctor can write a medicine that is not in the catalog', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee(__('Search or write medicine'))
+        ->set('medicineLines', [[
+            'medicine_id' => 'custom:Augmentin 625mg',
+            'dose' => '1-0-1',
+            'days' => '5',
+        ]])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->medicines)->toHaveCount(1);
+
+    $this->assertDatabaseHas('medication_order_medicines', [
+        'medication_order_id' => $order->id,
+        'medicine_id' => null,
+        'dose' => '1-0-1',
+        'days' => 5,
+        'name' => 'Augmentin 625mg',
+    ]);
 });

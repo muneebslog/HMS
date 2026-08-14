@@ -497,10 +497,10 @@ One medication order per queue token. `doctor_id` is null for standalone service
 |--------|------|-------|
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
-| medicine_id | FK → medicines | restrictOnDelete |
+| medicine_id | FK → medicines | nullable, restrictOnDelete — null when the doctor writes a medicine not in the catalog |
 | dose | string | `MedicineDose` e.g. `1-0-0`, `1-0-1`, `1-1-1` |
 | days | unsignedInteger | duration in days |
-| name | string | snapshot |
+| name | string | snapshot of catalog name, or the written custom medicine name |
 | delivered_at | timestamp | nullable |
 | delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | timestamps | | |

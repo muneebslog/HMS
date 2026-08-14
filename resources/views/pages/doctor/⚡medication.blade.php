@@ -43,7 +43,7 @@ new #[Title('Medication')] class extends Component
     public bool $showRecheckForm = false;
 
     /**
-     * @var list<array{medicine_id: int|null, dose: string, days: string}>
+     * @var list<array{medicine_id: int|string|null, dose: string, days: string}>
      */
     public array $medicineLines = [];
 
@@ -607,7 +607,7 @@ new #[Title('Medication')] class extends Component
         $validated = $this->validate($this->orderRules());
 
         $medicineLines = collect($validated['medicineLines'] ?? [])
-            ->filter(fn (array $line): bool => filled($line['medicine_id'] ?? null))
+            ->filter(fn (array $line): bool => $this->medicineLineHasSelection($line))
             ->values();
         $injectionLines = collect($validated['injectionLines'] ?? [])
             ->filter(fn (array $line): bool => filled($line['injection_id'] ?? null))
@@ -623,7 +623,14 @@ new #[Title('Medication')] class extends Component
         }
 
         $medicinesById = Medicine::query()
-            ->whereIn('id', $medicineLines->pluck('medicine_id')->filter()->all())
+            ->whereIn(
+                'id',
+                $medicineLines
+                    ->pluck('medicine_id')
+                    ->filter(fn (mixed $id): bool => is_numeric($id))
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all()
+            )
             ->get()
             ->keyBy('id');
         $injectionsById = Injection::query()
@@ -662,18 +669,13 @@ new #[Title('Medication')] class extends Component
             $order->drips()->delete();
 
             foreach ($medicineLines as $line) {
-                $medicine = $medicinesById->get((int) $line['medicine_id']);
+                $resolved = $this->resolveMedicineLine($line, $medicinesById);
 
-                if ($medicine === null) {
+                if ($resolved === null) {
                     continue;
                 }
 
-                $order->medicines()->create([
-                    'medicine_id' => $medicine->id,
-                    'dose' => $line['dose'],
-                    'days' => (int) $line['days'],
-                    'name' => $medicine->name,
-                ]);
+                $order->medicines()->create($resolved);
             }
 
             foreach ($injectionLines as $line) {
@@ -797,7 +799,25 @@ new #[Title('Medication')] class extends Component
                 Rule::exists('services', 'id')->where(fn ($query) => $query->where('is_drip', true)->where('is_active', true)),
             ],
             'medicineLines' => ['array'],
-            'medicineLines.*.medicine_id' => ['nullable', 'integer', 'exists:medicines,id'],
+            'medicineLines.*.medicine_id' => ['nullable', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! filled($value)) {
+                    return;
+                }
+
+                if (is_numeric($value)) {
+                    if (! Medicine::query()->whereKey((int) $value)->exists()) {
+                        $fail(__('The selected medicine is invalid.'));
+                    }
+
+                    return;
+                }
+
+                $name = $this->customMedicineName($value);
+
+                if ($name === '' || mb_strlen($name) > 255) {
+                    $fail(__('Medicine name must be 255 characters or fewer.'));
+                }
+            }],
             'medicineLines.*.dose' => ['required_with:medicineLines.*.medicine_id', 'string', Rule::enum(MedicineDose::class)],
             'medicineLines.*.days' => ['required_with:medicineLines.*.medicine_id', 'integer', 'min:1', 'max:365'],
             'injectionLines' => ['array'],
@@ -810,6 +830,78 @@ new #[Title('Medication')] class extends Component
             'dripLines.*.additives' => ['array'],
             'dripLines.*.additives.*.injection_id' => ['nullable', 'integer', 'exists:injections,id'],
             'dripLines.*.additives.*.volume_ml' => ['required_with:dripLines.*.additives.*.injection_id', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * Whether a medicine row has a catalog selection or a written name.
+     *
+     * @param  array{medicine_id?: int|string|null}  $line
+     */
+    private function medicineLineHasSelection(array $line): bool
+    {
+        $raw = $line['medicine_id'] ?? null;
+
+        if (! filled($raw)) {
+            return false;
+        }
+
+        return is_numeric($raw) || $this->customMedicineName($raw) !== '';
+    }
+
+    /**
+     * Resolve a written custom medicine name from the searchable select value.
+     */
+    private function customMedicineName(mixed $value): string
+    {
+        if (! is_string($value)) {
+            return '';
+        }
+
+        if (str_starts_with($value, 'custom:')) {
+            $value = substr($value, strlen('custom:'));
+        }
+
+        return trim($value);
+    }
+
+    /**
+     * Turn a medicine form row into an order line payload.
+     *
+     * @param  array{medicine_id: int|string|null, dose: string, days: int|string}  $line
+     * @param  Collection<int, Medicine>  $medicinesById
+     * @return array{medicine_id: int|null, dose: string, days: int, name: string}|null
+     */
+    private function resolveMedicineLine(array $line, Collection $medicinesById): ?array
+    {
+        $raw = $line['medicine_id'] ?? null;
+
+        if (is_numeric($raw)) {
+            $medicine = $medicinesById->get((int) $raw);
+
+            if ($medicine === null) {
+                return null;
+            }
+
+            return [
+                'medicine_id' => $medicine->id,
+                'dose' => $line['dose'],
+                'days' => (int) $line['days'],
+                'name' => $medicine->name,
+            ];
+        }
+
+        $name = $this->customMedicineName($raw);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return [
+            'medicine_id' => null,
+            'dose' => $line['dose'],
+            'days' => (int) $line['days'],
+            'name' => $name,
         ];
     }
 
@@ -845,7 +937,7 @@ new #[Title('Medication')] class extends Component
 
         $this->notes = $order->notes ?? '';
         $this->medicineLines = $order->medicines->map(fn ($line) => [
-            'medicine_id' => $line->medicine_id,
+            'medicine_id' => $line->medicine_id ?? 'custom:'.$line->name,
             'dose' => $line->dose->value,
             'days' => (string) $line->days,
         ])->values()->all();
@@ -1079,7 +1171,8 @@ new #[Title('Medication')] class extends Component
                                 <x-searchable-select
                                     wire:model="medicineLines.{{ $index }}.medicine_id"
                                     :options="$this->medicineOptions"
-                                    :placeholder="__('Search medicine')"
+                                    :placeholder="__('Search or write medicine')"
+                                    allow-custom
                                 />
                                 <flux:error name="medicineLines.{{ $index }}.medicine_id" />
                             </div>

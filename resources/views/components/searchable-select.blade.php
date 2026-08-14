@@ -1,6 +1,7 @@
 @props([
     'options' => [],
     'placeholder' => null,
+    'allowCustom' => false,
 ])
 
 @php
@@ -21,8 +22,10 @@
         search: '',
         highlight: 0,
         value: null,
+        allowCustom: {{ \Illuminate\Support\Js::from((bool) $allowCustom) }},
         options: {{ \Illuminate\Support\Js::from($normalizedOptions) }},
         placeholder: {{ \Illuminate\Support\Js::from($placeholder) }},
+        customPrefix: 'custom:',
         get filtered() {
             const query = this.search.trim().toLowerCase();
 
@@ -36,10 +39,31 @@
                 return haystack.includes(query);
             });
         },
-        get selectedLabel() {
-            const match = this.options.find((option) => String(option.value) === String(this.value ?? ''));
+        get canUseCustom() {
+            const query = this.search.trim();
 
-            return match ? match.label : '';
+            if (! this.allowCustom || query === '') {
+                return false;
+            }
+
+            return ! this.options.some((option) => String(option.label).toLowerCase() === query.toLowerCase());
+        },
+        get selectedLabel() {
+            const raw = this.value;
+
+            if (raw === null || raw === '') {
+                return '';
+            }
+
+            const match = this.options.find((option) => String(option.value) === String(raw));
+
+            if (match) {
+                return match.label;
+            }
+
+            const text = String(raw);
+
+            return text.startsWith(this.customPrefix) ? text.slice(this.customPrefix.length) : text;
         },
         openList() {
             this.open = true;
@@ -56,15 +80,27 @@
             this.value = option.value;
             this.closeList();
         },
-        selectHighlighted() {
-            const items = this.filtered;
+        selectCustom() {
+            const query = this.search.trim();
 
-            if (items.length === 0) {
+            if (! this.allowCustom || query === '') {
                 return;
             }
 
-            const index = Math.min(Math.max(this.highlight, 0), items.length - 1);
-            this.select(items[index]);
+            this.value = this.customPrefix + query;
+            this.closeList();
+        },
+        selectHighlighted() {
+            const items = this.filtered;
+
+            if (items.length > 0) {
+                const index = Math.min(Math.max(this.highlight, 0), items.length - 1);
+                this.select(items[index]);
+
+                return;
+            }
+
+            this.selectCustom();
         },
         moveHighlight(delta) {
             const length = this.filtered.length;
@@ -82,7 +118,7 @@
     x-modelable="value"
     {{ $attributes->wire('model') }}
     {{ $attributes
-        ->except(['options', 'placeholder'])
+        ->except(['options', 'placeholder', 'allowCustom'])
         ->whereDoesntStartWith('wire:model')
         ->class('relative') }}
     @click.outside="closeList()"
@@ -137,7 +173,17 @@
                 </li>
             </template>
 
-            <li x-show="filtered.length === 0" class="px-3 py-2 text-sm text-zinc-500">
+            <li x-show="canUseCustom">
+                <button
+                    type="button"
+                    class="flex w-full px-3 py-2 text-start text-sm font-medium text-zinc-800 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-white/5"
+                    @click="selectCustom()"
+                >
+                    <span x-text="{{ \Illuminate\Support\Js::from(__('Write')) }} + ' “' + search.trim() + '”'"></span>
+                </button>
+            </li>
+
+            <li x-show="filtered.length === 0 && ! canUseCustom" class="px-3 py-2 text-sm text-zinc-500">
                 {{ __('No results found') }}
             </li>
         </ul>
