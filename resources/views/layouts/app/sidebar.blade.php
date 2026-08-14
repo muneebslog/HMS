@@ -208,6 +208,9 @@
                         <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
                             {{ __('Drip Delivery') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
+                            {{ __('ER + Drips') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                             {{ __('Shift') }}
                         </flux:sidebar.item>

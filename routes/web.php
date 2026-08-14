@@ -48,6 +48,9 @@ Route::livewire('display/medication', 'pages::display.medication-delivery')
 Route::livewire('display/drips', 'pages::display.drip-delivery')
     ->name('display.drips');
 
+Route::view('display/er-drips', 'pages.display.er-drips')
+    ->name('display.er_drips');
+
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 
