@@ -107,6 +107,14 @@ class MedicationOrderDrip extends Model
     }
 
     /**
+     * Whether the drip is still pending or running at the drip station.
+     */
+    public function isActive(): bool
+    {
+        return in_array($this->status, DripLineStatus::activeCases(), true);
+    }
+
+    /**
      * Whether the 30-minute check is overdue.
      */
     public function isCheckDue(): bool

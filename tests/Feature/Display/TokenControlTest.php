@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -44,6 +45,41 @@ test('open queues for today are listed on the token control page', function () {
         ->test('pages::display.token-control')
         ->assertSee($service->name)
         ->assertSee($doctor->name);
+});
+
+test('overnight shift queues remain listed on the token control page after midnight', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->open()->create([
+        'opened_at' => now()->subDay()->setTime(18, 0),
+    ]);
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+    $patient = Patient::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'shift_id' => $shift->id,
+        'date' => $shift->opened_at->toDateString(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 8,
+        'status' => 'serving',
+        'displayed_at' => now()->subHour(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::display.token-control')
+        ->assertSee($service->name)
+        ->assertSee($doctor->name)
+        ->call('selectQueue', $queue->id)
+        ->assertSee((string) $token->token_number)
+        ->assertDontSee(__('No token being served'));
 });
 
 test('selecting a queue shows the current serving token', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use Database\Factories\MedicationOrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -121,6 +122,19 @@ class MedicationOrder extends Model
         $hasUndeliveredInjection = $this->injections()->whereNull('delivered_at')->exists();
 
         return ! $hasUndeliveredMedicine && ! $hasUndeliveredInjection;
+    }
+
+    /**
+     * Whether any drip line still has to be run at the drip station.
+     * Medicines and injections wait at ER until every drip is done.
+     */
+    public function hasActiveDrips(): bool
+    {
+        if ($this->relationLoaded('drips')) {
+            return $this->drips->contains(fn (MedicationOrderDrip $drip): bool => $drip->isActive());
+        }
+
+        return $this->drips()->whereIn('status', DripLineStatus::activeCases())->exists();
     }
 
     /**

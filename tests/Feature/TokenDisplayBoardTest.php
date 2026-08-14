@@ -6,6 +6,7 @@ use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
+use App\Models\Shift;
 use App\Services\TokenDisplayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -41,6 +42,30 @@ test('start serving moves an arrived waiting token without clearing other servin
         ->and($result?->displayed_at)->not->toBeNull()
         ->and($serving->fresh()->status)->toBe('serving')
         ->and($waiting->fresh()->status)->toBe('serving');
+});
+
+test('openQueues keeps overnight shift queues after midnight', function () {
+    $shift = Shift::factory()->open()->create([
+        'opened_at' => now()->subDay()->setTime(18, 0),
+    ]);
+
+    $overnightQueue = ServiceQueue::factory()->create([
+        'shift_id' => $shift->id,
+        'date' => $shift->opened_at->toDateString(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $staleQueue = ServiceQueue::factory()->create([
+        'date' => today()->subDays(2),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $queues = app(TokenDisplayService::class)->openQueues();
+
+    expect($queues->modelKeys())->toContain($overnightQueue->id)
+        ->and($queues->modelKeys())->not->toContain($staleQueue->id);
 });
 
 test('start serving ignores tokens that are not arrived waiting', function () {

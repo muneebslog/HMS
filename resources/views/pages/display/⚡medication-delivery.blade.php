@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\StationType;
 use App\Models\MedicationOrder;
@@ -69,6 +70,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 $query->whereHas('medicines', fn ($q) => $q->whereNull('delivered_at'))
                     ->orWhereHas('injections', fn ($q) => $q->whereNull('delivered_at'));
             })
+            ->whereDoesntHave('drips', fn ($q) => $q->whereIn('status', DripLineStatus::activeCases()))
             ->whereHas('queueToken.serviceQueue', function ($query) use ($shift): void {
                 $query->where('shift_id', $shift->id);
             })
@@ -78,7 +80,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         $orderTokenIds = $orders->pluck('queue_token_id')->filter()->all();
 
         $serviceTokens = QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'medicationOrder.medicines', 'medicationOrder.injections'])
+            ->with(['patient', 'serviceQueue.service', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips'])
             ->whereIn('status', ['waiting', 'serving'])
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
                 $query->where('shift_id', $shift->id)
@@ -99,6 +101,10 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                         });
                     });
             })
+            ->whereDoesntHave(
+                'medicationOrder.drips',
+                fn ($q) => $q->whereIn('status', DripLineStatus::activeCases())
+            )
             ->orderBy('token_number')
             ->get();
 
@@ -173,7 +179,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             ->firstWhere(fn (array $item): bool => $item['token']?->id === $this->selectedTokenId);
 
         return $fromQueue['token']
-            ?? QueueToken::with(['patient', 'serviceQueue.service'])->find($this->selectedTokenId);
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'medicationOrder.drips'])->find($this->selectedTokenId);
     }
 
     #[Computed]
@@ -307,6 +313,14 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             return;
         }
 
+        if ($order->hasActiveDrips()) {
+            Flux::toast(variant: 'danger', text: __('Finish the drip at the Drip Station before delivering medication.'));
+            $this->backToList();
+            unset($this->queueItems, $this->orders, $this->selectedOrder);
+
+            return;
+        }
+
         DB::transaction(function () use ($order, $aide): void {
             $order->medicines()
                 ->whereIn('id', $this->selectedMedicineIds)
@@ -383,6 +397,14 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
 
         if (! $token->serviceQueue?->service?->appear_on_er) {
             Flux::toast(variant: 'danger', text: __('Service is not an ER visit.'));
+
+            return;
+        }
+
+        if ($token->medicationOrder?->hasActiveDrips()) {
+            Flux::toast(variant: 'danger', text: __('Finish the drip at the Drip Station before completing this visit.'));
+            $this->backToList();
+            unset($this->queueItems, $this->selectedToken);
 
             return;
         }

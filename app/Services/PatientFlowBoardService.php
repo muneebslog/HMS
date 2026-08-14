@@ -4,10 +4,10 @@ namespace App\Services;
 
 use App\Enums\ClinicStation;
 use App\Enums\DripChargeStatus;
-use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\StationType;
 use App\Models\DripCharge;
+use App\Models\MedicationOrderDrip;
 use App\Models\QueueToken;
 use App\Models\Shift;
 use App\Models\StationSession;
@@ -131,7 +131,7 @@ class PatientFlowBoardService
         }
 
         $activeDrip = $order?->drips
-            ?->first(fn ($drip): bool => in_array($drip->status, [DripLineStatus::Pending, DripLineStatus::Started], true));
+            ?->first(fn (MedicationOrderDrip $drip): bool => $drip->isActive());
 
         if ($activeDrip !== null) {
             return [

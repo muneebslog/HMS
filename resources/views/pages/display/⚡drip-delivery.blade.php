@@ -52,7 +52,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                 'medicationOrder.doctor',
                 'medicationOrder.queueToken.serviceQueue.service',
             ])
-            ->whereIn('status', [DripLineStatus::Pending, DripLineStatus::Started])
+            ->whereIn('status', DripLineStatus::activeCases())
             ->whereHas('medicationOrder.queueToken.serviceQueue', function ($query) use ($shift): void {
                 $query->where('shift_id', $shift->id);
             })

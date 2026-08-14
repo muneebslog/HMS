@@ -7,6 +7,7 @@ use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
+use App\Models\Shift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -91,6 +92,43 @@ test('queues from other dates are not listed on the tv display page', function (
 
     $response->assertOk()
         ->assertDontSee($service->name);
+});
+
+test('overnight shift queues remain listed and show serving tokens after midnight', function () {
+    $shift = Shift::factory()->open()->create([
+        'opened_at' => now()->subDay()->setTime(18, 0),
+    ]);
+    $service = Service::factory()->create();
+    $doctor = Doctor::factory()->create();
+    $patient = Patient::factory()->create();
+
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => $doctor->id,
+        'shift_id' => $shift->id,
+        'date' => $shift->opened_at->toDateString(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+    ]);
+
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 12,
+        'status' => 'serving',
+        'displayed_at' => now()->subHour(),
+    ]);
+
+    $this->get(route('display.tokens.tv'))
+        ->assertOk()
+        ->assertSee($service->name)
+        ->assertSee($doctor->name);
+
+    $this->get(route('display.tokens.tv', ['queue' => $queue->id]))
+        ->assertOk()
+        ->assertSee((string) $token->token_number)
+        ->assertSee(__('Now Serving'))
+        ->assertDontSee(__('No token being served'));
 });
 
 test('selecting a queue shows waiting and serving tokens', function () {

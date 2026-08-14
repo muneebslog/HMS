@@ -180,10 +180,54 @@ test('drip-only orders do not appear on medication delivery page', function () {
         ->assertDontSee($patient->name);
 });
 
+test('orders with unfinished drips wait at drip station before appearing on er', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
+    $drip = $order->drips->first();
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertDontSee($patient->name);
+
+    $drip->update(['status' => DripLineStatus::Started]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertDontSee($patient->name);
+
+    $drip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee($patient->name)
+        ->assertSee(__('Tap to deliver'));
+});
+
+test('er cannot deliver medicines while a drip is still running', function () {
+    [$order] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
+    HealthAide::factory()->create(['pin' => '1234']);
+    $medicine = $order->medicines->first();
+    $drip = $order->drips->first();
+
+    $drip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
+
+    $component = Livewire::test('pages::display.medication-delivery')
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('selectOrder', $order->id)
+        ->set('selectedMedicineIds', [$medicine->id]);
+
+    $drip->update(['status' => DripLineStatus::Started, 'done_at' => null]);
+
+    $component
+        ->call('requestNext')
+        ->assertHasNoErrors();
+
+    expect($medicine->fresh()->delivered_at)->toBeNull()
+        ->and($order->fresh()->status)->toBe(MedicationOrderStatus::Pending);
+});
+
 test('er slip shows only drips enabled in management', function () {
     [$order] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
     $visibleDrip = $order->drips->first();
     $visibleDrip->dripBase->update(['show_on_er' => true]);
+    $visibleDrip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
 
     $hiddenDripBase = DripBase::factory()->create([
         'name' => 'Hidden ER Drip',
@@ -193,7 +237,8 @@ test('er slip shows only drips enabled in management', function () {
         'drip_base_id' => $hiddenDripBase->id,
         'volume_ml' => 250,
         'name' => 'Hidden ER Drip',
-        'status' => DripLineStatus::Pending,
+        'status' => DripLineStatus::Done,
+        'done_at' => now(),
     ]);
 
     Livewire::test('pages::display.medication-delivery')

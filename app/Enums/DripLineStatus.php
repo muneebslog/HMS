@@ -9,6 +9,16 @@ enum DripLineStatus: string
     case Done = 'done';
 
     /**
+     * Statuses that mean the drip line is not finished yet.
+     *
+     * @return list<self>
+     */
+    public static function activeCases(): array
+    {
+        return [self::Pending, self::Started];
+    }
+
+    /**
      * Get the translated label for the status.
      */
     public function label(): string

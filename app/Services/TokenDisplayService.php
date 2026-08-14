@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\TokenDisplayLayout;
+use App\Enums\TokenResetType;
 use App\Models\QueueToken;
 use App\Models\ServicePrice;
 use App\Models\ServiceQueue;
+use App\Models\Shift;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
@@ -59,7 +61,7 @@ class TokenDisplayService
     }
 
     /**
-     * Arrived waiting tokens across today's open file-check queues.
+     * Arrived waiting tokens across the current shift's open file-check queues.
      *
      * @return Collection<int, QueueToken>
      */
@@ -72,7 +74,7 @@ class TokenDisplayService
     }
 
     /**
-     * Serving tokens across today's open file-check queues.
+     * Serving tokens across the current shift's open file-check queues.
      *
      * @return Collection<int, QueueToken>
      */
@@ -85,25 +87,60 @@ class TokenDisplayService
     }
 
     /**
-     * Open non-file-check queues for today (primary board picker).
+     * Open service queues for the current shift with service and doctor relations.
+     *
+     * Shift-reset queues are matched by the open shift id. Daily-reset queues are
+     * matched by the shift's opened date so overnight shifts keep working past midnight.
+     *
+     * @return Collection<int, ServiceQueue>
+     */
+    public function openQueues(): Collection
+    {
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            return ServiceQueue::with(['service', 'doctor'])
+                ->where('status', 'open')
+                ->whereDate('date', Carbon::today())
+                ->orderBy('opened_at')
+                ->get();
+        }
+
+        $shiftDate = $shift->opened_at->toDateString();
+
+        return ServiceQueue::with(['service', 'doctor'])
+            ->where('status', 'open')
+            ->where(function ($query) use ($shift, $shiftDate): void {
+                $query->where('shift_id', $shift->id)
+                    ->orWhere(function ($dailyQuery) use ($shiftDate): void {
+                        $dailyQuery->where('reset_type', TokenResetType::Daily)
+                            ->whereDate('date', $shiftDate);
+                    });
+            })
+            ->orderBy('opened_at')
+            ->get();
+    }
+
+    /**
+     * Open non-file-check queues for the current shift (primary board picker).
      *
      * @return Collection<int, ServiceQueue>
      */
     public function primaryQueues(): Collection
     {
-        return $this->openQueuesToday()
+        return $this->openQueues()
             ->filter(fn (ServiceQueue $queue) => ! $this->isFileCheckQueue($queue))
             ->values();
     }
 
     /**
-     * Open file-check queues for today.
+     * Open file-check queues for the current shift.
      *
      * @return Collection<int, ServiceQueue>
      */
     public function fileCheckQueues(): Collection
     {
-        return $this->openQueuesToday()
+        return $this->openQueues()
             ->filter(fn (ServiceQueue $queue) => $this->isFileCheckQueue($queue))
             ->values();
     }
@@ -319,20 +356,6 @@ class TokenDisplayService
             'status' => 'serving',
             'displayed_at' => now(),
         ];
-    }
-
-    /**
-     * Open service queues for today with service and doctor relations.
-     *
-     * @return Collection<int, ServiceQueue>
-     */
-    private function openQueuesToday(): Collection
-    {
-        return ServiceQueue::with(['service', 'doctor'])
-            ->where('status', 'open')
-            ->whereDate('date', Carbon::today())
-            ->orderBy('opened_at')
-            ->get();
     }
 
     /**

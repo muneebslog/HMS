@@ -4,7 +4,6 @@ use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Services\TokenDisplayService;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -29,18 +28,14 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
     }
 
     /**
-     * Get all open service queues for today.
+     * Get all open service queues for the current shift.
      *
      * @return Collection<int, ServiceQueue>
      */
     #[Computed]
     public function queues(): Collection
     {
-        return ServiceQueue::with(['service', 'doctor'])
-            ->where('status', 'open')
-            ->whereDate('date', Carbon::today())
-            ->orderBy('opened_at')
-            ->get();
+        return app(TokenDisplayService::class)->openQueues();
     }
 
     /**
