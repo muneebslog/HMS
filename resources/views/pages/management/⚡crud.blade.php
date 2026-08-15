@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\InjectionAdministrationType;
+use App\Enums\MedicineDose;
 use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
@@ -47,12 +49,12 @@ new #[Title('Management')] class extends Component
     public ?int $documentsProcedureTypeId = null;
 
     /**
-     * @var list<array{name: string, short_form: string, unit: string, is_active: bool}>
+     * @var list<array{name: string, short_form: string, unit: string, default_dose: string, default_days: string, is_active: bool}>
      */
     public array $medicineBulkRows = [];
 
     /**
-     * @var list<array{name: string, short_form: string, default_volume_ml: string, is_active: bool}>
+     * @var list<array{name: string, short_form: string, default_administration_type: string, is_active: bool}>
      */
     public array $injectionBulkRows = [];
 
@@ -165,6 +167,12 @@ new #[Title('Management')] class extends Component
     public string $medicineUnit = '';
 
     #[Validate]
+    public string $medicineDefaultDose = '1-0-0';
+
+    #[Validate]
+    public string $medicineDefaultDays = '3';
+
+    #[Validate]
     public bool $medicineIsActive = true;
 
     #[Validate]
@@ -174,7 +182,7 @@ new #[Title('Management')] class extends Component
     public string $injectionShortForm = '';
 
     #[Validate]
-    public string $injectionDefaultVolumeMl = '';
+    public string $injectionDefaultAdministrationType = 'im';
 
     #[Validate]
     public bool $injectionIsActive = true;
@@ -286,6 +294,8 @@ new #[Title('Management')] class extends Component
                     'medicineName' => ['required', 'string', 'max:255'],
                     'medicineShortForm' => ['nullable', 'string', 'max:50'],
                     'medicineUnit' => ['required', 'string', 'max:255'],
+                    'medicineDefaultDose' => ['required', 'string', Rule::enum(MedicineDose::class)],
+                    'medicineDefaultDays' => ['required', 'integer', 'min:1', 'max:365'],
                     'medicineIsActive' => ['boolean'],
                 ]
                 : [
@@ -293,20 +303,22 @@ new #[Title('Management')] class extends Component
                     'medicineBulkRows.*.name' => ['nullable', 'string', 'max:255'],
                     'medicineBulkRows.*.short_form' => ['nullable', 'string', 'max:50'],
                     'medicineBulkRows.*.unit' => ['nullable', 'required_with:medicineBulkRows.*.name', 'string', 'max:255'],
+                    'medicineBulkRows.*.default_dose' => ['required_with:medicineBulkRows.*.name', 'string', Rule::enum(MedicineDose::class)],
+                    'medicineBulkRows.*.default_days' => ['required_with:medicineBulkRows.*.name', 'integer', 'min:1', 'max:365'],
                     'medicineBulkRows.*.is_active' => ['boolean'],
                 ],
             'injections' => $this->editingId
                 ? [
                     'injectionName' => ['required', 'string', 'max:255'],
                     'injectionShortForm' => ['nullable', 'string', 'max:50'],
-                    'injectionDefaultVolumeMl' => ['nullable', 'numeric', 'min:0'],
+                    'injectionDefaultAdministrationType' => ['required', 'string', Rule::enum(InjectionAdministrationType::class)],
                     'injectionIsActive' => ['boolean'],
                 ]
                 : [
                     'injectionBulkRows' => ['required', 'array', 'min:1'],
                     'injectionBulkRows.*.name' => ['nullable', 'string', 'max:255'],
                     'injectionBulkRows.*.short_form' => ['nullable', 'string', 'max:50'],
-                    'injectionBulkRows.*.default_volume_ml' => ['nullable', 'numeric', 'min:0'],
+                    'injectionBulkRows.*.default_administration_type' => ['required_with:injectionBulkRows.*.name', 'string', Rule::enum(InjectionAdministrationType::class)],
                     'injectionBulkRows.*.is_active' => ['boolean'],
                 ],
             'dripBases' => [
@@ -347,7 +359,7 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * @return list<array{name: string, short_form: string, unit: string, is_active: bool}>
+     * @return list<array{name: string, short_form: string, unit: string, default_dose: string, default_days: string, is_active: bool}>
      */
     private function emptyMedicineBulkRows(int $count = self::BULK_CATALOG_INITIAL_ROWS): array
     {
@@ -355,7 +367,7 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * @return array{name: string, short_form: string, unit: string, is_active: bool}
+     * @return array{name: string, short_form: string, unit: string, default_dose: string, default_days: string, is_active: bool}
      */
     private function emptyMedicineBulkRow(): array
     {
@@ -363,12 +375,14 @@ new #[Title('Management')] class extends Component
             'name' => '',
             'short_form' => '',
             'unit' => '',
+            'default_dose' => MedicineDose::OneZeroZero->value,
+            'default_days' => '3',
             'is_active' => true,
         ];
     }
 
     /**
-     * @return list<array{name: string, short_form: string, default_volume_ml: string, is_active: bool}>
+     * @return list<array{name: string, short_form: string, default_administration_type: string, is_active: bool}>
      */
     private function emptyInjectionBulkRows(int $count = self::BULK_CATALOG_INITIAL_ROWS): array
     {
@@ -376,14 +390,14 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * @return array{name: string, short_form: string, default_volume_ml: string, is_active: bool}
+     * @return array{name: string, short_form: string, default_administration_type: string, is_active: bool}
      */
     private function emptyInjectionBulkRow(): array
     {
         return [
             'name' => '',
             'short_form' => '',
-            'default_volume_ml' => '',
+            'default_administration_type' => InjectionAdministrationType::Im->value,
             'is_active' => true,
         ];
     }
@@ -534,6 +548,8 @@ new #[Title('Management')] class extends Component
         $this->medicineName = $medicine->name;
         $this->medicineShortForm = $medicine->short_form ?? '';
         $this->medicineUnit = $medicine->unit;
+        $this->medicineDefaultDose = $medicine->default_dose->value;
+        $this->medicineDefaultDays = (string) $medicine->default_days;
         $this->medicineIsActive = $medicine->is_active;
     }
 
@@ -546,9 +562,7 @@ new #[Title('Management')] class extends Component
 
         $this->injectionName = $injection->name;
         $this->injectionShortForm = $injection->short_form ?? '';
-        $this->injectionDefaultVolumeMl = $injection->default_volume_ml !== null
-            ? (string) $injection->default_volume_ml
-            : '';
+        $this->injectionDefaultAdministrationType = $injection->default_administration_type->value;
         $this->injectionIsActive = $injection->is_active;
     }
 
@@ -629,10 +643,12 @@ new #[Title('Management')] class extends Component
             'medicineName',
             'medicineShortForm',
             'medicineUnit',
+            'medicineDefaultDose',
+            'medicineDefaultDays',
             'medicineIsActive',
             'injectionName',
             'injectionShortForm',
-            'injectionDefaultVolumeMl',
+            'injectionDefaultAdministrationType',
             'injectionIsActive',
             'dripBaseName',
             'dripBaseDefaultVolumeMl',
@@ -662,10 +678,6 @@ new #[Title('Management')] class extends Component
             if ($this->labTestSample === '') {
                 $this->labTestSample = null;
             }
-        }
-
-        if ($this->activeTab === 'injections' && $this->editingId && $this->injectionDefaultVolumeMl === '') {
-            $this->injectionDefaultVolumeMl = '';
         }
 
         if (! $this->editingId && in_array($this->activeTab, ['medicines', 'injections'], true)) {
@@ -717,6 +729,8 @@ new #[Title('Management')] class extends Component
                         'name' => $row['name'],
                         'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
                         'unit' => $row['unit'],
+                        'default_dose' => $row['default_dose'],
+                        'default_days' => $row['default_days'],
                         'is_active' => (bool) ($row['is_active'] ?? true),
                     ]);
                 }
@@ -742,9 +756,7 @@ new #[Title('Management')] class extends Component
                     Injection::create([
                         'name' => $row['name'],
                         'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
-                        'default_volume_ml' => filled($row['default_volume_ml'] ?? null)
-                            ? $row['default_volume_ml']
-                            : null,
+                        'default_administration_type' => $row['default_administration_type'],
                         'is_active' => (bool) ($row['is_active'] ?? true),
                     ]);
                 }
@@ -899,6 +911,8 @@ new #[Title('Management')] class extends Component
             'name' => $validated['medicineName'],
             'short_form' => filled($validated['medicineShortForm'] ?? null) ? $validated['medicineShortForm'] : null,
             'unit' => $validated['medicineUnit'],
+            'default_dose' => $validated['medicineDefaultDose'],
+            'default_days' => $validated['medicineDefaultDays'],
             'is_active' => $validated['medicineIsActive'],
         ];
 
@@ -916,9 +930,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['injectionName'],
             'short_form' => filled($validated['injectionShortForm'] ?? null) ? $validated['injectionShortForm'] : null,
-            'default_volume_ml' => $validated['injectionDefaultVolumeMl'] !== '' && $validated['injectionDefaultVolumeMl'] !== null
-                ? $validated['injectionDefaultVolumeMl']
-                : null,
+            'default_administration_type' => $validated['injectionDefaultAdministrationType'],
             'is_active' => $validated['injectionIsActive'],
         ];
 
@@ -1866,6 +1878,8 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Short form') }}</flux:table.column>
                             <flux:table.column>{{ __('Unit') }}</flux:table.column>
+                            <flux:table.column>{{ __('Default dose') }}</flux:table.column>
+                            <flux:table.column>{{ __('Default days') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -1876,6 +1890,8 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>{{ $medicine->name }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->short_form ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->unit }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->default_dose->label() }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->default_days }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $medicine->is_active ? 'green' : 'zinc' }}">
                                             {{ $medicine->is_active ? __('Active') : __('Inactive') }}
@@ -1888,7 +1904,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="7" class="text-center text-zinc-500">
                                         {{ __('No medicines found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -1900,7 +1916,7 @@ new #[Title('Management')] class extends Component
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Short form') }}</flux:table.column>
-                            <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
+                            <flux:table.column>{{ __('Default route') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -1910,7 +1926,7 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row wire:key="injection-{{ $injection->id }}">
                                     <flux:table.cell>{{ $injection->name }}</flux:table.cell>
                                     <flux:table.cell>{{ $injection->short_form ?: '—' }}</flux:table.cell>
-                                    <flux:table.cell>{{ $injection->default_volume_ml !== null ? rtrim(rtrim(number_format($injection->default_volume_ml, 2), '0'), '.') : '-' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->default_administration_type->label() }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $injection->is_active ? 'green' : 'zinc' }}">
                                             {{ $injection->is_active ? __('Active') : __('Inactive') }}
@@ -2238,6 +2254,22 @@ new #[Title('Management')] class extends Component
                     </flux:field>
 
                     <flux:field>
+                        <flux:label>{{ __('Default dose') }}</flux:label>
+                        <flux:select wire:model="medicineDefaultDose">
+                            @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="medicineDefaultDose" />
+                    </flux:field>
+
+                    <flux:field>
+                        <flux:label>{{ __('Default days') }}</flux:label>
+                        <flux:input wire:model="medicineDefaultDays" type="number" min="1" max="365" required />
+                        <flux:error name="medicineDefaultDays" />
+                    </flux:field>
+
+                    <flux:field>
                         <flux:switch wire:model="medicineIsActive" :label="__('Active')" />
                         <flux:error name="medicineIsActive" />
                     </flux:field>
@@ -2245,7 +2277,7 @@ new #[Title('Management')] class extends Component
                     <div class="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
                         @foreach ($medicineBulkRows as $index => $row)
                             <div wire:key="medicine-bulk-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
-                                <div class="sm:col-span-4">
+                                <div class="sm:col-span-3">
                                     <flux:input wire:model="medicineBulkRows.{{ $index }}.name" type="text" placeholder="{{ __('Name') }}" />
                                     <flux:error name="medicineBulkRows.{{ $index }}.name" />
                                 </div>
@@ -2253,11 +2285,23 @@ new #[Title('Management')] class extends Component
                                     <flux:input wire:model="medicineBulkRows.{{ $index }}.short_form" type="text" placeholder="{{ __('Short form') }}" />
                                     <flux:error name="medicineBulkRows.{{ $index }}.short_form" />
                                 </div>
-                                <div class="sm:col-span-3">
+                                <div class="sm:col-span-2">
                                     <flux:input wire:model="medicineBulkRows.{{ $index }}.unit" type="text" placeholder="{{ __('Unit') }}" />
                                     <flux:error name="medicineBulkRows.{{ $index }}.unit" />
                                 </div>
-                                <div class="flex items-center sm:col-span-2">
+                                <div class="sm:col-span-2">
+                                    <flux:select wire:model="medicineBulkRows.{{ $index }}.default_dose">
+                                        @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                            <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="medicineBulkRows.{{ $index }}.default_dose" />
+                                </div>
+                                <div class="sm:col-span-1">
+                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.default_days" type="number" min="1" max="365" placeholder="{{ __('Days') }}" />
+                                    <flux:error name="medicineBulkRows.{{ $index }}.default_days" />
+                                </div>
+                                <div class="flex items-center sm:col-span-1">
                                     <flux:switch wire:model="medicineBulkRows.{{ $index }}.is_active" :label="__('Active')" />
                                 </div>
                                 <div class="flex items-start justify-end sm:col-span-1">
@@ -2286,9 +2330,13 @@ new #[Title('Management')] class extends Component
                     </flux:field>
 
                     <flux:field>
-                        <flux:label>{{ __('Default Volume (ml)') }}</flux:label>
-                        <flux:input wire:model="injectionDefaultVolumeMl" type="number" step="0.01" min="0" />
-                        <flux:error name="injectionDefaultVolumeMl" />
+                        <flux:label>{{ __('Default route') }}</flux:label>
+                        <flux:select wire:model="injectionDefaultAdministrationType">
+                            @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="injectionDefaultAdministrationType" />
                     </flux:field>
 
                     <flux:field>
@@ -2308,8 +2356,12 @@ new #[Title('Management')] class extends Component
                                     <flux:error name="injectionBulkRows.{{ $index }}.short_form" />
                                 </div>
                                 <div class="sm:col-span-3">
-                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.default_volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
-                                    <flux:error name="injectionBulkRows.{{ $index }}.default_volume_ml" />
+                                    <flux:select wire:model="injectionBulkRows.{{ $index }}.default_administration_type">
+                                        @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:error name="injectionBulkRows.{{ $index }}.default_administration_type" />
                                 </div>
                                 <div class="flex items-center sm:col-span-2">
                                     <flux:switch wire:model="injectionBulkRows.{{ $index }}.is_active" :label="__('Active')" />

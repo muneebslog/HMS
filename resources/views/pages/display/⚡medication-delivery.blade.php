@@ -616,6 +616,9 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                             @if ($injection->volume_ml !== null)
                                                 · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
                                             @endif
+                                            @if (filled($injection->comment))
+                                                · {{ $injection->comment }}
+                                            @endif
                                         </span>
                                     </span>
                                 </label>
@@ -642,6 +645,13 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                 </div>
                             @endforeach
                             <p class="text-xs text-zinc-500">{{ __('Start and complete drips at the Drip Station.') }}</p>
+                        </div>
+                    @endif
+
+                    @if (filled($order?->complaint_or_diagnosis))
+                        <div class="border-t border-dashed border-zinc-400/70 pt-3">
+                            <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Complaint / diagnosis') }}</p>
+                            <p class="whitespace-pre-line text-sm text-zinc-800">{{ $order->complaint_or_diagnosis }}</p>
                         </div>
                     @endif
 

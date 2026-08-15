@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\InjectionAdministrationType;
 use App\Models\Injection;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +21,7 @@ class InjectionFactory extends Factory
         return [
             'name' => fake()->words(2, true).' Injection',
             'short_form' => null,
-            'default_volume_ml' => fake()->randomElement([1, 2, 5, 10]),
+            'default_administration_type' => fake()->randomElement(InjectionAdministrationType::cases()),
             'is_active' => true,
         ];
     }

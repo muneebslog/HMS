@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -153,15 +154,32 @@ test('users with the default user role can access the pending role page', functi
         ->assertSuccessful();
 });
 
-test('assigned users are redirected away from the pending role page', function (UserRole $role) {
-    $user = User::factory()->{$role->value}()->create();
+test('assigned users are redirected away from the pending role page', function (string $factory) {
+    $user = User::factory()->{$factory}()->create();
 
     $this->actingAs($user)
         ->get(route('pending-role'))
         ->assertRedirect(route('dashboard'));
 })->with([
-    'admin' => [UserRole::Admin],
-    'receptionist' => [UserRole::Receptionist],
-    'management' => [UserRole::Management],
-    'doctor' => [UserRole::Doctor],
+    'admin' => ['admin'],
+    'receptionist' => ['receptionist'],
+    'management' => ['management'],
+    'doctor' => ['doctor'],
+    'indoor' => ['indoor'],
+    'incharge nurse' => ['inchargeNurse'],
 ]);
+
+test('incharge nurse role is requestable and identifiable', function () {
+    expect(UserRole::InchargeNurse->label())->toBe(__('Incharge Nurse'))
+        ->and(UserRole::InchargeNurse->value)->toBe('incharge_nurse')
+        ->and(User::factory()->inchargeNurse()->create()->isInchargeNurse())->toBeTrue();
+
+    $user = User::factory()->user()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::pending-role')
+        ->call('requestRole')
+        ->set('requestedRole', UserRole::InchargeNurse->value)
+        ->call('submitRequest')
+        ->assertHasNoErrors();
+});

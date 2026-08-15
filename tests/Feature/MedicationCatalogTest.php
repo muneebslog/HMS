@@ -20,6 +20,8 @@ test('authenticated admins can create a medicine', function () {
         ->set('medicineBulkRows.0.name', 'Paracetamol')
         ->set('medicineBulkRows.0.short_form', 'PCM')
         ->set('medicineBulkRows.0.unit', 'tablet')
+        ->set('medicineBulkRows.0.default_dose', '1-0-1')
+        ->set('medicineBulkRows.0.default_days', '5')
         ->set('medicineBulkRows.0.is_active', true)
         ->call('save')
         ->assertHasNoErrors();
@@ -28,6 +30,8 @@ test('authenticated admins can create a medicine', function () {
         'name' => 'Paracetamol',
         'short_form' => 'PCM',
         'unit' => 'tablet',
+        'default_dose' => '1-0-1',
+        'default_days' => 5,
         'is_active' => true,
     ]);
 });
@@ -75,7 +79,7 @@ test('authenticated admins can create an injection', function () {
         ->call('create')
         ->set('injectionBulkRows.0.name', 'Diclofenac')
         ->set('injectionBulkRows.0.short_form', 'DIC')
-        ->set('injectionBulkRows.0.default_volume_ml', '3')
+        ->set('injectionBulkRows.0.default_administration_type', 'iv')
         ->set('injectionBulkRows.0.is_active', true)
         ->call('save')
         ->assertHasNoErrors();
@@ -83,7 +87,7 @@ test('authenticated admins can create an injection', function () {
     $this->assertDatabaseHas('injections', [
         'name' => 'Diclofenac',
         'short_form' => 'DIC',
-        'default_volume_ml' => 3,
+        'default_administration_type' => 'iv',
         'is_active' => true,
     ]);
 });
@@ -100,9 +104,9 @@ test('authenticated admins can bulk create injections', function () {
         ->assertCount('injectionBulkRows', 6)
         ->set('injectionBulkRows.0.name', 'Diclofenac')
         ->set('injectionBulkRows.0.short_form', 'DIC')
-        ->set('injectionBulkRows.0.default_volume_ml', '3')
+        ->set('injectionBulkRows.0.default_administration_type', 'iv')
         ->set('injectionBulkRows.1.name', 'Ceftriaxone')
-        ->set('injectionBulkRows.1.default_volume_ml', '')
+        ->set('injectionBulkRows.1.default_administration_type', 'im')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -111,12 +115,12 @@ test('authenticated admins can bulk create injections', function () {
     $this->assertDatabaseHas('injections', [
         'name' => 'Diclofenac',
         'short_form' => 'DIC',
-        'default_volume_ml' => 3,
+        'default_administration_type' => 'iv',
     ]);
 
     $this->assertDatabaseHas('injections', [
         'name' => 'Ceftriaxone',
-        'default_volume_ml' => null,
+        'default_administration_type' => 'im',
     ]);
 });
 

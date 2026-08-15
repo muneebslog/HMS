@@ -453,6 +453,7 @@ test('doctor can save a medication order for a standalone service without a doct
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Fever and body aches')
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-1',
@@ -462,6 +463,7 @@ test('doctor can save a medication order for a standalone service without a doct
             'injection_id' => $injection->id,
             'administration_type' => 'iv',
             'volume_ml' => '3',
+            'comment' => 'Give slowly',
         ]])
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
@@ -481,6 +483,7 @@ test('doctor can save a medication order for a standalone service without a doct
         ->and($order->doctor_id)->toBeNull()
         ->and($order->prescribed_by)->toBe($user->id)
         ->and($order->status)->toBe(MedicationOrderStatus::Pending)
+        ->and($order->complaint_or_diagnosis)->toBe('Fever and body aches')
         ->and($order->medicines)->toHaveCount(1)
         ->and($order->injections)->toHaveCount(1)
         ->and($order->drips)->toHaveCount(1)
@@ -499,6 +502,7 @@ test('doctor can save a medication order for a standalone service without a doct
         'injection_id' => $injection->id,
         'administration_type' => 'iv',
         'volume_ml' => 3,
+        'comment' => 'Give slowly',
         'name' => 'Diclofenac',
     ]);
 
@@ -547,6 +551,31 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->call('switchOrderTab', 'drips')
         ->assertSee(__('Search drip base'))
         ->assertSee('Searchable Saline');
+});
+
+test('catalog defaults populate when a doctor selects a medicine or injection', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create([
+        'default_dose' => MedicineDose::OneZeroOne,
+        'default_days' => 7,
+    ]);
+    $injection = Injection::factory()->create([
+        'default_administration_type' => 'iv',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('medicineLines.0.medicine_id', $medicine->id)
+        ->assertSet('medicineLines.0.dose', '1-0-1')
+        ->assertSet('medicineLines.0.days', '7')
+        ->set('medicineLines.0.dose', '1-1-1')
+        ->set('medicineLines.0.days', '10')
+        ->call('switchOrderTab', 'injections')
+        ->set('injectionLines.0.injection_id', $injection->id)
+        ->assertSet('injectionLines.0.administration_type', 'iv')
+        ->set('injectionLines.0.administration_type', 'im')
+        ->assertSet('injectionLines.0.administration_type', 'im');
 });
 
 test('doctor cannot add medicines to the catalog from the order form', function () {

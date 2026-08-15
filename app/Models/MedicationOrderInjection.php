@@ -20,6 +20,7 @@ class MedicationOrderInjection extends Model
         'medication_order_id',
         'injection_id',
         'administration_type',
+        'comment',
         'volume_ml',
         'name',
         'delivered_at',

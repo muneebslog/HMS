@@ -34,7 +34,7 @@ new #[Title('Medication')] class extends Component
     /**
      * @var array{
      *     medicines: list<array{name: string, dose: string, days: int}>,
-     *     injections: list<array{name: string, administration_type: string, volume_ml: string|null}>,
+     *     injections: list<array{name: string, administration_type: string, volume_ml: string|null, comment: string|null}>,
      *     drips: list<array{name: string, volume_ml: string, additives: list<array{name: string, volume_ml: string}>}>,
      *     notes: string|null
      * }
@@ -49,6 +49,8 @@ new #[Title('Medication')] class extends Component
     public string $activeOrderTab = 'medicines';
 
     public string $notes = '';
+
+    public string $complaintOrDiagnosis = '';
 
     public string $suggestedPrice = '';
 
@@ -66,7 +68,7 @@ new #[Title('Medication')] class extends Component
     public array $medicineLines = [];
 
     /**
-     * @var list<array{injection_id: int|string|null, administration_type: string, volume_ml: string}>
+     * @var list<array{injection_id: int|string|null, administration_type: string, volume_ml: string, comment: string}>
      */
     public array $injectionLines = [];
 
@@ -458,6 +460,7 @@ new #[Title('Medication')] class extends Component
         $this->showOrderPreviewModal = false;
         $this->resetOrderPreview();
         $this->notes = '';
+        $this->complaintOrDiagnosis = '';
         $this->suggestedPrice = '';
         $this->dripServiceId = null;
         $this->recheckMinutes = '15';
@@ -520,12 +523,34 @@ new #[Title('Medication')] class extends Component
         $this->medicineLines = array_values($this->medicineLines);
     }
 
+    public function updatedMedicineLines(mixed $value, ?string $key): void
+    {
+        if (! is_string($key) || ! str_ends_with($key, '.medicine_id')) {
+            return;
+        }
+
+        $index = (int) explode('.', $key)[0];
+        $medicineId = $this->medicineLines[$index]['medicine_id'] ?? null;
+
+        if (! is_numeric($medicineId)) {
+            return;
+        }
+
+        $medicine = $this->medicines->firstWhere('id', (int) $medicineId);
+
+        if ($medicine !== null) {
+            $this->medicineLines[$index]['dose'] = $medicine->default_dose->value;
+            $this->medicineLines[$index]['days'] = (string) $medicine->default_days;
+        }
+    }
+
     public function addInjectionLine(): void
     {
         $this->injectionLines[] = [
             'injection_id' => null,
             'administration_type' => InjectionAdministrationType::Im->value,
             'volume_ml' => '',
+            'comment' => '',
         ];
     }
 
@@ -550,8 +575,8 @@ new #[Title('Medication')] class extends Component
 
         $injection = $this->injections->firstWhere('id', (int) $injectionId);
 
-        if ($injection?->default_volume_ml !== null && ($this->injectionLines[$index]['volume_ml'] ?? '') === '') {
-            $this->injectionLines[$index]['volume_ml'] = (string) $injection->default_volume_ml;
+        if ($injection !== null) {
+            $this->injectionLines[$index]['administration_type'] = $injection->default_administration_type->value;
         }
     }
 
@@ -669,6 +694,7 @@ new #[Title('Medication')] class extends Component
                         'volume_ml' => filled($line['volume_ml'] ?? null)
                             ? rtrim(rtrim(number_format((float) $line['volume_ml'], 2), '0'), '.')
                             : null,
+                        'comment' => filled($line['comment'] ?? null) ? $line['comment'] : null,
                     ];
                 })
                 ->filter()
@@ -811,6 +837,7 @@ new #[Title('Medication')] class extends Component
                 'doctor_id' => $token->serviceQueue?->doctor_id,
                 'prescribed_by' => auth()->id(),
                 'status' => MedicationOrderStatus::Pending,
+                'complaint_or_diagnosis' => $validated['complaintOrDiagnosis'] !== '' ? $validated['complaintOrDiagnosis'] : null,
                 'notes' => $validated['notes'] !== '' ? $validated['notes'] : null,
                 'administered_by' => null,
                 'administered_at' => null,
@@ -842,6 +869,7 @@ new #[Title('Medication')] class extends Component
                     'injection_id' => $resolved['injection_id'],
                     'administration_type' => $line['administration_type'],
                     'volume_ml' => filled($line['volume_ml'] ?? null) ? $line['volume_ml'] : null,
+                    'comment' => filled($line['comment'] ?? null) ? $line['comment'] : null,
                     'name' => $resolved['name'],
                 ]);
             }
@@ -1038,6 +1066,7 @@ new #[Title('Medication')] class extends Component
     private function orderRules(): array
     {
         return [
+            'complaintOrDiagnosis' => ['nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'suggestedPrice' => ['nullable', 'numeric', 'min:0'],
             'dripServiceId' => [
@@ -1072,6 +1101,7 @@ new #[Title('Medication')] class extends Component
             'injectionLines.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
             'injectionLines.*.administration_type' => ['required_with:injectionLines.*.injection_id', 'string', Rule::enum(InjectionAdministrationType::class)],
             'injectionLines.*.volume_ml' => ['nullable', 'numeric', 'min:0'],
+            'injectionLines.*.comment' => ['nullable', 'string', 'max:255'],
             'dripLines' => ['array'],
             'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
             'dripLines.*.volume_ml' => ['required_with:dripLines.*.drip_base_id', 'numeric', 'min:0'],
@@ -1247,6 +1277,7 @@ new #[Title('Medication')] class extends Component
 
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
+            $this->complaintOrDiagnosis = '';
             $this->medicineLines = [];
             $this->injectionLines = [];
             $this->dripLines = [];
@@ -1256,6 +1287,7 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->notes = $order->notes ?? '';
+        $this->complaintOrDiagnosis = $order->complaint_or_diagnosis ?? '';
         $this->medicineLines = $order->medicines->map(fn ($line) => [
             'medicine_id' => $line->medicine_id ?? 'custom:'.$line->name,
             'dose' => $line->dose->value,
@@ -1266,6 +1298,7 @@ new #[Title('Medication')] class extends Component
             'injection_id' => $line->injection_id ?? 'custom:'.$line->name,
             'administration_type' => $line->administration_type->value,
             'volume_ml' => $line->volume_ml !== null ? (string) $line->volume_ml : '',
+            'comment' => $line->comment ?? '',
         ])->values()->all();
 
         $this->dripLines = $order->drips->map(fn ($drip) => [
@@ -1489,6 +1522,16 @@ new #[Title('Medication')] class extends Component
             @endif
         </div>
 
+        <flux:field>
+            <flux:label>{{ __('Patient complaint / diagnosis') }}</flux:label>
+            <flux:textarea
+                wire:model="complaintOrDiagnosis"
+                rows="2"
+                placeholder="{{ __('Enter the patient complaint or diagnosis') }}"
+            />
+            <flux:error name="complaintOrDiagnosis" />
+        </flux:field>
+
         <div class="border-b border-zinc-200 dark:border-zinc-700">
             <nav class="-mb-px flex gap-4">
                 @foreach (['medicines' => __('Medicines'), 'injections' => __('Injections'), 'drips' => __('Drips')] as $tab => $label)
@@ -1560,7 +1603,7 @@ new #[Title('Medication')] class extends Component
                             <div wire:key="medicine-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
                                 <div class="sm:col-span-5" data-nav-field>
                                     <x-searchable-select
-                                        wire:model="medicineLines.{{ $index }}.medicine_id"
+                                        wire:model.live="medicineLines.{{ $index }}.medicine_id"
                                         :options="$this->medicineOptions"
                                         :placeholder="__('Search medicine or type a new name')"
                                         allow-custom
@@ -1595,7 +1638,7 @@ new #[Title('Medication')] class extends Component
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         @foreach ($injectionLines as $index => $line)
                             <div wire:key="injection-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                <div class="sm:col-span-5" data-nav-field>
+                                <div class="sm:col-span-4" data-nav-field>
                                     <x-searchable-select
                                         wire:model.live="injectionLines.{{ $index }}.injection_id"
                                         :options="$this->injectionOptions"
@@ -1604,7 +1647,7 @@ new #[Title('Medication')] class extends Component
                                     />
                                     <flux:error name="injectionLines.{{ $index }}.injection_id" />
                                 </div>
-                                <div class="sm:col-span-3" data-nav-field>
+                                <div class="sm:col-span-2" data-nav-field>
                                     <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
                                         @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
                                             <option value="{{ $type->value }}">{{ $type->label() }}</option>
@@ -1612,8 +1655,13 @@ new #[Title('Medication')] class extends Component
                                     </flux:select>
                                     <flux:error name="injectionLines.{{ $index }}.administration_type" />
                                 </div>
-                                <div class="sm:col-span-3" data-nav-field>
+                                <div class="sm:col-span-2" data-nav-field>
                                     <flux:input wire:model="injectionLines.{{ $index }}.volume_ml" type="number" step="0.01" min="0" placeholder="{{ __('Volume ml') }}" />
+                                    <flux:error name="injectionLines.{{ $index }}.volume_ml" />
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:input wire:model="injectionLines.{{ $index }}.comment" type="text" placeholder="{{ __('Comment') }}" />
+                                    <flux:error name="injectionLines.{{ $index }}.comment" />
                                 </div>
                                 <div class="flex items-start sm:col-span-1">
                                     <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
@@ -1775,6 +1823,9 @@ new #[Title('Medication')] class extends Component
                                     @if ($injection['volume_ml'] !== null)
                                         · {{ $injection['volume_ml'] }} ml
                                     @endif
+                                    @if (filled($injection['comment'] ?? null))
+                                        · {{ $injection['comment'] }}
+                                    @endif
                                 </span>
                             </p>
                         @empty
@@ -1849,6 +1900,13 @@ new #[Title('Medication')] class extends Component
                             </flux:badge>
                         </div>
 
+                        @if ($order->complaint_or_diagnosis)
+                            <p class="mb-2 text-sm text-zinc-500">
+                                <span class="font-medium">{{ __('Complaint / diagnosis:') }}</span>
+                                {{ $order->complaint_or_diagnosis }}
+                            </p>
+                        @endif
+
                         @if ($order->medicines->isNotEmpty())
                             <div class="mb-2">
                                 <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
@@ -1871,6 +1929,9 @@ new #[Title('Medication')] class extends Component
                                             — {{ $injection->administration_type->label() }}
                                             @if ($injection->volume_ml !== null)
                                                 · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
+                                            @endif
+                                            @if (filled($injection->comment))
+                                                · {{ $injection->comment }}
                                             @endif
                                         </span>
                                     </p>

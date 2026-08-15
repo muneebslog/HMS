@@ -9,6 +9,7 @@ enum UserRole: string
     case Management = 'management';
     case Doctor = 'doctor';
     case Indoor = 'indoor';
+    case InchargeNurse = 'incharge_nurse';
     case User = 'user';
 
     /**
@@ -22,6 +23,7 @@ enum UserRole: string
             self::Management => __('Management'),
             self::Doctor => __('Doctor'),
             self::Indoor => __('Indoor Staff'),
+            self::InchargeNurse => __('Incharge Nurse'),
             self::User => __('User'),
         };
     }

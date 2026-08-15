@@ -104,6 +104,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is an incharge nurse.
+     */
+    public function isInchargeNurse(): bool
+    {
+        return $this->role === UserRole::InchargeNurse;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool

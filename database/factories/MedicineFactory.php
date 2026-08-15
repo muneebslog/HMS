@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\MedicineDose;
 use App\Models\Medicine;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -21,6 +22,8 @@ class MedicineFactory extends Factory
             'name' => fake()->words(2, true),
             'short_form' => null,
             'unit' => fake()->randomElement(['tablet', 'syrup', 'capsule']),
+            'default_dose' => fake()->randomElement(MedicineDose::cases()),
+            'default_days' => fake()->numberBetween(1, 10),
             'is_active' => true,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MedicineDose;
 use Database\Factories\MedicineFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,8 @@ class Medicine extends Model
         'name',
         'short_form',
         'unit',
+        'default_dose',
+        'default_days',
         'is_active',
     ];
 
@@ -30,6 +33,8 @@ class Medicine extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'default_dose' => '1-0-0',
+        'default_days' => 3,
         'is_active' => true,
     ];
 
@@ -41,6 +46,8 @@ class Medicine extends Model
     protected function casts(): array
     {
         return [
+            'default_dose' => MedicineDose::class,
+            'default_days' => 'integer',
             'is_active' => 'boolean',
         ];
     }

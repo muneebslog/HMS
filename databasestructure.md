@@ -431,6 +431,8 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | name | string | |
 | short_form | string | nullable, e.g. `PCM` for search shortcuts |
 | unit | string | e.g. tablet, syrup |
+| default_dose | string | default `1-0-0` (`MedicineDose`) |
+| default_days | unsignedSmallInteger | default 3 |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
@@ -440,7 +442,7 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | id | bigint | PK |
 | name | string | |
 | short_form | string | nullable, e.g. `DIC` for search shortcuts |
-| default_volume_ml | decimal(8,2) | nullable |
+| default_administration_type | string | default `im` (`InjectionAdministrationType`) |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
@@ -487,6 +489,7 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | prescribed_by | FK → users | cascadeOnDelete |
 | status | string | default `pending` (`MedicationOrderStatus`), IDX |
+| complaint_or_diagnosis | text | nullable |
 | notes | text | nullable |
 | administered_by | FK → users | nullable, nullOnDelete (legacy) |
 | administered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
@@ -515,6 +518,7 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | injection_id | FK → injections | nullable, restrictOnDelete — null when the doctor writes an injection not in the catalog |
 | administration_type | string | `InjectionAdministrationType` (`im`, `iv`) |
+| comment | string | nullable |
 | volume_ml | decimal(8,2) | nullable |
 | name | string | snapshot of catalog name, or the written custom injection name |
 | delivered_at | timestamp | nullable |

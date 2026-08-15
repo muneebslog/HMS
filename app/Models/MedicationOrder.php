@@ -29,6 +29,7 @@ class MedicationOrder extends Model
         'doctor_id',
         'prescribed_by',
         'status',
+        'complaint_or_diagnosis',
         'notes',
         'administered_by',
         'administered_by_health_aide_id',

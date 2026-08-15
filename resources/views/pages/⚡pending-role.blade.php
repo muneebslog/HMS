@@ -45,6 +45,7 @@ new #[Layout('layouts::pending')] #[Title('Pending Role Assignment')] class exte
             UserRole::Management,
             UserRole::Doctor,
             UserRole::Indoor,
+            UserRole::InchargeNurse,
         ];
     }
 

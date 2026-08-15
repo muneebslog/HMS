@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InjectionAdministrationType;
 use Database\Factories\InjectionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +21,7 @@ class Injection extends Model
     protected $fillable = [
         'name',
         'short_form',
-        'default_volume_ml',
+        'default_administration_type',
         'is_active',
     ];
 
@@ -30,6 +31,7 @@ class Injection extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'default_administration_type' => 'im',
         'is_active' => true,
     ];
 
@@ -41,7 +43,7 @@ class Injection extends Model
     protected function casts(): array
     {
         return [
-            'default_volume_ml' => 'float',
+            'default_administration_type' => InjectionAdministrationType::class,
             'is_active' => 'boolean',
         ];
     }
