@@ -430,7 +430,7 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | id | bigint | PK |
 | name | string | |
 | short_form | string | nullable, e.g. `PCM` for search shortcuts |
-| unit | string | e.g. tablet, syrup |
+| unit | string | nullable, e.g. tablet, syrup |
 | default_dose | string | default `1-0-0` (`MedicineDose`) |
 | default_days | unsignedSmallInteger | default 3 |
 | is_active | boolean | default true, IDX |
@@ -505,7 +505,6 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | medicine_id | FK → medicines | nullable, restrictOnDelete — null when the doctor writes a medicine not in the catalog |
 | dose | string | `MedicineDose` e.g. `1-0-0`, `1-0-1`, `1-1-1` |
-| days | unsignedInteger | duration in days |
 | name | string | snapshot of catalog name, or the written custom medicine name |
 | delivered_at | timestamp | nullable |
 | delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
@@ -519,7 +518,6 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | injection_id | FK → injections | nullable, restrictOnDelete — null when the doctor writes an injection not in the catalog |
 | administration_type | string | `InjectionAdministrationType` (`im`, `iv`) |
 | comment | string | nullable |
-| volume_ml | decimal(8,2) | nullable |
 | name | string | snapshot of catalog name, or the written custom injection name |
 | delivered_at | timestamp | nullable |
 | delivered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
@@ -531,7 +529,6 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | drip_base_id | FK → drip_bases | restrictOnDelete |
-| volume_ml | decimal(8,2) | |
 | name | string | snapshot |
 | status | string | default `pending` (`DripLineStatus`: pending/started/done), IDX |
 | started_at | timestamp | nullable |
@@ -549,7 +546,6 @@ One medication order per queue token. `doctor_id` is null for standalone service
 | id | bigint | PK |
 | medication_order_drip_id | FK → medication_order_drips | cascadeOnDelete |
 | injection_id | FK → injections | nullable, restrictOnDelete — null when the doctor writes an injection not in the catalog |
-| volume_ml | decimal(8,2) | |
 | name | string | snapshot of catalog name, or the written custom injection name |
 | timestamps | | |
 

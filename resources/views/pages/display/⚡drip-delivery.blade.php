@@ -276,11 +276,11 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
 
                     <div class="border-t border-dashed border-zinc-400/70 pt-2">
                         <p class="font-medium text-zinc-900">
-                            {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                            {{ $drip->name }}
                         </p>
                         @foreach ($drip->additives as $additive)
                             <p class="ms-1 text-sm text-zinc-600">
-                                + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
+                                + {{ $additive->name }}
                             </p>
                         @endforeach
                     </div>

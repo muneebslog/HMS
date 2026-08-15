@@ -20,7 +20,6 @@ class MedicationOrderMedicine extends Model
         'medication_order_id',
         'medicine_id',
         'dose',
-        'days',
         'name',
         'delivered_at',
         'delivered_by_health_aide_id',
@@ -35,7 +34,6 @@ class MedicationOrderMedicine extends Model
     {
         return [
             'dose' => MedicineDose::class,
-            'days' => 'integer',
             'delivered_at' => 'datetime',
         ];
     }

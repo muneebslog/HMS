@@ -293,7 +293,7 @@ new #[Title('Management')] class extends Component
                 ? [
                     'medicineName' => ['required', 'string', 'max:255'],
                     'medicineShortForm' => ['nullable', 'string', 'max:50'],
-                    'medicineUnit' => ['required', 'string', 'max:255'],
+                    'medicineUnit' => ['nullable', 'string', 'max:255'],
                     'medicineDefaultDose' => ['required', 'string', Rule::enum(MedicineDose::class)],
                     'medicineDefaultDays' => ['required', 'integer', 'min:1', 'max:365'],
                     'medicineIsActive' => ['boolean'],
@@ -302,7 +302,7 @@ new #[Title('Management')] class extends Component
                     'medicineBulkRows' => ['required', 'array', 'min:1'],
                     'medicineBulkRows.*.name' => ['nullable', 'string', 'max:255'],
                     'medicineBulkRows.*.short_form' => ['nullable', 'string', 'max:50'],
-                    'medicineBulkRows.*.unit' => ['nullable', 'required_with:medicineBulkRows.*.name', 'string', 'max:255'],
+                    'medicineBulkRows.*.unit' => ['nullable', 'string', 'max:255'],
                     'medicineBulkRows.*.default_dose' => ['required_with:medicineBulkRows.*.name', 'string', Rule::enum(MedicineDose::class)],
                     'medicineBulkRows.*.default_days' => ['required_with:medicineBulkRows.*.name', 'integer', 'min:1', 'max:365'],
                     'medicineBulkRows.*.is_active' => ['boolean'],
@@ -547,7 +547,7 @@ new #[Title('Management')] class extends Component
 
         $this->medicineName = $medicine->name;
         $this->medicineShortForm = $medicine->short_form ?? '';
-        $this->medicineUnit = $medicine->unit;
+        $this->medicineUnit = $medicine->unit ?? '';
         $this->medicineDefaultDose = $medicine->default_dose->value;
         $this->medicineDefaultDays = (string) $medicine->default_days;
         $this->medicineIsActive = $medicine->is_active;
@@ -728,7 +728,7 @@ new #[Title('Management')] class extends Component
                     Medicine::create([
                         'name' => $row['name'],
                         'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
-                        'unit' => $row['unit'],
+                        'unit' => filled($row['unit'] ?? null) ? $row['unit'] : null,
                         'default_dose' => $row['default_dose'],
                         'default_days' => $row['default_days'],
                         'is_active' => (bool) ($row['is_active'] ?? true),
@@ -910,7 +910,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['medicineName'],
             'short_form' => filled($validated['medicineShortForm'] ?? null) ? $validated['medicineShortForm'] : null,
-            'unit' => $validated['medicineUnit'],
+            'unit' => filled($validated['medicineUnit'] ?? null) ? $validated['medicineUnit'] : null,
             'default_dose' => $validated['medicineDefaultDose'],
             'default_days' => $validated['medicineDefaultDays'],
             'is_active' => $validated['medicineIsActive'],
@@ -1889,7 +1889,7 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row wire:key="medicine-{{ $medicine->id }}">
                                     <flux:table.cell>{{ $medicine->name }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->short_form ?: '—' }}</flux:table.cell>
-                                    <flux:table.cell>{{ $medicine->unit }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->unit ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->default_dose->label() }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->default_days }}</flux:table.cell>
                                     <flux:table.cell>
@@ -2249,7 +2249,7 @@ new #[Title('Management')] class extends Component
 
                     <flux:field>
                         <flux:label>{{ __('Unit') }}</flux:label>
-                        <flux:input wire:model="medicineUnit" type="text" required />
+                        <flux:input wire:model="medicineUnit" type="text" />
                         <flux:error name="medicineUnit" />
                     </flux:field>
 

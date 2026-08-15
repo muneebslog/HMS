@@ -144,9 +144,6 @@ new #[Title('Recheck Timers')] class extends Component
                         </flux:table.cell>
                         <flux:table.cell>
                             {{ $drip->name }}
-                            <span class="text-zinc-500">
-                                — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
-                            </span>
                         </flux:table.cell>
                         <flux:table.cell>{{ $drip->startedByHealthAide?->name ?? '—' }}</flux:table.cell>
                         <flux:table.cell>

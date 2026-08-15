@@ -213,7 +213,6 @@ test('medication queue excludes patients after an order is saved', function () {
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('save')
         ->assertHasNoErrors()
@@ -245,7 +244,6 @@ test('doctor can save an order and call the next patient when the token follows 
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('saveAndNext')
         ->assertHasNoErrors()
@@ -285,7 +283,6 @@ test('medication services that do not follow the doctor cannot advance the displ
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('saveAndNext')
         ->assertForbidden();
@@ -313,22 +310,18 @@ test('doctor previews an order as an er slip before confirming it', function () 
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-1',
-            'days' => '5',
         ]])
         ->set('injectionLines', [[
             'injection_id' => $injection->id,
             'administration_type' => 'iv',
-            'volume_ml' => '3',
         ]])
         ->set('dripLines', [
             [
                 'drip_base_id' => $visibleDrip->id,
-                'volume_ml' => '100',
                 'additives' => [],
             ],
             [
                 'drip_base_id' => $hiddenDrip->id,
-                'volume_ml' => '250',
                 'additives' => [],
             ],
         ])
@@ -367,7 +360,6 @@ test('only one medication modal is open at a time', function () {
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('previewOrder')
         ->assertHasNoErrors()
@@ -398,7 +390,6 @@ test('medication queue keeps patients with an active recheck after an order is s
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('save')
         ->assertHasNoErrors()
@@ -457,20 +448,16 @@ test('doctor can save a medication order for a standalone service without a doct
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-1',
-            'days' => '5',
         ]])
         ->set('injectionLines', [[
             'injection_id' => $injection->id,
             'administration_type' => 'iv',
-            'volume_ml' => '3',
             'comment' => 'Give slowly',
         ]])
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
-            'volume_ml' => '100',
             'additives' => [[
                 'injection_id' => $additiveInjection->id,
-                'volume_ml' => '5',
             ]],
         ]])
         ->call('save')
@@ -493,7 +480,6 @@ test('doctor can save a medication order for a standalone service without a doct
         'medication_order_id' => $order->id,
         'medicine_id' => $medicine->id,
         'dose' => '1-0-1',
-        'days' => 5,
         'name' => 'Paracetamol',
     ]);
 
@@ -501,14 +487,12 @@ test('doctor can save a medication order for a standalone service without a doct
         'medication_order_id' => $order->id,
         'injection_id' => $injection->id,
         'administration_type' => 'iv',
-        'volume_ml' => 3,
         'comment' => 'Give slowly',
         'name' => 'Diclofenac',
     ]);
 
     $this->assertDatabaseHas('medication_order_drip_additives', [
         'injection_id' => $additiveInjection->id,
-        'volume_ml' => 5,
         'name' => 'Vitamin B12',
     ]);
 });
@@ -523,7 +507,6 @@ test('medication order keeps the queue doctor when the service has one', functio
         ->set('medicineLines', [[
             'medicine_id' => $medicine->id,
             'dose' => '1-0-0',
-            'days' => '3',
         ]])
         ->call('save')
         ->assertHasNoErrors();
@@ -557,7 +540,6 @@ test('catalog defaults populate when a doctor selects a medicine or injection', 
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create([
         'default_dose' => MedicineDose::OneZeroOne,
-        'default_days' => 7,
     ]);
     $injection = Injection::factory()->create([
         'default_administration_type' => 'iv',
@@ -568,9 +550,7 @@ test('catalog defaults populate when a doctor selects a medicine or injection', 
         ->call('selectToken', $token->id)
         ->set('medicineLines.0.medicine_id', $medicine->id)
         ->assertSet('medicineLines.0.dose', '1-0-1')
-        ->assertSet('medicineLines.0.days', '7')
         ->set('medicineLines.0.dose', '1-1-1')
-        ->set('medicineLines.0.days', '10')
         ->call('switchOrderTab', 'injections')
         ->set('injectionLines.0.injection_id', $injection->id)
         ->assertSet('injectionLines.0.administration_type', 'iv')
@@ -630,7 +610,6 @@ test('blank default order rows are ignored when saving', function () {
         ->call('selectToken', $token->id)
         ->set('medicineLines.0.medicine_id', $medicine->id)
         ->set('medicineLines.0.dose', '1-0-1')
-        ->set('medicineLines.0.days', '5')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -665,7 +644,6 @@ test('doctor can open medication history modal for a patient', function () {
     $pastOrder->medicines()->create([
         'medicine_id' => $medicine->id,
         'dose' => MedicineDose::OneOneOne,
-        'days' => 7,
         'name' => 'Amoxicillin',
     ]);
 
@@ -676,7 +654,6 @@ test('doctor can open medication history modal for a patient', function () {
         ->assertSet('showHistoryModal', true)
         ->assertSee('Amoxicillin')
         ->assertSee('1-1-1')
-        ->assertSee('7')
         ->call('closeHistory')
         ->assertSet('showHistoryModal', false);
 });
@@ -698,7 +675,6 @@ test('medication history excludes the current visit order', function () {
     $currentOrder->medicines()->create([
         'medicine_id' => $medicine->id,
         'dose' => MedicineDose::OneZeroZero,
-        'days' => 2,
         'name' => 'Only On Current Visit',
     ]);
 
@@ -720,7 +696,6 @@ test('doctor can write a medicine that is not in the catalog', function () {
         ->set('medicineLines', [[
             'medicine_id' => 'custom:Augmentin 625mg',
             'dose' => '1-0-1',
-            'days' => '5',
         ]])
         ->call('save')
         ->assertHasNoErrors();
@@ -734,7 +709,6 @@ test('doctor can write a medicine that is not in the catalog', function () {
         'medication_order_id' => $order->id,
         'medicine_id' => null,
         'dose' => '1-0-1',
-        'days' => 5,
         'name' => 'Augmentin 625mg',
     ]);
 });
@@ -751,14 +725,11 @@ test('doctor can write an injection and a drip additive that are not in the cata
         ->set('injectionLines', [[
             'injection_id' => 'custom:Ketorolac 30mg',
             'administration_type' => 'im',
-            'volume_ml' => '2',
         ]])
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
-            'volume_ml' => '100',
             'additives' => [[
                 'injection_id' => 'custom:Vitamin C 500mg',
-                'volume_ml' => '5',
             ]],
         ]])
         ->call('save')
@@ -773,13 +744,11 @@ test('doctor can write an injection and a drip additive that are not in the cata
         'medication_order_id' => $order->id,
         'injection_id' => null,
         'administration_type' => 'im',
-        'volume_ml' => 2,
         'name' => 'Ketorolac 30mg',
     ]);
 
     $this->assertDatabaseHas('medication_order_drip_additives', [
         'injection_id' => null,
-        'volume_ml' => 5,
         'name' => 'Vitamin C 500mg',
     ]);
 });
@@ -798,19 +767,16 @@ test('reopening an order restores written injection names', function () {
     $order->injections()->create([
         'injection_id' => null,
         'administration_type' => 'im',
-        'volume_ml' => 2,
         'name' => 'Ketorolac 30mg',
     ]);
 
     $drip = $order->drips()->create([
         'drip_base_id' => $dripBase->id,
-        'volume_ml' => 100,
         'name' => 'Normal Saline',
     ]);
 
     $drip->additives()->create([
         'injection_id' => null,
-        'volume_ml' => 5,
         'name' => 'Vitamin C 500mg',
     ]);
 
@@ -845,7 +811,6 @@ test('written injections appear in the er order preview', function () {
         ->set('injectionLines', [[
             'injection_id' => 'custom:Ketorolac 30mg',
             'administration_type' => 'iv',
-            'volume_ml' => '2',
         ]])
         ->call('previewOrder')
         ->assertHasNoErrors()
@@ -884,7 +849,6 @@ test('a blank written injection name is rejected', function () {
         ->set('injectionLines', [[
             'injection_id' => 'custom:   ',
             'administration_type' => 'im',
-            'volume_ml' => '2',
         ]])
         ->call('save')
         ->assertHasErrors('injectionLines.0.injection_id');

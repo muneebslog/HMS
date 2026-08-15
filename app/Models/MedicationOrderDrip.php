@@ -20,7 +20,6 @@ class MedicationOrderDrip extends Model
     protected $fillable = [
         'medication_order_id',
         'drip_base_id',
-        'volume_ml',
         'name',
         'status',
         'started_at',
@@ -49,7 +48,6 @@ class MedicationOrderDrip extends Model
     protected function casts(): array
     {
         return [
-            'volume_ml' => 'float',
             'status' => DripLineStatus::class,
             'started_at' => 'datetime',
             'check_due_at' => 'datetime',

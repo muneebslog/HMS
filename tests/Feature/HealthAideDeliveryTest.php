@@ -64,7 +64,6 @@ function createDeliveryOrderContext(bool $withMedicine = true, bool $withInjecti
         $order->medicines()->create([
             'medicine_id' => $medicine->id,
             'dose' => MedicineDose::OneZeroOne,
-            'days' => 5,
             'name' => 'Paracetamol',
         ]);
     }
@@ -74,7 +73,6 @@ function createDeliveryOrderContext(bool $withMedicine = true, bool $withInjecti
         $order->injections()->create([
             'injection_id' => $injection->id,
             'administration_type' => InjectionAdministrationType::Im,
-            'volume_ml' => 3,
             'name' => 'Diclofenac',
         ]);
     }
@@ -83,7 +81,6 @@ function createDeliveryOrderContext(bool $withMedicine = true, bool $withInjecti
         $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
         $order->drips()->create([
             'drip_base_id' => $dripBase->id,
-            'volume_ml' => 100,
             'name' => 'Normal Saline',
             'status' => DripLineStatus::Pending,
         ]);
@@ -235,7 +232,6 @@ test('er slip shows only drips enabled in management', function () {
     ]);
     $order->drips()->create([
         'drip_base_id' => $hiddenDripBase->id,
-        'volume_ml' => 250,
         'name' => 'Hidden ER Drip',
         'status' => DripLineStatus::Done,
         'done_at' => now(),

@@ -571,7 +571,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                         @forelse ($order?->medicines ?? [] as $medicine)
                             @if ($medicine->delivered_at)
                                 <p class="mb-2 text-sm text-zinc-400 line-through">
-                                    {{ $medicine->name }} — {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}
+                                    {{ $medicine->name }} — {{ $medicine->dose->label() }}
                                     <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
                                 </p>
                             @else
@@ -584,7 +584,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                     >
                                     <span>
                                         {{ $medicine->name }}
-                                        <span class="text-zinc-500">— {{ $medicine->dose->label() }} · {{ $medicine->days }} {{ __('days') }}</span>
+                                        <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
                                     </span>
                                 </label>
                             @endif
@@ -613,9 +613,6 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                         {{ $injection->name }}
                                         <span class="text-zinc-500">
                                             — {{ $injection->administration_type->label() }}
-                                            @if ($injection->volume_ml !== null)
-                                                · {{ rtrim(rtrim(number_format($injection->volume_ml, 2), '0'), '.') }} ml
-                                            @endif
                                             @if (filled($injection->comment))
                                                 · {{ $injection->comment }}
                                             @endif
@@ -635,11 +632,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             @foreach ($erDrips as $drip)
                                 <div wire:key="er-drip-{{ $drip->id }}" class="mb-2">
                                     <p class="text-sm font-medium text-zinc-800">
-                                        {{ $drip->name }} — {{ rtrim(rtrim(number_format($drip->volume_ml, 2), '0'), '.') }} ml
+                                        {{ $drip->name }}
                                     </p>
                                     @foreach ($drip->additives as $additive)
                                         <p class="ms-3 text-sm text-zinc-600">
-                                            + {{ rtrim(rtrim(number_format($additive->volume_ml, 2), '0'), '.') }} ml {{ $additive->name }}
+                                            + {{ $additive->name }}
                                         </p>
                                     @endforeach
                                 </div>

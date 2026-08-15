@@ -128,7 +128,6 @@ test('patient with pending drip line is placed in drip column', function () {
     $dripBase = DripBase::factory()->create();
     $order->drips()->create([
         'drip_base_id' => $dripBase->id,
-        'volume_ml' => 100,
         'name' => $dripBase->name,
         'status' => DripLineStatus::Pending,
     ]);
@@ -160,7 +159,6 @@ test('patient with undelivered medicines is placed in er column', function () {
     $order->medicines()->create([
         'medicine_id' => $medicine->id,
         'dose' => MedicineDose::OneZeroOne,
-        'days' => 3,
         'name' => $medicine->name,
     ]);
 

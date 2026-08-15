@@ -124,7 +124,7 @@ test('authenticated admins can bulk create injections', function () {
     ]);
 });
 
-test('bulk medicine create requires a unit when a name is provided', function () {
+test('bulk medicine create allows a blank unit', function () {
     $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
@@ -134,7 +134,12 @@ test('bulk medicine create requires a unit when a name is provided', function ()
         ->set('medicineBulkRows.0.name', 'Paracetamol')
         ->set('medicineBulkRows.0.unit', '')
         ->call('save')
-        ->assertHasErrors(['medicineBulkRows.0.unit']);
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('medicines', [
+        'name' => 'Paracetamol',
+        'unit' => null,
+    ]);
 });
 
 test('bulk create requires at least one filled medicine row', function () {

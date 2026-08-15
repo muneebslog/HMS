@@ -15,21 +15,8 @@ class MedicationOrderDripAdditive extends Model
     protected $fillable = [
         'medication_order_drip_id',
         'injection_id',
-        'volume_ml',
         'name',
     ];
-
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'volume_ml' => 'float',
-        ];
-    }
 
     /**
      * @return BelongsTo<MedicationOrderDrip, $this>

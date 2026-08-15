@@ -21,7 +21,6 @@ class MedicationOrderInjection extends Model
         'injection_id',
         'administration_type',
         'comment',
-        'volume_ml',
         'name',
         'delivered_at',
         'delivered_by_health_aide_id',
@@ -36,7 +35,6 @@ class MedicationOrderInjection extends Model
     {
         return [
             'administration_type' => InjectionAdministrationType::class,
-            'volume_ml' => 'float',
             'delivered_at' => 'datetime',
         ];
     }

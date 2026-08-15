@@ -1806,7 +1806,7 @@ new #[Title('Procedure Chart')] class extends Component
                                 <flux:label>{{ __('Medicine (catalog)') }}</flux:label>
                                 <x-searchable-select
                                     wire:model="medMedicineId"
-                                    :options="$this->medicines->map(fn ($m) => ['value' => $m->id, 'label' => $m->name.' ('.$m->unit.')', 'keywords' => $m->short_form])->values()->all()"
+                                    :options="$this->medicines->map(fn ($m) => ['value' => $m->id, 'label' => filled($m->unit) ? $m->name.' ('.$m->unit.')' : $m->name, 'keywords' => $m->short_form])->values()->all()"
                                     :placeholder="__('Search medicine')"
                                 />
                                 <flux:error name="medMedicineId" />
