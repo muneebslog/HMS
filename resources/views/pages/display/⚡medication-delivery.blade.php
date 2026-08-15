@@ -572,6 +572,9 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             @if ($medicine->delivered_at)
                                 <p class="mb-2 text-sm text-zinc-400 line-through">
                                     {{ $medicine->name }} — {{ $medicine->dose->label() }}
+                                    @if (filled($medicine->comment))
+                                        · {{ $medicine->comment }}
+                                    @endif
                                     <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
                                 </p>
                             @else
@@ -584,7 +587,12 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                     >
                                     <span>
                                         {{ $medicine->name }}
-                                        <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
+                                        <span class="text-zinc-500">
+                                            — {{ $medicine->dose->label() }}
+                                            @if (filled($medicine->comment))
+                                                · {{ $medicine->comment }}
+                                            @endif
+                                        </span>
                                     </span>
                                 </label>
                             @endif

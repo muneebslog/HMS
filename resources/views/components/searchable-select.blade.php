@@ -63,6 +63,10 @@
 
             const text = String(raw);
 
+            if (text.startsWith('custom-injection:')) {
+                return text.slice('custom-injection:'.length);
+            }
+
             return text.startsWith(this.customPrefix) ? text.slice(this.customPrefix.length) : text;
         },
         openList() {

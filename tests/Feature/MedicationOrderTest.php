@@ -210,9 +210,11 @@ test('medication queue excludes patients after an order is saved', function () {
         ->test('pages::doctor.medication')
         ->assertSee($patient->name)
         ->call('selectToken', $token->id)
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('save')
         ->assertHasNoErrors()
@@ -241,9 +243,11 @@ test('doctor can save an order and call the next patient when the token follows 
         ->test('pages::doctor.medication')
         ->call('selectToken', $currentToken->id)
         ->assertSee(__('Save & Next Patient'))
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('saveAndNext')
         ->assertHasNoErrors()
@@ -280,9 +284,11 @@ test('medication services that do not follow the doctor cannot advance the displ
         ->test('pages::doctor.medication')
         ->call('selectToken', $currentToken->id)
         ->assertDontSee(__('Save & Next Patient'))
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('saveAndNext')
         ->assertForbidden();
@@ -307,14 +313,20 @@ test('doctor previews an order as an er slip before confirming it', function () 
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
-            'dose' => '1-0-1',
-        ]])
-        ->set('injectionLines', [[
-            'injection_id' => $injection->id,
-            'administration_type' => 'iv',
-        ]])
+        ->set('medicationLines', [
+            [
+                'selection' => 'medicine:'.$medicine->id,
+                'dose' => '1-0-1',
+                'administration_type' => 'im',
+                'comment' => '',
+            ],
+            [
+                'selection' => 'injection:'.$injection->id,
+                'dose' => '1-0-0',
+                'administration_type' => 'iv',
+                'comment' => '',
+            ],
+        ])
         ->set('dripLines', [
             [
                 'drip_base_id' => $visibleDrip->id,
@@ -357,9 +369,11 @@ test('only one medication modal is open at a time', function () {
         ->call('selectToken', $token->id)
         ->call('openHistory')
         ->assertSet('showHistoryModal', true)
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('previewOrder')
         ->assertHasNoErrors()
@@ -387,9 +401,11 @@ test('medication queue keeps patients with an active recheck after an order is s
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('save')
         ->assertHasNoErrors()
@@ -445,15 +461,20 @@ test('doctor can save a medication order for a standalone service without a doct
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('complaintOrDiagnosis', 'Fever and body aches')
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
-            'dose' => '1-0-1',
-        ]])
-        ->set('injectionLines', [[
-            'injection_id' => $injection->id,
-            'administration_type' => 'iv',
-            'comment' => 'Give slowly',
-        ]])
+        ->set('medicationLines', [
+            [
+                'selection' => 'medicine:'.$medicine->id,
+                'dose' => '1-0-1',
+                'administration_type' => 'im',
+                'comment' => 'Give after food',
+            ],
+            [
+                'selection' => 'injection:'.$injection->id,
+                'dose' => '1-0-0',
+                'administration_type' => 'iv',
+                'comment' => 'Give slowly',
+            ],
+        ])
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
             'additives' => [[
@@ -480,6 +501,7 @@ test('doctor can save a medication order for a standalone service without a doct
         'medication_order_id' => $order->id,
         'medicine_id' => $medicine->id,
         'dose' => '1-0-1',
+        'comment' => 'Give after food',
         'name' => 'Paracetamol',
     ]);
 
@@ -504,9 +526,11 @@ test('medication order keeps the queue doctor when the service has one', functio
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('medicineLines', [[
-            'medicine_id' => $medicine->id,
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$medicine->id,
             'dose' => '1-0-0',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('save')
         ->assertHasNoErrors();
@@ -526,11 +550,10 @@ test('medication form uses searchable selects for catalog fields', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Medicines & Injections'))
-        ->assertSee(__('Search medicine or type a new name'))
-        ->assertSee('PCM — Searchable Paracetamol')
-        ->assertSee(__('Search injection or type a new name'))
-        ->assertSee('DIC — Searchable Diclofenac')
+        ->assertSee(__('Medications'))
+        ->assertSee(__('Search medicine or injection'))
+        ->assertSee(__('Medicine').' — PCM — Searchable Paracetamol')
+        ->assertSee(__('Injection').' — DIC — Searchable Diclofenac')
         ->call('switchOrderTab', 'drips')
         ->assertSee(__('Search drip base'))
         ->assertSee('Searchable Saline');
@@ -548,13 +571,18 @@ test('catalog defaults populate when a doctor selects a medicine or injection', 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('medicineLines.0.medicine_id', $medicine->id)
-        ->assertSet('medicineLines.0.dose', '1-0-1')
-        ->set('medicineLines.0.dose', '1-1-1')
-        ->set('injectionLines.0.injection_id', $injection->id)
-        ->assertSet('injectionLines.0.administration_type', 'iv')
-        ->set('injectionLines.0.administration_type', 'im')
-        ->assertSet('injectionLines.0.administration_type', 'im');
+        ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->assertSet('medicationLines.0.dose', '1-0-1')
+        ->assertSeeHtml('aria-label="'.__('Timing').'"')
+        ->assertSee(__('Comment'))
+        ->set('medicationLines.0.dose', '1-1-1')
+        ->set('medicationLines.1.selection', 'injection:'.$injection->id)
+        ->assertSet('medicationLines.1.administration_type', 'iv')
+        ->assertSee(__('IM'))
+        ->assertSee(__('IV'))
+        ->assertSee(__('Comment'))
+        ->set('medicationLines.1.administration_type', 'im')
+        ->assertSet('medicationLines.1.administration_type', 'im');
 });
 
 test('doctor cannot add medicines to the catalog from the order form', function () {
@@ -565,7 +593,7 @@ test('doctor cannot add medicines to the catalog from the order form', function 
         ->call('selectToken', $token->id)
         ->assertDontSee(__('Medicine not listed? Add it'))
         ->assertDontSeeHtml('data-modal="medication-new-medicine"')
-        ->assertSee(__('Search medicine or type a new name'));
+        ->assertSee(__('Search medicine or injection'));
 });
 
 test('doctor medication queue uses paper slips', function () {
@@ -584,11 +612,10 @@ test('medication form starts with common blank order rows', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertCount('medicineLines', 4)
-        ->assertCount('injectionLines', 2)
+        ->assertCount('medicationLines', 6)
         ->assertCount('dripLines', 1)
         ->assertCount('dripLines.0.additives', 2)
-        ->assertSee(__('Medicines & Injections'))
+        ->assertSee(__('Medications'))
         ->call('switchOrderTab', 'drips')
         ->assertCount('dripLines', 1)
         ->call('addRowForActiveTab')
@@ -596,7 +623,7 @@ test('medication form starts with common blank order rows', function () {
         ->assertCount('dripLines.1.additives', 2)
         ->call('switchOrderTab', 'medicines')
         ->call('addRowForActiveTab')
-        ->assertCount('medicineLines', 5);
+        ->assertCount('medicationLines', 7);
 });
 
 test('blank default order rows are ignored when saving', function () {
@@ -606,8 +633,8 @@ test('blank default order rows are ignored when saving', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('medicineLines.0.medicine_id', $medicine->id)
-        ->set('medicineLines.0.dose', '1-0-1')
+        ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->set('medicationLines.0.dose', '1-0-1')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -690,10 +717,12 @@ test('doctor can write a medicine that is not in the catalog', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Search medicine or type a new name'))
-        ->set('medicineLines', [[
-            'medicine_id' => 'custom:Augmentin 625mg',
+        ->assertSee(__('Search medicine or injection'))
+        ->set('medicationLines', [[
+            'selection' => 'custom:Augmentin 625mg',
             'dose' => '1-0-1',
+            'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('save')
         ->assertHasNoErrors();
@@ -718,10 +747,12 @@ test('doctor can write an injection and a drip additive that are not in the cata
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSee(__('Search injection or type a new name'))
-        ->set('injectionLines', [[
-            'injection_id' => 'custom:Ketorolac 30mg',
+        ->assertSee(__('Search medicine or injection'))
+        ->set('medicationLines', [[
+            'selection' => 'custom-injection:Ketorolac 30mg',
+            'dose' => '1-0-0',
             'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
@@ -787,7 +818,7 @@ test('reopening an order restores written injection names', function () {
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id);
 
-    expect($component->get('injectionLines.0.injection_id'))->toBe('custom:Ketorolac 30mg')
+    expect($component->get('medicationLines.0.selection'))->toBe('custom-injection:Ketorolac 30mg')
         ->and($component->get('dripLines.0.additives.0.injection_id'))->toBe('custom:Vitamin C 500mg');
 
     $component->call('save')->assertHasNoErrors();
@@ -805,9 +836,11 @@ test('written injections appear in the er order preview', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('injectionLines', [[
-            'injection_id' => 'custom:Ketorolac 30mg',
+        ->set('medicationLines', [[
+            'selection' => 'custom-injection:Ketorolac 30mg',
+            'dose' => '1-0-0',
             'administration_type' => 'iv',
+            'comment' => '',
         ]])
         ->call('previewOrder')
         ->assertHasNoErrors()
@@ -832,8 +865,7 @@ test('order rows sit in one block and support alt arrow navigation', function ()
         ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
 
     $component
-        ->assertSee(__('Search medicine or type a new name'))
-        ->assertSee(__('Search injection or type a new name'))
+        ->assertSee(__('Search medicine or injection'))
         ->assertSeeHtml('data-nav-row')
         ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
 });
@@ -844,12 +876,14 @@ test('a blank written injection name is rejected', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('injectionLines', [[
-            'injection_id' => 'custom:   ',
+        ->set('medicationLines', [[
+            'selection' => 'custom-injection:   ',
+            'dose' => '1-0-0',
             'administration_type' => 'im',
+            'comment' => '',
         ]])
         ->call('save')
-        ->assertHasErrors('injectionLines.0.injection_id');
+        ->assertHasErrors('medicationLines.0.selection');
 
     expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
 });

@@ -20,6 +20,7 @@ class MedicationOrderMedicine extends Model
         'medication_order_id',
         'medicine_id',
         'dose',
+        'comment',
         'name',
         'delivered_at',
         'delivered_by_health_aide_id',
