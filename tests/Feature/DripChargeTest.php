@@ -89,9 +89,6 @@ test('drip charge section only appears on the drips tab', function () {
         ->assertSet('activeOrderTab', 'medicines')
         ->assertDontSee(__('Drip charge'))
         ->assertDontSee(__('Suggested price'))
-        ->call('switchOrderTab', 'injections')
-        ->assertDontSee(__('Drip charge'))
-        ->assertDontSee(__('Suggested price'))
         ->call('switchOrderTab', 'drips')
         ->assertSee(__('Drip charge'))
         ->assertSee(__('Suggested price'));

@@ -526,10 +526,10 @@ test('medication form uses searchable selects for catalog fields', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->assertSee(__('Medicines & Injections'))
         ->assertSee(__('Search medicine or type a new name'))
         ->assertSee('PCM — Searchable Paracetamol')
-        ->call('switchOrderTab', 'injections')
-        ->assertSee(__('Search injection'))
+        ->assertSee(__('Search injection or type a new name'))
         ->assertSee('DIC — Searchable Diclofenac')
         ->call('switchOrderTab', 'drips')
         ->assertSee(__('Search drip base'))
@@ -551,7 +551,6 @@ test('catalog defaults populate when a doctor selects a medicine or injection', 
         ->set('medicineLines.0.medicine_id', $medicine->id)
         ->assertSet('medicineLines.0.dose', '1-0-1')
         ->set('medicineLines.0.dose', '1-1-1')
-        ->call('switchOrderTab', 'injections')
         ->set('injectionLines.0.injection_id', $injection->id)
         ->assertSet('injectionLines.0.administration_type', 'iv')
         ->set('injectionLines.0.administration_type', 'im')
@@ -589,8 +588,7 @@ test('medication form starts with common blank order rows', function () {
         ->assertCount('injectionLines', 2)
         ->assertCount('dripLines', 1)
         ->assertCount('dripLines.0.additives', 2)
-        ->call('switchOrderTab', 'injections')
-        ->assertCount('injectionLines', 2)
+        ->assertSee(__('Medicines & Injections'))
         ->call('switchOrderTab', 'drips')
         ->assertCount('dripLines', 1)
         ->call('addRowForActiveTab')
@@ -720,7 +718,6 @@ test('doctor can write an injection and a drip additive that are not in the cata
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->call('switchOrderTab', 'injections')
         ->assertSee(__('Search injection or type a new name'))
         ->set('injectionLines', [[
             'injection_id' => 'custom:Ketorolac 30mg',
@@ -835,7 +832,8 @@ test('order rows sit in one block and support alt arrow navigation', function ()
         ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
 
     $component
-        ->call('switchOrderTab', 'injections')
+        ->assertSee(__('Search medicine or type a new name'))
+        ->assertSee(__('Search injection or type a new name'))
         ->assertSeeHtml('data-nav-row')
         ->assertDontSeeHtml('grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12');
 });

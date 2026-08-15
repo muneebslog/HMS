@@ -476,7 +476,7 @@ new #[Title('Medication')] class extends Component
 
     public function switchOrderTab(string $tab): void
     {
-        if (! in_array($tab, ['medicines', 'injections', 'drips'], true)) {
+        if (! in_array($tab, ['medicines', 'drips'], true)) {
             return;
         }
 
@@ -503,11 +503,21 @@ new #[Title('Medication')] class extends Component
     private function ensureFirstRowForTab(string $tab): void
     {
         match ($tab) {
-            'medicines' => $this->medicineLines === [] ? $this->addMedicineLine() : null,
-            'injections' => $this->injectionLines === [] ? $this->addInjectionLine() : null,
+            'medicines' => $this->ensureFirstMedicationRows(),
             'drips' => $this->dripLines === [] ? $this->addDripLine() : null,
             default => null,
         };
+    }
+
+    private function ensureFirstMedicationRows(): void
+    {
+        if ($this->medicineLines === []) {
+            $this->addMedicineLine();
+        }
+
+        if ($this->injectionLines === []) {
+            $this->addInjectionLine();
+        }
     }
 
     public function addMedicineLine(): void
@@ -1490,7 +1500,7 @@ new #[Title('Medication')] class extends Component
 
         <div class="border-b border-zinc-200 dark:border-zinc-700">
             <nav class="-mb-px flex gap-4">
-                @foreach (['medicines' => __('Medicines'), 'injections' => __('Injections'), 'drips' => __('Drips')] as $tab => $label)
+                @foreach (['medicines' => __('Medicines & Injections'), 'drips' => __('Drips')] as $tab => $label)
                     <button
                         type="button"
                         wire:click="switchOrderTab('{{ $tab }}')"
@@ -1553,73 +1563,75 @@ new #[Title('Medication')] class extends Component
             @keydown.alt.arrow-right.prevent="navigate('right')"
         >
             @if ($activeOrderTab === 'medicines')
-                <div class="space-y-3">
-                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                        @foreach ($medicineLines as $index => $line)
-                            <div wire:key="medicine-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                <div class="sm:col-span-7" data-nav-field>
-                                    <x-searchable-select
-                                        wire:model.live="medicineLines.{{ $index }}.medicine_id"
-                                        :options="$this->medicineOptions"
-                                        :placeholder="__('Search medicine or type a new name')"
-                                        allow-custom
-                                    />
-                                    <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                <div class="space-y-6">
+                    <section class="space-y-3">
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
+                        <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            @foreach ($medicineLines as $index => $line)
+                                <div wire:key="medicine-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                    <div class="sm:col-span-7" data-nav-field>
+                                        <x-searchable-select
+                                            wire:model.live="medicineLines.{{ $index }}.medicine_id"
+                                            :options="$this->medicineOptions"
+                                            :placeholder="__('Search medicine or type a new name')"
+                                            allow-custom
+                                        />
+                                        <flux:error name="medicineLines.{{ $index }}.medicine_id" />
+                                    </div>
+                                    <div class="sm:col-span-4" data-nav-field>
+                                        <flux:select wire:model="medicineLines.{{ $index }}.dose">
+                                            @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                                <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:error name="medicineLines.{{ $index }}.dose" />
+                                    </div>
+                                    <div class="flex items-start sm:col-span-1">
+                                        <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
+                                    </div>
                                 </div>
-                                <div class="sm:col-span-4" data-nav-field>
-                                    <flux:select wire:model="medicineLines.{{ $index }}.dose">
-                                        @foreach (\App\Enums\MedicineDose::cases() as $dose)
-                                            <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
-                                        @endforeach
-                                    </flux:select>
-                                    <flux:error name="medicineLines.{{ $index }}.dose" />
+                            @endforeach
+                        </div>
+                        <flux:error name="medicineLines" />
+                        <flux:tooltip :content="__('Shift+Enter')" position="top">
+                            <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
+                        </flux:tooltip>
+                    </section>
+
+                    <section class="space-y-3">
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Injections') }}</p>
+                        <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            @foreach ($injectionLines as $index => $line)
+                                <div wire:key="injection-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                    <div class="sm:col-span-5" data-nav-field>
+                                        <x-searchable-select
+                                            wire:model.live="injectionLines.{{ $index }}.injection_id"
+                                            :options="$this->injectionOptions"
+                                            :placeholder="__('Search injection or type a new name')"
+                                            allow-custom
+                                        />
+                                        <flux:error name="injectionLines.{{ $index }}.injection_id" />
+                                    </div>
+                                    <div class="sm:col-span-3" data-nav-field>
+                                        <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
+                                            @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:error name="injectionLines.{{ $index }}.administration_type" />
+                                    </div>
+                                    <div class="sm:col-span-3" data-nav-field>
+                                        <flux:input wire:model="injectionLines.{{ $index }}.comment" type="text" placeholder="{{ __('Comment') }}" />
+                                        <flux:error name="injectionLines.{{ $index }}.comment" />
+                                    </div>
+                                    <div class="flex items-start sm:col-span-1">
+                                        <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
+                                    </div>
                                 </div>
-                                <div class="flex items-start sm:col-span-1">
-                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicineLine({{ $index }})" />
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                    <flux:error name="medicineLines" />
-                    <flux:tooltip :content="__('Shift+Enter')" position="top">
-                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicineLine">{{ __('Add medicine') }}</flux:button>
-                    </flux:tooltip>
-                </div>
-            @elseif ($activeOrderTab === 'injections')
-                <div class="space-y-3">
-                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                        @foreach ($injectionLines as $index => $line)
-                            <div wire:key="injection-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                <div class="sm:col-span-5" data-nav-field>
-                                    <x-searchable-select
-                                        wire:model.live="injectionLines.{{ $index }}.injection_id"
-                                        :options="$this->injectionOptions"
-                                        :placeholder="__('Search injection or type a new name')"
-                                        allow-custom
-                                    />
-                                    <flux:error name="injectionLines.{{ $index }}.injection_id" />
-                                </div>
-                                <div class="sm:col-span-3" data-nav-field>
-                                    <flux:select wire:model="injectionLines.{{ $index }}.administration_type">
-                                        @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
-                                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                                        @endforeach
-                                    </flux:select>
-                                    <flux:error name="injectionLines.{{ $index }}.administration_type" />
-                                </div>
-                                <div class="sm:col-span-3" data-nav-field>
-                                    <flux:input wire:model="injectionLines.{{ $index }}.comment" type="text" placeholder="{{ __('Comment') }}" />
-                                    <flux:error name="injectionLines.{{ $index }}.comment" />
-                                </div>
-                                <div class="flex items-start sm:col-span-1">
-                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeInjectionLine({{ $index }})" />
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                    <flux:tooltip :content="__('Shift+Enter')" position="top">
+                            @endforeach
+                        </div>
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addInjectionLine">{{ __('Add injection') }}</flux:button>
-                    </flux:tooltip>
+                    </section>
                 </div>
             @else
                 <div class="space-y-4">
