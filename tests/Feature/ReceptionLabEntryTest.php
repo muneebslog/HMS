@@ -121,9 +121,9 @@ test('patient details are required to add a test', function () {
         ->assertHasErrors(['patientName', 'patientPhone', 'patientGender', 'patientAge']);
 });
 
-test('lab tests can be filtered by name or code', function () {
+test('lab test options expose name and code for searching', function () {
     $user = User::factory()->create();
-    $matchingTest = LabTest::factory()->create([
+    LabTest::factory()->create([
         'test_name' => 'Complete Blood Count',
         'test_code' => 'CBC-001',
     ]);
@@ -134,17 +134,12 @@ test('lab tests can be filtered by name or code', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.lab-entry')
-        ->assertCount('labTests', 2)
-        ->set('search', 'CBC')
-        ->assertCount('labTests', 1)
-        ->assertSee($matchingTest->test_name)
-        ->set('search', 'Blood')
-        ->assertCount('labTests', 1)
-        ->assertSee($matchingTest->test_name)
-        ->set('search', 'nonexistent')
-        ->assertCount('labTests', 0)
-        ->set('search', '')
-        ->assertCount('labTests', 2);
+        ->assertCount('labTestOptions', 2)
+        ->assertSet('labTestOptions', function (array $options) {
+            return collect($options)->contains(fn (array $option) => $option['label'] === 'Complete Blood Count (CBC-001)'
+                && $option['keywords'] === 'Complete Blood Count CBC-001');
+        })
+        ->assertSee('Complete Blood Count');
 });
 
 test('time required is shown for added tests', function () {

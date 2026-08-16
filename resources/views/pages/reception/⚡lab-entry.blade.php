@@ -36,8 +36,6 @@ new #[Title('Lab Entry')] class extends Component
     #[Validate]
     public ?int $selectedLabTestId = null;
 
-    public string $search = '';
-
     /**
      * @var list<array<string, mixed>>
      */
@@ -108,7 +106,7 @@ new #[Title('Lab Entry')] class extends Component
             'test_price' => $labTest->test_price,
         ];
 
-        $this->reset(['selectedLabTestId', 'search']);
+        $this->reset(['selectedLabTestId']);
         $this->resetValidation('selectedLabTestId');
 
         Flux::toast(variant: 'success', text: __('Test added.'));
@@ -256,7 +254,7 @@ new #[Title('Lab Entry')] class extends Component
     }
 
     /**
-     * Get the list of lab tests filtered by the search query.
+     * Get the list of active lab tests.
      *
      * @return Collection<int, LabTest>
      */
@@ -265,14 +263,28 @@ new #[Title('Lab Entry')] class extends Component
     {
         return LabTest::query()
             ->active()
-            ->when(trim($this->search) !== '', function ($query) {
-                $query->where(function ($q) {
-                    $q->where('test_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('test_code', 'like', '%'.$this->search.'%');
-                });
-            })
             ->orderBy('test_name')
             ->get();
+    }
+
+    /**
+     * Lab test options for the searchable select.
+     *
+     * @return list<array{value: int, label: string, keywords: string}>
+     */
+    #[Computed]
+    public function labTestOptions(): array
+    {
+        return $this->labTests
+            ->map(fn (LabTest $labTest): array => [
+                'value' => $labTest->id,
+                'label' => filled($labTest->test_code)
+                    ? $labTest->test_name.' ('.$labTest->test_code.')'
+                    : $labTest->test_name,
+                'keywords' => trim($labTest->test_name.' '.($labTest->test_code ?? '')),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -391,24 +403,13 @@ new #[Title('Lab Entry')] class extends Component
             <flux:heading level="2">{{ __('Tests') }}</flux:heading>
 
             <form wire:submit="add" class="mt-4 grid grid-cols-1 items-end gap-6 md:grid-cols-12">
-                <flux:field class="md:col-span-5">
-                    <flux:label>{{ __('Search tests') }}</flux:label>
-                    <flux:input
-                        wire:model.live.debounce.300ms="search"
-                        type="search"
-                        placeholder="{{ __('Search by name or code') }}"
-                        icon="magnifying-glass"
-                    />
-                </flux:field>
-
-                <flux:field class="md:col-span-5">
+                <flux:field class="md:col-span-10">
                     <flux:label>{{ __('Test') }}</flux:label>
-                    <flux:select wire:model="selectedLabTestId" required>
-                        <option value="">{{ __('Select a test') }}</option>
-                        @foreach ($this->labTests as $labTest)
-                            <option value="{{ $labTest->id }}">{{ $labTest->test_name }}{{ $labTest->test_code ? ' ('.$labTest->test_code.')' : '' }}</option>
-                        @endforeach
-                    </flux:select>
+                    <x-searchable-select
+                        wire:model="selectedLabTestId"
+                        :options="$this->labTestOptions"
+                        :placeholder="__('Search by name or code')"
+                    />
                     <flux:error name="selectedLabTestId" />
                 </flux:field>
 
