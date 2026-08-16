@@ -15,6 +15,7 @@ use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServicePrice;
+use App\Models\Symptom;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -211,6 +212,21 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public bool $roomIsActive = true;
 
+    #[Validate]
+    public string $symptomName = '';
+
+    #[Validate]
+    public string $symptomShortForm = '';
+
+    #[Validate]
+    public bool $symptomIsActive = true;
+
+    /**
+     * @var list<int|string>
+     */
+    #[Validate]
+    public array $symptomMedicineIds = [];
+
     /**
      * @var list<\Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
      */
@@ -335,6 +351,13 @@ new #[Title('Management')] class extends Component
                 'roomNumber' => ['required', 'string', 'max:255', Rule::unique('rooms', 'number')->ignore($this->editingId)],
                 'roomIsActive' => ['boolean'],
             ],
+            'symptoms' => [
+                'symptomName' => ['required', 'string', 'max:255', Rule::unique('symptoms', 'name')->ignore($this->editingId)],
+                'symptomShortForm' => ['nullable', 'string', 'max:50'],
+                'symptomIsActive' => ['boolean'],
+                'symptomMedicineIds' => ['array'],
+                'symptomMedicineIds.*' => ['integer', 'exists:medicines,id'],
+            ],
             default => [],
         };
     }
@@ -455,6 +478,7 @@ new #[Title('Management')] class extends Component
             'dripBases' => $this->loadDripBase($id),
             'procedureTypes' => $this->loadProcedureType($id),
             'rooms' => $this->loadRoom($id),
+            'symptoms' => $this->loadSymptom($id),
         };
 
         $this->showModal = true;
@@ -602,6 +626,19 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Load symptom data into the form.
+     */
+    private function loadSymptom(int $id): void
+    {
+        $symptom = Symptom::with('medicines')->findOrFail($id);
+
+        $this->symptomName = $symptom->name;
+        $this->symptomShortForm = $symptom->short_form ?? '';
+        $this->symptomIsActive = $symptom->is_active;
+        $this->symptomMedicineIds = $symptom->medicines->pluck('id')->all();
+    }
+
+    /**
      * Reset all form fields.
      */
     private function resetForm(): void
@@ -658,6 +695,10 @@ new #[Title('Management')] class extends Component
             'procedureTypeIsActive',
             'roomNumber',
             'roomIsActive',
+            'symptomName',
+            'symptomShortForm',
+            'symptomIsActive',
+            'symptomMedicineIds',
             'medicineBulkRows',
             'injectionBulkRows',
         ]);
@@ -699,6 +740,7 @@ new #[Title('Management')] class extends Component
             'dripBases' => $this->saveDripBase($validated),
             'procedureTypes' => $this->saveProcedureType($validated),
             'rooms' => $this->saveRoom($validated),
+            'symptoms' => $this->saveSymptom($validated),
         };
 
         $this->showModal = false;
@@ -1000,6 +1042,37 @@ new #[Title('Management')] class extends Component
         } else {
             Room::create($data);
             Flux::toast(variant: 'success', text: __('Room created.'));
+        }
+    }
+
+    /**
+     * Persist symptom data and related medicine mappings.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveSymptom(array $validated): void
+    {
+        $data = [
+            'name' => $validated['symptomName'],
+            'short_form' => filled($validated['symptomShortForm'] ?? null) ? $validated['symptomShortForm'] : null,
+            'is_active' => $validated['symptomIsActive'],
+        ];
+
+        $medicineIds = collect($validated['symptomMedicineIds'] ?? [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($this->editingId) {
+            $symptom = Symptom::findOrFail($this->editingId);
+            $symptom->update($data);
+            $symptom->medicines()->sync($medicineIds);
+            Flux::toast(variant: 'success', text: __('Symptom updated.'));
+        } else {
+            $symptom = Symptom::create($data);
+            $symptom->medicines()->sync($medicineIds);
+            Flux::toast(variant: 'success', text: __('Symptom created.'));
         }
     }
 
@@ -1348,6 +1421,7 @@ new #[Title('Management')] class extends Component
             'dripBases' => DripBase::findOrFail($id)->delete(),
             'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
             'rooms' => Room::findOrFail($id)->delete(),
+            'symptoms' => Symptom::findOrFail($id)->delete(),
         };
 
         Flux::toast(variant: 'success', text: __('Record deleted.'));
@@ -1490,6 +1564,21 @@ new #[Title('Management')] class extends Component
     {
         return Room::orderBy('number')->get();
     }
+
+    /**
+     * Get the list of symptoms with linked medicines.
+     *
+     * @return Collection<int, Symptom>
+     */
+    #[Computed]
+    public function symptoms(): Collection
+    {
+        return Symptom::query()
+            ->with(['medicines' => fn ($query) => $query->orderBy('name')])
+            ->withCount('medicines')
+            ->orderBy('name')
+            ->get();
+    }
 }; ?>
 
 <div>
@@ -1550,6 +1639,13 @@ new #[Title('Management')] class extends Component
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'medicines' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
                             {{ __('Medicines') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('symptoms')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'symptoms' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Symptoms') }}
                         </button>
                         <button
                             type="button"
@@ -1911,6 +2007,47 @@ new #[Title('Management')] class extends Component
                             @endforelse
                         </flux:table.rows>
                     </flux:table>
+                @elseif ($activeTab === 'symptoms')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Short form') }}</flux:table.column>
+                            <flux:table.column>{{ __('Medicines') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->symptoms as $symptom)
+                                <flux:table.row wire:key="symptom-{{ $symptom->id }}">
+                                    <flux:table.cell>{{ $symptom->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $symptom->short_form ?: '—' }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if ($symptom->medicines->isEmpty())
+                                            —
+                                        @else
+                                            {{ $symptom->medicines->pluck('name')->join(', ') }}
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $symptom->is_active ? 'green' : 'zinc' }}">
+                                            {{ $symptom->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $symptom->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $symptom->id }})" wire:confirm="{{ __('Are you sure you want to delete this symptom?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                        {{ __('No symptoms found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
                 @elseif ($activeTab === 'injections')
                     <flux:table>
                         <flux:table.columns>
@@ -2027,16 +2164,16 @@ new #[Title('Management')] class extends Component
         </flux:card>
     </div>
 
-    <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : 'max-w-lg' }}">
+    <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : ($activeTab === 'symptoms' ? 'max-w-2xl' : 'max-w-lg') }}">
         <flux:heading level="2">
             @if ($editingId)
-                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'symptoms' => __('Symptom'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @elseif ($activeTab === 'medicines')
                 {{ __('Bulk add medicines') }}
             @elseif ($activeTab === 'injections')
                 {{ __('Bulk add injections') }}
             @else
-                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'symptoms' => __('Symptom'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @endif
         </flux:heading>
 
@@ -2398,6 +2535,40 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="dripBaseIsActive" :label="__('Active')" />
                     <flux:error name="dripBaseIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'symptoms')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="symptomName" type="text" required />
+                    <flux:error name="symptomName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Short form') }}</flux:label>
+                    <flux:input wire:model="symptomShortForm" type="text" placeholder="{{ __('e.g. PA') }}" />
+                    <flux:error name="symptomShortForm" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="symptomIsActive" :label="__('Active')" />
+                    <flux:error name="symptomIsActive" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Related medicines') }}</flux:label>
+                    <div class="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        @forelse ($this->medicines as $medicine)
+                            <flux:checkbox
+                                wire:model="symptomMedicineIds"
+                                value="{{ $medicine->id }}"
+                                :label="$medicine->name.($medicine->short_form ? ' ('.$medicine->short_form.')' : '')"
+                            />
+                        @empty
+                            <flux:text class="text-sm text-zinc-500">{{ __('No medicines found. Add medicines first.') }}</flux:text>
+                        @endforelse
+                    </div>
+                    <flux:error name="symptomMedicineIds" />
+                    <flux:error name="symptomMedicineIds.*" />
                 </flux:field>
             @elseif ($activeTab === 'labTests')
                 <flux:field>

@@ -30,6 +30,7 @@ class MedicationOrder extends Model
         'prescribed_by',
         'status',
         'complaint_or_diagnosis',
+        'symptom_id',
         'notes',
         'administered_by',
         'administered_by_health_aide_id',
@@ -88,6 +89,14 @@ class MedicationOrder extends Model
     public function prescribedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'prescribed_by');
+    }
+
+    /**
+     * @return BelongsTo<Symptom, $this>
+     */
+    public function symptom(): BelongsTo
+    {
+        return $this->belongsTo(Symptom::class);
     }
 
     /**

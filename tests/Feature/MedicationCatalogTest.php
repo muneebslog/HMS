@@ -4,6 +4,7 @@ use App\Enums\TokenResetType;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\Medicine;
+use App\Models\Symptom;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -198,8 +199,83 @@ test('catalog models can be created via factories', function () {
     $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
     $injection = Injection::factory()->create(['name' => 'Ceftriaxone']);
     $dripBase = DripBase::factory()->create(['name' => 'Ringer Lactate']);
+    $symptom = Symptom::factory()->create(['name' => 'Pain', 'short_form' => 'PA']);
 
     expect($medicine->is_active)->toBeTrue()
         ->and($injection->is_active)->toBeTrue()
-        ->and($dripBase->is_active)->toBeTrue();
+        ->and($dripBase->is_active)->toBeTrue()
+        ->and($symptom->is_active)->toBeTrue();
+});
+
+test('authenticated admins can create a symptom with medicine mappings', function () {
+    $user = User::factory()->admin()->create();
+    $paracetamol = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $ibuprofen = Medicine::factory()->create(['name' => 'Ibuprofen']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'symptoms')
+        ->call('create')
+        ->set('symptomName', 'Pain')
+        ->set('symptomShortForm', 'PA')
+        ->set('symptomIsActive', true)
+        ->set('symptomMedicineIds', [$paracetamol->id, $ibuprofen->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $symptom = Symptom::query()->where('name', 'Pain')->first();
+
+    expect($symptom)->not->toBeNull()
+        ->and($symptom->short_form)->toBe('PA')
+        ->and($symptom->medicines->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$paracetamol->id, $ibuprofen->id])->sort()->values()->all());
+});
+
+test('authenticated admins can update symptom medicine mappings', function () {
+    $user = User::factory()->admin()->create();
+    $paracetamol = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $ibuprofen = Medicine::factory()->create(['name' => 'Ibuprofen']);
+    $symptom = Symptom::factory()->create(['name' => 'Fever']);
+    $symptom->medicines()->attach($paracetamol);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'symptoms')
+        ->call('edit', $symptom->id)
+        ->assertSet('symptomName', 'Fever')
+        ->assertSet('symptomMedicineIds', [$paracetamol->id])
+        ->set('symptomMedicineIds', [$ibuprofen->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($symptom->fresh()->medicines->pluck('id')->all())->toBe([$ibuprofen->id]);
+});
+
+test('symptom names must be unique', function () {
+    $user = User::factory()->admin()->create();
+    Symptom::factory()->create(['name' => 'Pain']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'symptoms')
+        ->call('create')
+        ->set('symptomName', 'Pain')
+        ->call('save')
+        ->assertHasErrors(['symptomName']);
+});
+
+test('inactive symptoms can still be managed in the catalog', function () {
+    $user = User::factory()->admin()->create();
+    $symptom = Symptom::factory()->inactive()->create(['name' => 'Cough']);
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'symptoms')
+        ->assertSee('Cough')
+        ->call('edit', $symptom->id)
+        ->set('symptomIsActive', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($symptom->fresh()->is_active)->toBeTrue();
 });

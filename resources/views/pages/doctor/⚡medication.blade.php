@@ -14,6 +14,7 @@ use App\Models\Medicine;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\Shift;
+use App\Models\Symptom;
 use App\Services\TokenDisplayService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -50,7 +51,9 @@ new #[Title('Medication')] class extends Component
 
     public string $notes = '';
 
-    public string $complaintOrDiagnosis = '';
+    public ?int $symptomId = null;
+
+    public string $legacyComplaint = '';
 
     public string $suggestedPrice = '';
 
@@ -199,6 +202,78 @@ new #[Title('Medication')] class extends Component
     public function dripBases(): Collection
     {
         return DripBase::query()->active()->orderBy('name')->get();
+    }
+
+    /**
+     * Active symptom catalog (includes inactive selected symptom when editing).
+     *
+     * @return Collection<int, Symptom>
+     */
+    #[Computed]
+    public function symptoms(): Collection
+    {
+        $symptoms = Symptom::query()->active()->orderBy('name')->get();
+
+        if ($this->symptomId === null) {
+            return $symptoms;
+        }
+
+        if ($symptoms->contains(fn (Symptom $symptom): bool => $symptom->id === $this->symptomId)) {
+            return $symptoms;
+        }
+
+        $selected = Symptom::query()->find($this->symptomId);
+
+        if ($selected === null) {
+            return $symptoms;
+        }
+
+        return $symptoms->push($selected)->sortBy('name')->values();
+    }
+
+    /**
+     * Symptom options for searchable select.
+     *
+     * @return list<array{value: int, label: string, keywords: string}>
+     */
+    #[Computed]
+    public function symptomOptions(): array
+    {
+        return $this->symptoms
+            ->map(function (Symptom $symptom): array {
+                $label = $symptom->name;
+
+                if (filled($symptom->short_form)) {
+                    $label = $symptom->short_form.' — '.$label;
+                }
+
+                return [
+                    'value' => $symptom->id,
+                    'label' => $label,
+                    'keywords' => trim($symptom->name.' '.($symptom->short_form ?? '')),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Active medicines mapped to the selected symptom.
+     *
+     * @return Collection<int, Medicine>
+     */
+    #[Computed]
+    public function suggestedMedicines(): Collection
+    {
+        if ($this->symptomId === null) {
+            return new Collection;
+        }
+
+        return Medicine::query()
+            ->active()
+            ->whereHas('symptoms', fn ($query) => $query->where('symptoms.id', $this->symptomId))
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -490,7 +565,8 @@ new #[Title('Medication')] class extends Component
         $this->showOrderPreviewModal = false;
         $this->resetOrderPreview();
         $this->notes = '';
-        $this->complaintOrDiagnosis = '';
+        $this->symptomId = null;
+        $this->legacyComplaint = '';
         $this->suggestedPrice = '';
         $this->dripServiceId = null;
         $this->recheckMinutes = '15';
@@ -577,6 +653,54 @@ new #[Title('Medication')] class extends Component
                 $this->medicationLines[$index]['administration_type'] = $injection->default_administration_type->value;
             }
         }
+    }
+
+    /**
+     * Normalize the symptom select value after Livewire updates.
+     */
+    public function updatedSymptomId(mixed $value): void
+    {
+        if ($value === '' || $value === null) {
+            $this->symptomId = null;
+
+            return;
+        }
+
+        $this->symptomId = (int) $value;
+        $this->legacyComplaint = '';
+        unset($this->suggestedMedicines, $this->symptoms, $this->symptomOptions);
+    }
+
+    /**
+     * Fill the first blank medication row with a suggested medicine, or append a new row.
+     */
+    public function addSuggestedMedicine(int $medicineId): void
+    {
+        if (! $this->suggestedMedicines->contains(fn (Medicine $medicine): bool => $medicine->id === $medicineId)) {
+            return;
+        }
+
+        $selection = 'medicine:'.$medicineId;
+
+        foreach ($this->medicationLines as $line) {
+            if (($line['selection'] ?? null) === $selection) {
+                return;
+            }
+        }
+
+        foreach ($this->medicationLines as $index => $line) {
+            if (! filled($line['selection'] ?? null)) {
+                $this->medicationLines[$index]['selection'] = $selection;
+                $this->updatedMedicationLines($selection, $index.'.selection');
+
+                return;
+            }
+        }
+
+        $this->addMedicationLine();
+        $index = array_key_last($this->medicationLines);
+        $this->medicationLines[$index]['selection'] = $selection;
+        $this->updatedMedicationLines($selection, $index.'.selection');
     }
 
     public function addDripLine(): void
@@ -807,7 +931,10 @@ new #[Title('Medication')] class extends Component
                 'doctor_id' => $token->serviceQueue?->doctor_id,
                 'prescribed_by' => auth()->id(),
                 'status' => MedicationOrderStatus::Pending,
-                'complaint_or_diagnosis' => $validated['complaintOrDiagnosis'] !== '' ? $validated['complaintOrDiagnosis'] : null,
+                'symptom_id' => $validated['symptomId'] ?? null,
+                'complaint_or_diagnosis' => filled($validated['complaintOrDiagnosis'] ?? null)
+                    ? $validated['complaintOrDiagnosis']
+                    : null,
                 'notes' => $validated['notes'] !== '' ? $validated['notes'] : null,
                 'administered_by' => null,
                 'administered_at' => null,
@@ -912,6 +1039,16 @@ new #[Title('Medication')] class extends Component
     private function validatedOrderData(): ?array
     {
         $validated = $this->validate($this->orderRules());
+
+        $symptom = null;
+
+        if (filled($validated['symptomId'] ?? null)) {
+            $symptom = Symptom::query()->find((int) $validated['symptomId']);
+        }
+
+        $validated['complaintOrDiagnosis'] = $symptom?->name ?? (
+            filled($this->legacyComplaint) ? $this->legacyComplaint : null
+        );
 
         $medicationLines = collect($validated['medicationLines'] ?? [])
             ->filter(fn (array $line): bool => filled($line['selection'] ?? null))
@@ -1048,7 +1185,7 @@ new #[Title('Medication')] class extends Component
     private function orderRules(): array
     {
         return [
-            'complaintOrDiagnosis' => ['nullable', 'string', 'max:2000'],
+            'symptomId' => ['nullable', 'integer', 'exists:symptoms,id'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'suggestedPrice' => ['nullable', 'numeric', 'min:0'],
             'dripServiceId' => [
@@ -1271,7 +1408,8 @@ new #[Title('Medication')] class extends Component
 
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
-            $this->complaintOrDiagnosis = '';
+            $this->symptomId = null;
+            $this->legacyComplaint = '';
             $this->medicationLines = [];
             $this->dripLines = [];
             $this->ensureDefaultOrderLines();
@@ -1280,7 +1418,10 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->notes = $order->notes ?? '';
-        $this->complaintOrDiagnosis = $order->complaint_or_diagnosis ?? '';
+        $this->symptomId = $order->symptom_id;
+        $this->legacyComplaint = $order->symptom_id === null
+            ? ($order->complaint_or_diagnosis ?? '')
+            : '';
         $medicineLines = $order->medicines->map(fn ($line) => [
             'selection' => $line->medicine_id !== null ? 'medicine:'.$line->medicine_id : 'custom:'.$line->name,
             'dose' => $line->dose->value,
@@ -1516,14 +1657,42 @@ new #[Title('Medication')] class extends Component
         </div>
 
         <flux:field>
-            <flux:label>{{ __('Patient complaint / diagnosis') }}</flux:label>
-            <flux:textarea
-                wire:model="complaintOrDiagnosis"
-                rows="2"
-                placeholder="{{ __('Enter the patient complaint or diagnosis') }}"
+            <flux:label>{{ __('Symptom') }}</flux:label>
+            <x-searchable-select
+                wire:model.live="symptomId"
+                :options="$this->symptomOptions"
+                :placeholder="__('Search symptom')"
             />
-            <flux:error name="complaintOrDiagnosis" />
+            <flux:error name="symptomId" />
         </flux:field>
+
+        @if ($symptomId === null && filled($legacyComplaint))
+            <flux:callout icon="information-circle" variant="secondary">
+                <flux:callout.heading>{{ __('Previous complaint / diagnosis') }}</flux:callout.heading>
+                <flux:callout.text>{{ $legacyComplaint }}</flux:callout.text>
+            </flux:callout>
+        @endif
+
+        @if ($this->suggestedMedicines->isNotEmpty())
+            <div class="space-y-2">
+                <flux:text class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {{ __('Suggested medicines') }}
+                </flux:text>
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($this->suggestedMedicines as $medicine)
+                        <flux:button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            wire:key="suggested-medicine-{{ $medicine->id }}"
+                            wire:click="addSuggestedMedicine({{ $medicine->id }})"
+                        >
+                            {{ $medicine->short_form ? $medicine->short_form.' — '.$medicine->name : $medicine->name }}
+                        </flux:button>
+                    @endforeach
+                </div>
+            </div>
+        @endif
 
         <div class="border-b border-zinc-200 dark:border-zinc-700">
             <nav class="-mb-px flex gap-4">

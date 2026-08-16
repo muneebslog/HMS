@@ -436,6 +436,26 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
+### `symptoms`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | UQ |
+| short_form | string | nullable, e.g. `PA` for search shortcuts |
+| is_active | boolean | default true, IDX |
+| timestamps | | |
+
+Admin-managed catalog used by doctors to pick a symptom when prescribing; linked medicines become clickable suggestions.
+
+### `medicine_symptom`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medicine_id | FK → medicines | cascadeOnDelete |
+| symptom_id | FK → symptoms | cascadeOnDelete |
+| timestamps | | |
+| | | UQ (`medicine_id`, `symptom_id`) |
+
 ### `injections`
 | Column | Type | Notes |
 |--------|------|-------|
@@ -489,7 +509,8 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | prescribed_by | FK → users | cascadeOnDelete |
 | status | string | default `pending` (`MedicationOrderStatus`), IDX |
-| complaint_or_diagnosis | text | nullable |
+| complaint_or_diagnosis | text | nullable — symptom name snapshot (or legacy free text) |
+| symptom_id | FK → symptoms | nullable, nullOnDelete |
 | notes | text | nullable |
 | administered_by | FK → users | nullable, nullOnDelete (legacy) |
 | administered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
@@ -1181,7 +1202,8 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    ├── ultrasound_reports
         │            │                                    ├── drip_charges
         │            │                                    ├── doctor_rechecks
-        │            │                                    └── medication_orders ──┬── medication_order_medicines ── medicines / health_aides
+        │            │                                    └── medication_orders ──┬── symptoms (optional)
+        │            │                                                           ├── medication_order_medicines ── medicines / health_aides
         │            │                                                           ├── medication_order_injections ── injections / health_aides
         │            │                                                           └── medication_order_drips ──┬── drip_bases / health_aides / users
         │            │                                                                                       └── medication_order_drip_additives ── injections
@@ -1194,7 +1216,8 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │                   └── drive_files
         ├── monthly_expenses
         ├── doctors (optional user_id link) ── lab_doctor_shares
-        ├── medicines / injections / drip_bases (catalogs)
+        ├── medicines / injections / drip_bases / symptoms (catalogs)
+        │     └── medicine_symptom (symptom ↔ medicine mappings)
         ├── employees ──┬── employee_documents
         │               ├── employee_todos
         │               ├── employee_qualifications
