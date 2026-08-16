@@ -441,11 +441,10 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 |--------|------|-------|
 | id | bigint | PK |
 | name | string | UQ |
-| short_form | string | nullable, e.g. `PA` for search shortcuts |
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
-Admin-managed catalog used by doctors to pick a symptom when prescribing; linked medicines become clickable suggestions.
+Admin-managed catalog used by doctors to pick a symptom when prescribing; linked medicines become clickable suggestions. Doctors find symptoms by typing any part of the name.
 
 ### `medicine_symptom`
 | Column | Type | Notes |

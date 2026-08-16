@@ -216,9 +216,6 @@ new #[Title('Management')] class extends Component
     public string $symptomName = '';
 
     #[Validate]
-    public string $symptomShortForm = '';
-
-    #[Validate]
     public bool $symptomIsActive = true;
 
     /**
@@ -353,7 +350,6 @@ new #[Title('Management')] class extends Component
             ],
             'symptoms' => [
                 'symptomName' => ['required', 'string', 'max:255', Rule::unique('symptoms', 'name')->ignore($this->editingId)],
-                'symptomShortForm' => ['nullable', 'string', 'max:50'],
                 'symptomIsActive' => ['boolean'],
                 'symptomMedicineIds' => ['array'],
                 'symptomMedicineIds.*' => ['integer', 'exists:medicines,id'],
@@ -633,7 +629,6 @@ new #[Title('Management')] class extends Component
         $symptom = Symptom::with('medicines')->findOrFail($id);
 
         $this->symptomName = $symptom->name;
-        $this->symptomShortForm = $symptom->short_form ?? '';
         $this->symptomIsActive = $symptom->is_active;
         $this->symptomMedicineIds = $symptom->medicines->pluck('id')->all();
     }
@@ -696,7 +691,6 @@ new #[Title('Management')] class extends Component
             'roomNumber',
             'roomIsActive',
             'symptomName',
-            'symptomShortForm',
             'symptomIsActive',
             'symptomMedicineIds',
             'medicineBulkRows',
@@ -1054,7 +1048,6 @@ new #[Title('Management')] class extends Component
     {
         $data = [
             'name' => $validated['symptomName'],
-            'short_form' => filled($validated['symptomShortForm'] ?? null) ? $validated['symptomShortForm'] : null,
             'is_active' => $validated['symptomIsActive'],
         ];
 
@@ -2011,7 +2004,6 @@ new #[Title('Management')] class extends Component
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
-                            <flux:table.column>{{ __('Short form') }}</flux:table.column>
                             <flux:table.column>{{ __('Medicines') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -2021,7 +2013,6 @@ new #[Title('Management')] class extends Component
                             @forelse ($this->symptoms as $symptom)
                                 <flux:table.row wire:key="symptom-{{ $symptom->id }}">
                                     <flux:table.cell>{{ $symptom->name }}</flux:table.cell>
-                                    <flux:table.cell>{{ $symptom->short_form ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>
                                         @if ($symptom->medicines->isEmpty())
                                             —
@@ -2041,7 +2032,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
                                         {{ __('No symptoms found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2541,12 +2532,6 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Name') }}</flux:label>
                     <flux:input wire:model="symptomName" type="text" required />
                     <flux:error name="symptomName" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Short form') }}</flux:label>
-                    <flux:input wire:model="symptomShortForm" type="text" placeholder="{{ __('e.g. PA') }}" />
-                    <flux:error name="symptomShortForm" />
                 </flux:field>
 
                 <flux:field>

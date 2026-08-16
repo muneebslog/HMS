@@ -19,7 +19,6 @@ class SymptomFactory extends Factory
     {
         return [
             'name' => fake()->unique()->words(2, true),
-            'short_form' => null,
             'is_active' => true,
         ];
     }

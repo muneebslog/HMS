@@ -240,19 +240,11 @@ new #[Title('Medication')] class extends Component
     public function symptomOptions(): array
     {
         return $this->symptoms
-            ->map(function (Symptom $symptom): array {
-                $label = $symptom->name;
-
-                if (filled($symptom->short_form)) {
-                    $label = $symptom->short_form.' — '.$label;
-                }
-
-                return [
-                    'value' => $symptom->id,
-                    'label' => $label,
-                    'keywords' => trim($symptom->name.' '.($symptom->short_form ?? '')),
-                ];
-            })
+            ->map(fn (Symptom $symptom): array => [
+                'value' => $symptom->id,
+                'label' => $symptom->name,
+                'keywords' => $symptom->name,
+            ])
             ->values()
             ->all();
     }

@@ -457,7 +457,7 @@ test('doctor can save a medication order for a standalone service without a doct
     $injection = Injection::factory()->create(['name' => 'Diclofenac']);
     $additiveInjection = Injection::factory()->create(['name' => 'Vitamin B12']);
     $dripBase = DripBase::factory()->create(['name' => 'Normal Saline', 'default_volume_ml' => 100]);
-    $symptom = Symptom::factory()->create(['name' => 'Fever and body aches', 'short_form' => 'FBA']);
+    $symptom = Symptom::factory()->create(['name' => 'Fever and body aches']);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
@@ -891,10 +891,10 @@ test('a blank written injection name is rejected', function () {
     expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
 });
 
-test('symptom options include short form keywords for prefix search', function () {
+test('symptom options match name autocomplete without short forms', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
-    Symptom::factory()->create(['name' => 'Pain', 'short_form' => 'PA']);
-    Symptom::factory()->inactive()->create(['name' => 'Hidden Pain', 'short_form' => 'HP']);
+    Symptom::factory()->create(['name' => 'Pain']);
+    Symptom::factory()->inactive()->create(['name' => 'Hidden Pain']);
 
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
@@ -902,9 +902,8 @@ test('symptom options include short form keywords for prefix search', function (
 
     $options = collect($component->instance()->symptomOptions);
 
-    expect($options->firstWhere('label', 'PA — Pain'))->not->toBeNull()
-        ->and($options->firstWhere('label', 'PA — Pain')['keywords'])->toContain('Pain')
-        ->and($options->firstWhere('label', 'PA — Pain')['keywords'])->toContain('PA')
+    expect($options->firstWhere('label', 'Pain'))->not->toBeNull()
+        ->and($options->firstWhere('label', 'Pain')['keywords'])->toBe('Pain')
         ->and($options->firstWhere('label', 'Hidden Pain'))->toBeNull();
 });
 
@@ -916,7 +915,7 @@ test('selecting a symptom shows mapped medicine suggestions without auto-adding 
     ]);
     $ibuprofen = Medicine::factory()->create(['name' => 'Ibuprofen']);
     Medicine::factory()->create(['name' => 'Unrelated Antibiotic']);
-    $symptom = Symptom::factory()->create(['name' => 'Pain', 'short_form' => 'PA']);
+    $symptom = Symptom::factory()->create(['name' => 'Pain']);
     $symptom->medicines()->attach([$paracetamol->id, $ibuprofen->id]);
 
     $component = Livewire::actingAs($user)

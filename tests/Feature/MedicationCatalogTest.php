@@ -199,7 +199,7 @@ test('catalog models can be created via factories', function () {
     $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
     $injection = Injection::factory()->create(['name' => 'Ceftriaxone']);
     $dripBase = DripBase::factory()->create(['name' => 'Ringer Lactate']);
-    $symptom = Symptom::factory()->create(['name' => 'Pain', 'short_form' => 'PA']);
+    $symptom = Symptom::factory()->create(['name' => 'Pain']);
 
     expect($medicine->is_active)->toBeTrue()
         ->and($injection->is_active)->toBeTrue()
@@ -217,7 +217,6 @@ test('authenticated admins can create a symptom with medicine mappings', functio
         ->set('activeTab', 'symptoms')
         ->call('create')
         ->set('symptomName', 'Pain')
-        ->set('symptomShortForm', 'PA')
         ->set('symptomIsActive', true)
         ->set('symptomMedicineIds', [$paracetamol->id, $ibuprofen->id])
         ->call('save')
@@ -226,7 +225,6 @@ test('authenticated admins can create a symptom with medicine mappings', functio
     $symptom = Symptom::query()->where('name', 'Pain')->first();
 
     expect($symptom)->not->toBeNull()
-        ->and($symptom->short_form)->toBe('PA')
         ->and($symptom->medicines->pluck('id')->sort()->values()->all())
         ->toBe(collect([$paracetamol->id, $ibuprofen->id])->sort()->values()->all());
 });

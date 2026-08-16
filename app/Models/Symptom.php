@@ -20,7 +20,6 @@ class Symptom extends Model
      */
     protected $fillable = [
         'name',
-        'short_form',
         'is_active',
     ];
 
