@@ -8,6 +8,7 @@ use Database\Factories\MedicationOrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -30,7 +31,6 @@ class MedicationOrder extends Model
         'prescribed_by',
         'status',
         'complaint_or_diagnosis',
-        'symptom_id',
         'notes',
         'administered_by',
         'administered_by_health_aide_id',
@@ -92,11 +92,13 @@ class MedicationOrder extends Model
     }
 
     /**
-     * @return BelongsTo<Symptom, $this>
+     * Symptoms recorded as the diagnosis for this order.
+     *
+     * @return BelongsToMany<Symptom, $this>
      */
-    public function symptom(): BelongsTo
+    public function symptoms(): BelongsToMany
     {
-        return $this->belongsTo(Symptom::class);
+        return $this->belongsToMany(Symptom::class)->withTimestamps()->orderBy('symptoms.name');
     }
 
     /**

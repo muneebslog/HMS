@@ -2,6 +2,7 @@
     'options' => [],
     'placeholder' => null,
     'allowCustom' => false,
+    'multiple' => false,
 ])
 
 @php
@@ -26,20 +27,37 @@
         highlight: 0,
         value: null,
         allowCustom: {{ \Illuminate\Support\Js::from((bool) $allowCustom) }},
+        multiple: {{ \Illuminate\Support\Js::from((bool) $multiple) }},
         options: {{ \Illuminate\Support\Js::from($normalizedOptions) }},
         placeholder: {{ \Illuminate\Support\Js::from($placeholder) }},
         customPrefix: 'custom:',
         get query() {
             return this.typed ? this.search.trim() : '';
         },
+        get selectedValues() {
+            if (Array.isArray(this.value)) {
+                return this.value;
+            }
+
+            return this.value === null || this.value === '' ? [] : [this.value];
+        },
+        get available() {
+            if (! this.multiple) {
+                return this.options;
+            }
+
+            return this.options.filter(
+                (option) => ! this.selectedValues.some((selected) => String(selected) === String(option.value))
+            );
+        },
         get filtered() {
             const query = this.query.toLowerCase();
 
             if (! query) {
-                return this.options;
+                return this.available;
             }
 
-            return this.options.filter((option) => {
+            return this.available.filter((option) => {
                 const haystack = [option.label, option.keywords ?? ''].join(' ').toLowerCase();
 
                 return haystack.includes(query);
@@ -55,6 +73,10 @@
             return ! this.options.some((option) => String(option.label).toLowerCase() === query.toLowerCase());
         },
         get selectedLabel() {
+            if (this.multiple) {
+                return '';
+            }
+
             const raw = this.value;
 
             if (raw === null || raw === '') {
@@ -99,6 +121,16 @@
             this.open = true;
         },
         select(option) {
+            if (this.multiple) {
+                this.value = [...this.selectedValues, option.value];
+                this.search = '';
+                this.typed = false;
+                this.highlight = 0;
+                this.$nextTick(() => this.$refs.input?.focus());
+
+                return;
+            }
+
             this.value = option.value;
             this.closeList();
         },
@@ -106,6 +138,15 @@
             const query = this.query;
 
             if (! this.allowCustom || query === '') {
+                return;
+            }
+
+            if (this.multiple) {
+                this.value = [...this.selectedValues, this.customPrefix + query];
+                this.search = '';
+                this.typed = false;
+                this.highlight = 0;
+
                 return;
             }
 
@@ -118,7 +159,10 @@
             }
 
             if (this.typed && this.query === '') {
-                this.value = null;
+                if (! this.multiple) {
+                    this.value = null;
+                }
+
                 this.closeList();
 
                 return;
@@ -157,7 +201,7 @@
     x-modelable="value"
     {{ $attributes->wire('model') }}
     {{ $attributes
-        ->except(['options', 'placeholder', 'allowCustom'])
+        ->except(['options', 'placeholder', 'allowCustom', 'multiple'])
         ->whereDoesntStartWith('wire:model')
         ->class('relative') }}
     @click.outside="closeList()"

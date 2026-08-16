@@ -463,7 +463,7 @@ test('doctor can save a medication order for a standalone service without a doct
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->set('medicationLines', [
             [
                 'selection' => 'medicine:'.$medicine->id,
@@ -494,7 +494,7 @@ test('doctor can save a medication order for a standalone service without a doct
         ->and($order->doctor_id)->toBeNull()
         ->and($order->prescribed_by)->toBe($user->id)
         ->and($order->status)->toBe(MedicationOrderStatus::Pending)
-        ->and($order->symptom_id)->toBe($symptom->id)
+        ->and($order->symptoms->pluck('id')->all())->toBe([$symptom->id])
         ->and($order->complaint_or_diagnosis)->toBe('Fever and body aches')
         ->and($order->medicines)->toHaveCount(1)
         ->and($order->injections)->toHaveCount(1)
@@ -668,10 +668,11 @@ test('doctor can open medication history modal for a patient', function () {
         'queue_token_id' => $pastToken->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
-        'symptom_id' => $symptom->id,
         'complaint_or_diagnosis' => 'Fever',
         'created_at' => now()->subDays(5),
     ]);
+
+    $pastOrder->symptoms()->attach($symptom);
 
     $pastOrder->medicines()->create([
         'medicine_id' => $medicine->id,
@@ -926,7 +927,7 @@ test('selecting a symptom shows mapped medicine suggestions without auto-adding 
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->assertSee(__('Suggested medicines'))
         ->assertSee('Paracetamol')
         ->assertSee('Ibuprofen');
@@ -948,7 +949,7 @@ test('doctor can add a suggested medicine into the first blank row with defaults
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->call('addSuggestedMedicine', $medicine->id)
         ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.dose', '1-0-1')
@@ -957,7 +958,7 @@ test('doctor can add a suggested medicine into the first blank row with defaults
 
     $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
 
-    expect($order->symptom_id)->toBe($symptom->id)
+    expect($order->symptoms->pluck('id')->all())->toBe([$symptom->id])
         ->and($order->complaint_or_diagnosis)->toBe('Pain')
         ->and($order->medicines)->toHaveCount(1);
 });
@@ -971,7 +972,7 @@ test('suggested medicines are not duplicated when clicked again', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->call('addSuggestedMedicine', $medicine->id)
         ->call('addSuggestedMedicine', $medicine->id)
         ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
@@ -988,7 +989,6 @@ test('legacy medication orders without a symptom still load their complaint text
         'prescribed_by' => $user->id,
         'status' => MedicationOrderStatus::Pending,
         'complaint_or_diagnosis' => 'Old free text complaint',
-        'symptom_id' => null,
     ]);
 
     $order->medicines()->create([
@@ -1006,7 +1006,7 @@ test('legacy medication orders without a symptom still load their complaint text
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSet('symptomId', null)
+        ->assertSet('symptomIds', [])
         ->assertSet('legacyComplaint', 'Old free text complaint')
         ->assertSee(__('Previous complaint / diagnosis'))
         ->assertSee('Old free text complaint')
@@ -1023,12 +1023,129 @@ test('the diagnosis badge only shows once a mapped medicine is prescribed', func
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->assertDontSee(__('Diagnosis').': Pain')
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->assertDontSee(__('Diagnosis').': Pain')
         ->call('addSuggestedMedicine', $medicine->id)
         ->assertSee(__('Diagnosis').': Pain')
         ->call('removeMedicationLine', 0)
         ->assertDontSee(__('Diagnosis').': Pain');
+});
+
+test('doctor can record several symptoms and gets medicines suggested for all of them', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $paracetamol = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $coughSyrup = Medicine::factory()->create(['name' => 'Cough Syrup']);
+    Medicine::factory()->create(['name' => 'Unrelated Antibiotic']);
+    $fever = Symptom::factory()->create(['name' => 'Fever']);
+    $cough = Symptom::factory()->create(['name' => 'Cough']);
+    $fever->medicines()->attach($paracetamol);
+    $cough->medicines()->attach($coughSyrup);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('symptomIds', [$fever->id, $cough->id])
+        ->assertSee('Fever')
+        ->assertSee('Cough')
+        ->call('addSuggestedMedicine', $paracetamol->id)
+        ->call('addSuggestedMedicine', $coughSyrup->id)
+        ->assertSee(__('Diagnosis').': Cough')
+        ->assertSee(__('Diagnosis').': Fever');
+
+    expect($component->instance()->suggestedMedicines->pluck('name')->all())
+        ->toBe(['Cough Syrup', 'Paracetamol']);
+
+    $component->call('save')->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->symptoms->pluck('name')->all())->toBe(['Cough', 'Fever'])
+        ->and($order->complaint_or_diagnosis)->toBe('Cough, Fever')
+        ->and($order->medicines)->toHaveCount(2);
+});
+
+test('removing one symptom medicine only drops that symptom from the diagnosis', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $paracetamol = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $coughSyrup = Medicine::factory()->create(['name' => 'Cough Syrup']);
+    $fever = Symptom::factory()->create(['name' => 'Fever']);
+    $cough = Symptom::factory()->create(['name' => 'Cough']);
+    $fever->medicines()->attach($paracetamol);
+    $cough->medicines()->attach($coughSyrup);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('symptomIds', [$fever->id, $cough->id])
+        ->call('addSuggestedMedicine', $coughSyrup->id)
+        ->call('addSuggestedMedicine', $paracetamol->id)
+        ->call('removeMedicationLine', 0)
+        ->assertDontSee(__('Diagnosis').': Cough')
+        ->assertSee(__('Diagnosis').': Fever')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->symptoms->pluck('name')->all())->toBe(['Fever'])
+        ->and($order->complaint_or_diagnosis)->toBe('Fever');
+});
+
+test('doctor can drop a picked symptom chip before prescribing', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $fever = Symptom::factory()->create(['name' => 'Fever']);
+    $cough = Symptom::factory()->create(['name' => 'Cough']);
+    $fever->medicines()->attach($medicine);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('symptomIds', [$fever->id, $cough->id])
+        ->call('removeSymptom', $cough->id)
+        ->assertSet('symptomIds', [$fever->id]);
+
+    expect(collect($component->instance()->symptomOptions)->firstWhere('label', 'Fever'))->toBeNull()
+        ->and(collect($component->instance()->symptomOptions)->firstWhere('label', 'Cough'))->not->toBeNull();
+});
+
+test('a saved order with several symptoms shows one history badge per symptom', function () {
+    [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $fever = Symptom::factory()->create(['name' => 'Fever']);
+    $cough = Symptom::factory()->create(['name' => 'Cough']);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 91,
+        'status' => 'served',
+        'arrived_at' => now()->subDay(),
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'complaint_or_diagnosis' => 'Cough, Fever',
+        'created_at' => now()->subDay(),
+    ]);
+
+    $pastOrder->symptoms()->attach([$fever->id, $cough->id]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => 'Paracetamol',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->assertSee(__('Diagnosis').': Cough')
+        ->assertSee(__('Diagnosis').': Fever')
+        ->assertDontSee(__('Diagnosis').': Cough, Fever');
 });
 
 test('removing the symptom medicine keeps the diagnosis off the saved order', function () {
@@ -1041,7 +1158,7 @@ test('removing the symptom medicine keeps the diagnosis off the saved order', fu
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->set('symptomId', $symptom->id)
+        ->set('symptomIds', [$symptom->id])
         ->call('addSuggestedMedicine', $medicine->id)
         ->call('addMedicationLine')
         ->set('medicationLines.1.selection', 'medicine:'.$other->id)
@@ -1051,7 +1168,7 @@ test('removing the symptom medicine keeps the diagnosis off the saved order', fu
 
     $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
 
-    expect($order->symptom_id)->toBeNull()
+    expect($order->symptoms)->toHaveCount(0)
         ->and($order->complaint_or_diagnosis)->toBeNull()
         ->and($order->medicines)->toHaveCount(1);
 });
@@ -1073,10 +1190,11 @@ test('saved symptom diagnosis appears as a badge in medication history', functio
         'queue_token_id' => $pastToken->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
-        'symptom_id' => $symptom->id,
         'complaint_or_diagnosis' => 'Pain',
         'created_at' => now()->subDay(),
     ]);
+
+    $pastOrder->symptoms()->attach($symptom);
 
     $pastOrder->medicines()->create([
         'medicine_id' => $medicine->id,

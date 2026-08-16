@@ -444,7 +444,7 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | is_active | boolean | default true, IDX |
 | timestamps | | |
 
-Admin-managed catalog used by doctors to pick a symptom when prescribing; linked medicines become clickable suggestions. Doctors find symptoms by typing any part of the name.
+Admin-managed catalog used by doctors to pick one or more symptoms when prescribing; linked medicines become clickable suggestions. Doctors find symptoms by typing any part of the name.
 
 ### `medicine_symptom`
 | Column | Type | Notes |
@@ -508,8 +508,7 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | prescribed_by | FK → users | cascadeOnDelete |
 | status | string | default `pending` (`MedicationOrderStatus`), IDX |
-| complaint_or_diagnosis | text | nullable — symptom name snapshot (or legacy free text) |
-| symptom_id | FK → symptoms | nullable, nullOnDelete |
+| complaint_or_diagnosis | text | nullable — comma-joined symptom name snapshot (or legacy free text) |
 | notes | text | nullable |
 | administered_by | FK → users | nullable, nullOnDelete (legacy) |
 | administered_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
@@ -517,6 +516,17 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | timestamps | | |
 
 One medication order per queue token. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. Status becomes `administered` when all medicines and injections are delivered via the health aide kiosk (drips tracked separately).
+
+### `medication_order_symptom`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| medication_order_id | FK → medication_orders | cascadeOnDelete |
+| symptom_id | FK → symptoms | cascadeOnDelete |
+| timestamps | | |
+| | | UQ (`medication_order_id`, `symptom_id`) |
+
+Diagnosis history for the order. A symptom is only attached while at least one of its mapped medicines stays on the prescription, so removing that medicine removes the diagnosis. `complaint_or_diagnosis` keeps a comma-joined snapshot of these names for old orders and printouts.
 
 ### `medication_order_medicines`
 | Column | Type | Notes |
@@ -1201,7 +1211,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                    ├── ultrasound_reports
         │            │                                    ├── drip_charges
         │            │                                    ├── doctor_rechecks
-        │            │                                    └── medication_orders ──┬── symptoms (optional)
+        │            │                                    └── medication_orders ──┬── medication_order_symptom ── symptoms
         │            │                                                           ├── medication_order_medicines ── medicines / health_aides
         │            │                                                           ├── medication_order_injections ── injections / health_aides
         │            │                                                           └── medication_order_drips ──┬── drip_bases / health_aides / users
