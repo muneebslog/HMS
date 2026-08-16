@@ -458,6 +458,7 @@ test('doctor can save a medication order for a standalone service without a doct
     $additiveInjection = Injection::factory()->create(['name' => 'Vitamin B12']);
     $dripBase = DripBase::factory()->create(['name' => 'Normal Saline', 'default_volume_ml' => 100]);
     $symptom = Symptom::factory()->create(['name' => 'Fever and body aches']);
+    $symptom->medicines()->attach($medicine);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
@@ -1012,16 +1013,47 @@ test('legacy medication orders without a symptom still load their complaint text
         ->assertSee(__('Diagnosis').': Old free text complaint');
 });
 
-test('selecting a symptom shows a diagnosis badge on the current patient screen', function () {
+test('the diagnosis badge only shows once a mapped medicine is prescribed', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
     $symptom = Symptom::factory()->create(['name' => 'Pain']);
+    $symptom->medicines()->attach($medicine);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->assertDontSee(__('Diagnosis').': Pain')
         ->set('symptomId', $symptom->id)
-        ->assertSee(__('Diagnosis').': Pain');
+        ->assertDontSee(__('Diagnosis').': Pain')
+        ->call('addSuggestedMedicine', $medicine->id)
+        ->assertSee(__('Diagnosis').': Pain')
+        ->call('removeMedicationLine', 0)
+        ->assertDontSee(__('Diagnosis').': Pain');
+});
+
+test('removing the symptom medicine keeps the diagnosis off the saved order', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $other = Medicine::factory()->create(['name' => 'Unrelated Antibiotic']);
+    $symptom = Symptom::factory()->create(['name' => 'Pain']);
+    $symptom->medicines()->attach($medicine);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('symptomId', $symptom->id)
+        ->call('addSuggestedMedicine', $medicine->id)
+        ->call('addMedicationLine')
+        ->set('medicationLines.1.selection', 'medicine:'.$other->id)
+        ->call('removeMedicationLine', 0)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->symptom_id)->toBeNull()
+        ->and($order->complaint_or_diagnosis)->toBeNull()
+        ->and($order->medicines)->toHaveCount(1);
 });
 
 test('saved symptom diagnosis appears as a badge in medication history', function () {

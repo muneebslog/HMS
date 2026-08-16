@@ -269,20 +269,77 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Every medicine id mapped to the selected symptom, including inactive ones.
+     *
+     * @return list<int>
+     */
+    #[Computed]
+    public function symptomMedicineIds(): array
+    {
+        if ($this->symptomId === null) {
+            return [];
+        }
+
+        return Medicine::query()
+            ->whereHas('symptoms', fn ($query) => $query->where('symptoms.id', $this->symptomId))
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
      * Diagnosis label for the current order: selected symptom or legacy free text.
+     * The symptom only counts as a diagnosis while one of its medicines is prescribed.
      */
     #[Computed]
     public function selectedDiagnosisLabel(): ?string
     {
-        if ($this->symptomId !== null) {
-            $symptom = $this->symptoms->firstWhere('id', $this->symptomId);
+        $symptom = $this->diagnosisSymptom();
 
-            if ($symptom !== null) {
-                return $symptom->name;
-            }
+        if ($symptom !== null) {
+            return $symptom->name;
         }
 
         return filled($this->legacyComplaint) ? $this->legacyComplaint : null;
+    }
+
+    /**
+     * The selected symptom, but only while one of its medicines is on the order.
+     */
+    private function diagnosisSymptom(): ?Symptom
+    {
+        if ($this->symptomId === null || ! $this->hasSymptomMedicineOnOrder()) {
+            return null;
+        }
+
+        return $this->symptoms->firstWhere('id', $this->symptomId);
+    }
+
+    /**
+     * Whether any prescribed medicine is mapped to the selected symptom.
+     */
+    private function hasSymptomMedicineOnOrder(): bool
+    {
+        $symptomMedicineIds = $this->symptomMedicineIds;
+
+        if ($symptomMedicineIds === []) {
+            return false;
+        }
+
+        foreach ($this->medicationLines as $line) {
+            $selection = $line['selection'] ?? null;
+
+            if ($this->medicationSelectionType($selection) !== 'medicine') {
+                continue;
+            }
+
+            $medicineId = $this->medicationSelectionId($selection);
+
+            if ($medicineId !== null && in_array($medicineId, $symptomMedicineIds, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -634,6 +691,7 @@ new #[Title('Medication')] class extends Component
     {
         unset($this->medicationLines[$index]);
         $this->medicationLines = array_values($this->medicationLines);
+        unset($this->selectedDiagnosisLabel);
     }
 
     public function updatedMedicationLines(mixed $value, ?string $key): void
@@ -641,6 +699,8 @@ new #[Title('Medication')] class extends Component
         if (! is_string($key) || ! str_ends_with($key, '.selection')) {
             return;
         }
+
+        unset($this->selectedDiagnosisLabel);
 
         $index = (int) explode('.', $key)[0];
         $selection = $this->medicationLines[$index]['selection'] ?? null;
@@ -671,14 +731,20 @@ new #[Title('Medication')] class extends Component
     {
         if ($value === '' || $value === null) {
             $this->symptomId = null;
-            unset($this->suggestedMedicines, $this->selectedDiagnosisLabel);
+            unset($this->suggestedMedicines, $this->symptomMedicineIds, $this->selectedDiagnosisLabel);
 
             return;
         }
 
         $this->symptomId = (int) $value;
         $this->legacyComplaint = '';
-        unset($this->suggestedMedicines, $this->symptoms, $this->symptomOptions, $this->selectedDiagnosisLabel);
+        unset(
+            $this->suggestedMedicines,
+            $this->symptoms,
+            $this->symptomOptions,
+            $this->symptomMedicineIds,
+            $this->selectedDiagnosisLabel,
+        );
     }
 
     /**
@@ -1050,12 +1116,8 @@ new #[Title('Medication')] class extends Component
     {
         $validated = $this->validate($this->orderRules());
 
-        $symptom = null;
-
-        if (filled($validated['symptomId'] ?? null)) {
-            $symptom = Symptom::query()->find((int) $validated['symptomId']);
-        }
-
+        $symptom = $this->diagnosisSymptom();
+        $validated['symptomId'] = $symptom?->id;
         $validated['complaintOrDiagnosis'] = $symptom?->name ?? (
             filled($this->legacyComplaint) ? $this->legacyComplaint : null
         );
@@ -1415,6 +1477,12 @@ new #[Title('Medication')] class extends Component
             : '';
         $this->dripServiceId = $pendingCharge?->service_id
             ?? $this->dripServices->first()?->id;
+
+        unset(
+            $this->suggestedMedicines,
+            $this->symptomMedicineIds,
+            $this->selectedDiagnosisLabel,
+        );
 
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
