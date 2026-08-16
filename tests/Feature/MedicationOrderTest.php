@@ -653,6 +653,7 @@ test('blank default order rows are ignored when saving', function () {
 test('doctor can open medication history modal for a patient', function () {
     [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
+    $symptom = Symptom::factory()->create(['name' => 'Fever']);
 
     $pastToken = QueueToken::factory()->create([
         'service_queue_id' => $queue->id,
@@ -666,6 +667,8 @@ test('doctor can open medication history modal for a patient', function () {
         'queue_token_id' => $pastToken->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
+        'symptom_id' => $symptom->id,
+        'complaint_or_diagnosis' => 'Fever',
         'created_at' => now()->subDays(5),
     ]);
 
@@ -682,6 +685,7 @@ test('doctor can open medication history modal for a patient', function () {
         ->assertSet('showHistoryModal', true)
         ->assertSee('Amoxicillin')
         ->assertSee('1-1-1')
+        ->assertSee(__('Diagnosis').': Fever')
         ->call('closeHistory')
         ->assertSet('showHistoryModal', false);
 });
@@ -1004,5 +1008,54 @@ test('legacy medication orders without a symptom still load their complaint text
         ->assertSet('symptomId', null)
         ->assertSet('legacyComplaint', 'Old free text complaint')
         ->assertSee(__('Previous complaint / diagnosis'))
-        ->assertSee('Old free text complaint');
+        ->assertSee('Old free text complaint')
+        ->assertSee(__('Diagnosis').': Old free text complaint');
+});
+
+test('selecting a symptom shows a diagnosis badge on the current patient screen', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $symptom = Symptom::factory()->create(['name' => 'Pain']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertDontSee(__('Diagnosis').': Pain')
+        ->set('symptomId', $symptom->id)
+        ->assertSee(__('Diagnosis').': Pain');
+});
+
+test('saved symptom diagnosis appears as a badge in medication history', function () {
+    [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
+    $symptom = Symptom::factory()->create(['name' => 'Pain']);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 77,
+        'status' => 'served',
+        'arrived_at' => now()->subDay(),
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'symptom_id' => $symptom->id,
+        'complaint_or_diagnosis' => 'Pain',
+        'created_at' => now()->subDay(),
+    ]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => 'Paracetamol',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->assertSee(__('Diagnosis').': Pain')
+        ->assertDontSee(__('Complaint / diagnosis:'));
 });

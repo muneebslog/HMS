@@ -269,6 +269,23 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Diagnosis label for the current order: selected symptom or legacy free text.
+     */
+    #[Computed]
+    public function selectedDiagnosisLabel(): ?string
+    {
+        if ($this->symptomId !== null) {
+            $symptom = $this->symptoms->firstWhere('id', $this->symptomId);
+
+            if ($symptom !== null) {
+                return $symptom->name;
+            }
+        }
+
+        return filled($this->legacyComplaint) ? $this->legacyComplaint : null;
+    }
+
+    /**
      * Medicine options for searchable select.
      *
      * @return list<array{value: int, label: string, keywords: string}>
@@ -654,13 +671,14 @@ new #[Title('Medication')] class extends Component
     {
         if ($value === '' || $value === null) {
             $this->symptomId = null;
+            unset($this->suggestedMedicines, $this->selectedDiagnosisLabel);
 
             return;
         }
 
         $this->symptomId = (int) $value;
         $this->legacyComplaint = '';
-        unset($this->suggestedMedicines, $this->symptoms, $this->symptomOptions);
+        unset($this->suggestedMedicines, $this->symptoms, $this->symptomOptions, $this->selectedDiagnosisLabel);
     }
 
     /**
@@ -1535,6 +1553,11 @@ new #[Title('Medication')] class extends Component
                         @if ($activeRecheck?->isDue())
                             <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
                         @endif
+                        @if (filled($this->selectedDiagnosisLabel))
+                            <flux:badge size="sm" color="sky" class="ms-1 align-middle">
+                                {{ __('Diagnosis') }}: {{ $this->selectedDiagnosisLabel }}
+                            </flux:badge>
+                        @endif
                     </p>
                     <p class="truncate text-sm text-zinc-500">
                         {{ $token?->patient?->mrn ?? __('No MRN') }}
@@ -2018,17 +2041,17 @@ new #[Title('Medication')] class extends Component
                                     @endif
                                 </p>
                             </div>
-                            <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
-                                {{ $order->status->label() }}
-                            </flux:badge>
+                            <div class="flex flex-wrap items-center gap-2">
+                                @if (filled($order->complaint_or_diagnosis))
+                                    <flux:badge size="sm" color="sky">
+                                        {{ __('Diagnosis') }}: {{ $order->complaint_or_diagnosis }}
+                                    </flux:badge>
+                                @endif
+                                <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
+                                    {{ $order->status->label() }}
+                                </flux:badge>
+                            </div>
                         </div>
-
-                        @if ($order->complaint_or_diagnosis)
-                            <p class="mb-2 text-sm text-zinc-500">
-                                <span class="font-medium">{{ __('Complaint / diagnosis:') }}</span>
-                                {{ $order->complaint_or_diagnosis }}
-                            </p>
-                        @endif
 
                         @if ($order->medicines->isNotEmpty())
                             <div class="mb-2">
