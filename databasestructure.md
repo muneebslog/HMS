@@ -559,8 +559,8 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 |--------|------|-------|
 | id | bigint | PK |
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
-| drip_base_id | FK → drip_bases | restrictOnDelete |
-| name | string | snapshot |
+| drip_base_id | FK → drip_bases | nullable, restrictOnDelete — null for a ready-made drip that needs no base |
+| name | string | snapshot of the base or ready-made drip name |
 | status | string | default `pending` (`DripLineStatus`: pending/started/done), IDX |
 | started_at | timestamp | nullable |
 | started_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
