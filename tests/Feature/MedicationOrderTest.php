@@ -741,6 +741,7 @@ test('doctor can save ready-made drips without selecting a base', function () {
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->call('switchOrderTab', 'drips')
         ->assertSee(__('Ready-made drip'))
         ->set('dripLines.0.mode', 'ready_made')
         ->assertSee(__('Search ready-made drip or type a new name'))
@@ -818,9 +819,9 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee(__('Search medicine or injection'))
         ->assertSee(__('Medicine').' — PCM — Searchable Paracetamol')
         ->assertSee(__('Injection').' — DIC — Searchable Diclofenac')
+        ->call('switchOrderTab', 'drips')
         ->assertSee(__('Search drip base'))
-        ->assertSee('Searchable Saline')
-        ->assertDontSeeHtml('wire:click="switchOrderTab');
+        ->assertSee('Searchable Saline');
 });
 
 test('medicines and injections are listed alphabetically', function () {
@@ -847,7 +848,6 @@ test('doctor can switch the medication form between typing and visual modes', fu
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     Medicine::factory()->create(['name' => 'Visual Paracetamol']);
     Injection::factory()->create(['name' => 'Visual Diclofenac']);
-    DripBase::factory()->create(['name' => 'Visual Normal Saline']);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
@@ -859,7 +859,6 @@ test('doctor can switch the medication form between typing and visual modes', fu
         ->assertDontSee(__('Search medicine or injection'))
         ->assertSee('Visual Paracetamol')
         ->assertSee('Visual Diclofenac')
-        ->assertSee('Visual Normal Saline')
         ->assertSee(__('Tap a medicine or injection above to add it.'))
         ->set('orderInputMode', 'typing')
         ->assertSee(__('Search medicine or injection'));
@@ -917,25 +916,6 @@ test('visual badges toggle catalog medications with their default dose and admin
         'administration_type' => 'iv',
         'name' => 'Badge Diclofenac',
     ]);
-});
-
-test('visual badges toggle drip bases in the same order form', function () {
-    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
-    $dripBase = DripBase::factory()->create(['name' => 'Badge Normal Saline']);
-
-    $component = Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->call('selectToken', $token->id)
-        ->set('orderInputMode', 'visual')
-        ->assertSee('Badge Normal Saline')
-        ->assertSeeHtml('wire:click="toggleDripBaseSelection('.$dripBase->id.')"')
-        ->assertDontSeeHtml('@if="@if"')
-        ->call('toggleDripBaseSelection', $dripBase->id)
-        ->assertSet('dripLines.0.drip_base_id', $dripBase->id);
-
-    $component
-        ->call('toggleDripBaseSelection', $dripBase->id)
-        ->assertCount('dripLines', 0);
 });
 
 test('catalog defaults populate when a doctor selects a medicine or injection', function () {
