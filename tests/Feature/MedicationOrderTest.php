@@ -923,6 +923,54 @@ test('doctor can write and select tab or inj medications from the visual badges'
     ]);
 });
 
+test('visual badges toggle drip bases on the drips tab', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $dripBase = DripBase::factory()->create(['name' => 'Visual Saline']);
+    $additive = Injection::factory()->create(['name' => 'Visual Vitamin B12']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->call('switchOrderTab', 'drips')
+        ->assertDontSee(__('Search drip base'))
+        ->assertDontSee(__('Add drip'))
+        ->assertSee('Visual Saline')
+        ->assertSee(__('Tap a drip base above to add it.'))
+        ->assertSeeHtml('wire:click="toggleDripSelection('.$dripBase->id.')"')
+        ->call('addRowForActiveTab')
+        ->assertCount('dripLines', 1)
+        ->call('toggleDripSelection', $dripBase->id)
+        ->assertSet('dripLines.0.drip_base_id', $dripBase->id)
+        ->assertSee(__('Selected drips'))
+        ->assertSee(__('Additives'))
+        ->call('toggleDripSelection', $dripBase->id);
+
+    expect($component->get('dripLines'))->toBe([]);
+
+    $component
+        ->call('toggleDripSelection', $dripBase->id)
+        ->set('dripLines.0.additives.0.injection_id', $additive->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->drips)->toHaveCount(1)
+        ->and($order->drips->first()->additives)->toHaveCount(1);
+
+    $this->assertDatabaseHas('medication_order_drips', [
+        'medication_order_id' => $order->id,
+        'drip_base_id' => $dripBase->id,
+        'name' => 'Visual Saline',
+    ]);
+
+    $this->assertDatabaseHas('medication_order_drip_additives', [
+        'injection_id' => $additive->id,
+        'name' => 'Visual Vitamin B12',
+    ]);
+});
+
 test('a blank written visual medication name is rejected', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
 

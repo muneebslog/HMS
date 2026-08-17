@@ -402,6 +402,29 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Display names for the filled drip rows, keyed by row index.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function dripLineNames(): array
+    {
+        $names = [];
+
+        foreach ($this->dripLines as $index => $line) {
+            $dripBaseId = $line['drip_base_id'] ?? null;
+
+            if (! filled($dripBaseId)) {
+                continue;
+            }
+
+            $names[$index] = $this->dripBases->firstWhere('id', (int) $dripBaseId)?->name ?? '';
+        }
+
+        return $names;
+    }
+
+    /**
      * Previous medication orders for the selected patient (excluding this visit).
      *
      * @return Collection<int, MedicationOrder>
@@ -752,7 +775,7 @@ new #[Title('Medication')] class extends Component
     {
         match ($this->activeOrderTab) {
             'medicines' => $this->orderInputMode === 'visual' ? null : $this->addMedicationLine(),
-            'drips' => $this->addDripLine(),
+            'drips' => $this->orderInputMode === 'visual' ? null : $this->addDripLine(),
             default => null,
         };
     }
@@ -922,6 +945,47 @@ new #[Title('Medication')] class extends Component
     {
         unset($this->dripLines[$index]);
         $this->dripLines = array_values($this->dripLines);
+    }
+
+    /**
+     * Add or remove a catalog drip base picked from the visual badges.
+     */
+    public function toggleDripSelection(int $dripBaseId): void
+    {
+        if ($this->dripBases->firstWhere('id', $dripBaseId) === null) {
+            return;
+        }
+
+        foreach ($this->dripLines as $index => $line) {
+            if ((int) ($line['drip_base_id'] ?? 0) === $dripBaseId) {
+                $this->removeDripLine($index);
+
+                return;
+            }
+        }
+
+        $index = $this->firstBlankDripLineIndex();
+
+        if ($index === null) {
+            $this->addDripLine();
+            $index = array_key_last($this->dripLines);
+        }
+
+        $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
+    }
+
+    /**
+     * Index of the first row without a drip base, so badges reuse the blank rows first.
+     */
+    private function firstBlankDripLineIndex(): ?int
+    {
+        foreach ($this->dripLines as $index => $line) {
+            if (! filled($line['drip_base_id'] ?? null)) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     public function addDripAdditive(int $dripIndex): void
@@ -2089,6 +2153,70 @@ new #[Title('Medication')] class extends Component
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicationLine">{{ __('Add medication') }}</flux:button>
                     </flux:tooltip>
                 </div>
+            @elseif ($activeOrderTab === 'drips' && $orderInputMode === 'visual')
+                @php($selectedDripBaseIds = collect($dripLines)->pluck('drip_base_id')->filter()->map(fn (mixed $id): int => (int) $id)->all())
+                <div class="space-y-3">
+                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drip bases') }}</p>
+                        <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                            @forelse ($this->dripBases as $dripBase)
+                                @php($isSelected = in_array($dripBase->id, $selectedDripBaseIds, true))
+                                <flux:badge
+                                    as="button"
+                                    type="button"
+                                    size="lg"
+                                    :color="$isSelected ? 'teal' : 'zinc'"
+                                    :icon="$isSelected ? 'check' : null"
+                                    class="cursor-pointer"
+                                    wire:key="visual-drip-{{ $dripBase->id }}"
+                                    wire:click="toggleDripSelection({{ $dripBase->id }})"
+                                >
+                                    {{ $dripBase->name }}
+                                </flux:badge>
+                            @empty
+                                <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
+                            @endforelse
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Selected drips') }}</p>
+                        @forelse (array_filter($dripLines, fn (array $line): bool => filled($line['drip_base_id'] ?? null)) as $dripIndex => $drip)
+                            <div wire:key="visual-drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-100 p-3 dark:border-zinc-700">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                                        {{ $this->dripLineNames[$dripIndex] ?? '' }}
+                                    </p>
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
+                                </div>
+
+                                <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
+                                    @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
+                                        <div wire:key="visual-drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                            <div class="sm:col-span-11" data-nav-field>
+                                                <x-searchable-select
+                                                    wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
+                                                    :options="$this->injectionOptions"
+                                                    :placeholder="__('Search injection or type a new name')"
+                                                    allow-custom
+                                                />
+                                            </div>
+                                            <div class="flex items-start sm:col-span-1">
+                                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
+                                        {{ __('Add additive') }}
+                                    </flux:button>
+                                </div>
+                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('Tap a drip base above to add it.') }}</p>
+                        @endforelse
+                    </div>
+                </div>
             @else
                 <div class="space-y-4">
                     @foreach ($dripLines as $dripIndex => $drip)
@@ -2131,38 +2259,38 @@ new #[Title('Medication')] class extends Component
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
                     </flux:tooltip>
+                </div>
+            @endif
 
-                    @if ($this->dripServices->isNotEmpty())
-                        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-                            <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
-                            <div class="grid gap-3 sm:grid-cols-2" data-nav-row>
-                                @if ($this->dripServices->count() > 1)
-                                    <flux:field data-nav-field>
-                                        <flux:label>{{ __('Drip service') }}</flux:label>
-                                        <flux:select wire:model="dripServiceId">
-                                            <option value="">{{ __('Select drip service') }}</option>
-                                            @foreach ($this->dripServices as $dripService)
-                                                <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
-                                            @endforeach
-                                        </flux:select>
-                                        <flux:error name="dripServiceId" />
-                                    </flux:field>
-                                @endif
+            @if ($activeOrderTab === 'drips' && $this->dripServices->isNotEmpty())
+                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                    <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
+                    <div class="grid gap-3 sm:grid-cols-2" data-nav-row>
+                        @if ($this->dripServices->count() > 1)
+                            <flux:field data-nav-field>
+                                <flux:label>{{ __('Drip service') }}</flux:label>
+                                <flux:select wire:model="dripServiceId">
+                                    <option value="">{{ __('Select drip service') }}</option>
+                                    @foreach ($this->dripServices as $dripService)
+                                        <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
+                                    @endforeach
+                                </flux:select>
+                                <flux:error name="dripServiceId" />
+                            </flux:field>
+                        @endif
 
-                                <flux:field data-nav-field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
-                                    <flux:label>{{ __('Suggested price') }}</flux:label>
-                                    <flux:input
-                                        wire:model="suggestedPrice"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        placeholder="{{ __('Optional') }}"
-                                    />
-                                    <flux:error name="suggestedPrice" />
-                                </flux:field>
-                            </div>
-                        </div>
-                    @endif
+                        <flux:field data-nav-field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
+                            <flux:label>{{ __('Suggested price') }}</flux:label>
+                            <flux:input
+                                wire:model="suggestedPrice"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="{{ __('Optional') }}"
+                            />
+                            <flux:error name="suggestedPrice" />
+                        </flux:field>
+                    </div>
                 </div>
             @endif
 
