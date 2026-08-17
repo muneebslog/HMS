@@ -14,7 +14,6 @@ use App\Models\Medicine;
 use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\Shift;
-use App\Models\Symptom;
 use App\Services\TokenDisplayService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -51,14 +50,7 @@ new #[Title('Medication')] class extends Component
 
     public string $notes = '';
 
-    /**
-     * Symptoms picked for the current order.
-     *
-     * @var list<int>
-     */
-    public array $symptomIds = [];
-
-    public string $legacyComplaint = '';
+    public string $complaintOrDiagnosis = '';
 
     public string $suggestedPrice = '';
 
@@ -210,171 +202,6 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * Active symptom catalog (includes inactive picked symptoms when editing).
-     *
-     * @return Collection<int, Symptom>
-     */
-    #[Computed]
-    public function symptoms(): Collection
-    {
-        $symptoms = Symptom::query()->active()->orderBy('name')->get();
-        $missingIds = array_values(array_diff($this->symptomIds, $symptoms->pluck('id')->all()));
-
-        if ($missingIds === []) {
-            return $symptoms;
-        }
-
-        return $symptoms
-            ->merge(Symptom::query()->whereKey($missingIds)->get())
-            ->sortBy('name')
-            ->values();
-    }
-
-    /**
-     * Symptoms picked for the current order, in catalog order.
-     *
-     * @return Collection<int, Symptom>
-     */
-    #[Computed]
-    public function selectedSymptoms(): Collection
-    {
-        if ($this->symptomIds === []) {
-            return new Collection;
-        }
-
-        return $this->symptoms
-            ->filter(fn (Symptom $symptom): bool => in_array($symptom->id, $this->symptomIds, true))
-            ->values();
-    }
-
-    /**
-     * Symptom options for searchable select, minus the ones already picked.
-     *
-     * @return list<array{value: int, label: string, keywords: string}>
-     */
-    #[Computed]
-    public function symptomOptions(): array
-    {
-        return $this->symptoms
-            ->reject(fn (Symptom $symptom): bool => in_array($symptom->id, $this->symptomIds, true))
-            ->map(fn (Symptom $symptom): array => [
-                'value' => $symptom->id,
-                'label' => $symptom->name,
-                'keywords' => $symptom->name,
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Active medicines mapped to any picked symptom.
-     *
-     * @return Collection<int, Medicine>
-     */
-    #[Computed]
-    public function suggestedMedicines(): Collection
-    {
-        if ($this->symptomIds === []) {
-            return new Collection;
-        }
-
-        return Medicine::query()
-            ->active()
-            ->whereHas('symptoms', fn ($query) => $query->whereIn('symptoms.id', $this->symptomIds))
-            ->orderBy('name')
-            ->get();
-    }
-
-    /**
-     * Medicine ids mapped to each picked symptom, including inactive medicines.
-     *
-     * @return array<int, list<int>>
-     */
-    #[Computed]
-    public function symptomMedicineMap(): array
-    {
-        if ($this->symptomIds === []) {
-            return [];
-        }
-
-        return Symptom::query()
-            ->whereKey($this->symptomIds)
-            ->with('medicines:id')
-            ->get()
-            ->mapWithKeys(fn (Symptom $symptom): array => [
-                $symptom->id => $symptom->medicines->pluck('id')->all(),
-            ])
-            ->all();
-    }
-
-    /**
-     * Diagnosis labels for the current order: picked symptoms or legacy free text.
-     * A symptom only counts as a diagnosis while one of its medicines is prescribed.
-     *
-     * @return list<string>
-     */
-    #[Computed]
-    public function diagnosisLabels(): array
-    {
-        $names = $this->diagnosisSymptoms()->pluck('name')->all();
-
-        if ($names !== []) {
-            return $names;
-        }
-
-        return filled($this->legacyComplaint) ? [$this->legacyComplaint] : [];
-    }
-
-    /**
-     * Picked symptoms that still have one of their medicines on the order.
-     *
-     * @return Collection<int, Symptom>
-     */
-    private function diagnosisSymptoms(): Collection
-    {
-        $prescribedMedicineIds = $this->prescribedMedicineIds();
-
-        if ($prescribedMedicineIds === []) {
-            return new Collection;
-        }
-
-        $symptomMedicineMap = $this->symptomMedicineMap;
-
-        return $this->selectedSymptoms
-            ->filter(fn (Symptom $symptom): bool => array_intersect(
-                $symptomMedicineMap[$symptom->id] ?? [],
-                $prescribedMedicineIds
-            ) !== [])
-            ->values();
-    }
-
-    /**
-     * Catalog medicine ids currently written on the order rows.
-     *
-     * @return list<int>
-     */
-    private function prescribedMedicineIds(): array
-    {
-        $medicineIds = [];
-
-        foreach ($this->medicationLines as $line) {
-            $selection = $line['selection'] ?? null;
-
-            if ($this->medicationSelectionType($selection) !== 'medicine') {
-                continue;
-            }
-
-            $medicineId = $this->medicationSelectionId($selection);
-
-            if ($medicineId !== null) {
-                $medicineIds[] = $medicineId;
-            }
-        }
-
-        return array_values(array_unique($medicineIds));
-    }
-
-    /**
      * Medicine options for searchable select.
      *
      * @return list<array{value: int, label: string, keywords: string}>
@@ -499,7 +326,6 @@ new #[Title('Medication')] class extends Component
                 'doctor',
                 'prescribedBy',
                 'queueToken.serviceQueue.service',
-                'symptoms',
             ])
             ->where('patient_id', $token->patient_id)
             ->where('queue_token_id', '!=', $token->id)
@@ -664,8 +490,7 @@ new #[Title('Medication')] class extends Component
         $this->showOrderPreviewModal = false;
         $this->resetOrderPreview();
         $this->notes = '';
-        $this->symptomIds = [];
-        $this->legacyComplaint = '';
+        $this->complaintOrDiagnosis = '';
         $this->suggestedPrice = '';
         $this->dripServiceId = null;
         $this->recheckMinutes = '15';
@@ -724,7 +549,6 @@ new #[Title('Medication')] class extends Component
     {
         unset($this->medicationLines[$index]);
         $this->medicationLines = array_values($this->medicationLines);
-        unset($this->diagnosisLabels);
     }
 
     public function updatedMedicationLines(mixed $value, ?string $key): void
@@ -732,8 +556,6 @@ new #[Title('Medication')] class extends Component
         if (! is_string($key) || ! str_ends_with($key, '.selection')) {
             return;
         }
-
-        unset($this->diagnosisLabels);
 
         $index = (int) explode('.', $key)[0];
         $selection = $this->medicationLines[$index]['selection'] ?? null;
@@ -755,82 +577,6 @@ new #[Title('Medication')] class extends Component
                 $this->medicationLines[$index]['administration_type'] = $injection->default_administration_type->value;
             }
         }
-    }
-
-    /**
-     * Normalize the symptom select value after Livewire updates.
-     */
-    public function updatedSymptomIds(): void
-    {
-        $this->symptomIds = collect($this->symptomIds)
-            ->filter(fn (mixed $symptomId): bool => is_numeric($symptomId))
-            ->map(fn (mixed $symptomId): int => (int) $symptomId)
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($this->symptomIds !== []) {
-            $this->legacyComplaint = '';
-        }
-
-        $this->forgetSymptomState();
-    }
-
-    /**
-     * Drop a picked symptom from the order.
-     */
-    public function removeSymptom(int $symptomId): void
-    {
-        $this->symptomIds = array_values(array_filter(
-            $this->symptomIds,
-            fn (int $picked): bool => $picked !== $symptomId
-        ));
-
-        $this->forgetSymptomState();
-    }
-
-    private function forgetSymptomState(): void
-    {
-        unset(
-            $this->symptoms,
-            $this->selectedSymptoms,
-            $this->symptomOptions,
-            $this->suggestedMedicines,
-            $this->symptomMedicineMap,
-            $this->diagnosisLabels,
-        );
-    }
-
-    /**
-     * Fill the first blank medication row with a suggested medicine, or append a new row.
-     */
-    public function addSuggestedMedicine(int $medicineId): void
-    {
-        if (! $this->suggestedMedicines->contains(fn (Medicine $medicine): bool => $medicine->id === $medicineId)) {
-            return;
-        }
-
-        $selection = 'medicine:'.$medicineId;
-
-        foreach ($this->medicationLines as $line) {
-            if (($line['selection'] ?? null) === $selection) {
-                return;
-            }
-        }
-
-        foreach ($this->medicationLines as $index => $line) {
-            if (! filled($line['selection'] ?? null)) {
-                $this->medicationLines[$index]['selection'] = $selection;
-                $this->updatedMedicationLines($selection, $index.'.selection');
-
-                return;
-            }
-        }
-
-        $this->addMedicationLine();
-        $index = array_key_last($this->medicationLines);
-        $this->medicationLines[$index]['selection'] = $selection;
-        $this->updatedMedicationLines($selection, $index.'.selection');
     }
 
     public function addDripLine(): void
@@ -1070,7 +816,7 @@ new #[Title('Medication')] class extends Component
             ]);
             $order->save();
 
-            $order->symptoms()->sync($validated['symptomIds'] ?? []);
+            $order->symptoms()->sync([]);
 
             $order->medicines()->delete();
             $order->injections()->delete();
@@ -1170,12 +916,6 @@ new #[Title('Medication')] class extends Component
     private function validatedOrderData(): ?array
     {
         $validated = $this->validate($this->orderRules());
-
-        $diagnosisSymptoms = $this->diagnosisSymptoms();
-        $validated['symptomIds'] = $diagnosisSymptoms->pluck('id')->all();
-        $validated['complaintOrDiagnosis'] = $diagnosisSymptoms->isNotEmpty()
-            ? $diagnosisSymptoms->pluck('name')->implode(', ')
-            : (filled($this->legacyComplaint) ? $this->legacyComplaint : null);
 
         $medicationLines = collect($validated['medicationLines'] ?? [])
             ->filter(fn (array $line): bool => filled($line['selection'] ?? null))
@@ -1312,8 +1052,7 @@ new #[Title('Medication')] class extends Component
     private function orderRules(): array
     {
         return [
-            'symptomIds' => ['array'],
-            'symptomIds.*' => ['integer', 'exists:symptoms,id'],
+            'complaintOrDiagnosis' => ['nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'suggestedPrice' => ['nullable', 'numeric', 'min:0'],
             'dripServiceId' => [
@@ -1520,7 +1259,7 @@ new #[Title('Medication')] class extends Component
     private function loadOrderForm(QueueToken $token): void
     {
         $order = $token->medicationOrder()
-            ->with(['medicines', 'injections', 'drips.additives', 'symptoms'])
+            ->with(['medicines', 'injections', 'drips.additives'])
             ->first();
 
         $pendingCharge = DripCharge::query()
@@ -1534,12 +1273,9 @@ new #[Title('Medication')] class extends Component
         $this->dripServiceId = $pendingCharge?->service_id
             ?? $this->dripServices->first()?->id;
 
-        $this->forgetSymptomState();
-
         if ($order === null || $order->status === MedicationOrderStatus::Administered) {
             $this->notes = '';
-            $this->symptomIds = [];
-            $this->legacyComplaint = '';
+            $this->complaintOrDiagnosis = '';
             $this->medicationLines = [];
             $this->dripLines = [];
             $this->ensureDefaultOrderLines();
@@ -1548,10 +1284,7 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->notes = $order->notes ?? '';
-        $this->symptomIds = $order->symptoms->pluck('id')->all();
-        $this->legacyComplaint = $this->symptomIds === []
-            ? ($order->complaint_or_diagnosis ?? '')
-            : '';
+        $this->complaintOrDiagnosis = $order->complaint_or_diagnosis ?? '';
         $medicineLines = $order->medicines->map(fn ($line) => [
             'selection' => $line->medicine_id !== null ? 'medicine:'.$line->medicine_id : 'custom:'.$line->name,
             'dose' => $line->dose->value,
@@ -1673,11 +1406,11 @@ new #[Title('Medication')] class extends Component
                         @if ($activeRecheck?->isDue())
                             <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
                         @endif
-                        @foreach ($this->diagnosisLabels as $diagnosisLabel)
+                        @if (filled($complaintOrDiagnosis))
                             <flux:badge size="sm" color="sky" class="ms-1 align-middle">
-                                {{ __('Diagnosis') }}: {{ $diagnosisLabel }}
+                                {{ __('Diagnosis') }}: {{ $complaintOrDiagnosis }}
                             </flux:badge>
-                        @endforeach
+                        @endif
                     </p>
                     <p class="truncate text-sm text-zinc-500">
                         {{ $token?->patient?->mrn ?? __('No MRN') }}
@@ -1792,55 +1525,14 @@ new #[Title('Medication')] class extends Component
         </div>
 
         <flux:field>
-            <flux:label>{{ __('Symptoms') }}</flux:label>
-            <x-searchable-select
-                multiple
-                wire:model.live="symptomIds"
-                :options="$this->symptomOptions"
-                :placeholder="__('Search symptoms')"
+            <flux:label>{{ __('Diagnosis') }}</flux:label>
+            <flux:input
+                wire:model.live="complaintOrDiagnosis"
+                type="text"
+                placeholder="{{ __('Enter diagnosis') }}"
             />
-            <flux:error name="symptomIds" />
-            <flux:error name="symptomIds.*" />
+            <flux:error name="complaintOrDiagnosis" />
         </flux:field>
-
-        @if ($this->selectedSymptoms->isNotEmpty())
-            <div class="flex flex-wrap gap-2">
-                @foreach ($this->selectedSymptoms as $symptom)
-                    <flux:badge size="sm" color="sky" wire:key="picked-symptom-{{ $symptom->id }}">
-                        {{ $symptom->name }}
-                        <flux:badge.close wire:click="removeSymptom({{ $symptom->id }})" />
-                    </flux:badge>
-                @endforeach
-            </div>
-        @endif
-
-        @if ($symptomIds === [] && filled($legacyComplaint))
-            <flux:callout icon="information-circle" variant="secondary">
-                <flux:callout.heading>{{ __('Previous complaint / diagnosis') }}</flux:callout.heading>
-                <flux:callout.text>{{ $legacyComplaint }}</flux:callout.text>
-            </flux:callout>
-        @endif
-
-        @if ($this->suggestedMedicines->isNotEmpty())
-            <div class="space-y-2">
-                <flux:text class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    {{ __('Suggested medicines') }}
-                </flux:text>
-                <div class="flex flex-wrap gap-2">
-                    @foreach ($this->suggestedMedicines as $medicine)
-                        <flux:button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            wire:key="suggested-medicine-{{ $medicine->id }}"
-                            wire:click="addSuggestedMedicine({{ $medicine->id }})"
-                        >
-                            {{ $medicine->short_form ? $medicine->short_form.' — '.$medicine->name : $medicine->name }}
-                        </flux:button>
-                    @endforeach
-                </div>
-            </div>
-        @endif
 
         <div class="border-b border-zinc-200 dark:border-zinc-700">
             <nav class="-mb-px flex gap-4">
@@ -2175,13 +1867,7 @@ new #[Title('Medication')] class extends Component
                                 </p>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
-                                @if ($order->symptoms->isNotEmpty())
-                                    @foreach ($order->symptoms as $symptom)
-                                        <flux:badge size="sm" color="sky" wire:key="history-symptom-{{ $order->id }}-{{ $symptom->id }}">
-                                            {{ __('Diagnosis') }}: {{ $symptom->name }}
-                                        </flux:badge>
-                                    @endforeach
-                                @elseif (filled($order->complaint_or_diagnosis))
+                                @if (filled($order->complaint_or_diagnosis))
                                     <flux:badge size="sm" color="sky">
                                         {{ __('Diagnosis') }}: {{ $order->complaint_or_diagnosis }}
                                     </flux:badge>
