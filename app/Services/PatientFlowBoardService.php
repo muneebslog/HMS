@@ -170,7 +170,8 @@ class PatientFlowBoardService
         }
 
         if ($service->needs_medication) {
-            return $token->medicationOrder === null;
+            return $token->medicationOrder === null
+                || $token->medicationOrder->status === MedicationOrderStatus::Draft;
         }
 
         if ($service->appear_on_er) {

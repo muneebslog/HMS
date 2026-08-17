@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\RecallMedicationOrder;
 use App\Actions\ResolveDripShareDoctor;
 use App\Enums\DripChargeStatus;
 use App\Enums\InjectionAdministrationType;
@@ -31,6 +32,8 @@ new #[Title('Medication')] class extends Component
     public bool $showHistoryModal = false;
 
     public bool $showOrderPreviewModal = false;
+
+    public bool $showRecallModal = false;
 
     /**
      * @var array{
@@ -80,7 +83,12 @@ new #[Title('Medication')] class extends Component
     public array $medicationLines = [];
 
     /**
-     * @var list<array{drip_base_id: int|null, additives: list<array{injection_id: int|string|null}>}>
+     * @var list<array{
+     *     mode: 'base'|'ready_made',
+     *     drip_base_id: int|null,
+     *     ready_made_drip: int|string|null,
+     *     additives: list<array{injection_id: int|string|null}>
+     * }>
      */
     public array $dripLines = [];
 
@@ -100,9 +108,22 @@ new #[Title('Medication')] class extends Component
 
         return QueueToken::query()
             ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder', 'activeRecheck'])
-            ->whereIn('status', ['waiting', 'serving'])
+            ->where(function ($query): void {
+                $query->whereIn('status', ['waiting', 'serving'])
+                    ->orWhere(function ($servedQuery): void {
+                        $servedQuery->where('status', 'served')
+                            ->whereHas(
+                                'medicationOrder',
+                                fn ($orderQuery) => $orderQuery->where('status', MedicationOrderStatus::Draft)
+                            );
+                    });
+            })
             ->where(function ($query): void {
                 $query->whereDoesntHave('medicationOrder')
+                    ->orWhereHas(
+                        'medicationOrder',
+                        fn ($orderQuery) => $orderQuery->where('status', MedicationOrderStatus::Draft)
+                    )
                     ->orWhereHas(
                         'doctorRechecks',
                         fn ($recheckQuery) => $recheckQuery->whereNull('acknowledged_at')
@@ -119,6 +140,40 @@ new #[Title('Medication')] class extends Component
             ->get()
             ->sortByDesc(fn (QueueToken $token): int => $token->activeRecheck?->isDue() ? 1 : 0)
             ->values();
+    }
+
+    /**
+     * Latest submitted medication orders that can be recalled from the current shift.
+     *
+     * @return Collection<int, MedicationOrder>
+     */
+    #[Computed]
+    public function recallableOrders(): Collection
+    {
+        if (! $this->showRecallModal) {
+            return new Collection;
+        }
+
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            return new Collection;
+        }
+
+        $orders = MedicationOrder::query()
+            ->with(['patient', 'queueToken.serviceQueue.service'])
+            ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
+            ->whereHas(
+                'queueToken.serviceQueue',
+                fn ($query) => $query->where('status', 'open')->forShift($shift)
+            )
+            ->latest('id')
+            ->get()
+            ->unique('queue_token_id')
+            ->filter(fn (MedicationOrder $order): bool => $order->status !== MedicationOrderStatus::Draft)
+            ->values();
+
+        return new Collection($orders->all());
     }
 
     /**
@@ -513,6 +568,54 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Show medication orders that can be brought back to the doctor's list.
+     */
+    public function openRecall(): void
+    {
+        $this->closeModals();
+        $this->showRecallModal = true;
+        unset($this->recallableOrders);
+    }
+
+    public function closeRecall(): void
+    {
+        $this->showRecallModal = false;
+    }
+
+    /**
+     * Recall a submitted order for editing on the same token.
+     */
+    public function recall(int $orderId, RecallMedicationOrder $recallMedicationOrder): void
+    {
+        $order = $this->recallableOrders->firstWhere('id', $orderId);
+
+        if ($order?->queueToken === null) {
+            Flux::toast(variant: 'danger', text: __('Medication order is no longer available to recall.'));
+
+            return;
+        }
+
+        $actor = auth()->user();
+
+        if ($actor === null) {
+            abort(403);
+        }
+
+        try {
+            $recallMedicationOrder->handle($order->queueToken, $actor);
+        } catch (\InvalidArgumentException) {
+            Flux::toast(variant: 'danger', text: __('Medication order is no longer available to recall.'));
+
+            return;
+        }
+
+        $this->showRecallModal = false;
+        unset($this->queue, $this->selectedToken, $this->recallableOrders);
+
+        Flux::toast(variant: 'success', text: __('Medication order recalled to the doctor list.'));
+    }
+
+    /**
      * Close the medication history modal.
      */
     public function closeHistory(): void
@@ -528,6 +631,7 @@ new #[Title('Medication')] class extends Component
         $this->selectedTokenId = null;
         $this->showHistoryModal = false;
         $this->showOrderPreviewModal = false;
+        $this->showRecallModal = false;
         $this->resetOrderPreview();
         $this->notes = '';
         $this->complaintOrDiagnosis = '';
@@ -681,7 +785,9 @@ new #[Title('Medication')] class extends Component
     public function addDripLine(): void
     {
         $this->dripLines[] = [
+            'mode' => 'base',
             'drip_base_id' => null,
+            'ready_made_drip' => null,
             'additives' => [
                 [
                     'injection_id' => null,
@@ -773,6 +879,14 @@ new #[Title('Medication')] class extends Component
                 ->all(),
             'drips' => $dripLines
                 ->map(function (array $line) use ($dripBasesById, $injectionsById): ?array {
+                    if (($line['mode'] ?? 'base') === 'ready_made') {
+                        $resolved = $this->resolveInjection($line['ready_made_drip'] ?? null, $injectionsById);
+
+                        return $resolved === null
+                            ? null
+                            : ['name' => $resolved['name'], 'additives' => []];
+                    }
+
                     $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
 
                     if ($dripBase === null || ! $dripBase->show_on_er) {
@@ -820,6 +934,7 @@ new #[Title('Medication')] class extends Component
     {
         $this->showHistoryModal = false;
         $this->showOrderPreviewModal = false;
+        $this->showRecallModal = false;
         $this->resetOrderPreview();
     }
 
@@ -853,7 +968,11 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
-        if (! in_array($token->status, ['waiting', 'serving'], true)) {
+        $existing = $token->medicationOrder;
+        $isRecalledServedToken = $token->status === 'served'
+            && $existing?->status === MedicationOrderStatus::Draft;
+
+        if (! in_array($token->status, ['waiting', 'serving'], true) && ! $isRecalledServedToken) {
             Flux::toast(variant: 'danger', text: __('Patient is no longer available for medication.'));
             $this->backToList();
 
@@ -870,8 +989,6 @@ new #[Title('Medication')] class extends Component
         if ($advanceQueue && ! app(TokenDisplayService::class)->followsDoctorToken($token->serviceQueue)) {
             abort(403);
         }
-
-        $existing = $token->medicationOrder;
 
         if ($existing !== null && $existing->status === MedicationOrderStatus::Administered) {
             Flux::toast(variant: 'danger', text: __('This order has already been administered and cannot be edited.'));
@@ -947,6 +1064,19 @@ new #[Title('Medication')] class extends Component
             }
 
             foreach ($dripLines as $line) {
+                if (($line['mode'] ?? 'base') === 'ready_made') {
+                    $resolved = $this->resolveInjection($line['ready_made_drip'] ?? null, $injectionsById);
+
+                    if ($resolved !== null) {
+                        $order->drips()->create([
+                            'drip_base_id' => null,
+                            'name' => $resolved['name'],
+                        ]);
+                    }
+
+                    continue;
+                }
+
                 $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
 
                 if ($dripBase === null) {
@@ -1038,7 +1168,9 @@ new #[Title('Medication')] class extends Component
             ])
             ->values();
         $dripLines = collect($validated['dripLines'] ?? [])
-            ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
+            ->filter(fn (array $line): bool => ($line['mode'] ?? 'base') === 'ready_made'
+                ? filled($line['ready_made_drip'] ?? null)
+                : filled($line['drip_base_id'] ?? null))
             ->values();
 
         if ($medicineLines->isEmpty() && $injectionLines->isEmpty() && $dripLines->isEmpty()) {
@@ -1063,6 +1195,7 @@ new #[Title('Medication')] class extends Component
                 'id',
                 $injectionLines->pluck('injection_id')
                     ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
+                    ->merge($dripLines->pluck('ready_made_drip'))
                     ->filter(fn (mixed $id): bool => is_numeric($id))
                     ->map(fn (mixed $id): int => (int) $id)
                     ->all()
@@ -1195,7 +1328,9 @@ new #[Title('Medication')] class extends Component
             'medicationLines.*.administration_type' => ['required', 'string', Rule::enum(InjectionAdministrationType::class)],
             'medicationLines.*.comment' => ['nullable', 'string', 'max:255'],
             'dripLines' => ['array'],
+            'dripLines.*.mode' => ['nullable', 'string', Rule::in(['base', 'ready_made'])],
             'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
+            'dripLines.*.ready_made_drip' => ['nullable', $this->injectionSelectionRule()],
             'dripLines.*.additives' => ['array'],
             'dripLines.*.additives.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
         ];
@@ -1404,7 +1539,9 @@ new #[Title('Medication')] class extends Component
             ->all();
 
         $this->dripLines = $order->drips->map(fn ($drip) => [
+            'mode' => $drip->drip_base_id === null ? 'ready_made' : 'base',
             'drip_base_id' => $drip->drip_base_id,
+            'ready_made_drip' => $drip->drip_base_id === null ? 'custom:'.$drip->name : null,
             'additives' => $drip->additives->map(fn ($additive) => [
                 'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
             ])->values()->all(),
@@ -1826,41 +1963,62 @@ new #[Title('Medication')] class extends Component
             @else
                 <div class="space-y-4">
                     @foreach ($dripLines as $dripIndex => $drip)
+                        @php($isReadyMadeDrip = ($drip['mode'] ?? 'base') === 'ready_made')
                         <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <div class="grid gap-2 sm:grid-cols-12" data-nav-row>
-                                <div class="sm:col-span-11" data-nav-field>
-                                    <x-searchable-select
-                                        wire:model.live="dripLines.{{ $dripIndex }}.drip_base_id"
-                                        :options="$this->dripBaseOptions"
-                                        :placeholder="__('Search drip base')"
-                                    />
-                                </div>
-                                <div class="flex items-start sm:col-span-1">
-                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
-                                </div>
+                            <div class="flex items-start justify-between gap-2">
+                                <flux:radio.group wire:model.live="dripLines.{{ $dripIndex }}.mode" variant="segmented" size="sm">
+                                    <flux:radio value="base">{{ __('With base') }}</flux:radio>
+                                    <flux:radio value="ready_made">{{ __('Ready-made drip') }}</flux:radio>
+                                </flux:radio.group>
+                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
                             </div>
 
-                            <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
-                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
-                                @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
-                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                        <div class="sm:col-span-11" data-nav-field>
-                                            <x-searchable-select
-                                                wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
-                                                :options="$this->injectionOptions"
-                                                :placeholder="__('Search injection or type a new name')"
-                                                allow-custom
-                                            />
-                                        </div>
-                                        <div class="flex items-start sm:col-span-1">
-                                            <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
-                                        </div>
+                            @if ($isReadyMadeDrip)
+                                <div data-nav-row>
+                                    <div data-nav-field>
+                                        <x-searchable-select
+                                            wire:model="dripLines.{{ $dripIndex }}.ready_made_drip"
+                                            :options="$this->injectionOptions"
+                                            :placeholder="__('Search ready-made drip or type a new name')"
+                                            allow-custom
+                                        />
+                                        <flux:error name="dripLines.{{ $dripIndex }}.ready_made_drip" />
                                     </div>
-                                @endforeach
-                                <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
-                                    {{ __('Add additive') }}
-                                </flux:button>
-                            </div>
+                                </div>
+                            @else
+                                <div data-nav-row>
+                                    <div data-nav-field>
+                                        <x-searchable-select
+                                            wire:model="dripLines.{{ $dripIndex }}.drip_base_id"
+                                            :options="$this->dripBaseOptions"
+                                            :placeholder="__('Search drip base')"
+                                        />
+                                        <flux:error name="dripLines.{{ $dripIndex }}.drip_base_id" />
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
+                                    @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
+                                        <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                            <div class="sm:col-span-11" data-nav-field>
+                                                <x-searchable-select
+                                                    wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
+                                                    :options="$this->injectionOptions"
+                                                    :placeholder="__('Search injection or type a new name')"
+                                                    allow-custom
+                                                />
+                                            </div>
+                                            <div class="flex items-start sm:col-span-1">
+                                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
+                                        {{ __('Add additive') }}
+                                    </flux:button>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
@@ -1924,6 +2082,72 @@ new #[Title('Medication')] class extends Component
             </div>
         </form>
     @endif
+
+    @if ($selectedTokenId === null)
+        <div class="fixed bottom-6 right-6 z-20">
+            <flux:tooltip :content="__('Recall medication order')" position="left">
+                <flux:button
+                    type="button"
+                    variant="primary"
+                    icon="arrow-uturn-left"
+                    aria-label="{{ __('Recall medication order') }}"
+                    wire:click="openRecall"
+                    class="size-14 rounded-full shadow-xl"
+                />
+            </flux:tooltip>
+        </div>
+    @endif
+
+    <flux:modal name="medication-recall" wire:model="showRecallModal" class="w-full max-w-xl">
+        <div class="space-y-4">
+            <div>
+                <flux:heading level="2">{{ __('Recall medication order') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Select a patient to return the same token to your medication list.') }}</flux:text>
+            </div>
+
+            <div class="max-h-[70vh] space-y-3 overflow-y-auto pe-1">
+                @forelse ($this->recallableOrders as $order)
+                    <x-paper-slip
+                        as="button"
+                        type="button"
+                        :token="$order->queueToken?->token_number"
+                        wire:key="recall-order-{{ $order->id }}"
+                        wire:click="recall({{ $order->id }})"
+                        class="w-full text-left active:scale-[0.99] hover:-translate-y-0.5"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="truncate text-base font-semibold text-zinc-900">
+                                    {{ $order->patient?->name ?? __('Unknown') }}
+                                </p>
+                                <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                                    {{ $order->patient?->mrn ?? __('No MRN') }}
+                                    · {{ $order->queueToken?->serviceQueue?->service?->name }}
+                                </p>
+                            </div>
+                            <flux:badge size="sm" color="{{ $order->status === MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
+                                {{ $order->status->label() }}
+                            </flux:badge>
+                        </div>
+                        <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                            {{ __('Tap to recall') }}
+                        </p>
+                    </x-paper-slip>
+                @empty
+                    <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                        <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('No medication orders to recall') }}</p>
+                        <p class="mt-1 text-sm text-zinc-500">{{ __('Orders from the current shift will appear here after they are submitted.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeRecall">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
     <flux:modal name="medication-order-preview" wire:model="showOrderPreviewModal" class="w-full max-w-xl">
         <div class="space-y-4">

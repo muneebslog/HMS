@@ -19,7 +19,7 @@
     "ApplicationFrameHost.exe",
     "ShellExperienceHost.exe",
     "SearchUI.exe",
-    "MicrosoftEdge.exe",
-    "msedge.exe"
+    "SearchApp.exe",
+    "StartMenuExperienceHost.exe"
   ]
 }

@@ -99,13 +99,23 @@ class QueueToken extends Model
     }
 
     /**
-     * Get the medication order for this token.
+     * Get the latest medication order for this token.
      *
      * @return HasOne<MedicationOrder, $this>
      */
     public function medicationOrder(): HasOne
     {
-        return $this->hasOne(MedicationOrder::class);
+        return $this->hasOne(MedicationOrder::class)->latestOfMany();
+    }
+
+    /**
+     * Get all medication orders for this token.
+     *
+     * @return HasMany<MedicationOrder, $this>
+     */
+    public function medicationOrders(): HasMany
+    {
+        return $this->hasMany(MedicationOrder::class)->latest('id');
     }
 
     /**

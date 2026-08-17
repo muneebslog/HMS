@@ -503,11 +503,11 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint | PK |
-| queue_token_id | FK → queue_tokens | UQ, cascadeOnDelete |
+| queue_token_id | FK → queue_tokens | IDX, cascadeOnDelete |
 | patient_id | FK → patients | cascadeOnDelete |
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | prescribed_by | FK → users | cascadeOnDelete |
-| status | string | default `pending` (`MedicationOrderStatus`), IDX |
+| status | string | default `pending` (`MedicationOrderStatus`: `draft` / `pending` / `administered`), IDX |
 | complaint_or_diagnosis | text | nullable — comma-joined symptom name snapshot (or legacy free text) |
 | notes | text | nullable |
 | administered_by | FK → users | nullable, nullOnDelete (legacy) |
@@ -515,7 +515,7 @@ One row per kiosk station. Updated when a health aide unlocks ER or Drip with PI
 | administered_at | timestamp | nullable |
 | timestamps | | |
 
-One medication order per queue token. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. Status becomes `administered` when all medicines and injections are delivered via the health aide kiosk (drips tracked separately).
+A queue token may have multiple medication orders when a doctor recalls an administered order. The latest order is the current one; older administered orders remain as visit history. `doctor_id` is null for standalone services (e.g. general checkup) with no assigned doctor. A recalled order is `draft` until submitted, and status becomes `administered` when all medicines and injections are delivered via the health aide kiosk (drips tracked separately).
 
 ### `medication_order_symptom`
 | Column | Type | Notes |

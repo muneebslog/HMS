@@ -221,6 +221,108 @@ test('medication queue excludes patients after an order is saved', function () {
         ->assertDontSee($patient->name);
 });
 
+test('doctor can recall a pending medication order and edit the same order', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Existing Medicine']);
+    $replacementMedicine = Medicine::factory()->create(['name' => 'Replacement Medicine']);
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+
+    $order->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroZero,
+        'name' => $medicine->name,
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertDontSee($patient->name)
+        ->assertSeeHtml('aria-label="'.__('Recall medication order').'"')
+        ->call('openRecall')
+        ->assertSet('showRecallModal', true)
+        ->assertSee($patient->name)
+        ->assertSee(__('Tap to recall'))
+        ->call('recall', $order->id)
+        ->assertHasNoErrors()
+        ->assertSet('showRecallModal', false)
+        ->assertSee($patient->name)
+        ->call('selectToken', $token->id)
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->set('medicationLines.0.selection', 'medicine:'.$replacementMedicine->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($order->fresh()->status)->toBe(MedicationOrderStatus::Pending)
+        ->and($token->medicationOrders()->count())->toBe(1);
+
+    $this->assertDatabaseHas('medication_order_medicines', [
+        'medication_order_id' => $order->id,
+        'medicine_id' => $replacementMedicine->id,
+        'name' => 'Replacement Medicine',
+    ]);
+});
+
+test('recalling an administered order creates a blank draft on the same token', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(
+        withDoctor: false,
+        tokenStatus: 'served',
+    );
+    $deliveredMedicine = Medicine::factory()->create(['name' => 'Delivered Medicine']);
+    $newMedicine = Medicine::factory()->create(['name' => 'New Medicine']);
+    $administeredOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+    ]);
+
+    $administeredOrder->medicines()->create([
+        'medicine_id' => $deliveredMedicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => $deliveredMedicine->name,
+        'delivered_at' => now(),
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('openRecall')
+        ->assertSee($patient->name)
+        ->assertSee(__('Administered'))
+        ->call('recall', $administeredOrder->id)
+        ->assertHasNoErrors()
+        ->assertSee($patient->name);
+
+    $draft = $token->medicationOrders()->firstOrFail();
+
+    expect($draft->id)->not->toBe($administeredOrder->id)
+        ->and($draft->status)->toBe(MedicationOrderStatus::Draft)
+        ->and($draft->queue_token_id)->toBe($token->id)
+        ->and($draft->medicines)->toHaveCount(0)
+        ->and($administeredOrder->fresh()->status)->toBe(MedicationOrderStatus::Administered)
+        ->and($administeredOrder->medicines)->toHaveCount(1)
+        ->and($token->medicationOrders()->count())->toBe(2);
+
+    $component
+        ->call('selectToken', $token->id)
+        ->assertCount('medicationLines', 6)
+        ->assertSet('medicationLines.0.selection', null)
+        ->set('medicationLines.0.selection', 'medicine:'.$newMedicine->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($draft->fresh()->status)->toBe(MedicationOrderStatus::Pending)
+        ->and($administeredOrder->fresh()->status)->toBe(MedicationOrderStatus::Administered);
+
+    $this->assertDatabaseHas('medication_order_medicines', [
+        'medication_order_id' => $draft->id,
+        'medicine_id' => $newMedicine->id,
+        'name' => 'New Medicine',
+    ]);
+});
+
 test('doctor can save an order and call the next patient when the token follows the doctor', function () {
     [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving', followsDoctorToken: true);
     $medicine = Medicine::factory()->create();

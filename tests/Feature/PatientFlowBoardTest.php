@@ -222,6 +222,29 @@ test('vitals recorded patient moves past vitals stage', function () {
     expect($resolved['station'])->toBe(ClinicStation::Doctor);
 });
 
+test('recalled draft medication order returns the patient to the doctor column', function () {
+    [, , $token, $patient] = createFlowToken(['needs_medication' => true]);
+
+    MedicationOrder::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'status' => MedicationOrderStatus::Draft,
+    ]);
+
+    $token = $token->fresh([
+        'serviceQueue.service',
+        'patient',
+        'vital',
+        'medicationOrder.medicines',
+        'medicationOrder.injections',
+        'medicationOrder.drips',
+    ]);
+
+    $resolved = app(PatientFlowBoardService::class)->resolveStation($token, collect());
+
+    expect($resolved['station'])->toBe(ClinicStation::Doctor);
+});
+
 test('service ending at vitals is done after vitals are recorded', function () {
     $user = User::factory()->create();
     [, , $token, $patient] = createFlowToken([
