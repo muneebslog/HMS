@@ -62,6 +62,10 @@ new #[Title('Medication')] class extends Component
     #[Session(key: 'medication-order-input-mode')]
     public string $orderInputMode = 'typing';
 
+    public bool $showWrittenMedicationInput = false;
+
+    public string $writtenMedicationName = '';
+
     public string $notes = '';
 
     public string $complaintOrDiagnosis = '';
@@ -449,6 +453,8 @@ new #[Title('Medication')] class extends Component
         $this->selectedTokenId = $tokenId;
         $this->showHistoryModal = false;
         $this->activeOrderTab = 'medicines';
+        $this->showWrittenMedicationInput = false;
+        $this->writtenMedicationName = '';
         $this->recheckMinutes = '15';
         $this->recheckNote = $token->activeRecheck?->note ?? '';
         $this->showRecheckForm = false;
@@ -714,6 +720,8 @@ new #[Title('Medication')] class extends Component
         $this->recheckMinutes = '15';
         $this->recheckNote = '';
         $this->showRecheckForm = false;
+        $this->showWrittenMedicationInput = false;
+        $this->writtenMedicationName = '';
         $this->medicationLines = [];
         $this->dripLines = [];
         $this->resetValidation();
@@ -814,6 +822,47 @@ new #[Title('Medication')] class extends Component
 
         $this->medicationLines[$index]['selection'] = $selection;
         $this->applyCatalogDefaults($index);
+    }
+
+    public function openWrittenMedicationInput(): void
+    {
+        $this->showWrittenMedicationInput = true;
+        $this->resetValidation('writtenMedicationName');
+    }
+
+    /**
+     * Add a medicine or injection written by the doctor from visual mode.
+     */
+    public function addWrittenMedication(): void
+    {
+        $this->writtenMedicationName = trim($this->writtenMedicationName);
+
+        $this->validateOnly('writtenMedicationName', [
+            'writtenMedicationName' => ['required', 'string', 'max:255'],
+        ]);
+
+        $isInjection = preg_match('/^inj(?:ection)?(?:[.\s-]|$)/iu', $this->writtenMedicationName) === 1;
+        $selection = ($isInjection ? 'custom-injection:' : 'custom:').$this->writtenMedicationName;
+
+        foreach ($this->medicationLines as $line) {
+            if (($line['selection'] ?? null) === $selection) {
+                $this->showWrittenMedicationInput = false;
+                $this->writtenMedicationName = '';
+
+                return;
+            }
+        }
+
+        $index = $this->firstBlankMedicationLineIndex();
+
+        if ($index === null) {
+            $this->addMedicationLine();
+            $index = array_key_last($this->medicationLines);
+        }
+
+        $this->medicationLines[$index]['selection'] = $selection;
+        $this->showWrittenMedicationInput = false;
+        $this->writtenMedicationName = '';
     }
 
     /**
@@ -1949,7 +1998,40 @@ new #[Title('Medication')] class extends Component
                     @endforeach
 
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Selected medications') }}</p>
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Selected medications') }}</p>
+                            <flux:badge
+                                as="button"
+                                type="button"
+                                size="lg"
+                                icon="plus"
+                                class="cursor-pointer"
+                                aria-label="{{ __('Write medication') }}"
+                                wire:click="openWrittenMedicationInput"
+                            >
+                                {{ __('Add') }}
+                            </flux:badge>
+                        </div>
+                        @if ($showWrittenMedicationInput)
+                            <div
+                                class="flex flex-col gap-2 sm:flex-row"
+                                x-init="$nextTick(() => $el.querySelector('input')?.focus())"
+                            >
+                                <div class="flex-1">
+                                    <flux:input
+                                        wire:model="writtenMedicationName"
+                                        wire:keydown.enter.prevent="addWrittenMedication"
+                                        type="text"
+                                        maxlength="255"
+                                        placeholder="{{ __('Type Tab ... or Inj ...') }}"
+                                    />
+                                    <flux:error name="writtenMedicationName" />
+                                </div>
+                                <flux:button type="button" variant="primary" wire:click="addWrittenMedication">
+                                    {{ __('Select') }}
+                                </flux:button>
+                            </div>
+                        @endif
                         @forelse (array_filter($medicationLines, fn (array $line): bool => filled($line['selection'] ?? null)) as $index => $line)
                             @php($isInjection = str_starts_with($line['selection'] ?? '', 'injection:') || str_starts_with($line['selection'] ?? '', 'custom-injection:'))
                             <div wire:key="visual-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">

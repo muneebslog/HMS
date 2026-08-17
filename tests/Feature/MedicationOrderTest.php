@@ -918,6 +918,64 @@ test('visual badges toggle catalog medications with their default dose and admin
     ]);
 });
 
+test('doctor can write and select tab or inj medications from the visual badges', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->assertSeeHtml('aria-label="'.__('Write medication').'"')
+        ->call('openWrittenMedicationInput')
+        ->assertSet('showWrittenMedicationInput', true)
+        ->assertSee(__('Type Tab ... or Inj ...'))
+        ->set('writtenMedicationName', 'Tab Augmentin 625mg')
+        ->call('addWrittenMedication')
+        ->assertHasNoErrors()
+        ->assertSet('showWrittenMedicationInput', false)
+        ->assertSet('writtenMedicationName', '')
+        ->assertSet('medicationLines.0.selection', 'custom:Tab Augmentin 625mg')
+        ->assertSee('Tab Augmentin 625mg')
+        ->call('openWrittenMedicationInput')
+        ->set('writtenMedicationName', 'Inj Ketorolac 30mg')
+        ->call('addWrittenMedication')
+        ->assertHasNoErrors()
+        ->assertSet('medicationLines.1.selection', 'custom-injection:Inj Ketorolac 30mg')
+        ->assertSee('Inj Ketorolac 30mg')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    $this->assertDatabaseHas('medication_order_medicines', [
+        'medication_order_id' => $order->id,
+        'medicine_id' => null,
+        'name' => 'Tab Augmentin 625mg',
+    ]);
+
+    $this->assertDatabaseHas('medication_order_injections', [
+        'medication_order_id' => $order->id,
+        'injection_id' => null,
+        'name' => 'Inj Ketorolac 30mg',
+    ]);
+});
+
+test('a blank written visual medication name is rejected', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->call('openWrittenMedicationInput')
+        ->set('writtenMedicationName', '   ')
+        ->call('addWrittenMedication')
+        ->assertHasErrors('writtenMedicationName')
+        ->assertSet('showWrittenMedicationInput', true);
+
+    expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
+});
+
 test('catalog defaults populate when a doctor selects a medicine or injection', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create([
@@ -975,12 +1033,13 @@ test('medication form starts with common blank order rows', function () {
         ->assertCount('dripLines', 1)
         ->assertCount('dripLines.0.additives', 2)
         ->assertSee(__('Medications'))
-        ->assertSee(__('Drips'))
+        ->call('switchOrderTab', 'drips')
         ->assertCount('dripLines', 1)
-        ->call('addDripLine')
+        ->call('addRowForActiveTab')
         ->assertCount('dripLines', 2)
         ->assertCount('dripLines.1.additives', 2)
-        ->call('addMedicationLine')
+        ->call('switchOrderTab', 'medicines')
+        ->call('addRowForActiveTab')
         ->assertCount('medicationLines', 7);
 });
 
