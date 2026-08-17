@@ -22,3 +22,18 @@ test('combined display link appears in the system sidebar', function () {
         ->assertSee(__('ER + Drips'))
         ->assertSee(route('display.er_drips'), false);
 });
+
+test('indoor staff see system pages in the sidebar', function () {
+    $user = User::factory()->indoor()->create();
+
+    $this->actingAs($user)
+        ->get(route('indoor.ward'))
+        ->assertSuccessful()
+        ->assertSee(__('System'))
+        ->assertSee(__('Token Display'))
+        ->assertSee(__('ER Station'))
+        ->assertSee(__('Drip Delivery'))
+        ->assertSee(__('ER + Drips'))
+        ->assertSee(route('display.er_drips'), false)
+        ->assertDontSee(__('Shift'));
+});

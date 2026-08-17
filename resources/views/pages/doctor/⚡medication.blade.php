@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Session;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -47,6 +48,12 @@ new #[Title('Medication')] class extends Component
     ];
 
     public string $activeOrderTab = 'medicines';
+
+    /**
+     * Whether medications are picked with searchable selects (`typing`) or catalog badges (`visual`).
+     */
+    #[Session(key: 'medication-order-input-mode')]
+    public string $orderInputMode = 'typing';
 
     public string $notes = '';
 
@@ -284,6 +291,39 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Display names for the filled order rows, keyed by row index.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function medicationLineNames(): array
+    {
+        $names = [];
+
+        foreach ($this->medicationLines as $index => $line) {
+            $selection = $line['selection'] ?? null;
+
+            if (! filled($selection)) {
+                continue;
+            }
+
+            $selectionId = $this->medicationSelectionId($selection);
+
+            $names[$index] = match ($this->medicationSelectionType($selection)) {
+                'medicine' => $selectionId !== null
+                    ? ($this->medicines->firstWhere('id', $selectionId)?->name ?? '')
+                    : $this->customLineName($selection),
+                'injection' => $selectionId !== null
+                    ? ($this->injections->firstWhere('id', $selectionId)?->name ?? '')
+                    : $this->customLineName($selection),
+                default => $this->customLineName($selection),
+            };
+        }
+
+        return $names;
+    }
+
+    /**
      * Drip base options for searchable select.
      *
      * @return list<array{value: int, label: string}>
@@ -501,6 +541,16 @@ new #[Title('Medication')] class extends Component
         $this->resetValidation();
     }
 
+    /**
+     * Keep an unexpected mode value from breaking the order form.
+     */
+    public function updatedOrderInputMode(string $value): void
+    {
+        if (! in_array($value, ['typing', 'visual'], true)) {
+            $this->orderInputMode = 'typing';
+        }
+    }
+
     public function switchOrderTab(string $tab): void
     {
         if (! in_array($tab, ['medicines', 'drips'], true)) {
@@ -517,7 +567,7 @@ new #[Title('Medication')] class extends Component
     public function addRowForActiveTab(): void
     {
         match ($this->activeOrderTab) {
-            'medicines' => $this->addMedicationLine(),
+            'medicines' => $this->orderInputMode === 'visual' ? null : $this->addMedicationLine(),
             'drips' => $this->addDripLine(),
             default => null,
         };
@@ -557,7 +607,56 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
-        $index = (int) explode('.', $key)[0];
+        $this->applyCatalogDefaults((int) explode('.', $key)[0]);
+    }
+
+    /**
+     * Add or remove a catalog medicine or injection picked from the visual badges.
+     */
+    public function toggleMedicationSelection(string $selection): void
+    {
+        if ($this->medicationSelectionId($selection) === null) {
+            return;
+        }
+
+        foreach ($this->medicationLines as $index => $line) {
+            if (($line['selection'] ?? null) === $selection) {
+                $this->removeMedicationLine($index);
+
+                return;
+            }
+        }
+
+        $index = $this->firstBlankMedicationLineIndex();
+
+        if ($index === null) {
+            $this->addMedicationLine();
+            $index = array_key_last($this->medicationLines);
+        }
+
+        $this->medicationLines[$index]['selection'] = $selection;
+        $this->applyCatalogDefaults($index);
+    }
+
+    /**
+     * Index of the first row without a medication, so badges reuse the blank rows first.
+     */
+    private function firstBlankMedicationLineIndex(): ?int
+    {
+        foreach ($this->medicationLines as $index => $line) {
+            if (! filled($line['selection'] ?? null)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Copy the catalog dose or administration type onto a row.
+     */
+    private function applyCatalogDefaults(int $index): void
+    {
         $selection = $this->medicationLines[$index]['selection'] ?? null;
         $selectionType = $this->medicationSelectionType($selection);
         $selectionId = $this->medicationSelectionId($selection);
@@ -1340,6 +1439,11 @@ new #[Title('Medication')] class extends Component
         <flux:heading level="1">{{ __('Medication') }}</flux:heading>
         @if ($selectedTokenId === null)
             <flux:badge color="zinc" size="lg">{{ $this->queue->count() }}</flux:badge>
+        @else
+            <flux:radio.group wire:model.live="orderInputMode" variant="segmented" size="sm">
+                <flux:radio value="typing" icon="pencil-square">{{ __('Typing') }}</flux:radio>
+                <flux:radio value="visual" icon="squares-2x2">{{ __('Visual') }}</flux:radio>
+            </flux:radio.group>
         @endif
     </div>
 
@@ -1598,7 +1702,78 @@ new #[Title('Medication')] class extends Component
             @keydown.alt.arrow-left.prevent="navigate('left')"
             @keydown.alt.arrow-right.prevent="navigate('right')"
         >
-            @if ($activeOrderTab === 'medicines')
+            @if ($activeOrderTab === 'medicines' && $orderInputMode === 'visual')
+                @php($selectedMedications = collect($medicationLines)->pluck('selection')->filter()->all())
+                <div class="space-y-3">
+                    @foreach ([
+                        ['label' => __('Medicines'), 'prefix' => 'medicine', 'items' => $this->medicines, 'color' => 'green'],
+                        ['label' => __('Injections'), 'prefix' => 'injection', 'items' => $this->injections, 'color' => 'sky'],
+                    ] as $group)
+                        <div wire:key="visual-group-{{ $group['prefix'] }}" class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ $group['label'] }}</p>
+                            <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                                @forelse ($group['items'] as $item)
+                                    @php($value = $group['prefix'].':'.$item->id)
+                                    @php($isSelected = in_array($value, $selectedMedications, true))
+                                    <flux:badge
+                                        as="button"
+                                        type="button"
+                                        size="lg"
+                                        :color="$isSelected ? $group['color'] : 'zinc'"
+                                        :icon="$isSelected ? 'check' : null"
+                                        class="cursor-pointer"
+                                        wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
+                                        wire:click="toggleMedicationSelection('{{ $value }}')"
+                                    >
+                                        {{ $item->name }}@if (filled($item->unit ?? null)) ({{ $item->unit }}) @endif
+                                    </flux:badge>
+                                @empty
+                                    <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
+                                @endforelse
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Selected medications') }}</p>
+                        @forelse (array_filter($medicationLines, fn (array $line): bool => filled($line['selection'] ?? null)) as $index => $line)
+                            @php($isInjection = str_starts_with($line['selection'] ?? '', 'injection:') || str_starts_with($line['selection'] ?? '', 'custom-injection:'))
+                            <div wire:key="visual-line-{{ $index }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100 sm:col-span-5 sm:self-center">
+                                    {{ $this->medicationLineNames[$index] ?? '' }}
+                                </p>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    @if ($isInjection)
+                                        <flux:select wire:model="medicationLines.{{ $index }}.administration_type" aria-label="{{ __('Administration type') }}">
+                                            @foreach (\App\Enums\InjectionAdministrationType::cases() as $type)
+                                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:error name="medicationLines.{{ $index }}.administration_type" />
+                                    @else
+                                        <flux:select wire:model="medicationLines.{{ $index }}.dose" aria-label="{{ __('Timing') }}">
+                                            @foreach (\App\Enums\MedicineDose::cases() as $dose)
+                                                <option value="{{ $dose->value }}">{{ $dose->label() }}</option>
+                                            @endforeach
+                                        </flux:select>
+                                        <flux:error name="medicationLines.{{ $index }}.dose" />
+                                    @endif
+                                </div>
+                                <div class="sm:col-span-3" data-nav-field>
+                                    <flux:input wire:model="medicationLines.{{ $index }}.comment" type="text" placeholder="{{ __('Comment') }}" />
+                                    <flux:error name="medicationLines.{{ $index }}.comment" />
+                                </div>
+                                <div class="flex items-start sm:col-span-1">
+                                    <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeMedicationLine({{ $index }})" />
+                                </div>
+                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('Tap a medicine or injection above to add it.') }}</p>
+                        @endforelse
+                    </div>
+                    <flux:error name="medicationLines" />
+                </div>
+            @elseif ($activeOrderTab === 'medicines')
                 <div class="space-y-3">
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         @foreach ($medicationLines as $index => $line)

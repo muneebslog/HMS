@@ -195,7 +195,7 @@
                     </flux:sidebar.group>
                 @endif
 
-                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement() || auth()->user()->isIndoor())
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                             <span class="size-2 rounded-full bg-rose-500"></span>
@@ -214,9 +214,11 @@
                         <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
                             {{ __('ER + Drips') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
-                            {{ __('Shift') }}
-                        </flux:sidebar.item>
+                        @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                            <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
+                                {{ __('Shift') }}
+                            </flux:sidebar.item>
+                        @endif
                     </flux:sidebar.group>
                 @endif
             </flux:sidebar.nav>

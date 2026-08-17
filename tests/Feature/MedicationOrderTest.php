@@ -559,6 +559,79 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee('Searchable Saline');
 });
 
+test('doctor can switch the medication form between typing and visual modes', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    Medicine::factory()->create(['name' => 'Visual Paracetamol']);
+    Injection::factory()->create(['name' => 'Visual Diclofenac']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee(__('Typing'))
+        ->assertSee(__('Visual'))
+        ->assertSee(__('Search medicine or injection'))
+        ->set('orderInputMode', 'visual')
+        ->assertDontSee(__('Search medicine or injection'))
+        ->assertSee('Visual Paracetamol')
+        ->assertSee('Visual Diclofenac')
+        ->assertSee(__('Tap a medicine or injection above to add it.'))
+        ->set('orderInputMode', 'typing')
+        ->assertSee(__('Search medicine or injection'));
+});
+
+test('an unknown input mode falls back to typing', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'nonsense')
+        ->assertSet('orderInputMode', 'typing')
+        ->assertSee(__('Search medicine or injection'));
+});
+
+test('visual badges toggle catalog medications with their default dose and administration type', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create([
+        'name' => 'Badge Paracetamol',
+        'default_dose' => MedicineDose::OneZeroOne,
+    ]);
+    $injection = Injection::factory()->create([
+        'name' => 'Badge Diclofenac',
+        'default_administration_type' => 'iv',
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->call('toggleMedicationSelection', 'medicine:'.$medicine->id)
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->assertSet('medicationLines.0.dose', '1-0-1')
+        ->call('toggleMedicationSelection', 'injection:'.$injection->id)
+        ->assertSet('medicationLines.1.selection', 'injection:'.$injection->id)
+        ->assertSet('medicationLines.1.administration_type', 'iv')
+        ->assertSee(__('Selected medications'));
+
+    $component
+        ->call('toggleMedicationSelection', 'medicine:'.$medicine->id)
+        ->assertSet('medicationLines.0.selection', 'injection:'.$injection->id);
+
+    $component->call('save')->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    expect($order->medicines)->toHaveCount(0)
+        ->and($order->injections)->toHaveCount(1);
+
+    $this->assertDatabaseHas('medication_order_injections', [
+        'medication_order_id' => $order->id,
+        'injection_id' => $injection->id,
+        'administration_type' => 'iv',
+        'name' => 'Badge Diclofenac',
+    ]);
+});
+
 test('catalog defaults populate when a doctor selects a medicine or injection', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create([
