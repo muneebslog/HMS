@@ -734,54 +734,17 @@ test('doctor can save a medication order for a standalone service without a doct
     ]);
 });
 
-test('doctor can save ready-made drips without selecting a base', function () {
+test('drips tab does not offer ready-made drips', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
-    $panadol = Injection::factory()->create(['name' => 'Panadol']);
 
-    $component = Livewire::actingAs($user)
+    Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->call('switchOrderTab', 'drips')
-        ->assertSee(__('Ready-made drip'))
-        ->set('dripLines.0.mode', 'ready_made')
-        ->assertSee(__('Search ready-made drip or type a new name'))
-        ->assertDontSee(__('Search drip base'))
-        ->set('dripLines', [
-            [
-                'mode' => 'ready_made',
-                'drip_base_id' => null,
-                'ready_made_drip' => $panadol->id,
-                'additives' => [],
-            ],
-            [
-                'mode' => 'ready_made',
-                'drip_base_id' => null,
-                'ready_made_drip' => 'custom:Flagyl',
-                'additives' => [],
-            ],
-        ])
-        ->call('save')
-        ->assertHasNoErrors();
-
-    $order = MedicationOrder::query()
-        ->where('queue_token_id', $token->id)
-        ->firstOrFail();
-
-    expect($order->drips)->toHaveCount(2)
-        ->and($order->drips->pluck('name')->all())->toBe(['Panadol', 'Flagyl'])
-        ->and($order->drips->pluck('drip_base_id')->filter()->all())->toBe([]);
-
-    $this->assertDatabaseHas('medication_order_drips', [
-        'medication_order_id' => $order->id,
-        'drip_base_id' => null,
-        'name' => 'Panadol',
-    ]);
-
-    $this->assertDatabaseHas('medication_order_drips', [
-        'medication_order_id' => $order->id,
-        'drip_base_id' => null,
-        'name' => 'Flagyl',
-    ]);
+        ->assertSee(__('Search drip base'))
+        ->assertDontSee(__('Ready-made drip'))
+        ->assertDontSee(__('With base'))
+        ->assertDontSee(__('Search ready-made drip or type a new name'));
 });
 
 test('medication order keeps the queue doctor when the service has one', function () {

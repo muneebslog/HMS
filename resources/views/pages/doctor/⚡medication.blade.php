@@ -92,9 +92,7 @@ new #[Title('Medication')] class extends Component
 
     /**
      * @var list<array{
-     *     mode: 'base'|'ready_made',
      *     drip_base_id: int|null,
-     *     ready_made_drip: int|string|null,
      *     additives: list<array{injection_id: int|string|null}>
      * }>
      */
@@ -908,9 +906,7 @@ new #[Title('Medication')] class extends Component
     public function addDripLine(): void
     {
         $this->dripLines[] = [
-            'mode' => 'base',
             'drip_base_id' => null,
-            'ready_made_drip' => null,
             'additives' => [
                 [
                     'injection_id' => null,
@@ -1002,14 +998,6 @@ new #[Title('Medication')] class extends Component
                 ->all(),
             'drips' => $dripLines
                 ->map(function (array $line) use ($dripBasesById, $injectionsById): ?array {
-                    if (($line['mode'] ?? 'base') === 'ready_made') {
-                        $resolved = $this->resolveInjection($line['ready_made_drip'] ?? null, $injectionsById);
-
-                        return $resolved === null
-                            ? null
-                            : ['name' => $resolved['name'], 'additives' => []];
-                    }
-
                     $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
 
                     if ($dripBase === null || ! $dripBase->show_on_er) {
@@ -1190,19 +1178,6 @@ new #[Title('Medication')] class extends Component
             }
 
             foreach ($dripLines as $line) {
-                if (($line['mode'] ?? 'base') === 'ready_made') {
-                    $resolved = $this->resolveInjection($line['ready_made_drip'] ?? null, $injectionsById);
-
-                    if ($resolved !== null) {
-                        $order->drips()->create([
-                            'drip_base_id' => null,
-                            'name' => $resolved['name'],
-                        ]);
-                    }
-
-                    continue;
-                }
-
                 $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
 
                 if ($dripBase === null) {
@@ -1294,9 +1269,7 @@ new #[Title('Medication')] class extends Component
             ])
             ->values();
         $dripLines = collect($validated['dripLines'] ?? [])
-            ->filter(fn (array $line): bool => ($line['mode'] ?? 'base') === 'ready_made'
-                ? filled($line['ready_made_drip'] ?? null)
-                : filled($line['drip_base_id'] ?? null))
+            ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
             ->values();
 
         if ($medicineLines->isEmpty() && $injectionLines->isEmpty() && $dripLines->isEmpty()) {
@@ -1321,7 +1294,6 @@ new #[Title('Medication')] class extends Component
                 'id',
                 $injectionLines->pluck('injection_id')
                     ->merge($dripLines->flatMap(fn (array $drip) => collect($drip['additives'] ?? [])->pluck('injection_id')))
-                    ->merge($dripLines->pluck('ready_made_drip'))
                     ->filter(fn (mixed $id): bool => is_numeric($id))
                     ->map(fn (mixed $id): int => (int) $id)
                     ->all()
@@ -1454,9 +1426,7 @@ new #[Title('Medication')] class extends Component
             'medicationLines.*.administration_type' => ['required', 'string', Rule::enum(InjectionAdministrationType::class)],
             'medicationLines.*.comment' => ['nullable', 'string', 'max:255'],
             'dripLines' => ['array'],
-            'dripLines.*.mode' => ['nullable', 'string', Rule::in(['base', 'ready_made'])],
             'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
-            'dripLines.*.ready_made_drip' => ['nullable', $this->injectionSelectionRule()],
             'dripLines.*.additives' => ['array'],
             'dripLines.*.additives.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
         ];
@@ -1664,14 +1634,14 @@ new #[Title('Medication')] class extends Component
             ->values()
             ->all();
 
-        $this->dripLines = $order->drips->map(fn ($drip) => [
-            'mode' => $drip->drip_base_id === null ? 'ready_made' : 'base',
-            'drip_base_id' => $drip->drip_base_id,
-            'ready_made_drip' => $drip->drip_base_id === null ? 'custom:'.$drip->name : null,
-            'additives' => $drip->additives->map(fn ($additive) => [
-                'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
-            ])->values()->all(),
-        ])->values()->all();
+        $this->dripLines = $order->drips
+            ->filter(fn ($drip): bool => $drip->drip_base_id !== null)
+            ->map(fn ($drip) => [
+                'drip_base_id' => $drip->drip_base_id,
+                'additives' => $drip->additives->map(fn ($additive) => [
+                    'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
+                ])->values()->all(),
+            ])->values()->all();
 
         $this->ensureDefaultOrderLines();
     }
@@ -2122,62 +2092,40 @@ new #[Title('Medication')] class extends Component
             @else
                 <div class="space-y-4">
                     @foreach ($dripLines as $dripIndex => $drip)
-                        @php($isReadyMadeDrip = ($drip['mode'] ?? 'base') === 'ready_made')
                         <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <div class="flex items-start justify-between gap-2">
-                                <flux:radio.group wire:model.live="dripLines.{{ $dripIndex }}.mode" variant="segmented" size="sm">
-                                    <flux:radio value="base">{{ __('With base') }}</flux:radio>
-                                    <flux:radio value="ready_made">{{ __('Ready-made drip') }}</flux:radio>
-                                </flux:radio.group>
+                            <div class="flex items-start justify-between gap-2" data-nav-row>
+                                <div class="min-w-0 flex-1" data-nav-field>
+                                    <x-searchable-select
+                                        wire:model="dripLines.{{ $dripIndex }}.drip_base_id"
+                                        :options="$this->dripBaseOptions"
+                                        :placeholder="__('Search drip base')"
+                                    />
+                                    <flux:error name="dripLines.{{ $dripIndex }}.drip_base_id" />
+                                </div>
                                 <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
                             </div>
 
-                            @if ($isReadyMadeDrip)
-                                <div data-nav-row>
-                                    <div data-nav-field>
-                                        <x-searchable-select
-                                            wire:model="dripLines.{{ $dripIndex }}.ready_made_drip"
-                                            :options="$this->injectionOptions"
-                                            :placeholder="__('Search ready-made drip or type a new name')"
-                                            allow-custom
-                                        />
-                                        <flux:error name="dripLines.{{ $dripIndex }}.ready_made_drip" />
-                                    </div>
-                                </div>
-                            @else
-                                <div data-nav-row>
-                                    <div data-nav-field>
-                                        <x-searchable-select
-                                            wire:model="dripLines.{{ $dripIndex }}.drip_base_id"
-                                            :options="$this->dripBaseOptions"
-                                            :placeholder="__('Search drip base')"
-                                        />
-                                        <flux:error name="dripLines.{{ $dripIndex }}.drip_base_id" />
-                                    </div>
-                                </div>
-
-                                <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
-                                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
-                                    @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
-                                        <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                            <div class="sm:col-span-11" data-nav-field>
-                                                <x-searchable-select
-                                                    wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
-                                                    :options="$this->injectionOptions"
-                                                    :placeholder="__('Search injection or type a new name')"
-                                                    allow-custom
-                                                />
-                                            </div>
-                                            <div class="flex items-start sm:col-span-1">
-                                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
-                                            </div>
+                            <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
+                                @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
+                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
+                                        <div class="sm:col-span-11" data-nav-field>
+                                            <x-searchable-select
+                                                wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
+                                                :options="$this->injectionOptions"
+                                                :placeholder="__('Search injection or type a new name')"
+                                                allow-custom
+                                            />
                                         </div>
-                                    @endforeach
-                                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
-                                        {{ __('Add additive') }}
-                                    </flux:button>
-                                </div>
-                            @endif
+                                        <div class="flex items-start sm:col-span-1">
+                                            <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
+                                        </div>
+                                    </div>
+                                @endforeach
+                                <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
+                                    {{ __('Add additive') }}
+                                </flux:button>
+                            </div>
                         </div>
                     @endforeach
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
