@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
@@ -293,6 +294,13 @@ test('recalling an administered order creates a blank draft on the same token', 
         ->assertSee(__('Administered'))
         ->call('recall', $administeredOrder->id)
         ->assertHasNoErrors()
+        ->assertSet('showFulfilledRecallOptions', true)
+        ->assertSee(__('Clear slate'))
+        ->assertSee(__('Duplicate order'))
+        ->assertSee(__('Edit fulfilled order'))
+        ->call('recallFulfilled', 'clear')
+        ->assertHasNoErrors()
+        ->assertSet('showFulfilledRecallOptions', false)
         ->assertSee($patient->name);
 
     $draft = $token->medicationOrders()->firstOrFail();
@@ -321,6 +329,111 @@ test('recalling an administered order creates a blank draft on the same token', 
         'medicine_id' => $newMedicine->id,
         'name' => 'New Medicine',
     ]);
+});
+
+test('doctor can duplicate a fulfilled order into a new editable draft', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(
+        withDoctor: false,
+        tokenStatus: 'served',
+    );
+    $medicine = Medicine::factory()->create(['name' => 'Copied Medicine']);
+    $injection = Injection::factory()->create(['name' => 'Copied Injection']);
+    $dripBase = DripBase::factory()->create(['name' => 'Copied Drip']);
+    $source = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'complaint_or_diagnosis' => 'Original diagnosis',
+        'notes' => 'Original notes',
+    ]);
+
+    $source->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => $medicine->name,
+        'delivered_at' => now(),
+    ]);
+    $source->injections()->create([
+        'injection_id' => $injection->id,
+        'administration_type' => 'iv',
+        'name' => $injection->name,
+        'delivered_at' => now(),
+    ]);
+    $source->drips()->create([
+        'drip_base_id' => $dripBase->id,
+        'name' => $dripBase->name,
+        'status' => DripLineStatus::Done,
+        'done_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('openRecall')
+        ->call('recall', $source->id)
+        ->call('recallFulfilled', 'duplicate')
+        ->assertHasNoErrors()
+        ->assertSee($patient->name);
+
+    $duplicate = $token->medicationOrders()->firstOrFail();
+
+    expect($duplicate->id)->not->toBe($source->id)
+        ->and($duplicate->status)->toBe(MedicationOrderStatus::Draft)
+        ->and($duplicate->complaint_or_diagnosis)->toBe('Original diagnosis')
+        ->and($duplicate->notes)->toBe('Original notes')
+        ->and($duplicate->medicines)->toHaveCount(1)
+        ->and($duplicate->medicines->first()->delivered_at)->toBeNull()
+        ->and($duplicate->injections)->toHaveCount(1)
+        ->and($duplicate->injections->first()->delivered_at)->toBeNull()
+        ->and($duplicate->drips)->toHaveCount(1)
+        ->and($duplicate->drips->first()->status)->toBe(DripLineStatus::Pending)
+        ->and($duplicate->drips->first()->done_at)->toBeNull()
+        ->and($source->fresh()->status)->toBe(MedicationOrderStatus::Administered)
+        ->and($token->medicationOrders()->count())->toBe(2);
+});
+
+test('doctor can reopen the original fulfilled order for delivery again', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(
+        withDoctor: false,
+        tokenStatus: 'served',
+    );
+    $medicine = Medicine::factory()->create(['name' => 'Reopened Medicine']);
+    $dripBase = DripBase::factory()->create(['name' => 'Reopened Drip']);
+    $order = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+    ]);
+    $medicineLine = $order->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroZero,
+        'name' => $medicine->name,
+        'delivered_at' => now(),
+    ]);
+    $drip = $order->drips()->create([
+        'drip_base_id' => $dripBase->id,
+        'name' => $dripBase->name,
+        'status' => DripLineStatus::Done,
+        'done_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('openRecall')
+        ->call('recall', $order->id)
+        ->call('recallFulfilled', 'reopen')
+        ->assertHasNoErrors()
+        ->assertSee($patient->name);
+
+    $order->refresh();
+    $medicineLine->refresh();
+    $drip->refresh();
+
+    expect($token->medicationOrders()->count())->toBe(1)
+        ->and($order->status)->toBe(MedicationOrderStatus::Draft)
+        ->and($order->administered_at)->toBeNull()
+        ->and($medicineLine->delivered_at)->toBeNull()
+        ->and($drip->status)->toBe(DripLineStatus::Pending)
+        ->and($drip->done_at)->toBeNull();
 });
 
 test('doctor can save an order and call the next patient when the token follows the doctor', function () {
@@ -778,6 +891,7 @@ test('visual badges toggle catalog medications with their default dose and admin
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'visual')
+        ->assertSeeHtml('wire:click="toggleMedicationSelection(\'medicine:'.$medicine->id.'\')"')
         ->call('toggleMedicationSelection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.dose', '1-0-1')
@@ -814,6 +928,8 @@ test('visual badges toggle drip bases in the same order form', function () {
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'visual')
         ->assertSee('Badge Normal Saline')
+        ->assertSeeHtml('wire:click="toggleDripBaseSelection('.$dripBase->id.')"')
+        ->assertDontSeeHtml('@if="@if"')
         ->call('toggleDripBaseSelection', $dripBase->id)
         ->assertSet('dripLines.0.drip_base_id', $dripBase->id);
 

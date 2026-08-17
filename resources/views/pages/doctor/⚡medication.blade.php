@@ -593,7 +593,21 @@ new #[Title('Medication')] class extends Component
             return null;
         }
 
-        return MedicationOrder::with(['patient', 'queueToken'])->find($this->selectedRecallOrderId);
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            return null;
+        }
+
+        return MedicationOrder::query()
+            ->with(['patient', 'queueToken'])
+            ->whereKey($this->selectedRecallOrderId)
+            ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
+            ->whereHas(
+                'queueToken.serviceQueue',
+                fn ($query) => $query->where('status', 'open')->forShift($shift)
+            )
+            ->first();
     }
 
     /**
@@ -1900,6 +1914,7 @@ new #[Title('Medication')] class extends Component
                                     @php($value = $group['prefix'].':'.$item->id)
                                     @php($isDrip = $group['prefix'] === 'drip')
                                     @php($isSelected = $isDrip ? in_array($item->id, $selectedDripBaseIds, true) : in_array($value, $selectedMedications, true))
+                                    @php($toggleAction = $isDrip ? 'toggleDripBaseSelection('.$item->id.')' : "toggleMedicationSelection('{$value}')")
                                     <flux:badge
                                         as="button"
                                         type="button"
@@ -1908,11 +1923,7 @@ new #[Title('Medication')] class extends Component
                                         :icon="$isSelected ? 'check' : null"
                                         class="cursor-pointer"
                                         wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
-                                        @if ($isDrip)
-                                            wire:click="toggleDripBaseSelection({{ $item->id }})"
-                                        @else
-                                            wire:click="toggleMedicationSelection('{{ $value }}')"
-                                        @endif
+                                        wire:click="{{ $toggleAction }}"
                                     >
                                         {{ $item->name }}@if (filled($item->unit ?? null)) ({{ $item->unit }}) @endif
                                     </flux:badge>
