@@ -559,6 +559,26 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee('Searchable Saline');
 });
 
+test('medicines and injections are listed alphabetically', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Medicine::factory()->create(['name' => 'Zinc']);
+    Medicine::factory()->create(['name' => 'amoxicillin']);
+    Medicine::factory()->create(['name' => 'Paracetamol']);
+    Injection::factory()->create(['name' => 'Vitamin K']);
+    Injection::factory()->create(['name' => 'diclofenac']);
+    Injection::factory()->create(['name' => 'Ceftriaxone']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id);
+
+    expect($component->instance()->medicines->pluck('name')->all())
+        ->toBe(['amoxicillin', 'Paracetamol', 'Zinc'])
+        ->and($component->instance()->injections->pluck('name')->all())
+        ->toBe(['Ceftriaxone', 'diclofenac', 'Vitamin K']);
+});
+
 test('doctor can switch the medication form between typing and visual modes', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     Medicine::factory()->create(['name' => 'Visual Paracetamol']);

@@ -183,7 +183,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function medicines(): Collection
     {
-        return Medicine::query()->active()->orderBy('name')->get();
+        return Medicine::query()->active()->orderByRaw('lower(name)')->orderBy('name')->get();
     }
 
     /**
@@ -194,7 +194,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function injections(): Collection
     {
-        return Injection::query()->active()->orderBy('name')->get();
+        return Injection::query()->active()->orderByRaw('lower(name)')->orderBy('name')->get();
     }
 
     /**
