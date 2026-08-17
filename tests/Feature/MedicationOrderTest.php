@@ -944,13 +944,19 @@ test('visual badges toggle drip bases on the drips tab', function () {
         ->assertSet('dripLines.0.drip_base_id', $dripBase->id)
         ->assertSee(__('Selected drips'))
         ->assertSee(__('Additives'))
+        ->assertDontSee(__('Search injection or type a new name'))
+        ->assertSeeHtml('wire:click="toggleDripAdditive(0, '.$additive->id.')"')
+        ->call('toggleDripAdditive', 0, $additive->id)
+        ->assertSet('dripLines.0.additives.0.injection_id', $additive->id)
+        ->call('toggleDripAdditive', 0, $additive->id)
+        ->assertSet('dripLines.0.additives.0.injection_id', null)
         ->call('toggleDripSelection', $dripBase->id);
 
     expect($component->get('dripLines'))->toBe([]);
 
     $component
         ->call('toggleDripSelection', $dripBase->id)
-        ->set('dripLines.0.additives.0.injection_id', $additive->id)
+        ->call('toggleDripAdditive', 0, $additive->id)
         ->call('save')
         ->assertHasNoErrors();
 
@@ -968,6 +974,39 @@ test('visual badges toggle drip bases on the drips tab', function () {
     $this->assertDatabaseHas('medication_order_drip_additives', [
         'injection_id' => $additive->id,
         'name' => 'Visual Vitamin B12',
+    ]);
+});
+
+test('doctor can write a custom drip additive from the visual badges', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $dripBase = DripBase::factory()->create(['name' => 'Visual Dextrose']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->call('switchOrderTab', 'drips')
+        ->call('toggleDripSelection', $dripBase->id)
+        ->assertSeeHtml('aria-label="'.__('Write additive').'"')
+        ->call('openWrittenAdditiveInput', 0)
+        ->assertSet('showWrittenAdditiveInput', true)
+        ->assertSee(__('Type additive name'))
+        ->set('writtenAdditiveName', 'Vitamin C 500mg')
+        ->call('addWrittenAdditive')
+        ->assertHasNoErrors()
+        ->assertSet('showWrittenAdditiveInput', false)
+        ->assertSet('writtenAdditiveName', '')
+        ->assertSet('dripLines.0.additives.0.injection_id', 'custom:Vitamin C 500mg')
+        ->assertSee('Vitamin C 500mg')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+
+    $this->assertDatabaseHas('medication_order_drip_additives', [
+        'medication_order_drip_id' => $order->drips->first()->id,
+        'injection_id' => null,
+        'name' => 'Vitamin C 500mg',
     ]);
 });
 

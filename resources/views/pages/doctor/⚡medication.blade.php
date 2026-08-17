@@ -66,6 +66,12 @@ new #[Title('Medication')] class extends Component
 
     public string $writtenMedicationName = '';
 
+    public bool $showWrittenAdditiveInput = false;
+
+    public string $writtenAdditiveName = '';
+
+    public ?int $writtenAdditiveDripIndex = null;
+
     public string $notes = '';
 
     public string $complaintOrDiagnosis = '';
@@ -743,6 +749,9 @@ new #[Title('Medication')] class extends Component
         $this->showRecheckForm = false;
         $this->showWrittenMedicationInput = false;
         $this->writtenMedicationName = '';
+        $this->showWrittenAdditiveInput = false;
+        $this->writtenAdditiveName = '';
+        $this->writtenAdditiveDripIndex = null;
         $this->medicationLines = [];
         $this->dripLines = [];
         $this->resetValidation();
@@ -945,6 +954,14 @@ new #[Title('Medication')] class extends Component
     {
         unset($this->dripLines[$index]);
         $this->dripLines = array_values($this->dripLines);
+
+        if ($this->writtenAdditiveDripIndex === $index) {
+            $this->showWrittenAdditiveInput = false;
+            $this->writtenAdditiveName = '';
+            $this->writtenAdditiveDripIndex = null;
+        } elseif ($this->writtenAdditiveDripIndex !== null && $this->writtenAdditiveDripIndex > $index) {
+            $this->writtenAdditiveDripIndex--;
+        }
     }
 
     /**
@@ -1007,6 +1024,119 @@ new #[Title('Medication')] class extends Component
 
         unset($this->dripLines[$dripIndex]['additives'][$additiveIndex]);
         $this->dripLines[$dripIndex]['additives'] = array_values($this->dripLines[$dripIndex]['additives']);
+    }
+
+    /**
+     * Add or remove a catalog injection picked as a drip additive from the visual badges.
+     */
+    public function toggleDripAdditive(int $dripIndex, int $injectionId): void
+    {
+        if (! isset($this->dripLines[$dripIndex]) || $this->injections->firstWhere('id', $injectionId) === null) {
+            return;
+        }
+
+        foreach ($this->dripLines[$dripIndex]['additives'] ?? [] as $index => $additive) {
+            if ($this->additiveInjectionId($additive['injection_id'] ?? null) === $injectionId) {
+                $this->removeDripAdditive($dripIndex, $index);
+
+                return;
+            }
+        }
+
+        $this->assignDripAdditive($dripIndex, $injectionId);
+    }
+
+    public function openWrittenAdditiveInput(int $dripIndex): void
+    {
+        if (! isset($this->dripLines[$dripIndex])) {
+            return;
+        }
+
+        $this->writtenAdditiveDripIndex = $dripIndex;
+        $this->showWrittenAdditiveInput = true;
+        $this->writtenAdditiveName = '';
+        $this->resetValidation('writtenAdditiveName');
+    }
+
+    /**
+     * Add an injection written by the doctor as a drip additive from visual mode.
+     */
+    public function addWrittenAdditive(): void
+    {
+        $dripIndex = $this->writtenAdditiveDripIndex;
+
+        if ($dripIndex === null || ! isset($this->dripLines[$dripIndex])) {
+            return;
+        }
+
+        $this->writtenAdditiveName = trim($this->writtenAdditiveName);
+
+        $this->validateOnly('writtenAdditiveName', [
+            'writtenAdditiveName' => ['required', 'string', 'max:255'],
+        ]);
+
+        $selection = 'custom:'.$this->writtenAdditiveName;
+
+        foreach ($this->dripLines[$dripIndex]['additives'] ?? [] as $additive) {
+            if (($additive['injection_id'] ?? null) === $selection) {
+                $this->showWrittenAdditiveInput = false;
+                $this->writtenAdditiveName = '';
+                $this->writtenAdditiveDripIndex = null;
+
+                return;
+            }
+        }
+
+        $this->assignDripAdditive($dripIndex, $selection);
+        $this->showWrittenAdditiveInput = false;
+        $this->writtenAdditiveName = '';
+        $this->writtenAdditiveDripIndex = null;
+    }
+
+    /**
+     * Put an additive on the first blank row, or append a new one.
+     */
+    private function assignDripAdditive(int $dripIndex, int|string $injectionId): void
+    {
+        $index = $this->firstBlankDripAdditiveIndex($dripIndex);
+
+        if ($index === null) {
+            $this->addDripAdditive($dripIndex);
+            $index = array_key_last($this->dripLines[$dripIndex]['additives']);
+        }
+
+        $this->dripLines[$dripIndex]['additives'][$index]['injection_id'] = $injectionId;
+    }
+
+    /**
+     * Index of the first additive row without an injection, so badges reuse blank rows first.
+     */
+    private function firstBlankDripAdditiveIndex(int $dripIndex): ?int
+    {
+        foreach ($this->dripLines[$dripIndex]['additives'] ?? [] as $index => $additive) {
+            if (! filled($additive['injection_id'] ?? null)) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function additiveInjectionId(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /**
+     * Display name for a drip additive selection.
+     */
+    public function dripAdditiveName(mixed $injectionId): string
+    {
+        if ($this->additiveInjectionId($injectionId) !== null) {
+            return $this->injections->firstWhere('id', $this->additiveInjectionId($injectionId))?->name ?? '';
+        }
+
+        return $this->customLineName($injectionId);
     }
 
     /**
@@ -2191,25 +2321,68 @@ new #[Title('Medication')] class extends Component
                                 </div>
 
                                 <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
-                                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
-                                    @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
-                                        <div wire:key="visual-drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                            <div class="sm:col-span-11" data-nav-field>
-                                                <x-searchable-select
-                                                    wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
-                                                    :options="$this->injectionOptions"
-                                                    :placeholder="__('Search injection or type a new name')"
-                                                    allow-custom
+                                    @php($selectedAdditiveIds = collect($drip['additives'] ?? [])->pluck('injection_id')->map(fn (mixed $id): ?int => is_numeric($id) ? (int) $id : null)->filter()->values()->all())
+                                    <div class="flex items-center justify-between gap-2">
+                                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
+                                        <flux:badge
+                                            as="button"
+                                            type="button"
+                                            size="lg"
+                                            icon="plus"
+                                            class="cursor-pointer"
+                                            aria-label="{{ __('Write additive') }}"
+                                            wire:click="openWrittenAdditiveInput({{ $dripIndex }})"
+                                        >
+                                            {{ __('Add') }}
+                                        </flux:badge>
+                                    </div>
+                                    <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                                        @forelse ($this->injections as $injection)
+                                            @php($isSelected = in_array($injection->id, $selectedAdditiveIds, true))
+                                            <flux:badge
+                                                as="button"
+                                                type="button"
+                                                size="lg"
+                                                :color="$isSelected ? 'sky' : 'zinc'"
+                                                :icon="$isSelected ? 'check' : null"
+                                                class="cursor-pointer"
+                                                wire:key="visual-drip-{{ $dripIndex }}-additive-{{ $injection->id }}"
+                                                wire:click="toggleDripAdditive({{ $dripIndex }}, {{ $injection->id }})"
+                                            >
+                                                {{ $injection->name }}
+                                            </flux:badge>
+                                        @empty
+                                            <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
+                                        @endforelse
+                                    </div>
+                                    @if ($showWrittenAdditiveInput && $writtenAdditiveDripIndex === $dripIndex)
+                                        <div
+                                            class="flex flex-col gap-2 sm:flex-row"
+                                            x-init="$nextTick(() => $el.querySelector('input')?.focus())"
+                                        >
+                                            <div class="flex-1">
+                                                <flux:input
+                                                    wire:model="writtenAdditiveName"
+                                                    wire:keydown.enter.prevent="addWrittenAdditive"
+                                                    type="text"
+                                                    maxlength="255"
+                                                    placeholder="{{ __('Type additive name') }}"
                                                 />
+                                                <flux:error name="writtenAdditiveName" />
                                             </div>
-                                            <div class="flex items-start sm:col-span-1">
-                                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
-                                            </div>
+                                            <flux:button type="button" variant="primary" wire:click="addWrittenAdditive">
+                                                {{ __('Select') }}
+                                            </flux:button>
+                                        </div>
+                                    @endif
+                                    @foreach (array_filter($drip['additives'] ?? [], fn (array $additive): bool => is_string($additive['injection_id'] ?? null) && str_starts_with($additive['injection_id'], 'custom:')) as $additiveIndex => $additive)
+                                        <div wire:key="visual-drip-{{ $dripIndex }}-custom-additive-{{ $additiveIndex }}" class="flex items-center justify-between gap-2">
+                                            <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                                                {{ $this->dripAdditiveName($additive['injection_id']) }}
+                                            </p>
+                                            <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
                                         </div>
                                     @endforeach
-                                    <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
-                                        {{ __('Add additive') }}
-                                    </flux:button>
                                 </div>
                             </div>
                         @empty
