@@ -1,0 +1,25 @@
+{
+  "url": "http://192.168.100.104",
+  "browser": "Auto",
+  "kioskUser": "HospitalKiosk",
+  "kioskPassword": "Kiosk#2026",
+  "installDir": "C:\\Kiosk",
+  "adminHotkey": "Ctrl+Shift+Alt+F12",
+  "allowedExeNames": [
+    "chrome.exe",
+    "brave.exe",
+    "powershell.exe",
+    "explorer.exe",
+    "conhost.exe",
+    "RuntimeBroker.exe",
+    "dllhost.exe",
+    "sihost.exe",
+    "taskhostw.exe",
+    "ctfmon.exe",
+    "ApplicationFrameHost.exe",
+    "ShellExperienceHost.exe",
+    "SearchUI.exe",
+    "MicrosoftEdge.exe",
+    "msedge.exe"
+  ]
+}

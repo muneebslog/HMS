@@ -1461,11 +1461,11 @@ new #[Title('Medication')] class extends Component
                             <div class="grid grid-cols-3 gap-2 text-center">
                                 <div>
                                     <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('Temp') }}</p>
-                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->temperature }}°F</p>
+                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->temperature !== null ? $vital->temperature.'°F' : '—' }}</p>
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('BP') }}</p>
-                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ $vital->bp_systolic }}/{{ $vital->bp_diastolic }}</p>
+                                    <p class="mt-1 font-mono text-lg font-bold text-zinc-900">{{ ($vital->bp_systolic !== null || $vital->bp_diastolic !== null) ? ($vital->bp_systolic ?? '—').'/'.($vital->bp_diastolic ?? '—') : '—' }}</p>
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('BSR') }}</p>

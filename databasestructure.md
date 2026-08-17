@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_14_161607_add_ends_at_vitals_to_services_table`.
+> Last reviewed against migrations through `2026_08_17_190532_make_vital_readings_nullable`.
 
 Conventions used below:
 
@@ -398,9 +398,9 @@ Overhead expenses (electricity, rent, etc.) for monthly reporting. Not linked to
 | queue_token_id | FK → queue_tokens | cascadeOnDelete, IDX (multiple rows per token for rechecks) |
 | patient_id | FK → patients | cascadeOnDelete |
 | recorded_by | FK → users | cascadeOnDelete |
-| temperature | decimal(4,1) | °F |
-| bp_systolic | unsignedSmallInteger | mmHg |
-| bp_diastolic | unsignedSmallInteger | mmHg |
+| temperature | decimal(4,1) | nullable, °F |
+| bp_systolic | unsignedSmallInteger | nullable, mmHg |
+| bp_diastolic | unsignedSmallInteger | nullable, mmHg |
 | bsr | unsignedSmallInteger | nullable, mg/dL (blood sugar random) |
 | timestamps | | |
 

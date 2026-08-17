@@ -35,10 +35,20 @@ new #[Title('Vitals')] class extends Component
     protected function rules(): array
     {
         return [
-            'temperatureFahrenheit' => ['required', 'numeric', 'min:86', 'max:113'],
-            'bpSystolic' => ['required', 'integer', 'min:50', 'max:300'],
-            'bpDiastolic' => ['required', 'integer', 'min:30', 'max:200'],
+            'temperatureFahrenheit' => ['nullable', 'required_without_all:bpSystolic,bpDiastolic,bsr', 'numeric', 'min:86', 'max:113'],
+            'bpSystolic' => ['nullable', 'integer', 'min:50', 'max:300'],
+            'bpDiastolic' => ['nullable', 'integer', 'min:30', 'max:200'],
             'bsr' => ['nullable', 'integer', 'min:20', 'max:600'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function messages(): array
+    {
+        return [
+            'temperatureFahrenheit.required_without_all' => __('Enter at least one vital.'),
         ];
     }
 
@@ -132,10 +142,7 @@ new #[Title('Vitals')] class extends Component
         $this->resetCaptureFields();
 
         if ($token->vital !== null && $this->isRecheckCapture($token)) {
-            $this->temperatureFahrenheit = (string) $token->vital->temperature;
-            $this->bpSystolic = (string) $token->vital->bp_systolic;
-            $this->bpDiastolic = (string) $token->vital->bp_diastolic;
-            $this->bsr = $token->vital->bsr !== null ? (string) $token->vital->bsr : '';
+            $this->fillCaptureFromVital($token->vital);
         }
 
         $this->resetValidation();
@@ -199,9 +206,9 @@ new #[Title('Vitals')] class extends Component
         $vitalAttributes = [
             'patient_id' => $token->patient_id,
             'recorded_by' => auth()->id(),
-            'temperature' => $validated['temperatureFahrenheit'],
-            'bp_systolic' => $validated['bpSystolic'],
-            'bp_diastolic' => $validated['bpDiastolic'],
+            'temperature' => filled($validated['temperatureFahrenheit'] ?? null) ? $validated['temperatureFahrenheit'] : null,
+            'bp_systolic' => filled($validated['bpSystolic'] ?? null) ? $validated['bpSystolic'] : null,
+            'bp_diastolic' => filled($validated['bpDiastolic'] ?? null) ? $validated['bpDiastolic'] : null,
             'bsr' => filled($validated['bsr'] ?? null) ? $validated['bsr'] : null,
         ];
 
@@ -241,11 +248,19 @@ new #[Title('Vitals')] class extends Component
         unset($this->selectedToken);
 
         if ($nextToken->vital !== null && $this->isRecheckCapture($nextToken)) {
-            $this->temperatureFahrenheit = (string) $nextToken->vital->temperature;
-            $this->bpSystolic = (string) $nextToken->vital->bp_systolic;
-            $this->bpDiastolic = (string) $nextToken->vital->bp_diastolic;
-            $this->bsr = $nextToken->vital->bsr !== null ? (string) $nextToken->vital->bsr : '';
+            $this->fillCaptureFromVital($nextToken->vital);
         }
+    }
+
+    /**
+     * Prefill capture fields from an existing vitals reading.
+     */
+    private function fillCaptureFromVital(Vital $vital): void
+    {
+        $this->temperatureFahrenheit = $vital->temperature !== null ? (string) $vital->temperature : '';
+        $this->bpSystolic = $vital->bp_systolic !== null ? (string) $vital->bp_systolic : '';
+        $this->bpDiastolic = $vital->bp_diastolic !== null ? (string) $vital->bp_diastolic : '';
+        $this->bsr = $vital->bsr !== null ? (string) $vital->bsr : '';
     }
 
     /**
@@ -349,7 +364,6 @@ new #[Title('Vitals')] class extends Component
                         max="113"
                         class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
                         autofocus
-                        required
                     />
                     <flux:error name="temperatureFahrenheit" />
                 </flux:field>
@@ -364,7 +378,6 @@ new #[Title('Vitals')] class extends Component
                             min="50"
                             max="300"
                             class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
-                            required
                         />
                         <flux:error name="bpSystolic" />
                     </flux:field>
@@ -379,7 +392,6 @@ new #[Title('Vitals')] class extends Component
                             min="30"
                             max="200"
                             class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
-                            required
                         />
                         <flux:error name="bpDiastolic" />
                     </flux:field>
