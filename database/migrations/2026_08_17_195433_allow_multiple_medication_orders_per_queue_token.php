@@ -12,8 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('medication_orders', function (Blueprint $table) {
+            $table->dropForeign(['queue_token_id']);
+        });
+
+        Schema::table('medication_orders', function (Blueprint $table) {
             $table->dropUnique(['queue_token_id']);
-            $table->index('queue_token_id');
+        });
+
+        Schema::table('medication_orders', function (Blueprint $table) {
+            $table->foreign('queue_token_id')->references('id')->on('queue_tokens')->cascadeOnDelete();
         });
     }
 
@@ -23,8 +30,15 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('medication_orders', function (Blueprint $table) {
-            $table->dropIndex(['queue_token_id']);
+            $table->dropForeign(['queue_token_id']);
+        });
+
+        Schema::table('medication_orders', function (Blueprint $table) {
             $table->unique('queue_token_id');
+        });
+
+        Schema::table('medication_orders', function (Blueprint $table) {
+            $table->foreign('queue_token_id')->references('id')->on('queue_tokens')->cascadeOnDelete();
         });
     }
 };
