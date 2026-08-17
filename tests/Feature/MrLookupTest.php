@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\MedicineDose;
 use App\Models\Invoice;
 use App\Models\MedicationOrder;
 use App\Models\Patient;
+use App\Models\QueueToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -60,9 +62,19 @@ test('mr lookup shows patient history after selection', function () {
     $user = User::factory()->management()->create();
     $patient = Patient::factory()->create(['name' => 'Sana Malik']);
     $invoice = Invoice::factory()->create(['patient_id' => $patient->id]);
+    $token = QueueToken::factory()->create([
+        'patient_id' => $patient->id,
+        'token_number' => 9,
+    ]);
     $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
+    ]);
+    $order->medicines()->create([
+        'medicine_id' => null,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => 'Paracetamol 500mg',
     ]);
 
     Livewire::actingAs($user)
@@ -72,6 +84,10 @@ test('mr lookup shows patient history after selection', function () {
         ->assertSet('selectedPatientId', $patient->id)
         ->assertSee($patient->mrn)
         ->assertSee($invoice->invoice_number)
+        ->assertSee('Token #9')
+        ->assertSee(__('Medication slip'))
+        ->assertSee('Paracetamol 500mg')
+        ->assertSee(MedicineDose::OneZeroOne->label())
         ->assertSee(__('Medication orders'))
         ->assertSee($order->status->label());
 });

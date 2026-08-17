@@ -125,6 +125,9 @@
                         <flux:sidebar.item icon="cloud" :href="route('admin.drive')" :current="request()->routeIs('admin.drive*')" wire:navigate>
                             {{ __('HMS Drive') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
+                            {{ __('PDF Print') }}
+                        </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
 
@@ -176,9 +179,6 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
                             {{ __('Service Statistics') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
-                            {{ __('PDF Print') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
                             {{ __('Recheck Timers') }}

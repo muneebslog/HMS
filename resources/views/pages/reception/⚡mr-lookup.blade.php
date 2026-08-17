@@ -37,7 +37,14 @@ new #[Title('MR Lookup')] class extends Component
             ->with([
                 'family',
                 'queueTokens' => fn ($query) => $query
-                    ->with(['serviceQueue.service', 'serviceQueue.doctor'])
+                    ->with([
+                        'serviceQueue.service',
+                        'serviceQueue.doctor',
+                        'medicationOrders.doctor',
+                        'medicationOrders.medicines',
+                        'medicationOrders.injections',
+                        'medicationOrders.drips.additives',
+                    ])
                     ->latest('arrived_at')
                     ->limit(10),
                 'invoices' => fn ($query) => $query->latest()->limit(10),
@@ -207,6 +214,68 @@ new #[Title('MR Lookup')] class extends Component
                                 @endif
                                 · {{ ucfirst($token->status) }}
                             </p>
+                            @if ($token->medicationOrders->isNotEmpty())
+                                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                    @foreach ($token->medicationOrders as $order)
+                                        <x-paper-slip wire:key="mr-visit-{{ $token->id }}-medication-{{ $order->id }}">
+                                            <div class="flex items-start justify-between gap-2 border-b border-dashed border-zinc-400/70 pb-2">
+                                                <div>
+                                                    <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                                        {{ __('Medication slip') }}
+                                                    </p>
+                                                    <p class="mt-1 text-xs text-zinc-600">
+                                                        {{ $order->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
+                                                    </p>
+                                                </div>
+                                                <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
+                                                    {{ $order->status->label() }}
+                                                </flux:badge>
+                                            </div>
+
+                                            @if (filled($order->complaint_or_diagnosis))
+                                                <p class="text-xs text-zinc-600">
+                                                    <span class="font-semibold">{{ __('Diagnosis') }}:</span>
+                                                    {{ $order->complaint_or_diagnosis }}
+                                                </p>
+                                            @endif
+
+                                            @foreach ($order->medicines as $medicine)
+                                                <p class="text-sm text-zinc-800">
+                                                    {{ $medicine->name }}
+                                                    <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
+                                                </p>
+                                            @endforeach
+
+                                            @foreach ($order->injections as $injection)
+                                                <p class="text-sm text-zinc-800">
+                                                    {{ $injection->name }}
+                                                    <span class="text-zinc-500">— {{ $injection->administration_type->label() }}</span>
+                                                </p>
+                                            @endforeach
+
+                                            @foreach ($order->drips as $drip)
+                                                <div>
+                                                    <p class="text-sm text-zinc-800">{{ $drip->name }}</p>
+                                                    @foreach ($drip->additives as $additive)
+                                                        <p class="ms-3 text-xs text-zinc-500">+ {{ $additive->name }}</p>
+                                                    @endforeach
+                                                </div>
+                                            @endforeach
+
+                                            @if ($order->medicines->isEmpty() && $order->injections->isEmpty() && $order->drips->isEmpty())
+                                                <p class="text-sm text-zinc-500">{{ __('No medication items recorded.') }}</p>
+                                            @endif
+
+                                            @if (filled($order->notes))
+                                                <p class="text-xs text-zinc-600">
+                                                    <span class="font-semibold">{{ __('Notes:') }}</span>
+                                                    {{ $order->notes }}
+                                                </p>
+                                            @endif
+                                        </x-paper-slip>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                     @empty
                         <p class="text-sm text-zinc-500">{{ __('No visits found.') }}</p>

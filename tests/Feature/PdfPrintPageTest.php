@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\PrintJobStatus;
-use App\Enums\UserRole;
 use App\Models\PdfPrintJob;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -131,10 +130,34 @@ test('the pdf print page shows the failure reason', function () {
         ->assertSee('Printer offline');
 });
 
-test('management users cannot access the pdf print page', function () {
-    $user = User::factory()->create(['role' => UserRole::Management]);
+test('management users can view the pdf print page', function () {
+    $user = User::factory()->management()->create();
 
     $this->actingAs($user)
         ->get(route('admin.pdf-print'))
-        ->assertForbidden();
+        ->assertOk();
+});
+
+test('management users can upload a pdf and queue a print job', function () {
+    $user = User::factory()->management()->create();
+    $file = TemporaryUploadedFile::fake()->create('report.pdf', 100, 'application/pdf');
+
+    Livewire::actingAs($user)
+        ->test('pages::admin.pdf-print')
+        ->set('pdf', $file)
+        ->set('copies', 2)
+        ->call('queuePrint')
+        ->assertHasNoErrors()
+        ->assertSet('pdf', null)
+        ->assertSet('copies', 1);
+
+    $job = PdfPrintJob::query()->first();
+
+    expect($job)->not->toBeNull()
+        ->and($job->user_id)->toBe($user->id)
+        ->and($job->original_filename)->toBe('report.pdf')
+        ->and($job->copies)->toBe(2)
+        ->and($job->status)->toBe(PrintJobStatus::Pending);
+
+    Storage::disk('local')->assertExists($job->disk_path);
 });

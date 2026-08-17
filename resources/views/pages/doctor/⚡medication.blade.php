@@ -35,6 +35,10 @@ new #[Title('Medication')] class extends Component
 
     public bool $showRecallModal = false;
 
+    public bool $showFulfilledRecallOptions = false;
+
+    public ?int $selectedRecallOrderId = null;
+
     /**
      * @var array{
      *     medicines: list<array{name: string, dose: string, comment: string|null}>,
@@ -50,10 +54,8 @@ new #[Title('Medication')] class extends Component
         'notes' => null,
     ];
 
-    public string $activeOrderTab = 'medicines';
-
     /**
-     * Whether medications are picked with searchable selects (`typing`) or catalog badges (`visual`).
+     * Whether medicines, injections, and drips are picked with searchable selects (`typing`) or catalog badges (`visual`).
      */
     #[Session(key: 'medication-order-input-mode')]
     public string $orderInputMode = 'typing';
@@ -444,7 +446,6 @@ new #[Title('Medication')] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->showHistoryModal = false;
-        $this->activeOrderTab = 'medicines';
         $this->recheckMinutes = '15';
         $this->recheckNote = $token->activeRecheck?->note ?? '';
         $this->showRecheckForm = false;
@@ -583,6 +584,19 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * The fulfilled order awaiting a recall strategy.
+     */
+    #[Computed]
+    public function selectedRecallOrder(): ?MedicationOrder
+    {
+        if ($this->selectedRecallOrderId === null) {
+            return null;
+        }
+
+        return MedicationOrder::with(['patient', 'queueToken'])->find($this->selectedRecallOrderId);
+    }
+
+    /**
      * Recall a submitted order for editing on the same token.
      */
     public function recall(int $orderId, RecallMedicationOrder $recallMedicationOrder): void
@@ -595,14 +609,53 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
+        if ($order->status === MedicationOrderStatus::Administered) {
+            $this->selectedRecallOrderId = $order->id;
+            $this->showRecallModal = false;
+            $this->showFulfilledRecallOptions = true;
+            unset($this->selectedRecallOrder);
+
+            return;
+        }
+
+        $this->executeRecall($order, 'clear', $recallMedicationOrder);
+    }
+
+    public function recallFulfilled(string $strategy, RecallMedicationOrder $recallMedicationOrder): void
+    {
+        if (! in_array($strategy, ['clear', 'duplicate', 'reopen'], true)) {
+            abort(422);
+        }
+
+        $order = $this->selectedRecallOrder;
+
+        if ($order === null) {
+            Flux::toast(variant: 'danger', text: __('Medication order is no longer available to recall.'));
+            $this->closeFulfilledRecallOptions();
+
+            return;
+        }
+
+        $this->executeRecall($order, $strategy, $recallMedicationOrder);
+    }
+
+    public function closeFulfilledRecallOptions(): void
+    {
+        $this->showFulfilledRecallOptions = false;
+        $this->selectedRecallOrderId = null;
+        unset($this->selectedRecallOrder);
+    }
+
+    private function executeRecall(MedicationOrder $order, string $strategy, RecallMedicationOrder $recallMedicationOrder): void
+    {
         $actor = auth()->user();
 
-        if ($actor === null) {
+        if ($actor === null || $order->queueToken === null) {
             abort(403);
         }
 
         try {
-            $recallMedicationOrder->handle($order->queueToken, $actor);
+            $recallMedicationOrder->handle($order->queueToken, $actor, $strategy);
         } catch (\InvalidArgumentException) {
             Flux::toast(variant: 'danger', text: __('Medication order is no longer available to recall.'));
 
@@ -610,6 +663,7 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->showRecallModal = false;
+        $this->closeFulfilledRecallOptions();
         unset($this->queue, $this->selectedToken, $this->recallableOrders);
 
         Flux::toast(variant: 'success', text: __('Medication order recalled to the doctor list.'));
@@ -632,6 +686,9 @@ new #[Title('Medication')] class extends Component
         $this->showHistoryModal = false;
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
+        $this->showFulfilledRecallOptions = false;
+        $this->selectedRecallOrderId = null;
+        unset($this->selectedRecallOrder);
         $this->resetOrderPreview();
         $this->notes = '';
         $this->complaintOrDiagnosis = '';
@@ -653,40 +710,6 @@ new #[Title('Medication')] class extends Component
         if (! in_array($value, ['typing', 'visual'], true)) {
             $this->orderInputMode = 'typing';
         }
-    }
-
-    public function switchOrderTab(string $tab): void
-    {
-        if (! in_array($tab, ['medicines', 'drips'], true)) {
-            return;
-        }
-
-        $this->activeOrderTab = $tab;
-        $this->ensureFirstRowForTab($tab);
-    }
-
-    /**
-     * Add a blank row for the currently active order tab.
-     */
-    public function addRowForActiveTab(): void
-    {
-        match ($this->activeOrderTab) {
-            'medicines' => $this->orderInputMode === 'visual' ? null : $this->addMedicationLine(),
-            'drips' => $this->addDripLine(),
-            default => null,
-        };
-    }
-
-    /**
-     * Ensure the active tab has at least one blank row to fill.
-     */
-    private function ensureFirstRowForTab(string $tab): void
-    {
-        match ($tab) {
-            'medicines' => $this->medicationLines === [] ? $this->addMedicationLine() : null,
-            'drips' => $this->dripLines === [] ? $this->addDripLine() : null,
-            default => null,
-        };
     }
 
     public function addMedicationLine(): void
@@ -740,6 +763,37 @@ new #[Title('Medication')] class extends Component
 
         $this->medicationLines[$index]['selection'] = $selection;
         $this->applyCatalogDefaults($index);
+    }
+
+    /**
+     * Add or remove a drip base picked from the visual badges.
+     */
+    public function toggleDripBaseSelection(int $dripBaseId): void
+    {
+        if (! $this->dripBases->contains('id', $dripBaseId)) {
+            return;
+        }
+
+        foreach ($this->dripLines as $index => $line) {
+            if (($line['mode'] ?? 'base') === 'base' && (int) ($line['drip_base_id'] ?? 0) === $dripBaseId) {
+                $this->removeDripLine($index);
+
+                return;
+            }
+        }
+
+        foreach ($this->dripLines as $index => $line) {
+            if (($line['mode'] ?? 'base') === 'base' && blank($line['drip_base_id'] ?? null)) {
+                $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
+                $this->dripLines[$index]['ready_made_drip'] = null;
+
+                return;
+            }
+        }
+
+        $this->addDripLine();
+        $index = array_key_last($this->dripLines);
+        $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
     }
 
     /**
@@ -935,6 +989,9 @@ new #[Title('Medication')] class extends Component
         $this->showHistoryModal = false;
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
+        $this->showFulfilledRecallOptions = false;
+        $this->selectedRecallOrderId = null;
+        unset($this->selectedRecallOrder);
         $this->resetOrderPreview();
     }
 
@@ -1775,20 +1832,6 @@ new #[Title('Medication')] class extends Component
             <flux:error name="complaintOrDiagnosis" />
         </flux:field>
 
-        <div class="border-b border-zinc-200 dark:border-zinc-700">
-            <nav class="-mb-px flex gap-4">
-                @foreach (['medicines' => __('Medications'), 'drips' => __('Drips')] as $tab => $label)
-                    <button
-                        type="button"
-                        wire:click="switchOrderTab('{{ $tab }}')"
-                        class="cursor-pointer border-b-2 px-1 pb-2 text-sm font-medium transition-colors {{ $activeOrderTab === $tab ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400' }}"
-                    >
-                        {{ $label }}
-                    </button>
-                @endforeach
-            </nav>
-        </div>
-
         <form
             wire:submit="previewOrder"
             class="flex flex-1 flex-col gap-4"
@@ -1833,25 +1876,30 @@ new #[Title('Medication')] class extends Component
                     field?.querySelector('input:not([type=hidden]), select, textarea, button')?.focus();
                 },
             }"
-            @keydown.shift.enter.prevent="$wire.addRowForActiveTab()"
+            @keydown.shift.enter.prevent="if ($wire.orderInputMode === 'typing') $wire.addMedicationLine()"
             @keydown.alt.arrow-up.prevent="navigate('up')"
             @keydown.alt.arrow-down.prevent="navigate('down')"
             @keydown.alt.arrow-left.prevent="navigate('left')"
             @keydown.alt.arrow-right.prevent="navigate('right')"
         >
-            @if ($activeOrderTab === 'medicines' && $orderInputMode === 'visual')
+            <flux:heading size="sm">{{ __('Medications') }}</flux:heading>
+
+            @if ($orderInputMode === 'visual')
                 @php($selectedMedications = collect($medicationLines)->pluck('selection')->filter()->all())
+                @php($selectedDripBaseIds = collect($dripLines)->where('mode', 'base')->pluck('drip_base_id')->filter()->map(fn ($id) => (int) $id)->all())
                 <div class="space-y-3">
                     @foreach ([
                         ['label' => __('Medicines'), 'prefix' => 'medicine', 'items' => $this->medicines, 'color' => 'green'],
                         ['label' => __('Injections'), 'prefix' => 'injection', 'items' => $this->injections, 'color' => 'sky'],
+                        ['label' => __('Drips'), 'prefix' => 'drip', 'items' => $this->dripBases, 'color' => 'purple'],
                     ] as $group)
                         <div wire:key="visual-group-{{ $group['prefix'] }}" class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ $group['label'] }}</p>
                             <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
                                 @forelse ($group['items'] as $item)
                                     @php($value = $group['prefix'].':'.$item->id)
-                                    @php($isSelected = in_array($value, $selectedMedications, true))
+                                    @php($isDrip = $group['prefix'] === 'drip')
+                                    @php($isSelected = $isDrip ? in_array($item->id, $selectedDripBaseIds, true) : in_array($value, $selectedMedications, true))
                                     <flux:badge
                                         as="button"
                                         type="button"
@@ -1860,7 +1908,11 @@ new #[Title('Medication')] class extends Component
                                         :icon="$isSelected ? 'check' : null"
                                         class="cursor-pointer"
                                         wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
-                                        wire:click="toggleMedicationSelection('{{ $value }}')"
+                                        @if ($isDrip)
+                                            wire:click="toggleDripBaseSelection({{ $item->id }})"
+                                        @else
+                                            wire:click="toggleMedicationSelection('{{ $value }}')"
+                                        @endif
                                     >
                                         {{ $item->name }}@if (filled($item->unit ?? null)) ({{ $item->unit }}) @endif
                                     </flux:badge>
@@ -1910,7 +1962,7 @@ new #[Title('Medication')] class extends Component
                     </div>
                     <flux:error name="medicationLines" />
                 </div>
-            @elseif ($activeOrderTab === 'medicines')
+            @else
                 <div class="space-y-3">
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         @foreach ($medicationLines as $index => $line)
@@ -1960,11 +2012,13 @@ new #[Title('Medication')] class extends Component
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicationLine">{{ __('Add medication') }}</flux:button>
                     </flux:tooltip>
                 </div>
-            @else
-                <div class="space-y-4">
-                    @foreach ($dripLines as $dripIndex => $drip)
-                        @php($isReadyMadeDrip = ($drip['mode'] ?? 'base') === 'ready_made')
-                        <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+            @endif
+
+            <div class="space-y-4">
+                <flux:heading size="sm">{{ __('Drips') }}</flux:heading>
+                @foreach ($dripLines as $dripIndex => $drip)
+                    @php($isReadyMadeDrip = ($drip['mode'] ?? 'base') === 'ready_made')
+                    <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <div class="flex items-start justify-between gap-2">
                                 <flux:radio.group wire:model.live="dripLines.{{ $dripIndex }}.mode" variant="segmented" size="sm">
                                     <flux:radio value="base">{{ __('With base') }}</flux:radio>
@@ -2019,14 +2073,12 @@ new #[Title('Medication')] class extends Component
                                     </flux:button>
                                 </div>
                             @endif
-                        </div>
-                    @endforeach
-                    <flux:tooltip :content="__('Shift+Enter')" position="top">
-                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
-                    </flux:tooltip>
+                    </div>
+                @endforeach
+                <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
 
-                    @if ($this->dripServices->isNotEmpty())
-                        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                @if ($this->dripServices->isNotEmpty())
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                             <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
                             <div class="grid gap-3 sm:grid-cols-2" data-nav-row>
                                 @if ($this->dripServices->count() > 1)
@@ -2054,10 +2106,9 @@ new #[Title('Medication')] class extends Component
                                     <flux:error name="suggestedPrice" />
                                 </flux:field>
                             </div>
-                        </div>
-                    @endif
-                </div>
-            @endif
+                    </div>
+                @endif
+            </div>
 
             <div data-nav-row>
                 <flux:field data-nav-field>
@@ -2144,6 +2195,47 @@ new #[Title('Medication')] class extends Component
             <div class="flex justify-end">
                 <flux:button type="button" variant="ghost" wire:click="closeRecall">
                     {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="fulfilled-medication-recall" wire:model="showFulfilledRecallOptions" class="w-full max-w-lg">
+        <div class="space-y-4">
+            <div>
+                <flux:heading level="2">{{ __('Recall fulfilled order') }}</flux:heading>
+                <flux:text class="mt-1">
+                    {{ $this->selectedRecallOrder?->patient?->name ?? __('Patient') }}
+                    ? {{ __('Token :token', ['token' => $this->selectedRecallOrder?->queueToken?->token_number ?? '?']) }}
+                </flux:text>
+            </div>
+
+            <div class="grid gap-3">
+                <flux:button type="button" variant="ghost" wire:click="recallFulfilled('clear')" class="h-auto justify-start py-3 text-left">
+                    <span>
+                        <span class="block font-semibold">{{ __('Clear slate') }}</span>
+                        <span class="block text-xs font-normal text-zinc-500">{{ __('Create a new empty medication order on this token.') }}</span>
+                    </span>
+                </flux:button>
+
+                <flux:button type="button" variant="primary" wire:click="recallFulfilled('duplicate')" class="h-auto justify-start py-3 text-left">
+                    <span>
+                        <span class="block font-semibold">{{ __('Duplicate order') }}</span>
+                        <span class="block text-xs font-normal opacity-80">{{ __('Create a new editable order with the same diagnosis, notes, medicines, injections, and drips.') }}</span>
+                    </span>
+                </flux:button>
+
+                <flux:button type="button" variant="danger" wire:click="recallFulfilled('reopen')" class="h-auto justify-start py-3 text-left">
+                    <span>
+                        <span class="block font-semibold">{{ __('Edit fulfilled order') }}</span>
+                        <span class="block text-xs font-normal opacity-80">{{ __('Reopen the original order and clear all fulfilled delivery marks so it must be delivered again.') }}</span>
+                    </span>
+                </flux:button>
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeFulfilledRecallOptions">
+                    {{ __('Cancel') }}
                 </flux:button>
             </div>
         </div>
