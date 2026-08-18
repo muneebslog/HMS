@@ -33,6 +33,12 @@
                         </flux:sidebar.item>
                     @endif
 
+                    @if (auth()->user()->isInchargeNurse() || auth()->user()->isAdmin())
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('incharge.questionnaires')" :current="request()->routeIs('incharge.questionnaire*')" wire:navigate>
+                            {{ __('Questionnaires') }}
+                        </flux:sidebar.item>
+                    @endif
+
                     @if (auth()->user()->isIndoor() || auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isDoctor())
                         <flux:sidebar.item icon="building-office-2" :href="route('indoor.ward')" :current="request()->routeIs('indoor.*')" wire:navigate>
                             {{ __('Indoor Ward') }}
@@ -180,6 +186,9 @@
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
                             {{ __('Service Statistics') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
+                            {{ __('Medication Deliveries') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
                             {{ __('Recheck Timers') }}
                         </flux:sidebar.item>
@@ -191,6 +200,12 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
                             {{ __('Checklist Summary') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('admin.nurse-questionnaires')" :current="request()->routeIs('admin.nurse-questionnaires')" wire:navigate>
+                            {{ __('Nurse Questionnaires') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.nurse-questionnaire-submissions')" :current="request()->routeIs('admin.nurse-questionnaire-submissions')" wire:navigate>
+                            {{ __('Nurse Form Submissions') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

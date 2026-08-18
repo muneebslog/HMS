@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_17_190532_make_vital_readings_nullable`.
+> Last reviewed against migrations through `2026_08_18_171300_create_nurse_questionnaire_tables`.
 
 Conventions used below:
 
@@ -1069,6 +1069,54 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 
 ---
 
+## Nurse Questionnaires
+
+### `nurse_questionnaires`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| created_by | FK → users | nullable, nullOnDelete |
+| name | string | |
+| description | text | nullable |
+| interval_hours | unsignedTinyInteger | default 2 — how often the incharge nurse must fill the form |
+| is_active | boolean | default true, IDX |
+| timestamps | | |
+
+### `nurse_questionnaire_questions`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| questionnaire_id | FK → nurse_questionnaires | cascadeOnDelete |
+| question_text | text | |
+| sort_order | unsignedInteger | default 0 |
+| is_active | boolean | default true |
+| timestamps | | |
+
+### `nurse_questionnaire_entries`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| questionnaire_id | FK → nurse_questionnaires | cascadeOnDelete |
+| user_id | FK → users | cascadeOnDelete |
+| block_starts_at | timestamp | |
+| block_ends_at | timestamp | |
+| submitted_at | timestamp | |
+| timestamps | | |
+| | | UQ `(questionnaire_id, user_id, block_starts_at)` as `nurse_questionnaire_entries_unique_block` |
+
+### `nurse_questionnaire_responses`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| entry_id | FK → nurse_questionnaire_entries | cascadeOnDelete |
+| question_id | FK → nurse_questionnaire_questions | cascadeOnDelete |
+| answer | string | `yes` / `no` (`NurseQuestionnaireAnswer`) |
+| remarks | text | nullable — required when answer is `no` |
+| timestamps | | |
+| | | UQ `(entry_id, question_id)` |
+
+---
+
 ## HR / Employees
 
 ### `employees`
@@ -1235,5 +1283,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         ├── admin_notifications / admin_reports / reception_memos
         ├── kanban_items ── kanban_item_comments
         ├── policy_journals
-        └── supervisor_checklist_entries ── responses ── options
+        ├── supervisor_checklist_entries ── responses ── options
+        └── nurse_questionnaires ──┬── nurse_questionnaire_questions
+                                   └── nurse_questionnaire_entries ── nurse_questionnaire_responses
 ```

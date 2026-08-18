@@ -65,6 +65,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
         Route::livewire('admin/supervisor-questions', 'pages::admin.supervisor-questions')->name('admin.supervisor-questions');
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
+        Route::livewire('admin/nurse-questionnaires', 'pages::admin.nurse-questionnaires')->name('admin.nurse-questionnaires');
+        Route::livewire('admin/nurse-questionnaire-submissions', 'pages::admin.nurse-questionnaire-submissions')->name('admin.nurse-questionnaire-submissions');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -77,6 +79,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/rechecks', 'pages::admin.rechecks')->name('admin.rechecks');
         Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
         Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
+        Route::livewire('admin/medication-deliveries', 'pages::admin.medication-deliveries')->name('admin.medication-deliveries');
     });
 
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
@@ -130,6 +133,11 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('admin/drive/files/{driveFile}/view', [DriveFileController::class, 'view'])
             ->name('admin.drive.view');
         Route::livewire('admin/pdf-print', 'pages::admin.pdf-print')->name('admin.pdf-print');
+    });
+
+    Route::middleware('role:'.UserRole::InchargeNurse->value)->group(function () {
+        Route::livewire('incharge/questionnaires', 'pages::incharge.questionnaires')->name('incharge.questionnaires');
+        Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

@@ -13,6 +13,9 @@ use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
+use App\Models\NurseQuestionnaire;
+use App\Models\NurseQuestionnaireEntry;
+use App\Models\NurseQuestionnaireResponse;
 use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\QueueToken;
@@ -783,6 +786,99 @@ class NotificationService
             route('admin.supervisor-checklist'),
             [
                 'supervisor_id' => $receptionist->id,
+                'entry_id' => $entry->id,
+                'block_starts_at' => $entry->block_starts_at->toDateTimeString(),
+                'block_ends_at' => $entry->block_ends_at->toDateTimeString(),
+                'no_response_ids' => $noResponses->pluck('id')->all(),
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an incharge nurse missed a questionnaire block.
+     */
+    public function notifyNurseQuestionnaireMissing(
+        User $nurse,
+        NurseQuestionnaire $questionnaire,
+        CarbonInterface $blockStart,
+        CarbonInterface $blockEnd
+    ): ?AdminNotification {
+        $alreadyNotified = AdminNotification::where('type', 'nurse_questionnaire_missing')
+            ->whereJsonContains('metadata', ['nurse_id' => $nurse->id])
+            ->whereJsonContains('metadata', ['questionnaire_id' => $questionnaire->id])
+            ->whereJsonContains('metadata', ['block_starts_at' => $blockStart->toDateTimeString()])
+            ->exists();
+
+        if ($alreadyNotified) {
+            return null;
+        }
+
+        $title = __('⏰ Nurse Questionnaire Missing');
+        $message = __(
+            'Incharge nurse :name has not submitted :form for the :start - :end block.',
+            [
+                'name' => $nurse->name,
+                'form' => $questionnaire->name,
+                'start' => $blockStart->format('H:i'),
+                'end' => $blockEnd->format('H:i'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $nurse,
+            'nurse_questionnaire_missing',
+            $title,
+            $message,
+            route('admin.nurse-questionnaire-submissions'),
+            [
+                'nurse_id' => $nurse->id,
+                'questionnaire_id' => $questionnaire->id,
+                'block_starts_at' => $blockStart->toDateTimeString(),
+                'block_ends_at' => $blockEnd->toDateTimeString(),
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an incharge nurse submitted a questionnaire with No answers.
+     *
+     * @param  Collection<int, NurseQuestionnaireResponse>  $noResponses
+     */
+    public function notifyNurseQuestionnaireSubmitted(
+        User $nurse,
+        NurseQuestionnaireEntry $entry,
+        Collection $noResponses
+    ): AdminNotification {
+        $title = __('⚠️ Nurse Questionnaire Submitted With No Answers');
+
+        $items = $noResponses->map(function (NurseQuestionnaireResponse $response): string {
+            $text = $response->question->question_text;
+
+            return $response->remarks
+                ? "- {$text} ({$response->remarks})"
+                : "- {$text}";
+        })->implode("\n");
+
+        $message = __(
+            "Incharge nurse :name submitted :form for :start - :end with the following No answers:\n:items",
+            [
+                'name' => $nurse->name,
+                'form' => $entry->questionnaire->name,
+                'start' => $entry->block_starts_at->format('H:i'),
+                'end' => $entry->block_ends_at->format('H:i'),
+                'items' => $items,
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $nurse,
+            'nurse_questionnaire_no_answers',
+            $title,
+            $message,
+            route('admin.nurse-questionnaire-submissions'),
+            [
+                'nurse_id' => $nurse->id,
+                'questionnaire_id' => $entry->questionnaire_id,
                 'entry_id' => $entry->id,
                 'block_starts_at' => $entry->block_starts_at->toDateTimeString(),
                 'block_ends_at' => $entry->block_ends_at->toDateTimeString(),

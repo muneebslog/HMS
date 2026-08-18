@@ -1194,7 +1194,7 @@ new #[Title('Medication')] class extends Component
                 ->map(function (array $line) use ($dripBasesById, $injectionsById): ?array {
                     $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
 
-                    if ($dripBase === null || ! $dripBase->show_on_er) {
+                    if ($dripBase === null) {
                         return null;
                     }
 
@@ -2656,7 +2656,10 @@ new #[Title('Medication')] class extends Component
                         <div class="border-t border-dashed border-zinc-400/70 pt-3">
                             <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Drips') }}</p>
                             @foreach ($orderPreview['drips'] as $index => $drip)
-                                <div wire:key="preview-drip-{{ $index }}" class="mb-2">
+                                <div
+                                    wire:key="preview-drip-{{ $index }}"
+                                    @class(['mb-2', 'border-t border-dashed border-zinc-400/70 pt-2' => $index > 0])
+                                >
                                     <p class="text-sm font-medium text-zinc-800">
                                         {{ $drip['name'] }}
                                     </p>

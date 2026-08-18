@@ -23,6 +23,10 @@ new #[Title('Dashboard')] class extends Component
         if (auth()->user()?->isIndoor()) {
             $this->redirect(route('indoor.ward'), navigate: true);
         }
+
+        if (auth()->user()?->isInchargeNurse()) {
+            $this->redirect(route('incharge.questionnaires'), navigate: true);
+        }
     }
 
     /**

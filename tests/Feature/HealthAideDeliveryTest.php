@@ -245,6 +245,24 @@ test('er slip shows only drips enabled in management', function () {
         ->assertDontSee('Hidden ER Drip');
 });
 
+test('drip delivery shows all active drips for an order on one slip', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+    $secondBase = DripBase::factory()->create(['name' => 'Ringer Lactate']);
+    $order->drips()->create([
+        'drip_base_id' => $secondBase->id,
+        'name' => 'Ringer Lactate',
+        'status' => DripLineStatus::Pending,
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee($patient->name)
+        ->assertSee('Normal Saline')
+        ->assertSee('Ringer Lactate')
+        ->assertSee(__('Start'))
+        ->assertSee(__('End'))
+        ->assertSeeHtml('wire:key="drip-delivery-'.$order->id.'"');
+});
+
 test('drip start sets thirty minute check due and can be marked done from kiosk', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
     $aide = HealthAide::factory()->create(['pin' => '1234']);

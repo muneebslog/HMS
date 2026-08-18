@@ -258,11 +258,14 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         </div>
 
         <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            @forelse ($this->drips as $drip)
-                @php($order = $drip->medicationOrder)
-                @php($overdue = $drip->isCheckDue())
+            @forelse ($this->drips->groupBy('medication_order_id') as $orderId => $orderDrips)
+                @php
+                    $orderDrips = $orderDrips->sortBy('id')->values();
+                    $order = $orderDrips->first()?->medicationOrder;
+                    $overdue = $orderDrips->contains(fn (MedicationOrderDrip $drip): bool => $drip->isCheckDue());
+                @endphp
                 <x-paper-slip
-                    wire:key="drip-delivery-{{ $drip->id }}"
+                    wire:key="drip-delivery-{{ $orderId }}"
                     :token="$order?->queueToken?->token_number"
                     :tone="$overdue ? 'accent' : 'default'"
                 >
@@ -274,44 +277,58 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                         </p>
                     </div>
 
-                    <div class="border-t border-dashed border-zinc-400/70 pt-2">
-                        <p class="font-medium text-zinc-900">
-                            {{ $drip->name }}
-                        </p>
-                        @foreach ($drip->additives as $additive)
-                            <p class="ms-1 text-sm text-zinc-600">
-                                + {{ $additive->name }}
-                            </p>
-                        @endforeach
-                    </div>
+                    @foreach ($orderDrips as $drip)
+                        @php($dripOverdue = $drip->isCheckDue())
+                        <div wire:key="drip-delivery-line-{{ $drip->id }}" class="space-y-2 border-t border-dashed border-zinc-400/70 pt-2">
+                            <div>
+                                <p class="font-medium text-zinc-900">
+                                    {{ $drip->name }}
+                                </p>
+                                @foreach ($drip->additives as $additive)
+                                    <p class="ms-1 text-sm text-zinc-600">
+                                        + {{ $additive->name }}
+                                    </p>
+                                @endforeach
+                            </div>
 
-                    <div class="flex flex-wrap items-center text-black gap-2">
-                        <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($overdue ? 'amber' : 'sky')">
-                            {{ $drip->status->label() }}
-                            @if ($overdue)
-                                · {{ __('Check due') }}
-                            @elseif ($drip->status === \App\Enums\DripLineStatus::Started && $drip->check_due_at)
-                                · {{ __('Check at') }} {{ $drip->check_due_at->timezone(config('app.timezone'))->format('h:i A') }}
-                            @endif
-                        </flux:badge>
-                        @if ($drip->startedByHealthAide)
-                            <span class="text-xs text-zinc-500">
-                                {{ __('Started by') }} {{ $drip->startedByHealthAide->name }}
-                            </span>
-                        @endif
-                    </div>
+                            <div class="flex flex-wrap items-center gap-2 text-black">
+                                <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($dripOverdue ? 'amber' : 'sky')">
+                                    {{ $drip->status->label() }}
+                                    @if ($dripOverdue)
+                                        · {{ __('Check due') }}
+                                    @elseif ($drip->status === \App\Enums\DripLineStatus::Started && $drip->check_due_at)
+                                        · {{ __('Check at') }} {{ $drip->check_due_at->timezone(config('app.timezone'))->format('h:i A') }}
+                                    @endif
+                                </flux:badge>
+                                @if ($drip->startedByHealthAide)
+                                    <span class="text-xs text-zinc-500">
+                                        {{ __('Started by') }} {{ $drip->startedByHealthAide->name }}
+                                    </span>
+                                @endif
+                            </div>
 
-                    <x-slot:footer>
-                        @if ($drip->status === \App\Enums\DripLineStatus::Pending)
-                            <flux:button type="button" variant="primary" class="w-full" wire:click="requestStart({{ $drip->id }})">
-                                {{ __('Start') }}
-                            </flux:button>
-                        @else
-                            <flux:button type="button" variant="primary" class="w-full" wire:click="requestMarkDone({{ $drip->id }})">
-                                {{ __('Mark done') }}
-                            </flux:button>
-                        @endif
-                    </x-slot:footer>
+                            <div class="grid grid-cols-2 gap-2">
+                                <flux:button
+                                    type="button"
+                                    variant="primary"
+                                    class="w-full"
+                                    :disabled="$drip->status !== \App\Enums\DripLineStatus::Pending"
+                                    wire:click="requestStart({{ $drip->id }})"
+                                >
+                                    {{ __('Start') }}
+                                </flux:button>
+                                <flux:button
+                                    type="button"
+                                    variant="primary"
+                                    class="w-full"
+                                    :disabled="$drip->status !== \App\Enums\DripLineStatus::Started"
+                                    wire:click="requestMarkDone({{ $drip->id }})"
+                                >
+                                    {{ __('End') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    @endforeach
                 </x-paper-slip>
             @empty
                 <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">

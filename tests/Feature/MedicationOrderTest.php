@@ -561,11 +561,13 @@ test('doctor previews an order as an er slip before confirming it', function () 
         ->assertSee('Preview Paracetamol')
         ->assertSee('Preview Diclofenac')
         ->assertSee('Preview Saline')
+        ->assertSee('Ward-only Saline')
         ->assertSee('Give after food.');
 
     expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse()
-        ->and($component->get('orderPreview.drips'))->toHaveCount(1)
-        ->and($component->get('orderPreview.drips.0.name'))->toBe('Preview Saline');
+        ->and($component->get('orderPreview.drips'))->toHaveCount(2)
+        ->and($component->get('orderPreview.drips.0.name'))->toBe('Preview Saline')
+        ->and($component->get('orderPreview.drips.1.name'))->toBe('Ward-only Saline');
 
     $component
         ->call('save')
