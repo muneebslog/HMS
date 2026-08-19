@@ -366,6 +366,100 @@ test('expired pin session requires re-entry before delivery', function () {
     Carbon::setTestNow();
 });
 
+test('pending medication orders remain on er after the shift is closed', function () {
+    [, $shift, $patient] = createDeliveryOrderContext();
+
+    $shift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee($patient->name)
+        ->assertSee(__('Tap to deliver'));
+});
+
+test('pending medication orders remain on er after a new shift opens', function () {
+    [, $shift, $patient, $token] = createDeliveryOrderContext();
+
+    $shift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+    $token->serviceQueue->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+    ]);
+    Shift::factory()->open()->create();
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee($patient->name);
+});
+
+test('health aides can deliver leftover medication after the shift is closed', function () {
+    [$order, $shift] = createDeliveryOrderContext();
+    HealthAide::factory()->create(['pin' => '1234']);
+    $medicine = $order->medicines->first();
+
+    $shift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('selectOrder', $order->id)
+        ->set('selectedMedicineIds', [$medicine->id])
+        ->call('requestNext')
+        ->assertHasNoErrors();
+
+    expect($medicine->fresh()->delivered_at)->not->toBeNull()
+        ->and($order->fresh()->status)->toBe(MedicationOrderStatus::Administered);
+});
+
+test('active drips remain on drip station after the shift is closed', function () {
+    [, $shift, $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+
+    $shift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee($patient->name)
+        ->assertSee('Normal Saline');
+});
+
+test('health aides can start leftover drips after a new shift opens', function () {
+    [$order, $shift, , $token] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+    HealthAide::factory()->create(['pin' => '1234']);
+    $drip = $order->drips->first();
+
+    $shift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+    $token->serviceQueue->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+    ]);
+    Shift::factory()->open()->create();
+
+    Livewire::test('pages::display.drip-delivery')
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('requestStart', $drip->id)
+        ->assertHasNoErrors();
+
+    expect($drip->fresh()->status)->toBe(DripLineStatus::Started);
+});
+
 test('reception medication admin route no longer exists', function () {
     expect(fn () => route('reception.medication-admin'))->toThrow(RouteNotFoundException::class);
 });

@@ -44,16 +44,15 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     /**
      * Combined ER queue: pending med/injection deliveries and appear_on_er service visits.
      *
+     * Medication orders stay on this board until they are delivered, even after the
+     * originating shift is closed. Appear-on-ER service visits still follow the open shift.
+     *
      * @return Collection<int, array{type: string, key: string, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken}>
      */
     #[Computed]
     public function queueItems(): Collection
     {
         $shift = Shift::current();
-
-        if ($shift === null) {
-            return collect();
-        }
 
         $orders = MedicationOrder::query()
             ->with([
@@ -71,42 +70,43 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                     ->orWhereHas('injections', fn ($q) => $q->whereNull('delivered_at'));
             })
             ->whereDoesntHave('drips', fn ($q) => $q->whereIn('status', DripLineStatus::activeCases()))
-            ->whereHas('queueToken.serviceQueue', function ($query) use ($shift): void {
-                $query->forShift($shift);
-            })
             ->orderBy('created_at')
             ->get();
 
         $orderTokenIds = $orders->pluck('queue_token_id')->filter()->all();
 
-        $serviceTokens = QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips'])
-            ->whereIn('status', ['waiting', 'serving'])
-            ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->forShift($shift)
-                    ->where('status', 'open')
-                    ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('appear_on_er', true));
-            })
-            ->when($orderTokenIds !== [], fn ($query) => $query->whereNotIn('id', $orderTokenIds))
-            ->where(function ($query): void {
-                $query->whereDoesntHave('medicationOrder')
-                    ->orWhereHas('medicationOrder', function ($orderQuery): void {
-                        $orderQuery->where(function ($statusQuery): void {
-                            $statusQuery->where('status', MedicationOrderStatus::Administered)
-                                ->orWhere(function ($pendingQuery): void {
-                                    $pendingQuery->where('status', MedicationOrderStatus::Pending)
-                                        ->whereDoesntHave('medicines', fn ($q) => $q->whereNull('delivered_at'))
-                                        ->whereDoesntHave('injections', fn ($q) => $q->whereNull('delivered_at'));
-                                });
+        $serviceTokens = collect();
+
+        if ($shift !== null) {
+            $serviceTokens = QueueToken::query()
+                ->with(['patient', 'serviceQueue.service', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips'])
+                ->whereIn('status', ['waiting', 'serving'])
+                ->whereHas('serviceQueue', function ($query) use ($shift): void {
+                    $query->forShift($shift)
+                        ->where('status', 'open')
+                        ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('appear_on_er', true));
+                })
+                ->when($orderTokenIds !== [], fn ($query) => $query->whereNotIn('id', $orderTokenIds))
+                ->where(function ($query): void {
+                    $query->whereDoesntHave('medicationOrder')
+                        ->orWhereHas('medicationOrder', function ($orderQuery): void {
+                            $orderQuery->where(function ($statusQuery): void {
+                                $statusQuery->where('status', MedicationOrderStatus::Administered)
+                                    ->orWhere(function ($pendingQuery): void {
+                                        $pendingQuery->where('status', MedicationOrderStatus::Pending)
+                                            ->whereDoesntHave('medicines', fn ($q) => $q->whereNull('delivered_at'))
+                                            ->whereDoesntHave('injections', fn ($q) => $q->whereNull('delivered_at'));
+                                    });
+                            });
                         });
-                    });
-            })
-            ->whereDoesntHave(
-                'medicationOrder.drips',
-                fn ($q) => $q->whereIn('status', DripLineStatus::activeCases())
-            )
-            ->orderBy('token_number')
-            ->get();
+                })
+                ->whereDoesntHave(
+                    'medicationOrder.drips',
+                    fn ($q) => $q->whereIn('status', DripLineStatus::activeCases())
+                )
+                ->orderBy('token_number')
+                ->get();
+        }
 
         $items = collect();
 

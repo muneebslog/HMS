@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ClinicStation;
 use App\Enums\DripChargeStatus;
+use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\StationType;
 use App\Models\DripCharge;
@@ -21,7 +22,8 @@ class PatientFlowBoardService
     ) {}
 
     /**
-     * Build the patient flow board for the current open shift.
+     * Build the patient flow board for the current open shift, plus leftover
+     * medication and drip work from earlier shifts.
      *
      * @return array{
      *     stations: array<string, list<array{token_id: int, patient_name: string, mrn: ?string, token_number: int, service_name: string, stage_started_at: string, minutes_in_stage: int}>>,
@@ -40,29 +42,46 @@ class PatientFlowBoardService
             $stations[$station->value] = [];
         }
 
-        if ($shift === null) {
-            return [
-                'stations' => $stations,
-                'aide_sessions' => $this->aideSessions(),
-            ];
+        $tokenRelations = [
+            'patient',
+            'serviceQueue.service',
+            'vital',
+            'medicationOrder.medicines',
+            'medicationOrder.injections',
+            'medicationOrder.drips',
+        ];
+
+        $shiftTokens = new Collection;
+
+        if ($shift !== null) {
+            $shiftTokens = QueueToken::query()
+                ->with($tokenRelations)
+                ->whereHas('serviceQueue', function ($query) use ($shift): void {
+                    $query->where('status', 'open')
+                        ->forShift($shift);
+                })
+                ->whereIn('status', ['waiting', 'serving', 'served'])
+                ->get();
         }
 
-        $tokens = QueueToken::query()
-            ->with([
-                'patient',
-                'serviceQueue.service',
-                'vital',
-                'medicationOrder.medicines',
-                'medicationOrder.injections',
-                'medicationOrder.drips',
-            ])
-            ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->where('status', 'open')
-                    ->forShift($shift);
-            })
+        $outstandingOrderTokens = QueueToken::query()
+            ->with($tokenRelations)
             ->whereIn('status', ['waiting', 'serving', 'served'])
-            ->orderBy('token_number')
+            ->whereHas('medicationOrder', function ($orderQuery): void {
+                $orderQuery->where('status', MedicationOrderStatus::Pending)
+                    ->where(function ($workQuery): void {
+                        $workQuery->whereHas('medicines', fn ($query) => $query->whereNull('delivered_at'))
+                            ->orWhereHas('injections', fn ($query) => $query->whereNull('delivered_at'))
+                            ->orWhereHas('drips', fn ($query) => $query->whereIn('status', DripLineStatus::activeCases()));
+                    });
+            })
             ->get();
+
+        $tokens = $shiftTokens
+            ->concat($outstandingOrderTokens)
+            ->unique('id')
+            ->sortBy('token_number')
+            ->values();
 
         $pendingDripChargeTokenIds = $this->pendingDripChargeTokenIds($tokens);
 

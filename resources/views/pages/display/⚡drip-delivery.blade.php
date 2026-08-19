@@ -3,7 +3,6 @@
 use App\Enums\DripLineStatus;
 use App\Enums\StationType;
 use App\Models\MedicationOrderDrip;
-use App\Models\Shift;
 use App\Services\HealthAidePinSession;
 use App\Services\StationSessionService;
 use Flux\Flux;
@@ -31,19 +30,13 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
     }
 
     /**
-     * Active-shift drip lines that are not done.
+     * Drip lines that are not done, regardless of whether their originating shift is open.
      *
      * @return Collection<int, MedicationOrderDrip>
      */
     #[Computed]
     public function drips(): Collection
     {
-        $shift = Shift::current();
-
-        if ($shift === null) {
-            return new Collection;
-        }
-
         return MedicationOrderDrip::query()
             ->with([
                 'additives',
@@ -53,9 +46,6 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                 'medicationOrder.queueToken.serviceQueue.service',
             ])
             ->whereIn('status', DripLineStatus::activeCases())
-            ->whereHas('medicationOrder.queueToken.serviceQueue', function ($query) use ($shift): void {
-                $query->forShift($shift);
-            })
             ->orderByRaw("CASE WHEN status = 'started' AND check_due_at IS NOT NULL AND check_due_at <= ? THEN 0 WHEN status = 'pending' THEN 1 ELSE 2 END", [now()])
             ->orderBy('check_due_at')
             ->orderBy('id')
