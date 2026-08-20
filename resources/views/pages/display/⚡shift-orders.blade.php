@@ -103,8 +103,9 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
                     ->orWhereHas('injections')
                     ->orWhereHas('drips');
             })
-            ->orderBy('created_at')
-            ->get();
+            ->get()
+            ->sortByDesc(fn (MedicationOrder $order): int => $order->queueToken?->token_number ?? 0)
+            ->values();
     }
 
     #[Computed]

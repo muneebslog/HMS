@@ -32,6 +32,7 @@ function createShiftOrder(
     bool $withInjection = false,
     bool $withDrip = false,
     MedicationOrderStatus $status = MedicationOrderStatus::Pending,
+    ?int $tokenNumber = null,
 ): array {
     $shift ??= Shift::factory()->open()->create(['opened_at' => now()->subHour()]);
     $service = Service::factory()->create([
@@ -52,7 +53,7 @@ function createShiftOrder(
     $token = QueueToken::factory()->create([
         'service_queue_id' => $queue->id,
         'patient_id' => $patient->id,
-        'token_number' => fake()->unique()->numberBetween(1, 99),
+        'token_number' => $tokenNumber ?? fake()->unique()->numberBetween(1, 99),
         'status' => 'waiting',
         'arrived_at' => $shift->opened_at,
     ]);
@@ -196,4 +197,20 @@ test('shift orders shows every slip without pagination', function () {
     foreach (range(1, 12) as $number) {
         $component->assertSee('Patient '.$number);
     }
+});
+
+test('shift orders lists slips by token number descending', function () {
+    $shift = Shift::factory()->open()->create(['opened_at' => now()->subHour()]);
+
+    createShiftOrder(shift: $shift, patientName: 'Low Token', tokenNumber: 2);
+    createShiftOrder(shift: $shift, patientName: 'High Token', tokenNumber: 15);
+    createShiftOrder(shift: $shift, patientName: 'Mid Token', tokenNumber: 8);
+
+    $names = Livewire::test('pages::display.shift-orders')
+        ->instance()
+        ->orders
+        ->pluck('patient.name')
+        ->all();
+
+    expect($names)->toBe(['High Token', 'Mid Token', 'Low Token']);
 });
