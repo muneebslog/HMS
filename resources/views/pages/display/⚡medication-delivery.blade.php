@@ -773,4 +773,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             </div>
         </div>
     @endif
+
+    <a
+        href="{{ route('display.shift_orders') }}"
+        class="fixed bottom-5 end-5 z-40 inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-100 px-5 py-3 text-sm font-semibold text-zinc-900 shadow-lg shadow-black/40 transition hover:bg-white"
+    >
+        {{ __('See all slips') }}
+    </a>
 </div>

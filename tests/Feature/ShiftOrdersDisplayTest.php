@@ -93,12 +93,23 @@ function createShiftOrder(
     return [$order->fresh(['medicines', 'injections', 'drips']), $shift, $patient];
 }
 
+test('er station links to the shift orders board', function () {
+    Shift::factory()->open()->create();
+
+    $this->get(route('display.er'))
+        ->assertSuccessful()
+        ->assertSee(__('See all slips'))
+        ->assertSee(route('display.shift_orders'), false);
+});
+
 test('shift orders page is publicly accessible', function () {
     Shift::factory()->open()->create();
 
     $this->get(route('display.shift_orders'))
         ->assertSuccessful()
-        ->assertSee(__('Shift Orders'));
+        ->assertSee(__('Shift Orders'))
+        ->assertSee(__('Back to ER'))
+        ->assertSee(route('display.er'), false);
 });
 
 test('shift orders lists current shift patients who have medication or drip orders', function () {
