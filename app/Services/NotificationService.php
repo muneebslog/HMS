@@ -25,6 +25,9 @@ use App\Models\Shift;
 use App\Models\SupervisorChecklistEntry;
 use App\Models\SupervisorChecklistResponse;
 use App\Models\User;
+use App\Models\WardMaintenanceAnswer;
+use App\Models\WardMaintenanceEntry;
+use App\Models\WardMaintenanceFault;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -883,6 +886,95 @@ class NotificationService
                 'block_starts_at' => $entry->block_starts_at->toDateTimeString(),
                 'block_ends_at' => $entry->block_ends_at->toDateTimeString(),
                 'no_response_ids' => $noResponses->pluck('id')->all(),
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that a ward maintenance checklist was submitted with faults.
+     */
+    public function notifyWardMaintenanceFaults(User $nurse, WardMaintenanceEntry $entry): AdminNotification
+    {
+        $definition = app(WardMaintenanceChecklistDefinition::class);
+        $labels = array_merge(
+            $definition->sectionAItems(),
+            $definition->sectionBItems(),
+            $definition->sectionCGyneItems(),
+            $definition->sectionCPrivateItems(),
+            $definition->sectionDGyneItems(),
+            $definition->sectionDPrivateItems(),
+            $definition->sectionEItems(),
+            $definition->sectionFItems(),
+            $definition->sectionGItems(),
+        );
+
+        $faultAnswers = $entry->answers
+            ->filter(fn (WardMaintenanceAnswer $answer) => $answer->isFault())
+            ->take(12)
+            ->map(function (WardMaintenanceAnswer $answer) use ($labels): string {
+                $label = $labels[$answer->item_key] ?? $answer->item_key;
+                $location = $answer->location_key !== '' ? " ({$answer->location_key})" : '';
+
+                if ($answer->section === 'E') {
+                    $parts = [];
+
+                    if ($answer->available === false) {
+                        $parts[] = __('not available');
+                    }
+
+                    if ($answer->functional === false) {
+                        $parts[] = __('not functional');
+                    }
+
+                    return '- '.$label.$location.' ('.implode(', ', $parts).')';
+                }
+
+                return '- '.$label.$location;
+            })
+            ->values()
+            ->all();
+
+        $faultRows = $entry->faults
+            ->take(5)
+            ->map(function (WardMaintenanceFault $fault): string {
+                $priority = $fault->priority?->label() ?? __('Unspecified');
+
+                return '- '.($fault->description ?: __('Fault logged'))." [{$priority}]";
+            })
+            ->values()
+            ->all();
+
+        $items = collect($faultAnswers)->merge($faultRows)->implode("\n");
+
+        if ($entry->patient_safety_fault === 'yes') {
+            $items = __('Patient safety/care fault reported.')."\n{$items}";
+        }
+
+        $title = __('⚠️ Ward Maintenance Faults Reported');
+        $message = __(
+            "Incharge nurse :name submitted the :shift ward maintenance checklist for :date with faults:\n:items",
+            [
+                'name' => $nurse->name,
+                'shift' => $entry->shift->label(),
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'items' => trim($items) !== '' ? $items : __('See submission for details.'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $nurse,
+            'ward_maintenance_faults',
+            $title,
+            $message,
+            route('admin.ward-maintenance-submissions', [
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'shift' => $entry->shift->value,
+            ]),
+            [
+                'nurse_id' => $nurse->id,
+                'entry_id' => $entry->id,
+                'checklist_date' => $entry->checklist_date->format('Y-m-d'),
+                'shift' => $entry->shift->value,
             ]
         );
     }

@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_18_171300_create_nurse_questionnaire_tables`.
+> Last reviewed against migrations through `2026_08_20_151243_create_ward_maintenance_tables`.
 
 Conventions used below:
 
@@ -1117,6 +1117,63 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 
 ---
 
+## Ward Maintenance Checklist
+
+Gyne Ward & Private Rooms daily maintenance form. One submission per calendar date + shift (`morning` / `evening` / `night`). Filled by incharge nurses; admins review submissions. Fault statuses, unavailable/non-functional equipment, fault-log rows, and patient-safety “yes” trigger admin notifications.
+
+### `ward_maintenance_entries`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| user_id | FK → users | cascadeOnDelete — submitting incharge nurse |
+| checklist_date | date | |
+| shift | string | `morning` / `evening` / `night` (`WardMaintenanceShift`) |
+| checked_by_name | string | |
+| supervisor_name | string | nullable |
+| checked_by_time | string | nullable |
+| supervisor_time | string | nullable |
+| patient_safety_fault | string | nullable — `yes` / `no` |
+| patient_safety_reported | string | nullable — `yes` / `no` / `na` |
+| room_unavailable | string | nullable — `yes` / `no` |
+| beds_out_of_service | text | nullable |
+| reason_remarks | text | nullable |
+| supervisor_remarks | text | nullable |
+| submitted_at | timestamp | |
+| timestamps | | |
+| | | UQ `(checklist_date, shift)` as `ward_maintenance_entries_unique_shift` |
+
+### `ward_maintenance_answers`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| entry_id | FK → ward_maintenance_entries | cascadeOnDelete |
+| section | string | `A`, `B`, `C_gyne`, `C_private`, `D`, `E`, `F`, `G` |
+| item_key | string | checklist item identifier |
+| location_key | string | default `''` — bed (`B1`–`B9`), area, or empty for single-column sections |
+| status | string | nullable — `ok` / `fault` / `na` (`WardMaintenanceStatus`) for non-equipment rows |
+| available | boolean | nullable — section E |
+| functional | boolean | nullable — section E |
+| remarks | text | nullable — section E |
+| timestamps | | |
+| | | UQ `(entry_id, section, item_key, location_key)` as `ward_maintenance_answers_unique` |
+
+### `ward_maintenance_faults`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| entry_id | FK → ward_maintenance_entries | cascadeOnDelete |
+| fault_time | string | nullable |
+| bed_room | string | nullable |
+| description | text | nullable |
+| priority | string | nullable — `urgent` / `routine` (`WardMaintenanceFaultPriority`) |
+| reported_to | string | nullable |
+| action_taken | text | nullable |
+| resolved | boolean | nullable |
+| sort_order | unsignedInteger | default 0 |
+| timestamps | | |
+
+---
+
 ## HR / Employees
 
 ### `employees`
@@ -1284,6 +1341,8 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         ├── kanban_items ── kanban_item_comments
         ├── policy_journals
         ├── supervisor_checklist_entries ── responses ── options
-        └── nurse_questionnaires ──┬── nurse_questionnaire_questions
-                                   └── nurse_questionnaire_entries ── nurse_questionnaire_responses
+        ├── nurse_questionnaires ──┬── nurse_questionnaire_questions
+        │                          └── nurse_questionnaire_entries ── nurse_questionnaire_responses
+        └── ward_maintenance_entries ──┬── ward_maintenance_answers
+                                       └── ward_maintenance_faults
 ```

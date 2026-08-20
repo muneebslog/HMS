@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
         Route::livewire('admin/nurse-questionnaires', 'pages::admin.nurse-questionnaires')->name('admin.nurse-questionnaires');
         Route::livewire('admin/nurse-questionnaire-submissions', 'pages::admin.nurse-questionnaire-submissions')->name('admin.nurse-questionnaire-submissions');
+        Route::livewire('admin/ward-maintenance-submissions', 'pages::admin.ward-maintenance-submissions')->name('admin.ward-maintenance-submissions');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -141,6 +142,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::InchargeNurse->value)->group(function () {
         Route::livewire('incharge/questionnaires', 'pages::incharge.questionnaires')->name('incharge.questionnaires');
         Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
+        Route::livewire('incharge/ward-maintenance', 'pages::incharge.ward-maintenance')->name('incharge.ward-maintenance');
+        Route::livewire('incharge/ward-maintenance/{shift}', 'pages::incharge.ward-maintenance-form')->name('incharge.ward-maintenance.form');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

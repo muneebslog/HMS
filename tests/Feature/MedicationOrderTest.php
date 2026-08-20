@@ -1445,3 +1445,213 @@ test('saved diagnosis appears as a badge in medication history', function () {
         ->assertSee(__('Diagnosis').': Pain')
         ->assertDontSee(__('Complaint / diagnosis:'));
 });
+
+test('doctor can repeat a history order onto an empty form', function () {
+    [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
+    $injection = Injection::factory()->create(['name' => 'Diclofenac']);
+    $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 42,
+        'status' => 'served',
+        'arrived_at' => now()->subDays(3),
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'complaint_or_diagnosis' => 'Throat infection',
+        'notes' => 'Take after meals',
+    ]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneOneOne,
+        'name' => 'Amoxicillin',
+        'comment' => '5 days',
+    ]);
+    $pastOrder->injections()->create([
+        'injection_id' => $injection->id,
+        'administration_type' => 'im',
+        'name' => 'Diclofenac',
+    ]);
+    $pastOrder->drips()->create([
+        'drip_base_id' => $dripBase->id,
+        'name' => 'Normal Saline',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openHistory')
+        ->call('repeatOrder', $pastOrder->id)
+        ->assertSet('showHistoryModal', false)
+        ->assertSet('showRepeatConflictModal', false)
+        ->assertSet('complaintOrDiagnosis', 'Throat infection')
+        ->assertSet('notes', 'Take after meals')
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->assertSet('medicationLines.0.dose', MedicineDose::OneOneOne->value)
+        ->assertSet('medicationLines.0.comment', '5 days')
+        ->assertSet('medicationLines.1.selection', 'injection:'.$injection->id)
+        ->assertSet('dripLines.0.drip_base_id', $dripBase->id);
+});
+
+test('doctor is asked to append or replace when repeating onto a filled form', function () {
+    [$user, , , , $queue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $existingMedicine = Medicine::factory()->create(['name' => 'Ibuprofen']);
+    $pastMedicine = Medicine::factory()->create(['name' => 'Amoxicillin']);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 42,
+        'status' => 'served',
+        'arrived_at' => now()->subDays(2),
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'complaint_or_diagnosis' => 'Past diagnosis',
+        'notes' => 'Past notes',
+    ]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $pastMedicine->id,
+        'dose' => MedicineDose::OneZeroZero,
+        'name' => 'Amoxicillin',
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Current diagnosis')
+        ->set('notes', 'Current notes')
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$existingMedicine->id,
+            'dose' => MedicineDose::OneZeroOne->value,
+            'administration_type' => 'im',
+            'comment' => '',
+        ]])
+        ->call('repeatOrder', $pastOrder->id)
+        ->assertSet('showRepeatConflictModal', true)
+        ->assertSet('pendingRepeatOrderId', $pastOrder->id)
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$existingMedicine->id);
+
+    $component
+        ->call('confirmRepeat', 'append')
+        ->assertSet('showRepeatConflictModal', false)
+        ->assertSet('complaintOrDiagnosis', 'Current diagnosis')
+        ->assertSet('notes', 'Current notes')
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$existingMedicine->id)
+        ->assertSet('medicationLines.1.selection', 'medicine:'.$pastMedicine->id);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Current diagnosis')
+        ->set('notes', 'Current notes')
+        ->set('medicationLines', [[
+            'selection' => 'medicine:'.$existingMedicine->id,
+            'dose' => MedicineDose::OneZeroOne->value,
+            'administration_type' => 'im',
+            'comment' => '',
+        ]])
+        ->call('repeatOrder', $pastOrder->id)
+        ->call('confirmRepeat', 'replace')
+        ->assertSet('showRepeatConflictModal', false)
+        ->assertSet('complaintOrDiagnosis', 'Past diagnosis')
+        ->assertSet('notes', 'Past notes')
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$pastMedicine->id)
+        ->assertSet('medicationLines.1.selection', null);
+});
+
+test('doctor can browse med orders by date and repeat an unlinked patient order', function () {
+    [$user, , , $service, $queue, , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Cefixime']);
+    $otherPatient = Patient::factory()->create(['name' => 'Unlinked Walkin', 'family_id' => null]);
+
+    $otherQueue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $queue->shift_id,
+        'date' => today()->subDay(),
+        'reset_type' => $queue->reset_type,
+        'status' => 'closed',
+        'opened_at' => now()->subDay(),
+        'closed_at' => now()->subDay()->addHours(8),
+    ]);
+
+    $otherToken = QueueToken::factory()->create([
+        'service_queue_id' => $otherQueue->id,
+        'patient_id' => $otherPatient->id,
+        'token_number' => 17,
+        'status' => 'served',
+        'arrived_at' => now()->subDay(),
+    ]);
+
+    $otherOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $otherToken->id,
+        'patient_id' => $otherPatient->id,
+        'prescribed_by' => $user->id,
+        'complaint_or_diagnosis' => 'Cold',
+    ]);
+
+    $otherOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => 'Cefixime',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openMedOrders')
+        ->assertSet('showMedOrdersModal', true)
+        ->set('medOrdersDate', today()->subDay()->toDateString())
+        ->assertSee('Unlinked Walkin')
+        ->assertSee('Cefixime')
+        ->set('medOrdersSearch', 'Unlinked')
+        ->assertSee('Unlinked Walkin')
+        ->call('selectBrowseOrder', $otherOrder->id)
+        ->assertSet('selectedBrowseOrderId', $otherOrder->id)
+        ->call('repeatOrder', $otherOrder->id)
+        ->assertSet('showMedOrdersModal', false)
+        ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->assertSet('complaintOrDiagnosis', 'Cold');
+});
+
+test('doctor cannot repeat an order without a selected patient', function () {
+    $user = User::factory()->doctor()->create();
+    $medicine = Medicine::factory()->create();
+    [, , , , $queue, $patient] = createMedicationQueuePatient(withDoctor: false);
+
+    $pastToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patient->id,
+        'token_number' => 9,
+        'status' => 'served',
+    ]);
+
+    $pastOrder = MedicationOrder::factory()->withoutDoctor()->administered($user)->create([
+        'queue_token_id' => $pastToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+    ]);
+
+    $pastOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroZero,
+        'name' => $medicine->name,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('repeatOrder', $pastOrder->id)
+        ->assertSet('medicationLines', []);
+});

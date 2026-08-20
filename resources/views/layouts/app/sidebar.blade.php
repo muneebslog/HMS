@@ -37,6 +37,9 @@
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('incharge.questionnaires')" :current="request()->routeIs('incharge.questionnaire*')" wire:navigate>
                             {{ __('Questionnaires') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="wrench-screwdriver" :href="route('incharge.ward-maintenance')" :current="request()->routeIs('incharge.ward-maintenance*')" wire:navigate>
+                            {{ __('Ward Maintenance') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isIndoor() || auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isDoctor())
@@ -206,6 +209,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.nurse-questionnaire-submissions')" :current="request()->routeIs('admin.nurse-questionnaire-submissions')" wire:navigate>
                             {{ __('Nurse Form Submissions') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="wrench-screwdriver" :href="route('admin.ward-maintenance-submissions')" :current="request()->routeIs('admin.ward-maintenance-submissions')" wire:navigate>
+                            {{ __('Ward Maintenance') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

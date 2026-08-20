@@ -31,6 +31,10 @@ new #[Title('Medication')] class extends Component
 
     public bool $showHistoryModal = false;
 
+    public bool $showMedOrdersModal = false;
+
+    public bool $showRepeatConflictModal = false;
+
     public bool $showOrderPreviewModal = false;
 
     public bool $showRecallModal = false;
@@ -38,6 +42,14 @@ new #[Title('Medication')] class extends Component
     public bool $showFulfilledRecallOptions = false;
 
     public ?int $selectedRecallOrderId = null;
+
+    public ?int $pendingRepeatOrderId = null;
+
+    public ?int $selectedBrowseOrderId = null;
+
+    public string $medOrdersDate = '';
+
+    public string $medOrdersSearch = '';
 
     /**
      * @var array{
@@ -465,6 +477,80 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Medication orders for the med-orders browse modal (any patient on the chosen date).
+     *
+     * @return Collection<int, MedicationOrder>
+     */
+    #[Computed]
+    public function browseableMedOrders(): Collection
+    {
+        if (! $this->showMedOrdersModal || $this->medOrdersDate === '') {
+            return new Collection;
+        }
+
+        $search = trim($this->medOrdersSearch);
+
+        return MedicationOrder::query()
+            ->with([
+                'patient',
+                'medicines',
+                'injections',
+                'drips.additives',
+                'doctor',
+                'queueToken.serviceQueue.service',
+            ])
+            ->whereIn('status', [MedicationOrderStatus::Pending, MedicationOrderStatus::Administered])
+            ->when(
+                $this->selectedTokenId !== null,
+                fn ($query) => $query->where('queue_token_id', '!=', $this->selectedTokenId)
+            )
+            ->whereHas(
+                'queueToken.serviceQueue',
+                fn ($query) => $query->whereDate('date', $this->medOrdersDate)
+            )
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($inner) use ($search): void {
+                    $inner->whereHas(
+                        'patient',
+                        fn ($patientQuery) => $patientQuery->where(function ($patientInner) use ($search): void {
+                            $patientInner->where('name', 'like', '%'.$search.'%')
+                                ->orWhere('mrn', 'like', '%'.$search.'%');
+                        })
+                    )->orWhereHas(
+                        'queueToken',
+                        fn ($tokenQuery) => $tokenQuery->where('token_number', $search)
+                    );
+                });
+            })
+            ->latest()
+            ->limit(50)
+            ->get();
+    }
+
+    /**
+     * The order currently expanded in the med-orders browse modal.
+     */
+    #[Computed]
+    public function selectedBrowseOrder(): ?MedicationOrder
+    {
+        if ($this->selectedBrowseOrderId === null || ! $this->showMedOrdersModal) {
+            return null;
+        }
+
+        return $this->browseableMedOrders->firstWhere('id', $this->selectedBrowseOrderId)
+            ?? MedicationOrder::query()
+                ->with([
+                    'patient',
+                    'medicines',
+                    'injections',
+                    'drips.additives',
+                    'doctor',
+                    'queueToken.serviceQueue.service',
+                ])
+                ->find($this->selectedBrowseOrderId);
+    }
+
+    /**
      * Select a patient token and load any existing pending order.
      */
     public function selectToken(int $tokenId): void
@@ -479,6 +565,10 @@ new #[Title('Medication')] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->showHistoryModal = false;
+        $this->showMedOrdersModal = false;
+        $this->showRepeatConflictModal = false;
+        $this->pendingRepeatOrderId = null;
+        $this->selectedBrowseOrderId = null;
         $this->activeOrderTab = 'medicines';
         $this->showWrittenMedicationInput = false;
         $this->writtenMedicationName = '';
@@ -602,6 +692,132 @@ new #[Title('Medication')] class extends Component
         $this->closeModals();
         $this->showHistoryModal = true;
         unset($this->medicationHistory);
+    }
+
+    /**
+     * Browse medication orders from any visit by date (for unlinked patients).
+     */
+    public function openMedOrders(): void
+    {
+        if ($this->selectedToken === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+
+            return;
+        }
+
+        $this->closeModals();
+        $this->medOrdersDate = $this->medOrdersDate !== ''
+            ? $this->medOrdersDate
+            : now()->timezone(config('app.timezone'))->toDateString();
+        $this->showMedOrdersModal = true;
+        $this->selectedBrowseOrderId = null;
+        unset($this->browseableMedOrders, $this->selectedBrowseOrder);
+    }
+
+    public function closeMedOrders(): void
+    {
+        $this->showMedOrdersModal = false;
+        $this->selectedBrowseOrderId = null;
+        unset($this->browseableMedOrders, $this->selectedBrowseOrder);
+    }
+
+    public function updatedMedOrdersDate(): void
+    {
+        $this->selectedBrowseOrderId = null;
+        unset($this->browseableMedOrders, $this->selectedBrowseOrder);
+    }
+
+    public function updatedMedOrdersSearch(): void
+    {
+        $this->selectedBrowseOrderId = null;
+        unset($this->browseableMedOrders, $this->selectedBrowseOrder);
+    }
+
+    public function selectBrowseOrder(int $orderId): void
+    {
+        $this->selectedBrowseOrderId = $orderId;
+        unset($this->selectedBrowseOrder);
+    }
+
+    public function clearBrowseOrder(): void
+    {
+        $this->selectedBrowseOrderId = null;
+        unset($this->selectedBrowseOrder);
+    }
+
+    /**
+     * Copy a prior order into the current visit form (prompt if the form already has lines).
+     */
+    public function repeatOrder(int $orderId): void
+    {
+        if ($this->selectedToken === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+
+            return;
+        }
+
+        $order = MedicationOrder::query()
+            ->with(['medicines', 'injections', 'drips.additives'])
+            ->find($orderId);
+
+        if ($order === null) {
+            Flux::toast(variant: 'danger', text: __('Medication order not found.'));
+
+            return;
+        }
+
+        if ($this->orderHasFilledLines()) {
+            $this->pendingRepeatOrderId = $order->id;
+            $this->showHistoryModal = false;
+            $this->showMedOrdersModal = false;
+            $this->showOrderPreviewModal = false;
+            $this->showRecallModal = false;
+            $this->selectedBrowseOrderId = null;
+            unset($this->medicationHistory, $this->browseableMedOrders, $this->selectedBrowseOrder);
+            $this->showRepeatConflictModal = true;
+
+            return;
+        }
+
+        $this->applyRepeatedOrder($order, 'replace');
+        $this->finishRepeat();
+    }
+
+    /**
+     * Confirm append or replace after the conflict prompt.
+     */
+    public function confirmRepeat(string $mode): void
+    {
+        if (! in_array($mode, ['append', 'replace'], true)) {
+            return;
+        }
+
+        if ($this->selectedToken === null || $this->pendingRepeatOrderId === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+            $this->cancelRepeatConflict();
+
+            return;
+        }
+
+        $order = MedicationOrder::query()
+            ->with(['medicines', 'injections', 'drips.additives'])
+            ->find($this->pendingRepeatOrderId);
+
+        if ($order === null) {
+            Flux::toast(variant: 'danger', text: __('Medication order not found.'));
+            $this->cancelRepeatConflict();
+
+            return;
+        }
+
+        $this->applyRepeatedOrder($order, $mode);
+        $this->finishRepeat();
+    }
+
+    public function cancelRepeatConflict(): void
+    {
+        $this->showRepeatConflictModal = false;
+        $this->pendingRepeatOrderId = null;
     }
 
     /**
@@ -734,11 +950,15 @@ new #[Title('Medication')] class extends Component
     {
         $this->selectedTokenId = null;
         $this->showHistoryModal = false;
+        $this->showMedOrdersModal = false;
+        $this->showRepeatConflictModal = false;
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
         $this->showFulfilledRecallOptions = false;
         $this->selectedRecallOrderId = null;
-        unset($this->selectedRecallOrder);
+        $this->pendingRepeatOrderId = null;
+        $this->selectedBrowseOrderId = null;
+        unset($this->selectedRecallOrder, $this->browseableMedOrders, $this->selectedBrowseOrder);
         $this->resetOrderPreview();
         $this->notes = '';
         $this->complaintOrDiagnosis = '';
@@ -1238,11 +1458,15 @@ new #[Title('Medication')] class extends Component
     private function closeModals(): void
     {
         $this->showHistoryModal = false;
+        $this->showMedOrdersModal = false;
+        $this->showRepeatConflictModal = false;
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
         $this->showFulfilledRecallOptions = false;
         $this->selectedRecallOrderId = null;
-        unset($this->selectedRecallOrder);
+        $this->pendingRepeatOrderId = null;
+        $this->selectedBrowseOrderId = null;
+        unset($this->selectedRecallOrder, $this->browseableMedOrders, $this->selectedBrowseOrder);
         $this->resetOrderPreview();
     }
 
@@ -1809,6 +2033,44 @@ new #[Title('Medication')] class extends Component
 
         $this->notes = $order->notes ?? '';
         $this->complaintOrDiagnosis = $order->complaint_or_diagnosis ?? '';
+        $mapped = $this->mapOrderToFormLines($order);
+        $this->medicationLines = $mapped['medicationLines'];
+        $this->dripLines = $mapped['dripLines'];
+        $this->ensureDefaultOrderLines();
+    }
+
+    /**
+     * Whether the current form already has any medicine, injection, or drip selected.
+     */
+    private function orderHasFilledLines(): bool
+    {
+        foreach ($this->medicationLines as $line) {
+            if (filled($line['selection'] ?? null)) {
+                return true;
+            }
+        }
+
+        foreach ($this->dripLines as $line) {
+            if (filled($line['drip_base_id'] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Map a persisted order into the Livewire form line shape.
+     *
+     * @return array{
+     *     medicationLines: list<array{selection: string|null, dose: string, administration_type: string, comment: string}>,
+     *     dripLines: list<array{drip_base_id: int|null, additives: list<array{injection_id: int|string|null}>}>
+     * }
+     */
+    private function mapOrderToFormLines(MedicationOrder $order): array
+    {
+        $order->loadMissing(['medicines', 'injections', 'drips.additives']);
+
         $medicineLines = $order->medicines->map(fn ($line) => [
             'selection' => $line->medicine_id !== null ? 'medicine:'.$line->medicine_id : 'custom:'.$line->name,
             'dose' => $line->dose->value,
@@ -1823,12 +2085,12 @@ new #[Title('Medication')] class extends Component
             'comment' => $line->comment ?? '',
         ]);
 
-        $this->medicationLines = collect($medicineLines->all())
+        $medicationLines = collect($medicineLines->all())
             ->merge($injectionLines->all())
             ->values()
             ->all();
 
-        $this->dripLines = $order->drips
+        $dripLines = $order->drips
             ->filter(fn ($drip): bool => $drip->drip_base_id !== null)
             ->map(fn ($drip) => [
                 'drip_base_id' => $drip->drip_base_id,
@@ -1837,7 +2099,72 @@ new #[Title('Medication')] class extends Component
                 ])->values()->all(),
             ])->values()->all();
 
+        return [
+            'medicationLines' => $medicationLines,
+            'dripLines' => $dripLines,
+        ];
+    }
+
+    /**
+     * Apply a prior order onto the current form.
+     *
+     * @param  'append'|'replace'  $mode
+     */
+    private function applyRepeatedOrder(MedicationOrder $order, string $mode): void
+    {
+        $mapped = $this->mapOrderToFormLines($order);
+
+        if ($mode === 'replace') {
+            $this->medicationLines = $mapped['medicationLines'];
+            $this->dripLines = $mapped['dripLines'];
+            $this->complaintOrDiagnosis = $order->complaint_or_diagnosis ?? '';
+            $this->notes = $order->notes ?? '';
+        } else {
+            $existingMedications = collect($this->medicationLines)
+                ->filter(fn (array $line): bool => filled($line['selection'] ?? null))
+                ->values()
+                ->all();
+            $existingDrips = collect($this->dripLines)
+                ->filter(fn (array $line): bool => filled($line['drip_base_id'] ?? null))
+                ->map(function (array $line): array {
+                    $additives = collect($line['additives'] ?? [])
+                        ->filter(fn (array $additive): bool => filled($additive['injection_id'] ?? null))
+                        ->values()
+                        ->all();
+
+                    return [
+                        'drip_base_id' => $line['drip_base_id'],
+                        'additives' => $additives,
+                    ];
+                })
+                ->values()
+                ->all();
+
+            $this->medicationLines = array_values(array_merge($existingMedications, $mapped['medicationLines']));
+            $this->dripLines = array_values(array_merge($existingDrips, $mapped['dripLines']));
+
+            if (blank($this->complaintOrDiagnosis) && filled($order->complaint_or_diagnosis)) {
+                $this->complaintOrDiagnosis = $order->complaint_or_diagnosis;
+            }
+
+            if (blank($this->notes) && filled($order->notes)) {
+                $this->notes = $order->notes;
+            }
+        }
+
         $this->ensureDefaultOrderLines();
+    }
+
+    private function finishRepeat(): void
+    {
+        $this->showHistoryModal = false;
+        $this->showMedOrdersModal = false;
+        $this->showRepeatConflictModal = false;
+        $this->pendingRepeatOrderId = null;
+        $this->selectedBrowseOrderId = null;
+        unset($this->medicationHistory, $this->browseableMedOrders, $this->selectedBrowseOrder);
+
+        Flux::toast(variant: 'success', text: __('Previous medications added to this visit.'));
     }
 
     /**
@@ -1948,9 +2275,14 @@ new #[Title('Medication')] class extends Component
                         · {{ $token?->serviceQueue?->service?->name }}
                     </p>
                 </div>
-                <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
-                    {{ __('History') }}
-                </flux:button>
+                <div class="flex shrink-0 items-center gap-1">
+                    <flux:button type="button" size="sm" variant="ghost" icon="clipboard-document-list" wire:click="openMedOrders">
+                        {{ __('Med Orders') }}
+                    </flux:button>
+                    <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
+                        {{ __('History') }}
+                    </flux:button>
+                </div>
             </div>
         </div>
 
@@ -2726,6 +3058,9 @@ new #[Title('Medication')] class extends Component
                                 <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
                                     {{ $order->status->label() }}
                                 </flux:badge>
+                                <flux:button type="button" size="sm" variant="primary" wire:click="repeatOrder({{ $order->id }})">
+                                    {{ __('Repeat') }}
+                                </flux:button>
                             </div>
                         </div>
 
@@ -2796,6 +3131,163 @@ new #[Title('Medication')] class extends Component
             <div class="flex justify-end">
                 <flux:button type="button" variant="ghost" wire:click="closeHistory">
                     {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="med-orders-browse" wire:model="showMedOrdersModal" class="w-full max-w-2xl">
+        <div class="space-y-4">
+            <flux:heading level="2">{{ __('Med Orders') }}</flux:heading>
+            <p class="text-sm text-zinc-500">
+                {{ __('Find a previous visit by date and copy its medications to this patient.') }}
+            </p>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+                <flux:field>
+                    <flux:label>{{ __('Date') }}</flux:label>
+                    <flux:input type="date" wire:model.live="medOrdersDate" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>{{ __('Search') }}</flux:label>
+                    <flux:input
+                        type="search"
+                        wire:model.live.debounce.300ms="medOrdersSearch"
+                        placeholder="{{ __('Name, MRN, or token') }}"
+                    />
+                </flux:field>
+            </div>
+
+            @if ($this->selectedBrowseOrder)
+                @php($browseOrder = $this->selectedBrowseOrder)
+                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                    <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-semibold text-zinc-900 dark:text-white">
+                                {{ $browseOrder->patient?->name ?? __('Unknown') }}
+                            </p>
+                            <p class="text-xs text-zinc-500">
+                                {{ $browseOrder->patient?->mrn ?? __('No MRN') }}
+                                · #{{ $browseOrder->queueToken?->token_number }}
+                                · {{ $browseOrder->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <flux:button type="button" size="sm" variant="ghost" wire:click="clearBrowseOrder">
+                                {{ __('Back') }}
+                            </flux:button>
+                            <flux:button type="button" size="sm" variant="primary" wire:click="repeatOrder({{ $browseOrder->id }})">
+                                {{ __('Repeat') }}
+                            </flux:button>
+                        </div>
+                    </div>
+
+                    @if (filled($browseOrder->complaint_or_diagnosis))
+                        <flux:badge size="sm" color="sky" class="mb-2">
+                            {{ __('Diagnosis') }}: {{ $browseOrder->complaint_or_diagnosis }}
+                        </flux:badge>
+                    @endif
+
+                    @if ($browseOrder->medicines->isNotEmpty())
+                        <div class="mb-2">
+                            <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
+                            @foreach ($browseOrder->medicines as $medicine)
+                                <p class="text-sm text-zinc-700 dark:text-zinc-200">
+                                    {{ $medicine->name }}
+                                    <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
+                                </p>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if ($browseOrder->injections->isNotEmpty())
+                        <div class="mb-2">
+                            <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Injections') }}</p>
+                            @foreach ($browseOrder->injections as $injection)
+                                <p class="text-sm text-zinc-700 dark:text-zinc-200">
+                                    {{ $injection->name }}
+                                    <span class="text-zinc-500">— {{ $injection->administration_type->label() }}</span>
+                                </p>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if ($browseOrder->drips->isNotEmpty())
+                        <div class="mb-2">
+                            <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drips') }}</p>
+                            @foreach ($browseOrder->drips as $drip)
+                                <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ $drip->name }}</p>
+                                @foreach ($drip->additives as $additive)
+                                    <p class="ms-3 text-sm text-zinc-500">+ {{ $additive->name }}</p>
+                                @endforeach
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if ($browseOrder->notes)
+                        <p class="mt-2 text-sm text-zinc-500">
+                            <span class="font-medium">{{ __('Notes:') }}</span> {{ $browseOrder->notes }}
+                        </p>
+                    @endif
+                </div>
+            @else
+                <div class="max-h-[60vh] space-y-2 overflow-y-auto pe-1">
+                    @forelse ($this->browseableMedOrders as $order)
+                        <button
+                            type="button"
+                            wire:key="browse-order-{{ $order->id }}"
+                            wire:click="selectBrowseOrder({{ $order->id }})"
+                            class="flex w-full items-start justify-between gap-3 rounded-xl border border-zinc-200 p-3 text-start transition hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500"
+                        >
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                                    {{ $order->patient?->name ?? __('Unknown') }}
+                                </p>
+                                <p class="truncate text-xs text-zinc-500">
+                                    {{ $order->patient?->mrn ?? __('No MRN') }}
+                                    · #{{ $order->queueToken?->token_number }}
+                                    · {{ $order->created_at?->timezone(config('app.timezone'))->format('h:i A') }}
+                                </p>
+                                <p class="mt-1 truncate text-xs text-zinc-600 dark:text-zinc-300">
+                                    {{ $order->medicines->pluck('name')->merge($order->injections->pluck('name'))->take(3)->implode(', ') ?: __('No line items') }}
+                                </p>
+                            </div>
+                            <flux:badge size="sm" color="{{ $order->status === \App\Enums\MedicationOrderStatus::Administered ? 'green' : 'zinc' }}">
+                                {{ $order->status->label() }}
+                            </flux:badge>
+                        </button>
+                    @empty
+                        <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                            <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('No medication orders for this date') }}</p>
+                            <p class="mt-1 text-sm text-zinc-500">{{ __('Try another date or clear the search.') }}</p>
+                        </div>
+                    @endforelse
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeMedOrders">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="repeat-order-conflict" wire:model="showRepeatConflictModal" class="w-full max-w-md">
+        <div class="space-y-4">
+            <flux:heading level="2">{{ __('Repeat medications') }}</flux:heading>
+            <p class="text-sm text-zinc-600 dark:text-zinc-300">
+                {{ __('This visit already has medications. Append the previous order, or replace what is on the form?') }}
+            </p>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <flux:button type="button" variant="ghost" wire:click="cancelRepeatConflict">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="button" variant="ghost" wire:click="confirmRepeat('append')">
+                    {{ __('Append') }}
+                </flux:button>
+                <flux:button type="button" variant="primary" wire:click="confirmRepeat('replace')">
+                    {{ __('Replace') }}
                 </flux:button>
             </div>
         </div>
