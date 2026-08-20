@@ -179,24 +179,19 @@ test('drip-only orders do not appear on medication delivery page', function () {
         ->assertDontSee($patient->name);
 });
 
-test('orders with unfinished drips appear locked on er until the drip is done', function () {
+test('orders with unfinished drips stay unlocked so er can deliver medicines', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
     $drip = $order->drips->first();
 
     Livewire::test('pages::display.medication-delivery')
         ->assertSee($patient->name)
-        ->assertSee(__('Drip not yet given.'))
-        ->assertDontSee(__('Tap to deliver'))
+        ->assertSee(__('Tap to deliver'))
+        ->assertDontSee(__('Drip not yet given.'))
+        ->assertDontSee(__('Not yet paid.'))
         ->call('selectOrder', $order->id)
-        ->assertSet('selectedOrderId', null);
+        ->assertSet('selectedOrderId', $order->id);
 
     $drip->update(['status' => DripLineStatus::Started]);
-
-    Livewire::test('pages::display.medication-delivery')
-        ->assertSee($patient->name)
-        ->assertSee(__('Drip not yet given.'));
-
-    $drip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
 
     Livewire::test('pages::display.medication-delivery')
         ->assertSee($patient->name)
@@ -204,7 +199,7 @@ test('orders with unfinished drips appear locked on er until the drip is done', 
         ->assertDontSee(__('Drip not yet given.'));
 });
 
-test('unpaid drip charge and unfinished drip lock er with a combined message', function () {
+test('unpaid drip charge locks er even when drips are unfinished', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
 
     DripCharge::factory()->create([
@@ -216,33 +211,32 @@ test('unpaid drip charge and unfinished drip lock er with a combined message', f
 
     Livewire::test('pages::display.medication-delivery')
         ->assertSee($patient->name)
-        ->assertSee(__('Not yet paid. Drip not yet given.'))
+        ->assertSee(__('Not yet paid.'))
+        ->assertDontSee(__('Drip not yet given.'))
         ->call('selectOrder', $order->id)
         ->assertSet('selectedOrderId', null);
 });
 
-test('er cannot deliver medicines while a drip is still running', function () {
+test('er can deliver medicines while a drip is still running', function () {
     [$order] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
     HealthAide::factory()->create(['pin' => '1234']);
     $medicine = $order->medicines->first();
     $drip = $order->drips->first();
 
-    $drip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
+    $drip->update(['status' => DripLineStatus::Started]);
 
-    $component = Livewire::test('pages::display.medication-delivery')
+    Livewire::test('pages::display.medication-delivery')
         ->set('pin', '1234')
         ->call('verifyPin')
         ->call('selectOrder', $order->id)
-        ->set('selectedMedicineIds', [$medicine->id]);
-
-    $drip->update(['status' => DripLineStatus::Started, 'done_at' => null]);
-
-    $component
+        ->set('selectedMedicineIds', [$medicine->id])
+        ->set('selectedInjectionIds', [])
         ->call('requestNext')
         ->assertHasNoErrors();
 
-    expect($medicine->fresh()->delivered_at)->toBeNull()
-        ->and($order->fresh()->status)->toBe(MedicationOrderStatus::Pending);
+    expect($medicine->fresh()->delivered_at)->not->toBeNull()
+        ->and($drip->fresh()->status)->toBe(DripLineStatus::Started)
+        ->and($order->fresh()->status)->toBe(MedicationOrderStatus::Administered);
 });
 
 test('er slip shows only drips enabled in management', function () {
@@ -420,7 +414,91 @@ test('pending medication orders remain on er after a new shift opens', function 
     Shift::factory()->open()->create();
 
     Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('Previous shift'))
+        ->assertDontSee(__('Current shift'))
         ->assertSee($patient->name);
+});
+
+test('er station groups current shift work separately from leftovers', function () {
+    [$previousOrder, $previousShift, $previousPatient, $previousToken] = createDeliveryOrderContext();
+    $previousPatient->update(['name' => 'Previous Shift Patient']);
+
+    $previousShift->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closing_balance' => 0,
+    ]);
+    $previousToken->serviceQueue->update([
+        'status' => 'closed',
+        'closed_at' => now(),
+    ]);
+
+    [$currentOrder, , $currentPatient] = createDeliveryOrderContext();
+    $currentPatient->update(['name' => 'Current Shift Patient']);
+
+    $component = Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('Current shift'))
+        ->assertSee(__('Previous shift'))
+        ->assertSee($currentPatient->name)
+        ->assertSee($previousPatient->name);
+
+    $sections = $component->instance()->sectionedQueueItems;
+
+    expect($sections['current']->pluck('order.id')->all())->toContain($currentOrder->id)
+        ->and($sections['previous']->pluck('order.id')->all())->toContain($previousOrder->id)
+        ->and($sections['drips'])->toHaveCount(0);
+});
+
+test('er station puts orders with active drips in the drips section', function () {
+    [$dripOrder, $shift, $dripPatient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
+    $dripPatient->update(['name' => 'Drip Section Patient']);
+
+    $service = Service::factory()->create([
+        'needs_medication' => true,
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $queue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $shift->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+        'opened_at' => now(),
+    ]);
+    $medPatient = Patient::factory()->create(['name' => 'Medicine Only Patient']);
+    $token = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $medPatient->id,
+        'token_number' => 9,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+    $medOrder = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $medPatient->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+    $medicine = Medicine::factory()->create(['name' => 'Ibuprofen']);
+    $medOrder->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => 'Ibuprofen',
+    ]);
+
+    $component = Livewire::test('pages::display.medication-delivery')
+        ->assertSee(__('Current shift'))
+        ->assertSee(__('Drips'))
+        ->assertSee($dripPatient->name)
+        ->assertSee($medPatient->name)
+        ->assertSee(__('Start and finish drips at the Drip Station. Tap to deliver medicines.'));
+
+    $sections = $component->instance()->sectionedQueueItems;
+
+    expect($sections['drips']->pluck('order.id')->all())->toContain($dripOrder->id)
+        ->and($sections['current']->pluck('order.id')->all())->toContain($medOrder->id)
+        ->and($sections['current']->pluck('order.id')->all())->not->toContain($dripOrder->id);
 });
 
 test('health aides can deliver leftover medication after the shift is closed', function () {

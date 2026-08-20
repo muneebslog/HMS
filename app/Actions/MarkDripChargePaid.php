@@ -23,10 +23,19 @@ class MarkDripChargePaid
     /**
      * Create a paid invoice for the drip charge, queue a print job, and mark it paid.
      */
-    public function handle(DripCharge $charge, Shift $shift, User $paidBy, PaymentMode $paymentMode = PaymentMode::Cash): Invoice
-    {
+    public function handle(
+        DripCharge $charge,
+        Shift $shift,
+        User $paidBy,
+        PaymentMode $paymentMode = PaymentMode::Cash,
+        ?float $price = null,
+    ): Invoice {
         if ($charge->status === DripChargeStatus::Paid) {
             throw new InvalidArgumentException('This drip charge has already been paid.');
+        }
+
+        if ($charge->status === DripChargeStatus::Cancelled) {
+            throw new InvalidArgumentException('This drip charge was cancelled.');
         }
 
         $charge->loadMissing(['patient', 'service', 'doctor']);
@@ -35,11 +44,17 @@ class MarkDripChargePaid
             throw new InvalidArgumentException('Drip charge service is missing.');
         }
 
-        $invoice = DB::transaction(function () use ($charge, $shift, $paidBy, $paymentMode): Invoice {
+        $amount = $price ?? $charge->suggested_price;
+
+        if ($amount === null) {
+            throw new InvalidArgumentException('Price is required.');
+        }
+
+        $invoice = DB::transaction(function () use ($charge, $shift, $paidBy, $paymentMode, $amount): Invoice {
             $invoice = Invoice::create([
                 'patient_id' => $charge->patient_id,
                 'invoice_number' => Invoice::generateNumber(),
-                'total' => $charge->suggested_price,
+                'total' => $amount,
                 'status' => 'paid',
                 'payment_mode' => $paymentMode,
                 'created_by' => $paidBy->id,
@@ -52,13 +67,14 @@ class MarkDripChargePaid
                 'doctor_id' => $charge->doctor_id,
                 'service_name' => $charge->service->name,
                 'doctor_name' => $charge->doctor?->name,
-                'price' => $charge->suggested_price,
+                'price' => $amount,
                 'doctor_share' => $charge->doctor_share,
             ]);
 
             $this->queueService->generateToken($invoiceItem);
 
             $charge->update([
+                'suggested_price' => $amount,
                 'status' => DripChargeStatus::Paid,
                 'invoice_id' => $invoice->id,
                 'paid_by' => $paidBy->id,

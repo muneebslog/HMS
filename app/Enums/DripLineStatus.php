@@ -7,6 +7,7 @@ enum DripLineStatus: string
     case Pending = 'pending';
     case Started = 'started';
     case Done = 'done';
+    case Cancelled = 'cancelled';
 
     /**
      * Statuses that mean the drip line is not finished yet.
@@ -27,6 +28,7 @@ enum DripLineStatus: string
             self::Pending => __('Pending'),
             self::Started => __('Started'),
             self::Done => __('Done'),
+            self::Cancelled => __('Cancelled'),
         };
     }
 }

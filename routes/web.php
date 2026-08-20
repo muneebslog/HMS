@@ -16,7 +16,10 @@ use App\Http\Controllers\Reception\ProcedurePrintController;
 use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
+use App\Models\Shift;
 use App\Models\UltrasoundReport;
+use App\Services\ShiftOrdersExportService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -51,6 +54,23 @@ Route::view('display/er-drips', 'pages.display.er-drips')
 
 Route::livewire('display/shift-orders', 'pages::display.shift-orders')
     ->name('display.shift_orders');
+
+Route::get('display/shift-orders/export', function (Request $request, ShiftOrdersExportService $export) {
+    $validated = $request->validate([
+        'shiftId' => ['required', 'integer', 'exists:shifts,id'],
+        'type' => ['required', 'string', 'in:'.implode(',', ShiftOrdersExportService::types())],
+    ]);
+
+    $shift = Shift::query()->findOrFail($validated['shiftId']);
+    $type = $validated['type'];
+
+    return view('display.shift-orders-export', [
+        'shift' => $shift,
+        'type' => $type,
+        'typeLabel' => $export->typeLabel($type),
+        'rows' => $export->rowsForShift($shift, $type),
+    ]);
+})->name('display.shift_orders.export');
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');

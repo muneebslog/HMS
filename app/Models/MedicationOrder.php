@@ -139,7 +139,7 @@ class MedicationOrder extends Model
 
     /**
      * Whether any drip line still has to be run at the drip station.
-     * Medicines and injections wait at ER until every drip is done.
+     * Drips are independent of ER medicine/injection delivery.
      */
     public function hasActiveDrips(): bool
     {
@@ -167,23 +167,15 @@ class MedicationOrder extends Model
     /**
      * Why ER cannot deliver this order yet, if it is held.
      *
-     * @return 'unpaid_and_drip'|'unpaid'|'drip'|null
+     * Unpaid drip charges still block ER delivery. Pending drips do not —
+     * medicines and injections can be given even when the patient skips the drip.
+     *
+     * @return 'unpaid'|null
      */
     public function erHoldReason(): ?string
     {
-        $unpaid = $this->hasUnpaidDripCharge();
-        $dripPending = $this->hasActiveDrips();
-
-        if ($unpaid && $dripPending) {
-            return 'unpaid_and_drip';
-        }
-
-        if ($unpaid) {
+        if ($this->hasUnpaidDripCharge()) {
             return 'unpaid';
-        }
-
-        if ($dripPending) {
-            return 'drip';
         }
 
         return null;
@@ -195,9 +187,7 @@ class MedicationOrder extends Model
     public function erHoldMessage(): ?string
     {
         return match ($this->erHoldReason()) {
-            'unpaid_and_drip' => __('Not yet paid. Drip not yet given.'),
             'unpaid' => __('Not yet paid.'),
-            'drip' => __('Drip not yet given.'),
             default => null,
         };
     }

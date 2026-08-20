@@ -162,16 +162,16 @@ Conventions used below:
 | medication_order_id | FK → medication_orders | nullable, nullOnDelete |
 | service_id | FK → services | cascadeOnDelete (`is_drip` service) |
 | doctor_id | FK → doctors | nullable, nullOnDelete — share recipient |
-| suggested_price | decimal(10,2) | doctor-suggested amount |
+| suggested_price | decimal(10,2) | nullable — null when doctor leaves price for reception |
 | doctor_share | decimal(5,2) | nullable, % snapshot at suggest time |
-| status | string | `pending` / `paid`, IDX |
+| status | string | `pending` / `paid` / `cancelled`, IDX |
 | invoice_id | FK → invoices | nullable, nullOnDelete |
 | suggested_by | FK → users | cascadeOnDelete |
 | paid_by | FK → users | nullable, nullOnDelete |
 | paid_at | timestamp | nullable |
 | timestamps | | |
 
-Pending drip bills from doctor medication; reception marks paid on walk-in (invoice + print slip).
+Pending drip bills from doctor medication (with or without a suggested price); reception sets price if needed, marks paid on walk-in (invoice + print slip), or cancels the drip.
 
 ### `lab_tests`
 | Column | Type | Notes |
@@ -561,7 +561,7 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 | medication_order_id | FK → medication_orders | cascadeOnDelete |
 | drip_base_id | FK → drip_bases | nullable, restrictOnDelete — null for a ready-made drip that needs no base |
 | name | string | snapshot of the base or ready-made drip name |
-| status | string | default `pending` (`DripLineStatus`: pending/started/done), IDX |
+| status | string | default `pending` (`DripLineStatus`: pending/started/done/cancelled), IDX |
 | started_at | timestamp | nullable |
 | started_by_health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | check_due_at | timestamp | nullable, IDX — started_at + 30 minutes |

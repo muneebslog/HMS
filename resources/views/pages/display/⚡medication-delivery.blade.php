@@ -5,6 +5,7 @@ use App\Enums\MedicationOrderStatus;
 use App\Enums\StationType;
 use App\Models\MedicationOrder;
 use App\Models\QueueToken;
+use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\HealthAidePinSession;
 use App\Services\StationSessionService;
@@ -46,7 +47,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
      *
      * Medication orders stay on this board until they are delivered, even after the
      * originating shift is closed. Appear-on-ER service visits still follow the open shift.
-     * Orders waiting on drip payment or drip administration appear locked.
+     * Orders with an unpaid drip charge appear locked; pending drips do not block meds.
      *
      * @return Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken}>
      */
@@ -142,6 +143,66 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     }
 
     /**
+     * ER board sections: current shift, leftover previous-shift work, and active drips.
+     *
+     * Orders with unfinished drips are pulled into the drips section so meds-only
+     * work stays easy to scan after a new shift opens.
+     *
+     * @return array{
+     *     current: Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken, from_current_shift: bool}>,
+     *     previous: Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken, from_current_shift: bool}>,
+     *     drips: Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken, from_current_shift: bool}>
+     * }
+     */
+    #[Computed]
+    public function sectionedQueueItems(): array
+    {
+        $shift = Shift::current();
+        $current = collect();
+        $previous = collect();
+        $drips = collect();
+
+        foreach ($this->queueItems as $item) {
+            $fromCurrentShift = $this->belongsToCurrentShift($item, $shift);
+            $item['from_current_shift'] = $fromCurrentShift;
+
+            if ($item['type'] === 'medication' && $item['order']?->hasActiveDrips()) {
+                $drips->push($item);
+
+                continue;
+            }
+
+            if ($fromCurrentShift) {
+                $current->push($item);
+            } else {
+                $previous->push($item);
+            }
+        }
+
+        return [
+            'current' => $current->values(),
+            'previous' => $previous->values(),
+            'drips' => $drips->values(),
+        ];
+    }
+
+    /**
+     * Preferred next-item order after a delivery: current shift, drips, then leftovers.
+     *
+     * @return Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken, from_current_shift?: bool}>
+     */
+    #[Computed]
+    public function prioritizedQueueItems(): Collection
+    {
+        $sections = $this->sectionedQueueItems;
+
+        return $sections['current']
+            ->concat($sections['drips'])
+            ->concat($sections['previous'])
+            ->values();
+    }
+
+    /**
      * @deprecated Use queueItems; kept for existing delivery flow selection.
      *
      * @return Collection<int, MedicationOrder>
@@ -154,6 +215,33 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             ->pluck('order')
             ->filter()
             ->values();
+    }
+
+    /**
+     * Whether a queue item's service queue belongs to the open shift.
+     *
+     * @param  array{type: string, order: ?MedicationOrder, token: ?QueueToken}  $item
+     */
+    protected function belongsToCurrentShift(array $item, ?Shift $shift): bool
+    {
+        if ($shift === null) {
+            return false;
+        }
+
+        $queue = match ($item['type']) {
+            'medication' => $item['order']?->queueToken?->serviceQueue,
+            'service' => $item['token']?->serviceQueue,
+            default => null,
+        };
+
+        if (! $queue instanceof ServiceQueue) {
+            return false;
+        }
+
+        return ServiceQueue::query()
+            ->whereKey($queue->id)
+            ->forShift($shift)
+            ->exists();
     }
 
     #[Computed]
@@ -323,7 +411,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         if ($order === null || $order->status !== MedicationOrderStatus::Pending) {
             Flux::toast(variant: 'danger', text: __('Order is no longer pending.'));
             $this->backToList();
-            unset($this->queueItems, $this->orders, $this->selectedOrder);
+            unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->orders, $this->selectedOrder);
 
             return;
         }
@@ -331,7 +419,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         if ($order->erHoldReason() !== null) {
             Flux::toast(variant: 'danger', text: $order->erHoldMessage() ?? __('This order is not ready for ER yet.'));
             $this->backToList();
-            unset($this->queueItems, $this->orders, $this->selectedOrder);
+            unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->orders, $this->selectedOrder);
 
             return;
         }
@@ -368,11 +456,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
 
         app(StationSessionService::class)->bump(StationType::Er, $aide);
 
-        unset($this->queueItems, $this->orders, $this->selectedOrder);
+        unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->orders, $this->selectedOrder);
 
         Flux::toast(variant: 'success', text: __('Delivery saved.'));
 
-        $next = $this->queueItems->first();
+        $next = $this->prioritizedQueueItems->first();
 
         if ($next === null) {
             $this->backToList();
@@ -405,7 +493,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         if ($token === null || ! in_array($token->status, ['waiting', 'serving'], true)) {
             Flux::toast(variant: 'danger', text: __('Visit is no longer pending.'));
             $this->backToList();
-            unset($this->queueItems, $this->selectedToken);
+            unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->selectedToken);
 
             return;
         }
@@ -419,7 +507,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         if ($token->medicationOrder?->hasActiveDrips()) {
             Flux::toast(variant: 'danger', text: __('Finish the drip at the Drip Station before completing this visit.'));
             $this->backToList();
-            unset($this->queueItems, $this->selectedToken);
+            unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->selectedToken);
 
             return;
         }
@@ -428,11 +516,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
 
         app(StationSessionService::class)->bump(StationType::Er, $aide);
 
-        unset($this->queueItems, $this->selectedToken);
+        unset($this->queueItems, $this->sectionedQueueItems, $this->prioritizedQueueItems, $this->selectedToken);
 
         Flux::toast(variant: 'success', text: __('ER visit completed.'));
 
-        $next = $this->queueItems->first();
+        $next = $this->prioritizedQueueItems->first();
 
         if ($next === null) {
             $this->backToList();
@@ -483,96 +571,146 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
 
     <div class="flex flex-1 flex-col gap-4 p-4">
         @if ($selectedOrderId === null && $selectedTokenId === null)
+            @php
+                $sections = [
+                    [
+                        'key' => 'current',
+                        'title' => __('Current shift'),
+                        'items' => $this->sectionedQueueItems['current'],
+                    ],
+                    [
+                        'key' => 'previous',
+                        'title' => __('Previous shift'),
+                        'items' => $this->sectionedQueueItems['previous'],
+                    ],
+                    [
+                        'key' => 'drips',
+                        'title' => __('Drips'),
+                        'items' => $this->sectionedQueueItems['drips'],
+                    ],
+                ];
+                $totalPending = $this->queueItems->count();
+            @endphp
+
             <div class="flex items-center justify-between">
                 <flux:heading level="2" size="md">{{ __('Pending ER work') }}</flux:heading>
-                <flux:badge color="zinc" size="lg">{{ $this->queueItems->count() }}</flux:badge>
+                <flux:badge color="zinc" size="lg">{{ $totalPending }}</flux:badge>
             </div>
 
-            <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                @forelse ($this->queueItems as $item)
-                    @if ($item['type'] === 'medication')
-                        @php
-                            $order = $item['order'];
-                            $pendingMedicines = $order->medicines->whereNull('delivered_at')->count();
-                            $pendingInjections = $order->injections->whereNull('delivered_at')->count();
-                            $erDrips = $order->drips->filter(fn ($drip) => $drip->dripBase?->show_on_er);
-                            $holdMessage = $order->erHoldMessage();
-                        @endphp
-                        <x-paper-slip
-                            as="button"
-                            type="button"
-                            :token="$order->queueToken?->token_number"
-                            :locked="$holdMessage !== null"
-                            :lock-message="$holdMessage"
-                            :tone="$holdMessage !== null ? 'locked' : 'default'"
-                            :disabled="$holdMessage !== null"
-                            wire:key="er-order-{{ $order->id }}"
-                            wire:click="selectOrder({{ $order->id }})"
-                            @class([
-                                'active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]' => $holdMessage === null,
-                            ])
-                        >
-                            <p class="truncate text-base font-semibold text-zinc-900">
-                                {{ $order->patient?->name ?? __('Unknown') }}
-                            </p>
-                            <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
-                                {{ $order->patient?->mrn ?? __('No MRN') }}
-                                · {{ $order->queueToken?->serviceQueue?->service?->name }}
-                            </p>
-                            <div class="mt-1 flex flex-wrap gap-2 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
-                                @if ($pendingMedicines > 0)
-                                    <span>{{ $pendingMedicines }} {{ __('Medicines') }}</span>
-                                @endif
-                                @if ($pendingInjections > 0)
-                                    <span>{{ $pendingInjections }} {{ __('Injections') }}</span>
-                                @endif
-                                @if ($erDrips->isNotEmpty())
-                                    <span>{{ $erDrips->count() }} {{ __('Drips') }}</span>
-                                @endif
-                            </div>
-                            @if (filled($order->notes))
-                                <div class="border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-700">
-                                    <span class="font-semibold">{{ __('Notes:') }}</span>
-                                    <span class="whitespace-pre-line">{{ $order->notes }}</span>
+            @if ($totalPending === 0)
+                <div class="flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">
+                    <flux:icon name="clipboard-document-check" class="size-10 text-zinc-500" />
+                    <p class="text-base font-medium">{{ __('No pending ER work') }}</p>
+                    <p class="text-sm text-zinc-500">{{ __('Prescriptions and ER services will appear here.') }}</p>
+                </div>
+            @else
+                <div class="flex flex-col gap-8">
+                    @foreach ($sections as $section)
+                        @continue($section['items']->isEmpty())
+
+                        <section wire:key="er-section-{{ $section['key'] }}" class="space-y-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <flux:heading level="3" size="sm">{{ $section['title'] }}</flux:heading>
+                                    @if ($section['key'] === 'drips')
+                                        <flux:text class="text-zinc-500">{{ __('Start and finish drips at the Drip Station. Tap to deliver medicines.') }}</flux:text>
+                                    @endif
                                 </div>
-                            @endif
-                            <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                                {{ $holdMessage !== null ? __('Waiting') : __('Tap to deliver') }}
-                            </p>
-                        </x-paper-slip>
-                    @else
-                        @php($token = $item['token'])
-                        <x-paper-slip
-                            as="button"
-                            type="button"
-                            :token="$token->token_number"
-                            wire:key="er-token-{{ $token->id }}"
-                            wire:click="selectServiceToken({{ $token->id }})"
-                            class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
-                        >
-                            <p class="truncate text-base font-semibold text-zinc-900">
-                                {{ $token->patient?->name ?? __('Unknown') }}
-                            </p>
-                            <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
-                                {{ $token->patient?->mrn ?? __('No MRN') }}
-                                · {{ $token->serviceQueue?->service?->name }}
-                            </p>
-                            <div class="mt-1 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
-                                {{ __('ER service') }}
+                                <flux:badge color="zinc" size="sm">{{ $section['items']->count() }}</flux:badge>
                             </div>
-                            <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                                {{ __('Tap to complete') }}
-                            </p>
-                        </x-paper-slip>
-                    @endif
-                @empty
-                    <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">
-                        <flux:icon name="clipboard-document-check" class="size-10 text-zinc-500" />
-                        <p class="text-base font-medium">{{ __('No pending ER work') }}</p>
-                        <p class="text-sm text-zinc-500">{{ __('Prescriptions and ER services will appear here.') }}</p>
-                    </div>
-                @endforelse
-            </div>
+
+                            <div class="grid grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                                @foreach ($section['items'] as $item)
+                                    @if ($item['type'] === 'medication')
+                                        @php
+                                            $order = $item['order'];
+                                            $pendingMedicines = $order->medicines->whereNull('delivered_at')->count();
+                                            $pendingInjections = $order->injections->whereNull('delivered_at')->count();
+                                            $activeDrips = $order->drips->filter(fn ($drip) => $drip->isActive());
+                                            $erDrips = $order->drips->filter(fn ($drip) => $drip->dripBase?->show_on_er);
+                                            $dripCount = $section['key'] === 'drips'
+                                                ? $activeDrips->count()
+                                                : $erDrips->count();
+                                            $holdMessage = $order->erHoldMessage();
+                                        @endphp
+                                        <x-paper-slip
+                                            as="button"
+                                            type="button"
+                                            :token="$order->queueToken?->token_number"
+                                            :locked="$holdMessage !== null"
+                                            :lock-message="$holdMessage"
+                                            :tone="$holdMessage !== null ? 'locked' : ($section['key'] === 'drips' ? 'accent' : 'default')"
+                                            :disabled="$holdMessage !== null"
+                                            wire:key="er-{{ $section['key'] }}-order-{{ $order->id }}"
+                                            wire:click="selectOrder({{ $order->id }})"
+                                            @class([
+                                                'active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]' => $holdMessage === null,
+                                            ])
+                                        >
+                                            @if ($section['key'] === 'drips')
+                                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                                    {{ ($item['from_current_shift'] ?? false) ? __('Current shift') : __('Previous shift') }}
+                                                </p>
+                                            @endif
+                                            <p class="truncate text-base font-semibold text-zinc-900">
+                                                {{ $order->patient?->name ?? __('Unknown') }}
+                                            </p>
+                                            <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                                                {{ $order->patient?->mrn ?? __('No MRN') }}
+                                                · {{ $order->queueToken?->serviceQueue?->service?->name }}
+                                            </p>
+                                            <div class="mt-1 flex flex-wrap gap-2 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
+                                                @if ($pendingMedicines > 0)
+                                                    <span>{{ $pendingMedicines }} {{ __('Medicines') }}</span>
+                                                @endif
+                                                @if ($pendingInjections > 0)
+                                                    <span>{{ $pendingInjections }} {{ __('Injections') }}</span>
+                                                @endif
+                                                @if ($dripCount > 0)
+                                                    <span>{{ $dripCount }} {{ __('Drips') }}</span>
+                                                @endif
+                                            </div>
+                                            @if (filled($order->notes))
+                                                <div class="border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-700">
+                                                    <span class="font-semibold">{{ __('Notes:') }}</span>
+                                                    <span class="whitespace-pre-line">{{ $order->notes }}</span>
+                                                </div>
+                                            @endif
+                                            <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                                                {{ $holdMessage !== null ? __('Waiting') : __('Tap to deliver') }}
+                                            </p>
+                                        </x-paper-slip>
+                                    @else
+                                        @php($token = $item['token'])
+                                        <x-paper-slip
+                                            as="button"
+                                            type="button"
+                                            :token="$token->token_number"
+                                            wire:key="er-{{ $section['key'] }}-token-{{ $token->id }}"
+                                            wire:click="selectServiceToken({{ $token->id }})"
+                                            class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
+                                        >
+                                            <p class="truncate text-base font-semibold text-zinc-900">
+                                                {{ $token->patient?->name ?? __('Unknown') }}
+                                            </p>
+                                            <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
+                                                {{ $token->patient?->mrn ?? __('No MRN') }}
+                                                · {{ $token->serviceQueue?->service?->name }}
+                                            </p>
+                                            <div class="mt-1 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
+                                                {{ __('ER service') }}
+                                            </div>
+                                            <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                                                {{ __('Tap to complete') }}
+                                            </p>
+                                        </x-paper-slip>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </section>
+                    @endforeach
+                </div>
+            @endif
         @elseif ($selectedOrderId !== null)
             @php($order = $this->selectedOrder)
             <x-paper-slip

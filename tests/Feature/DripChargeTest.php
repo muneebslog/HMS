@@ -1,12 +1,15 @@
 <?php
 
 use App\Enums\DripChargeStatus;
+use App\Enums\DripLineStatus;
 use App\Enums\MedicineDose;
 use App\Enums\PaymentMode;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
+use App\Models\DripBase;
 use App\Models\DripCharge;
 use App\Models\Invoice;
+use App\Models\MedicationOrder;
 use App\Models\Medicine;
 use App\Models\Patient;
 use App\Models\PrintJob;
@@ -97,6 +100,7 @@ test('drip charge section only appears on the drips tab', function () {
 test('doctor medication can suggest a drip price using logged-in doctor share', function () {
     [$user, $doctor, , , $dripService, , $patient, $token] = createDripMedicationContext();
     $medicine = Medicine::factory()->create();
+    $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
 
     ServicePrice::factory()->create([
         'service_id' => $dripService->id,
@@ -110,6 +114,10 @@ test('doctor medication can suggest a drip price using logged-in doctor share', 
         ->call('selectToken', $token->id)
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', MedicineDose::OneZeroZero->value)
+        ->set('dripLines', [[
+            'drip_base_id' => $dripBase->id,
+            'additives' => [['injection_id' => null]],
+        ]])
         ->set('dripServiceId', $dripService->id)
         ->set('suggestedPrice', '750')
         ->call('save')
@@ -168,12 +176,17 @@ test('doctor medication falls back to mo doctor when logged-in doctor has no sha
         'arrived_at' => now(),
     ]);
     $medicine = Medicine::factory()->create();
+    $dripBase = DripBase::factory()->create(['name' => 'Ringer']);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', MedicineDose::OneZeroZero->value)
+        ->set('dripLines', [[
+            'drip_base_id' => $dripBase->id,
+            'additives' => [['injection_id' => null]],
+        ]])
         ->set('dripServiceId', $dripService->id)
         ->set('suggestedPrice', '600')
         ->call('save')
@@ -221,8 +234,11 @@ test('walk-in shows pending drip charges and mark paid creates invoice and print
         ->test('pages::reception.walkin')
         ->assertSee('Pending Drip Patient')
         ->assertSee('850.00')
+        ->call('openDripPay', $charge->id)
+        ->assertSet('showDripPayModal', true)
+        ->assertSet('dripPayPrice', '850')
         ->set('dripPaymentMode', PaymentMode::Cash->value)
-        ->call('markDripPaid', $charge->id)
+        ->call('confirmDripPaid')
         ->assertHasNoErrors()
         ->assertDontSee('Pending Drip Patient');
 
@@ -248,7 +264,108 @@ test('walk-in shows pending drip charges and mark paid creates invoice and print
     expect(QueueToken::whereHas('invoiceItem', fn ($query) => $query->where('invoice_id', $invoice->id))->exists())->toBeTrue();
 });
 
-test('suggested drip price is optional on medication save', function () {
+test('ordering a drip without suggested price still sends a charge to reception', function () {
+    [$user, , , , $dripService, , $patient, $token] = createDripMedicationContext();
+    $dripBase = DripBase::factory()->create(['name' => 'Normal Saline']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('dripLines', [[
+            'drip_base_id' => $dripBase->id,
+            'additives' => [['injection_id' => null]],
+        ]])
+        ->set('dripServiceId', $dripService->id)
+        ->set('suggestedPrice', '')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('drip_charges', [
+        'patient_id' => $patient->id,
+        'queue_token_id' => $token->id,
+        'service_id' => $dripService->id,
+        'suggested_price' => null,
+        'status' => DripChargeStatus::Pending->value,
+    ]);
+});
+
+test('reception can set price for an unpriced drip and mark it paid', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    Shift::factory()->for($receptionist)->open()->create();
+    $dripService = Service::factory()->drip()->create([
+        'name' => 'IV Drip',
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $patient = Patient::factory()->create(['name' => 'Needs Price Patient']);
+    $suggester = User::factory()->doctor()->create();
+
+    $charge = DripCharge::factory()->create([
+        'patient_id' => $patient->id,
+        'service_id' => $dripService->id,
+        'doctor_id' => null,
+        'suggested_price' => null,
+        'doctor_share' => null,
+        'status' => DripChargeStatus::Pending,
+        'suggested_by' => $suggester->id,
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('pages::reception.walkin')
+        ->assertSee('Needs Price Patient')
+        ->assertSee(__('Needs price'))
+        ->call('openDripPay', $charge->id)
+        ->assertSet('dripPayPrice', '')
+        ->set('dripPayPrice', '900')
+        ->set('dripPaymentMode', PaymentMode::Cash->value)
+        ->call('confirmDripPaid')
+        ->assertHasNoErrors()
+        ->assertDontSee('Needs Price Patient');
+
+    expect($charge->fresh()->status)->toBe(DripChargeStatus::Paid)
+        ->and($charge->fresh()->suggested_price)->toBe(900.0);
+});
+
+test('reception can cancel a pending drip charge and active drip lines', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    Shift::factory()->for($receptionist)->open()->create();
+    $dripService = Service::factory()->drip()->create([
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $patient = Patient::factory()->create(['name' => 'Cancel Drip Patient']);
+    $suggester = User::factory()->doctor()->create();
+    $order = MedicationOrder::factory()->create([
+        'patient_id' => $patient->id,
+        'status' => 'pending',
+    ]);
+    $drip = $order->drips()->create([
+        'drip_base_id' => DripBase::factory()->create()->id,
+        'name' => 'Normal Saline',
+        'status' => DripLineStatus::Pending,
+    ]);
+
+    $charge = DripCharge::factory()->create([
+        'patient_id' => $patient->id,
+        'medication_order_id' => $order->id,
+        'service_id' => $dripService->id,
+        'suggested_price' => 500,
+        'status' => DripChargeStatus::Pending,
+        'suggested_by' => $suggester->id,
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('pages::reception.walkin')
+        ->assertSee('Cancel Drip Patient')
+        ->call('cancelDrip', $charge->id)
+        ->assertHasNoErrors()
+        ->assertDontSee('Cancel Drip Patient');
+
+    expect($charge->fresh()->status)->toBe(DripChargeStatus::Cancelled)
+        ->and($drip->fresh()->status)->toBe(DripLineStatus::Cancelled);
+});
+
+test('suggested drip price without drip lines does not create a charge', function () {
     [$user, , , , $dripService, , $patient, $token] = createDripMedicationContext();
     $medicine = Medicine::factory()->create();
 

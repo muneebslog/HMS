@@ -7,6 +7,7 @@ use App\Models\MedicationOrderDrip;
 use App\Models\MedicationOrderInjection;
 use App\Models\MedicationOrderMedicine;
 use App\Models\Shift;
+use App\Services\ShiftOrdersExportService;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -20,6 +21,10 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
     public ?int $shiftId = null;
 
     public ?int $selectedOrderId = null;
+
+    public bool $showExportModal = false;
+
+    public string $exportType = ShiftOrdersExportService::TYPE_ALL;
 
     public function mount(): void
     {
@@ -150,6 +155,33 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
         $this->forgetShiftBoard();
     }
 
+    public function openExportModal(): void
+    {
+        $this->exportType = ShiftOrdersExportService::TYPE_ALL;
+        $this->showExportModal = true;
+    }
+
+    public function closeExportModal(): void
+    {
+        $this->showExportModal = false;
+    }
+
+    public function exportUrl(): ?string
+    {
+        if ($this->shiftId === null) {
+            return null;
+        }
+
+        if (! in_array($this->exportType, ShiftOrdersExportService::types(), true)) {
+            return null;
+        }
+
+        return route('display.shift_orders.export', [
+            'shiftId' => $this->shiftId,
+            'type' => $this->exportType,
+        ]);
+    }
+
     private function forgetShiftBoard(): void
     {
         unset($this->shift, $this->previousShiftId, $this->nextShiftId, $this->orders, $this->selectedOrder);
@@ -229,6 +261,15 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
         </div>
 
         <div class="flex items-center gap-2">
+            <flux:button
+                type="button"
+                variant="ghost"
+                icon="arrow-down-tray"
+                wire:click="openExportModal"
+                :disabled="$this->shift === null"
+            >
+                {{ __('Export') }}
+            </flux:button>
             <flux:button
                 type="button"
                 variant="ghost"
@@ -407,4 +448,43 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
     >
         {{ __('Back to ER') }}
     </a>
+
+    <flux:modal wire:model="showExportModal" class="w-full max-w-md">
+        <div class="space-y-4">
+            <div>
+                <flux:heading level="2">{{ __('Export shift orders') }}</flux:heading>
+                <flux:text class="mt-1 text-zinc-500">
+                    {{ __('Choose what to include for the selected shift, then open the printable list.') }}
+                </flux:text>
+            </div>
+
+            <flux:radio.group wire:model="exportType" class="flex flex-col gap-3">
+                <flux:radio value="all" :label="__('All')" />
+                <flux:radio value="medicine" :label="__('Medicines')" />
+                <flux:radio value="injection" :label="__('Injections')" />
+                <flux:radio value="drip" :label="__('Drips')" />
+            </flux:radio.group>
+
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeExportModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                @if ($this->exportUrl())
+                    <flux:button
+                        type="button"
+                        variant="primary"
+                        href="{{ $this->exportUrl() }}"
+                        target="_blank"
+                        wire:click="closeExportModal"
+                    >
+                        {{ __('Open list') }}
+                    </flux:button>
+                @else
+                    <flux:button type="button" variant="primary" disabled>
+                        {{ __('Open list') }}
+                    </flux:button>
+                @endif
+            </div>
+        </div>
+    </flux:modal>
 </div>

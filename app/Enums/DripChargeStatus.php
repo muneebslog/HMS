@@ -6,6 +6,7 @@ enum DripChargeStatus: string
 {
     case Pending = 'pending';
     case Paid = 'paid';
+    case Cancelled = 'cancelled';
 
     /**
      * Get the translated label for the status.
@@ -15,6 +16,7 @@ enum DripChargeStatus: string
         return match ($this) {
             self::Pending => __('Pending'),
             self::Paid => __('Paid'),
+            self::Cancelled => __('Cancelled'),
         };
     }
 }

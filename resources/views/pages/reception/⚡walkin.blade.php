@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CancelDripCharge;
 use App\Actions\CreatePrintJob;
 use App\Actions\MarkDripChargePaid;
 use App\Enums\DripChargeStatus;
@@ -48,6 +49,12 @@ new #[Title('Walk-in')] class extends Component
     public string $editingItemPrice = '';
 
     public bool $showPriceModal = false;
+
+    public bool $showDripPayModal = false;
+
+    public ?int $payingDripChargeId = null;
+
+    public string $dripPayPrice = '';
 
     #[Validate]
     public string $paymentMode = 'cash';
@@ -352,20 +359,62 @@ new #[Title('Walk-in')] class extends Component
     public function pendingDripCharges(): Collection
     {
         return DripCharge::query()
-            ->with(['patient', 'service', 'doctor', 'suggestedBy.doctor'])
+            ->with(['patient', 'service', 'doctor', 'suggestedBy.doctor', 'medicationOrder.drips'])
             ->where('status', DripChargeStatus::Pending)
             ->latest()
             ->get();
     }
 
     /**
-     * Mark a doctor-suggested drip charge as paid and print the slip.
+     * Open the drip payment modal so reception can confirm or enter the price.
      */
-    public function markDripPaid(int $chargeId): void
+    public function openDripPay(int $chargeId): void
+    {
+        $charge = DripCharge::query()
+            ->where('status', DripChargeStatus::Pending)
+            ->find($chargeId);
+
+        if ($charge === null) {
+            Flux::toast(variant: 'danger', text: __('Drip charge not found or already paid.'));
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        $this->payingDripChargeId = $charge->id;
+        $this->dripPayPrice = $charge->suggested_price !== null
+            ? (string) $charge->suggested_price
+            : '';
+        $this->showDripPayModal = true;
+        $this->resetValidation(['dripPayPrice', 'dripPaymentMode']);
+    }
+
+    /**
+     * Close the drip payment modal.
+     */
+    public function resetDripPayModal(): void
+    {
+        $this->showDripPayModal = false;
+        $this->payingDripChargeId = null;
+        $this->dripPayPrice = '';
+        $this->resetValidation(['dripPayPrice']);
+    }
+
+    /**
+     * Collect payment for a pending drip charge and print the slip.
+     */
+    public function confirmDripPaid(): void
     {
         $this->validate([
+            'dripPayPrice' => ['required', 'numeric', 'min:0'],
             'dripPaymentMode' => $this->rules()['dripPaymentMode'],
         ]);
+
+        if ($this->payingDripChargeId === null) {
+            $this->resetDripPayModal();
+
+            return;
+        }
 
         $shift = Shift::current();
 
@@ -377,10 +426,11 @@ new #[Title('Walk-in')] class extends Component
 
         $charge = DripCharge::query()
             ->where('status', DripChargeStatus::Pending)
-            ->find($chargeId);
+            ->find($this->payingDripChargeId);
 
         if ($charge === null) {
             Flux::toast(variant: 'danger', text: __('Drip charge not found or already paid.'));
+            $this->resetDripPayModal();
             unset($this->pendingDripCharges);
 
             return;
@@ -400,7 +450,40 @@ new #[Title('Walk-in')] class extends Component
                 $shift,
                 $user,
                 PaymentMode::from($this->dripPaymentMode),
+                (float) $this->dripPayPrice,
             );
+        } catch (\InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: __($exception->getMessage()));
+            $this->resetDripPayModal();
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        $this->resetDripPayModal();
+        unset($this->pendingDripCharges);
+
+        Flux::toast(variant: 'success', text: __('Invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
+    }
+
+    /**
+     * Cancel a pending drip charge and related drip lines.
+     */
+    public function cancelDrip(int $chargeId): void
+    {
+        $charge = DripCharge::query()
+            ->where('status', DripChargeStatus::Pending)
+            ->find($chargeId);
+
+        if ($charge === null) {
+            Flux::toast(variant: 'danger', text: __('Drip charge not found or already handled.'));
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        try {
+            app(CancelDripCharge::class)->handle($charge);
         } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: __($exception->getMessage()));
             unset($this->pendingDripCharges);
@@ -408,9 +491,13 @@ new #[Title('Walk-in')] class extends Component
             return;
         }
 
+        if ($this->payingDripChargeId === $chargeId) {
+            $this->resetDripPayModal();
+        }
+
         unset($this->pendingDripCharges);
 
-        Flux::toast(variant: 'success', text: __('Invoice :number saved. Print job queued.', ['number' => $invoice->invoice_number]));
+        Flux::toast(variant: 'success', text: __('Drip cancelled.'));
     }
 
     /**
@@ -598,18 +685,8 @@ new #[Title('Walk-in')] class extends Component
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <flux:heading level="2">{{ __('Pending drip charges') }}</flux:heading>
-                        <flux:text class="mt-1">{{ __('Doctor-suggested drip prices waiting for payment.') }}</flux:text>
+                        <flux:text class="mt-1">{{ __('Drip orders waiting for reception to set a price, collect payment, or cancel.') }}</flux:text>
                     </div>
-
-                    <flux:field class="w-full sm:max-w-xs">
-                        <flux:label>{{ __('Payment mode') }}</flux:label>
-                        <flux:select wire:model="dripPaymentMode">
-                            @foreach (App\Enums\PaymentMode::cases() as $mode)
-                                <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
-                            @endforeach
-                        </flux:select>
-                        <flux:error name="dripPaymentMode" />
-                    </flux:field>
                 </div>
 
                 <flux:table>
@@ -630,17 +707,33 @@ new #[Title('Walk-in')] class extends Component
                                 </flux:table.cell>
                                 <flux:table.cell>{{ $charge->service?->name }}</flux:table.cell>
                                 <flux:table.cell>{{ $charge->doctor?->name ?? '-' }}</flux:table.cell>
-                                <flux:table.cell>{{ number_format($charge->suggested_price, 2) }}</flux:table.cell>
+                                <flux:table.cell>
+                                    @if ($charge->suggested_price !== null)
+                                        {{ number_format($charge->suggested_price, 2) }}
+                                    @else
+                                        <span class="text-amber-600 dark:text-amber-400">{{ __('Needs price') }}</span>
+                                    @endif
+                                </flux:table.cell>
                                 <flux:table.cell class="text-right">
-                                    <flux:button
-                                        size="sm"
-                                        variant="primary"
-                                        icon="banknotes"
-                                        wire:click="markDripPaid({{ $charge->id }})"
-                                        wire:confirm="{{ __('Mark this drip charge as paid and print the slip?') }}"
-                                    >
-                                        {{ __('Mark paid') }}
-                                    </flux:button>
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        <flux:button
+                                            size="sm"
+                                            variant="primary"
+                                            icon="banknotes"
+                                            wire:click="openDripPay({{ $charge->id }})"
+                                        >
+                                            {{ $charge->suggested_price !== null ? __('Collect payment') : __('Set price') }}
+                                        </flux:button>
+                                        <flux:button
+                                            size="sm"
+                                            variant="danger"
+                                            icon="x-mark"
+                                            wire:click="cancelDrip({{ $charge->id }})"
+                                            wire:confirm="{{ __('Cancel this drip? It will be removed from the drip station and ER hold.') }}"
+                                        >
+                                            {{ __('Cancel drip') }}
+                                        </flux:button>
+                                    </div>
                                 </flux:table.cell>
                             </flux:table.row>
                         @empty
@@ -655,6 +748,45 @@ new #[Title('Walk-in')] class extends Component
             </flux:card>
         </div>
     </div>
+
+    <flux:modal wire:model="showDripPayModal" class="w-full max-w-sm">
+        <flux:heading level="2">{{ __('Collect drip payment') }}</flux:heading>
+        <flux:text class="mt-1">{{ __('Enter the price, then mark as paid and print the slip.') }}</flux:text>
+
+        <form wire:submit="confirmDripPaid" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('Price') }}</flux:label>
+                <flux:input
+                    wire:model="dripPayPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    autofocus
+                />
+                <flux:error name="dripPayPrice" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Payment mode') }}</flux:label>
+                <flux:select wire:model="dripPaymentMode">
+                    @foreach (App\Enums\PaymentMode::cases() as $mode)
+                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="dripPaymentMode" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="resetDripPayModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary" icon="banknotes">
+                    {{ __('Mark paid') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <flux:modal wire:model="showPriceModal" class="w-full max-w-sm">
         <flux:heading level="2">{{ __('Edit price') }}</flux:heading>

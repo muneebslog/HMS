@@ -1746,6 +1746,8 @@ new #[Title('Medication')] class extends Component
 
     /**
      * Create, update, or clear the pending drip charge for this order.
+     * Orders with drips always get a reception charge, even when the doctor
+     * leaves the suggested price blank for reception to fill in.
      *
      * @param  array<string, mixed>  $validated
      */
@@ -1756,7 +1758,7 @@ new #[Title('Medication')] class extends Component
             ->where('status', DripChargeStatus::Pending)
             ->first();
 
-        if (! filled($validated['suggestedPrice'] ?? null)) {
+        if (! $order->drips()->exists()) {
             $pendingCharge?->delete();
 
             return;
@@ -1768,10 +1770,21 @@ new #[Title('Medication')] class extends Component
             ->find($validated['dripServiceId'] ?? null);
 
         if ($service === null) {
+            $service = Service::query()
+                ->active()
+                ->where('is_drip', true)
+                ->orderBy('name')
+                ->first();
+        }
+
+        if ($service === null) {
             return;
         }
 
         $share = app(ResolveDripShareDoctor::class)->resolve($service, auth()->user());
+        $suggestedPrice = filled($validated['suggestedPrice'] ?? null)
+            ? $validated['suggestedPrice']
+            : null;
 
         $attributes = [
             'patient_id' => $token->patient_id,
@@ -1779,7 +1792,7 @@ new #[Title('Medication')] class extends Component
             'medication_order_id' => $order->id,
             'service_id' => $service->id,
             'doctor_id' => $share['doctor']?->id,
-            'suggested_price' => $validated['suggestedPrice'],
+            'suggested_price' => $suggestedPrice,
             'doctor_share' => $share['doctor_share'],
             'status' => DripChargeStatus::Pending,
             'suggested_by' => auth()->id(),
@@ -2015,7 +2028,7 @@ new #[Title('Medication')] class extends Component
             ->where('status', DripChargeStatus::Pending)
             ->first();
 
-        $this->suggestedPrice = $pendingCharge !== null
+        $this->suggestedPrice = $pendingCharge?->suggested_price !== null
             ? (string) $pendingCharge->suggested_price
             : '';
         $this->dripServiceId = $pendingCharge?->service_id
