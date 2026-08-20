@@ -282,6 +282,25 @@ test('drip delivery shows all active drips for an order on one slip', function (
         ->assertSeeHtml('wire:key="drip-delivery-'.$order->id.'"');
 });
 
+test('drip slip shows faded notes medicines and injections for context', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withInjection: true, withDrip: true);
+    $order->update([
+        'notes' => 'Keep patient warm',
+        'complaint_or_diagnosis' => 'Dehydration',
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee($patient->name)
+        ->assertSee('Normal Saline')
+        ->assertSee('Paracetamol')
+        ->assertSee('Diclofenac')
+        ->assertSee('Keep patient warm')
+        ->assertSee('Dehydration')
+        ->assertSee(__('Medicines'))
+        ->assertSee(__('Injections'))
+        ->assertSee(__('Notes'));
+});
+
 test('drip start sets thirty minute check due and can be marked done from kiosk', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
     $aide = HealthAide::factory()->create(['pin' => '1234']);
@@ -292,6 +311,7 @@ test('drip start sets thirty minute check due and can be marked done from kiosk'
     Livewire::test('pages::display.drip-delivery')
         ->assertSee($patient->name)
         ->assertSee(__('Token'))
+        ->assertSee(__('Paid'))
         ->set('pin', '1234')
         ->call('verifyPin')
         ->call('requestStart', $drip->id)
@@ -316,6 +336,52 @@ test('drip start sets thirty minute check due and can be marked done from kiosk'
         ->and($drip->done_at)->not->toBeNull();
 
     Carbon::setTestNow();
+});
+
+test('unpaid drip charge shows unpaid badge and blocks start at drip station', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+    HealthAide::factory()->create(['pin' => '1234']);
+    $drip = $order->drips->first();
+
+    DripCharge::factory()->create([
+        'patient_id' => $order->patient_id,
+        'queue_token_id' => $order->queue_token_id,
+        'medication_order_id' => $order->id,
+        'status' => DripChargeStatus::Pending,
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee($patient->name)
+        ->assertSee(__('Unpaid'))
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('requestStart', $drip->id)
+        ->assertHasNoErrors();
+
+    expect($drip->fresh()->status)->toBe(DripLineStatus::Pending);
+});
+
+test('paid drip charge shows paid badge and allows start at drip station', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+    HealthAide::factory()->create(['pin' => '1234']);
+    $drip = $order->drips->first();
+
+    DripCharge::factory()->paid()->create([
+        'patient_id' => $order->patient_id,
+        'queue_token_id' => $order->queue_token_id,
+        'medication_order_id' => $order->id,
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee($patient->name)
+        ->assertSee(__('Paid'))
+        ->assertDontSee(__('Unpaid'))
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('requestStart', $drip->id)
+        ->assertHasNoErrors();
+
+    expect($drip->fresh()->status)->toBe(DripLineStatus::Started);
 });
 
 test('admin can mark started drip done from recheck timers', function () {

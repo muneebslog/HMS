@@ -44,6 +44,9 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                 'medicationOrder.patient',
                 'medicationOrder.doctor',
                 'medicationOrder.queueToken.serviceQueue.service',
+                'medicationOrder.dripCharges',
+                'medicationOrder.medicines',
+                'medicationOrder.injections',
             ])
             ->whereIn('status', DripLineStatus::activeCases())
             ->orderByRaw("CASE WHEN status = 'started' AND check_due_at IS NOT NULL AND check_due_at <= ? THEN 0 WHEN status = 'pending' THEN 1 ELSE 2 END", [now()])
@@ -149,12 +152,21 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             return;
         }
 
-        $drip = MedicationOrderDrip::query()->find($this->pendingDripId);
+        $drip = MedicationOrderDrip::query()
+            ->with('medicationOrder.dripCharges')
+            ->find($this->pendingDripId);
 
         if ($drip === null || $drip->status !== DripLineStatus::Pending) {
             Flux::toast(variant: 'danger', text: __('Drip is no longer pending.'));
             $this->pendingDripId = null;
             unset($this->drips);
+
+            return;
+        }
+
+        if ($drip->medicationOrder?->hasUnpaidDripCharge()) {
+            Flux::toast(variant: 'danger', text: __('Not yet paid.'));
+            $this->pendingDripId = null;
 
             return;
         }
@@ -253,14 +265,28 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                     $orderDrips = $orderDrips->sortBy('id')->values();
                     $order = $orderDrips->first()?->medicationOrder;
                     $overdue = $orderDrips->contains(fn (MedicationOrderDrip $drip): bool => $drip->isCheckDue());
+                    $unpaid = $order?->hasUnpaidDripCharge() ?? false;
+                    $orderMedicines = $order?->medicines ?? collect();
+                    $orderInjections = $order?->injections ?? collect();
+                    $hasContext = filled($order?->notes)
+                        || filled($order?->complaint_or_diagnosis)
+                        || $orderMedicines->isNotEmpty()
+                        || $orderInjections->isNotEmpty();
                 @endphp
                 <x-paper-slip
                     wire:key="drip-delivery-{{ $orderId }}"
                     :token="$order?->queueToken?->token_number"
-                    :tone="$overdue ? 'accent' : 'default'"
+                    :tone="$unpaid ? 'locked' : ($overdue ? 'accent' : 'default')"
                 >
                     <div class="space-y-1">
-                        <p class="truncate text-base font-semibold text-zinc-900">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="truncate text-base font-semibold text-zinc-900">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                            @if ($unpaid)
+                                <flux:badge size="sm" color="red">{{ __('Unpaid') }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                            @endif
+                        </div>
                         <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
                             {{ $order?->patient?->mrn ?? __('No MRN') }}
                             · {{ $order?->queueToken?->serviceQueue?->service?->name }}
@@ -302,7 +328,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                                     type="button"
                                     variant="primary"
                                     class="w-full"
-                                    :disabled="$drip->status !== \App\Enums\DripLineStatus::Pending"
+                                    :disabled="$unpaid || $drip->status !== \App\Enums\DripLineStatus::Pending"
                                     wire:click="requestStart({{ $drip->id }})"
                                 >
                                     {{ __('Start') }}
@@ -319,6 +345,64 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                             </div>
                         </div>
                     @endforeach
+
+                    @if ($hasContext)
+                        <div class="space-y-2 border-t border-dashed border-zinc-300/80 pt-2 opacity-55">
+                            @if ($orderMedicines->isNotEmpty())
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Medicines') }}</p>
+                                    @foreach ($orderMedicines as $medicine)
+                                        <p wire:key="drip-slip-med-{{ $medicine->id }}" @class([
+                                            'text-xs text-zinc-600',
+                                            'line-through' => $medicine->delivered_at !== null,
+                                        ])>
+                                            {{ $medicine->name }}
+                                            <span class="text-zinc-500">
+                                                — {{ $medicine->dose->label() }}
+                                                @if (filled($medicine->comment))
+                                                    · {{ $medicine->comment }}
+                                                @endif
+                                            </span>
+                                        </p>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if ($orderInjections->isNotEmpty())
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Injections') }}</p>
+                                    @foreach ($orderInjections as $injection)
+                                        <p wire:key="drip-slip-inj-{{ $injection->id }}" @class([
+                                            'text-xs text-zinc-600',
+                                            'line-through' => $injection->delivered_at !== null,
+                                        ])>
+                                            {{ $injection->name }}
+                                            <span class="text-zinc-500">
+                                                — {{ $injection->administration_type->label() }}
+                                                @if (filled($injection->comment))
+                                                    · {{ $injection->comment }}
+                                                @endif
+                                            </span>
+                                        </p>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if (filled($order?->complaint_or_diagnosis))
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Complaint / diagnosis') }}</p>
+                                    <p class="whitespace-pre-line text-xs text-zinc-600">{{ $order->complaint_or_diagnosis }}</p>
+                                </div>
+                            @endif
+
+                            @if (filled($order?->notes))
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Notes') }}</p>
+                                    <p class="whitespace-pre-line text-xs text-zinc-600">{{ $order->notes }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
                 </x-paper-slip>
             @empty
                 <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-zinc-700 px-6 py-16 text-center">
