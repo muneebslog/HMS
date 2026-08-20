@@ -679,8 +679,8 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                             <flux:field>
                                 <flux:label>{{ __('Any fault affecting patient safety/care?') }}</flux:label>
                                 <flux:radio.group wire:model.live="patientSafetyFault" class="flex flex-wrap gap-6">
-                                    <flux:radio value="no">{{ __('No') }}</flux:radio>
-                                    <flux:radio value="yes">{{ __('Yes') }}</flux:radio>
+                                    <flux:radio value="no" :label="__('No')" />
+                                    <flux:radio value="yes" :label="__('Yes')" />
                                 </flux:radio.group>
                                 <flux:error name="patientSafetyFault" />
                             </flux:field>
@@ -688,9 +688,9 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                             <flux:field>
                                 <flux:label>{{ __('If YES, has it been reported immediately to bio-med/maintenance?') }}</flux:label>
                                 <flux:radio.group wire:model="patientSafetyReported" class="flex flex-wrap gap-6">
-                                    <flux:radio value="yes">{{ __('Yes') }}</flux:radio>
-                                    <flux:radio value="no">{{ __('No') }}</flux:radio>
-                                    <flux:radio value="na">{{ __('N/A') }}</flux:radio>
+                                    <flux:radio value="yes" :label="__('Yes')" />
+                                    <flux:radio value="no" :label="__('No')" />
+                                    <flux:radio value="na" :label="__('N/A')" />
                                 </flux:radio.group>
                                 <flux:error name="patientSafetyReported" />
                             </flux:field>
@@ -698,8 +698,8 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                             <flux:field>
                                 <flux:label>{{ __('Any room/bed temporarily unavailable due to maintenance?') }}</flux:label>
                                 <flux:radio.group wire:model.live="roomUnavailable" class="flex flex-wrap gap-6">
-                                    <flux:radio value="no">{{ __('No') }}</flux:radio>
-                                    <flux:radio value="yes">{{ __('Yes') }}</flux:radio>
+                                    <flux:radio value="no" :label="__('No')" />
+                                    <flux:radio value="yes" :label="__('Yes')" />
                                 </flux:radio.group>
                                 <flux:error name="roomUnavailable" />
                             </flux:field>

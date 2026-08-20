@@ -255,8 +255,8 @@ new #[Title('Fill Questionnaire')] class extends Component
                                 <flux:heading level="3" class="mb-4">{{ $question->question_text }}</flux:heading>
 
                                 <flux:radio.group wire:model.live="answers.{{ $question->id }}" class="flex flex-wrap gap-6">
-                                    <flux:radio value="yes">{{ __('Yes') }}</flux:radio>
-                                    <flux:radio value="no">{{ __('No') }}</flux:radio>
+                                    <flux:radio value="yes" :label="__('Yes')" />
+                                    <flux:radio value="no" :label="__('No')" />
                                 </flux:radio.group>
                                 <flux:error name="answers.{{ $question->id }}" />
 

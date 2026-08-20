@@ -624,7 +624,7 @@ new #[Title('Ultrasound')] class extends Component
 
                 <flux:radio.group wire:model="bpp" class="flex flex-wrap gap-6">
                     @foreach (App\Enums\UltrasoundBiophysicalProfile::cases() as $profile)
-                        <flux:radio value="{{ $profile->value }}">{{ $profile->label() }}</flux:radio>
+                        <flux:radio value="{{ $profile->value }}" :label="$profile->label()" />
                     @endforeach
                 </flux:radio.group>
                 <flux:error name="bpp" />
