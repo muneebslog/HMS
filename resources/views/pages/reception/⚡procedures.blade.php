@@ -861,7 +861,9 @@ new #[Title('Procedures')] class extends Component
                             @else
                                 <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
                             @endif
-                            @if ($procedure->isAdmitted())
+                            @if ($procedure->isDischarged())
+                                <flux:badge size="sm" color="green">{{ __('Discharged') }}</flux:badge>
+                            @elseif ($procedure->isAdmitted())
                                 <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
                             @endif
                         </div>
@@ -1266,7 +1268,11 @@ new #[Title('Procedures')] class extends Component
                 @if ($this->viewedProcedure->isAdmitted())
                     <div class="mt-4 space-y-1 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">
                         <div class="flex items-center gap-2">
-                            <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
+                            @if ($this->viewedProcedure->isDischarged())
+                                <flux:badge size="sm" color="green">{{ __('Discharged') }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
+                            @endif
                         </div>
                         <flux:text class="text-zinc-500 dark:text-zinc-400">
                             {{ __('Room') }}: {{ $this->viewedProcedure->room_number ?? '-' }} ·
@@ -1275,6 +1281,11 @@ new #[Title('Procedures')] class extends Component
                         <flux:text class="text-zinc-500 dark:text-zinc-400">
                             {{ __('Admitted on :date', ['date' => $this->viewedProcedure->admitted_at->format('M j, Y g:i A')]) }}
                         </flux:text>
+                        @if ($this->viewedProcedure->isDischarged())
+                            <flux:text class="text-zinc-500 dark:text-zinc-400">
+                                {{ __('Discharged on :date', ['date' => $this->viewedProcedure->discharged_at->format('M j, Y g:i A')]) }}
+                            </flux:text>
+                        @endif
                     </div>
                 @endif
             </div>

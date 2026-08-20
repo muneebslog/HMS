@@ -47,6 +47,17 @@ class ProcedureFactory extends Factory
     }
 
     /**
+     * Mark the procedure as admitted and discharged.
+     */
+    public function discharged(): self
+    {
+        return $this->state(fn () => [
+            'admitted_at' => now()->subDay(),
+            'discharged_at' => now(),
+        ]);
+    }
+
+    /**
      * Assign a doctor to the procedure.
      */
     public function withDoctor(): self

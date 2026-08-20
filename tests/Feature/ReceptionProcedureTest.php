@@ -685,6 +685,23 @@ test('admission details are shown in the procedure detail modal', function () {
         ->assertSee('35202-7654321-9');
 });
 
+test('discharged procedures show a discharged badge instead of admitted', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->discharged()->create([
+        'name' => 'Discharged Delivery',
+        'room_number' => 'Room 3',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertSee('Discharged Delivery')
+        ->assertSee('Discharged')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSee('Discharged')
+        ->assertSee('Discharged on');
+});
+
 test('procedures not admitted show the add admission action', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
