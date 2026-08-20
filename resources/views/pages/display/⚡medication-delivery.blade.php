@@ -46,8 +46,9 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
      *
      * Medication orders stay on this board until they are delivered, even after the
      * originating shift is closed. Appear-on-ER service visits still follow the open shift.
+     * Orders waiting on drip payment or drip administration appear locked.
      *
-     * @return Collection<int, array{type: string, key: string, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken}>
+     * @return Collection<int, array{type: string, key: string, locked: bool, sort_at: \Illuminate\Support\Carbon, order: ?MedicationOrder, token: ?QueueToken}>
      */
     #[Computed]
     public function queueItems(): Collection
@@ -63,13 +64,13 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 'injections',
                 'drips.dripBase',
                 'drips.additives',
+                'dripCharges',
             ])
             ->where('status', MedicationOrderStatus::Pending)
             ->where(function ($query): void {
                 $query->whereHas('medicines', fn ($q) => $q->whereNull('delivered_at'))
                     ->orWhereHas('injections', fn ($q) => $q->whereNull('delivered_at'));
             })
-            ->whereDoesntHave('drips', fn ($q) => $q->whereIn('status', DripLineStatus::activeCases()))
             ->orderBy('created_at')
             ->get();
 
@@ -114,6 +115,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             $items->push([
                 'type' => 'medication',
                 'key' => 'order-'.$order->id,
+                'locked' => $order->erHoldReason() !== null,
                 'sort_at' => $order->created_at,
                 'order' => $order,
                 'token' => $order->queueToken,
@@ -124,13 +126,19 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             $items->push([
                 'type' => 'service',
                 'key' => 'token-'.$token->id,
+                'locked' => false,
                 'sort_at' => $token->arrived_at ?? $token->created_at,
                 'order' => null,
                 'token' => $token,
             ]);
         }
 
-        return $items->sortBy('sort_at')->values();
+        return $items
+            ->sortBy([
+                fn (array $item): int => $item['locked'] ? 1 : 0,
+                fn (array $item): int => $item['sort_at']?->timestamp ?? 0,
+            ])
+            ->values();
     }
 
     /**
@@ -164,6 +172,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 'injections',
                 'drips.dripBase',
                 'drips.additives',
+                'dripCharges',
             ])->find($this->selectedOrderId);
     }
 
@@ -194,6 +203,12 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
 
         if ($order === null) {
             Flux::toast(variant: 'danger', text: __('Order is no longer pending.'));
+
+            return;
+        }
+
+        if ($order->erHoldReason() !== null) {
+            Flux::toast(variant: 'danger', text: $order->erHoldMessage() ?? __('This order is not ready for ER yet.'));
 
             return;
         }
@@ -313,8 +328,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             return;
         }
 
-        if ($order->hasActiveDrips()) {
-            Flux::toast(variant: 'danger', text: __('Finish the drip at the Drip Station before delivering medication.'));
+        if ($order->erHoldReason() !== null) {
+            Flux::toast(variant: 'danger', text: $order->erHoldMessage() ?? __('This order is not ready for ER yet.'));
             $this->backToList();
             unset($this->queueItems, $this->orders, $this->selectedOrder);
 
@@ -453,7 +468,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     }
 }; ?>
 
-<div class="paper-slip-board flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.30s>
+<div class="paper-slip-board flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.5s>
     <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div>
             <flux:heading level="1" size="lg">{{ __('ER Station') }}</flux:heading>
@@ -481,14 +496,21 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             $pendingMedicines = $order->medicines->whereNull('delivered_at')->count();
                             $pendingInjections = $order->injections->whereNull('delivered_at')->count();
                             $erDrips = $order->drips->filter(fn ($drip) => $drip->dripBase?->show_on_er);
+                            $holdMessage = $order->erHoldMessage();
                         @endphp
                         <x-paper-slip
                             as="button"
                             type="button"
                             :token="$order->queueToken?->token_number"
+                            :locked="$holdMessage !== null"
+                            :lock-message="$holdMessage"
+                            :tone="$holdMessage !== null ? 'locked' : 'default'"
+                            :disabled="$holdMessage !== null"
                             wire:key="er-order-{{ $order->id }}"
                             wire:click="selectOrder({{ $order->id }})"
-                            class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
+                            @class([
+                                'active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]' => $holdMessage === null,
+                            ])
                         >
                             <p class="truncate text-base font-semibold text-zinc-900">
                                 {{ $order->patient?->name ?? __('Unknown') }}
@@ -515,7 +537,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                 </div>
                             @endif
                             <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                                {{ __('Tap to deliver') }}
+                                {{ $holdMessage !== null ? __('Waiting') : __('Tap to deliver') }}
                             </p>
                         </x-paper-slip>
                     @else

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DripChargeStatus;
 use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use Database\Factories\MedicationOrderFactory;
@@ -150,6 +151,58 @@ class MedicationOrder extends Model
     }
 
     /**
+     * Whether a drip charge is still waiting to be paid at reception.
+     */
+    public function hasUnpaidDripCharge(): bool
+    {
+        if ($this->relationLoaded('dripCharges')) {
+            return $this->dripCharges->contains(
+                fn (DripCharge $charge): bool => $charge->status === DripChargeStatus::Pending
+            );
+        }
+
+        return $this->dripCharges()->where('status', DripChargeStatus::Pending)->exists();
+    }
+
+    /**
+     * Why ER cannot deliver this order yet, if it is held.
+     *
+     * @return 'unpaid_and_drip'|'unpaid'|'drip'|null
+     */
+    public function erHoldReason(): ?string
+    {
+        $unpaid = $this->hasUnpaidDripCharge();
+        $dripPending = $this->hasActiveDrips();
+
+        if ($unpaid && $dripPending) {
+            return 'unpaid_and_drip';
+        }
+
+        if ($unpaid) {
+            return 'unpaid';
+        }
+
+        if ($dripPending) {
+            return 'drip';
+        }
+
+        return null;
+    }
+
+    /**
+     * Staff-facing reason this order is locked on the ER board.
+     */
+    public function erHoldMessage(): ?string
+    {
+        return match ($this->erHoldReason()) {
+            'unpaid_and_drip' => __('Not yet paid. Drip not yet given.'),
+            'unpaid' => __('Not yet paid.'),
+            'drip' => __('Drip not yet given.'),
+            default => null,
+        };
+    }
+
+    /**
      * Mark the order administered by a health aide when all meds/injections are delivered.
      */
     public function markAdministeredByHealthAide(HealthAide $aide): void
@@ -191,5 +244,13 @@ class MedicationOrder extends Model
     public function drips(): HasMany
     {
         return $this->hasMany(MedicationOrderDrip::class);
+    }
+
+    /**
+     * @return HasMany<DripCharge, $this>
+     */
+    public function dripCharges(): HasMany
+    {
+        return $this->hasMany(DripCharge::class);
     }
 }

@@ -49,6 +49,9 @@ Route::livewire('display/drips', 'pages::display.drip-delivery')
 Route::view('display/er-drips', 'pages.display.er-drips')
     ->name('display.er_drips');
 
+Route::livewire('display/shift-orders', 'pages::display.shift-orders')
+    ->name('display.shift_orders');
+
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 

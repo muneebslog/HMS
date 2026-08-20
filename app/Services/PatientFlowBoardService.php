@@ -22,11 +22,11 @@ class PatientFlowBoardService
     ) {}
 
     /**
-     * Build the patient flow board for the current open shift, plus leftover
-     * medication and drip work from earlier shifts.
+     * Build the medication clinical journey board for the current open shift,
+     * plus leftover medication and drip work from earlier shifts.
      *
      * @return array{
-     *     stations: array<string, list<array{token_id: int, patient_name: string, mrn: ?string, token_number: int, service_name: string, stage_started_at: string, minutes_in_stage: int}>>,
+     *     stations: array<string, list<array{token_id: int, patient_name: string, mrn: ?string, token_number: int, service_name: string, stage_started_at: string, minutes_in_stage: int, stage_label: string}>>,
      *     aide_sessions: array<string, array{aide_name: ?string, expired: bool, minutes_remaining: ?int, status: string}>
      * }
      */
@@ -36,9 +36,6 @@ class PatientFlowBoardService
 
         $stations = [];
         foreach (ClinicStation::cases() as $station) {
-            if ($station === ClinicStation::Done) {
-                continue;
-            }
             $stations[$station->value] = [];
         }
 
@@ -49,6 +46,7 @@ class PatientFlowBoardService
             'medicationOrder.medicines',
             'medicationOrder.injections',
             'medicationOrder.drips',
+            'medicationOrder.dripCharges',
         ];
 
         $shiftTokens = new Collection;
@@ -58,7 +56,8 @@ class PatientFlowBoardService
                 ->with($tokenRelations)
                 ->whereHas('serviceQueue', function ($query) use ($shift): void {
                     $query->where('status', 'open')
-                        ->forShift($shift);
+                        ->forShift($shift)
+                        ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
                 })
                 ->whereIn('status', ['waiting', 'serving', 'served'])
                 ->get();
@@ -67,6 +66,7 @@ class PatientFlowBoardService
         $outstandingOrderTokens = QueueToken::query()
             ->with($tokenRelations)
             ->whereIn('status', ['waiting', 'serving', 'served'])
+            ->whereHas('serviceQueue.service', fn ($query) => $query->where('needs_medication', true))
             ->whereHas('medicationOrder', function ($orderQuery): void {
                 $orderQuery->where('status', MedicationOrderStatus::Pending)
                     ->where(function ($workQuery): void {
@@ -87,12 +87,9 @@ class PatientFlowBoardService
 
         foreach ($tokens as $token) {
             $resolved = $this->resolveStation($token, $pendingDripChargeTokenIds);
+            $station = $resolved['station'];
 
-            if ($resolved['station'] === ClinicStation::Done) {
-                continue;
-            }
-
-            $stations[$resolved['station']->value][] = [
+            $stations[$station->value][] = [
                 'token_id' => $token->id,
                 'patient_name' => $token->patient?->name ?? __('Unknown'),
                 'mrn' => $token->patient?->mrn,
@@ -100,6 +97,7 @@ class PatientFlowBoardService
                 'service_name' => $token->serviceQueue?->service?->name ?? __('Unknown'),
                 'stage_started_at' => $resolved['started_at']->toIso8601String(),
                 'minutes_in_stage' => max(0, (int) $resolved['started_at']->diffInMinutes(now())),
+                'stage_label' => $station->waitingLabel(),
             ];
         }
 
@@ -173,7 +171,7 @@ class PatientFlowBoardService
 
         return [
             'station' => ClinicStation::Done,
-            'started_at' => $token->updated_at ?? $arrivedAt,
+            'started_at' => $order?->administered_at ?? $token->updated_at ?? $arrivedAt,
         ];
     }
 
@@ -184,20 +182,12 @@ class PatientFlowBoardService
     {
         $service = $token->serviceQueue?->service;
 
-        if ($service === null) {
+        if ($service === null || ! $service->needs_medication) {
             return false;
         }
 
-        if ($service->needs_medication) {
-            return $token->medicationOrder === null
-                || $token->medicationOrder->status === MedicationOrderStatus::Draft;
-        }
-
-        if ($service->appear_on_er) {
-            return false;
-        }
-
-        return in_array($token->status, ['waiting', 'serving'], true);
+        return $token->medicationOrder === null
+            || $token->medicationOrder->status === MedicationOrderStatus::Draft;
     }
 
     /**
@@ -205,20 +195,11 @@ class PatientFlowBoardService
      */
     public function needsErStep(QueueToken $token): bool
     {
-        $service = $token->serviceQueue?->service;
         $order = $token->medicationOrder;
 
         if ($order !== null && $order->status === MedicationOrderStatus::Pending) {
-            $hasUndelivered = $order->medicines->contains(fn ($line): bool => $line->delivered_at === null)
+            return $order->medicines->contains(fn ($line): bool => $line->delivered_at === null)
                 || $order->injections->contains(fn ($line): bool => $line->delivered_at === null);
-
-            if ($hasUndelivered) {
-                return true;
-            }
-        }
-
-        if ($service?->appear_on_er && $token->status !== 'served') {
-            return true;
         }
 
         return false;

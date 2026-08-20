@@ -35,5 +35,5 @@ test('indoor staff see system pages in the sidebar', function () {
         ->assertSee(__('Drip Delivery'))
         ->assertSee(__('ER + Drips'))
         ->assertSee(route('display.er_drips'), false)
-        ->assertDontSee(__('Shift'));
+        ->assertDontSee(route('reception.shift'), false);
 });

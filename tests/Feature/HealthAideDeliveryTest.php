@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\DripChargeStatus;
 use App\Enums\DripLineStatus;
 use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
@@ -7,6 +8,7 @@ use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
 use App\Enums\UserRole;
 use App\Models\DripBase;
+use App\Models\DripCharge;
 use App\Models\HealthAide;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
@@ -177,23 +179,46 @@ test('drip-only orders do not appear on medication delivery page', function () {
         ->assertDontSee($patient->name);
 });
 
-test('orders with unfinished drips wait at drip station before appearing on er', function () {
+test('orders with unfinished drips appear locked on er until the drip is done', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
     $drip = $order->drips->first();
 
     Livewire::test('pages::display.medication-delivery')
-        ->assertDontSee($patient->name);
+        ->assertSee($patient->name)
+        ->assertSee(__('Drip not yet given.'))
+        ->assertDontSee(__('Tap to deliver'))
+        ->call('selectOrder', $order->id)
+        ->assertSet('selectedOrderId', null);
 
     $drip->update(['status' => DripLineStatus::Started]);
 
     Livewire::test('pages::display.medication-delivery')
-        ->assertDontSee($patient->name);
+        ->assertSee($patient->name)
+        ->assertSee(__('Drip not yet given.'));
 
     $drip->update(['status' => DripLineStatus::Done, 'done_at' => now()]);
 
     Livewire::test('pages::display.medication-delivery')
         ->assertSee($patient->name)
-        ->assertSee(__('Tap to deliver'));
+        ->assertSee(__('Tap to deliver'))
+        ->assertDontSee(__('Drip not yet given.'));
+});
+
+test('unpaid drip charge and unfinished drip lock er with a combined message', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withDrip: true);
+
+    DripCharge::factory()->create([
+        'patient_id' => $order->patient_id,
+        'queue_token_id' => $order->queue_token_id,
+        'medication_order_id' => $order->id,
+        'status' => DripChargeStatus::Pending,
+    ]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->assertSee($patient->name)
+        ->assertSee(__('Not yet paid. Drip not yet given.'))
+        ->call('selectOrder', $order->id)
+        ->assertSet('selectedOrderId', null);
 });
 
 test('er cannot deliver medicines while a drip is still running', function () {

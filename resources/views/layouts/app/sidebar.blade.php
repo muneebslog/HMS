@@ -229,6 +229,9 @@
                         <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
                             {{ __('ER + Drips') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('display.shift_orders')" :current="request()->routeIs('display.shift_orders')" wire:navigate>
+                            {{ __('Shift Orders') }}
+                        </flux:sidebar.item>
                         @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
                             <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                                 {{ __('Shift') }}

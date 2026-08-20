@@ -2,11 +2,14 @@
     'token' => null,
     'tone' => 'default',
     'as' => 'div',
+    'locked' => false,
+    'lockMessage' => null,
 ])
 
 @php
     $toneClasses = match ($tone) {
         'accent' => 'border-amber-500 ring-2 ring-amber-400/40',
+        'locked' => 'border-zinc-400',
         default => 'border-zinc-300/90',
     };
 @endphp
@@ -15,6 +18,7 @@
     {{ $attributes->class([
         'paper-slip group relative flex w-full flex-col overflow-hidden rounded-sm border bg-[#f7f4ec] text-left text-zinc-900 shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_1px_2px_rgba(0,0,0,0.06),0_10px_24px_rgba(0,0,0,0.12)] transition duration-150',
         $toneClasses,
+        'cursor-not-allowed' => $locked,
     ]) }}
 >
     <span
@@ -32,7 +36,7 @@
         </div>
     @endif
 
-    <div @class(['flex flex-1 flex-col gap-2 px-4', $token !== null ? 'py-3' : 'pb-3 pt-5'])>
+    <div @class(['flex flex-1 flex-col gap-2 px-4', $token !== null ? 'py-3' : 'pb-3 pt-5', 'opacity-40' => $locked])>
         {{ $slot }}
     </div>
 
@@ -41,4 +45,13 @@
             {{ $footer }}
         </div>
     @endisset
+
+    @if ($locked)
+        <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-zinc-950/75 px-5 text-center">
+            <flux:icon name="lock-closed" class="size-10 text-white" />
+            <p class="text-base font-semibold leading-snug text-white">
+                {{ $lockMessage ?? __('Locked') }}
+            </p>
+        </div>
+    @endif
 </{{ $as }}>

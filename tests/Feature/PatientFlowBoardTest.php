@@ -176,13 +176,13 @@ test('patient with undelivered medicines is placed in er column', function () {
     expect($resolved['station'])->toBe(ClinicStation::Er);
 });
 
-test('appear_on_er service token is placed in er column', function () {
+test('services without medication needs are excluded from the board', function () {
     [, , $token] = createFlowToken(['appear_on_er' => true, 'needs_medication' => false]);
 
     $board = app(PatientFlowBoardService::class)->board();
+    $tokenIds = collect($board['stations'])->flatten(1)->pluck('token_id');
 
-    expect(collect($board['stations']['er'])->pluck('token_id'))->toContain($token->id)
-        ->and(collect($board['stations']['doctor'])->pluck('token_id'))->not->toContain($token->id);
+    expect($tokenIds)->not->toContain($token->id);
 });
 
 test('board shows expired aide login status', function () {
@@ -330,7 +330,7 @@ test('pending drip stays on the drip column after the shift is closed', function
     expect(collect($board['stations']['drip'])->pluck('token_id'))->toContain($token->id);
 });
 
-test('appear_on_er visits without medication orders leave the board when the shift closes', function () {
+test('appear_on_er visits without medication needs stay off the board when the shift closes', function () {
     [$shift, , $token] = createFlowToken(['appear_on_er' => true, 'needs_medication' => false]);
 
     $shift->update([
@@ -344,13 +344,39 @@ test('appear_on_er visits without medication orders leave the board when the shi
     expect(collect($board['stations']['er'])->pluck('token_id'))->not->toContain($token->id);
 });
 
+test('completed medication visit stays in the done column', function () {
+    $user = User::factory()->create();
+    [, , $token, $patient] = createFlowToken(['needs_medication' => true]);
+    $order = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Administered,
+        'administered_at' => now(),
+    ]);
+    $medicine = Medicine::factory()->create();
+    $order->medicines()->create([
+        'medicine_id' => $medicine->id,
+        'dose' => MedicineDose::OneZeroOne,
+        'name' => $medicine->name,
+        'delivered_at' => now(),
+    ]);
+
+    $board = app(PatientFlowBoardService::class)->board();
+
+    expect(collect($board['stations']['done'])->pluck('token_id'))->toContain($token->id)
+        ->and(collect($board['stations']['er'])->pluck('token_id'))->not->toContain($token->id);
+});
+
 test('patient flow livewire page renders station columns', function () {
     $admin = User::factory()->admin()->create();
-    [, , $token] = createFlowToken(['appear_on_er' => true]);
+    [, , $token] = createFlowToken(['needs_medication' => true]);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.patient-flow')
         ->assertSee(__('ER Station'))
         ->assertSee(__('Vitals'))
-        ->assertSee($token->patient->name);
+        ->assertSee(__('Done'))
+        ->assertSee($token->patient->name)
+        ->assertSeeHtml('wire:poll.5s');
 });
