@@ -11,6 +11,7 @@ use App\Models\Shift;
 use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -26,6 +27,9 @@ new #[Title('Procedures')] class extends Component
     use WithPagination;
 
     public string $search = '';
+
+    /** @var int Number of days to include; 0 means all procedures. */
+    public int $days = 3;
 
     public bool $showProcedureModal = false;
 
@@ -158,6 +162,27 @@ new #[Title('Procedures')] class extends Component
      */
     public function updatingSearch(): void
     {
+        $this->resetPage();
+    }
+
+    /**
+     * Reset pagination when the day window changes.
+     */
+    public function updatingDays(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Set how many recent days of procedures to show (0 = all).
+     */
+    public function setDays(int $days): void
+    {
+        if (! in_array($days, [3, 7, 14, 30, 0], true)) {
+            return;
+        }
+
+        $this->days = $days;
         $this->resetPage();
     }
 
@@ -675,24 +700,38 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Get the paginated list of procedures filtered by patient name or MRN.
+     * Get the list of procedures filtered by day window and patient name or MRN.
+     * Admitted (on-ward) patients always appear first and remain visible regardless of the day window.
      */
     #[Computed]
     public function procedures(): LengthAwarePaginator
     {
+        $search = trim($this->search);
+
         return Procedure::query()
             ->with(['patient', 'doctor'])
             ->withSum('payments as payments_sum_amount', 'amount')
-            ->when(trim($this->search) !== '', function ($query) {
-                $term = '%'.trim($this->search).'%';
+            ->when($search !== '', function (Builder $query) use ($search) {
+                $term = '%'.$search.'%';
 
-                $query->whereHas('patient', function ($patientQuery) use ($term) {
+                $query->whereHas('patient', function (Builder $patientQuery) use ($term) {
                     $patientQuery->where('name', 'like', $term)
                         ->orWhere('mrn', 'like', $term);
                 });
             })
+            ->when($search === '' && $this->days > 0, function (Builder $query) {
+                $since = now()->subDays($this->days)->startOfDay();
+
+                $query->where(function (Builder $window) use ($since) {
+                    $window->where('created_at', '>=', $since)
+                        ->orWhere(function (Builder $onWard) {
+                            $onWard->whereNotNull('admitted_at')->whereNull('discharged_at');
+                        });
+                });
+            })
+            ->orderByRaw('case when admitted_at is not null and discharged_at is null then 0 else 1 end')
             ->latest()
-            ->paginate(11);
+            ->paginate($this->days > 0 && $search === '' ? 100 : 24);
     }
 
     /**
@@ -751,15 +790,39 @@ new #[Title('Procedures')] class extends Component
         @endif
 
         <flux:card>
-            <flux:field>
-                <flux:label>{{ __('Search by name or MR number') }}</flux:label>
-                <flux:input
-                    wire:model.live.debounce.300ms="search"
-                    type="search"
-                    placeholder="{{ __('Patient name or MRN...') }}"
-                    icon="magnifying-glass"
-                />
-            </flux:field>
+            <div class="flex flex-col gap-4">
+                <flux:field>
+                    <flux:label>{{ __('Search by name or MR number') }}</flux:label>
+                    <flux:input
+                        wire:model.live.debounce.300ms="search"
+                        type="search"
+                        placeholder="{{ __('Patient name or MRN...') }}"
+                        icon="magnifying-glass"
+                    />
+                </flux:field>
+
+                @if (trim($search) === '')
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <flux:text class="text-sm text-zinc-500">
+                            {{ $days > 0
+                                ? __('Showing procedures from the last :days days (admitted patients always included).', ['days' => $days])
+                                : __('Showing all procedures.') }}
+                        </flux:text>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ([3 => __('3 days'), 7 => __('7 days'), 14 => __('14 days'), 30 => __('30 days'), 0 => __('All')] as $value => $label)
+                                <flux:button
+                                    type="button"
+                                    size="sm"
+                                    variant="{{ $days === $value ? 'primary' : 'ghost' }}"
+                                    wire:click="setDays({{ $value }})"
+                                >
+                                    {{ $label }}
+                                </flux:button>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
         </flux:card>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

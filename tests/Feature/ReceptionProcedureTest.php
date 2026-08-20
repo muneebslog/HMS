@@ -485,6 +485,82 @@ test('procedures can be searched by patient name and mrn', function () {
         ->assertDontSee('Delivery B');
 });
 
+test('procedures page defaults to the last three days with admitted patients first', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    $recent = Procedure::factory()->for($shift)->create([
+        'name' => 'Recent Delivery',
+        'created_at' => now()->subDay(),
+    ]);
+    $old = Procedure::factory()->for($shift)->create([
+        'name' => 'Old Delivery',
+        'created_at' => now()->subDays(5),
+    ]);
+    $admittedRecent = Procedure::factory()->for($shift)->admitted()->create([
+        'name' => 'Admitted Delivery',
+        'created_at' => now()->subHours(2),
+    ]);
+    $admittedOlder = Procedure::factory()->for($shift)->admitted()->create([
+        'name' => 'Long Stay Delivery',
+        'created_at' => now()->subDays(10),
+        'admitted_at' => now()->subDays(9),
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertSet('days', 3)
+        ->assertSee('Recent Delivery')
+        ->assertSee('Admitted Delivery')
+        ->assertSee('Long Stay Delivery')
+        ->assertDontSee('Old Delivery');
+
+    $ids = $component->instance()->procedures->pluck('id')->all();
+
+    expect($ids[0])->toBe($admittedRecent->id)
+        ->and($ids)->toContain($admittedOlder->id)
+        ->and($ids)->toContain($recent->id)
+        ->and($ids)->not->toContain($old->id)
+        ->and(array_search($admittedOlder->id, $ids))->toBeLessThan(array_search($recent->id, $ids));
+});
+
+test('procedures day window can be expanded to show older procedures', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    Procedure::factory()->for($shift)->create([
+        'name' => 'Five Day Delivery',
+        'created_at' => now()->subDays(5),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertDontSee('Five Day Delivery')
+        ->call('setDays', 7)
+        ->assertSet('days', 7)
+        ->assertSee('Five Day Delivery')
+        ->call('setDays', 0)
+        ->assertSet('days', 0)
+        ->assertSee('Five Day Delivery');
+});
+
+test('search finds procedures outside the day window', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->create(['name' => 'Older Patient']);
+
+    Procedure::factory()->for($shift)->for($patient)->create([
+        'name' => 'Archived Delivery',
+        'created_at' => now()->subDays(20),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->assertDontSee('Archived Delivery')
+        ->set('search', 'Older Patient')
+        ->assertSee('Archived Delivery');
+});
+
 test('procedure payment ledger can be viewed from a card', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
