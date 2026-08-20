@@ -268,10 +268,6 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                     $unpaid = $order?->hasUnpaidDripCharge() ?? false;
                     $orderMedicines = $order?->medicines ?? collect();
                     $orderInjections = $order?->injections ?? collect();
-                    $hasContext = filled($order?->notes)
-                        || filled($order?->complaint_or_diagnosis)
-                        || $orderMedicines->isNotEmpty()
-                        || $orderInjections->isNotEmpty();
                 @endphp
                 <x-paper-slip
                     wire:key="drip-delivery-{{ $orderId }}"
@@ -282,9 +278,9 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                         <div class="flex flex-wrap items-center gap-2">
                             <p class="truncate text-base font-semibold text-zinc-900">{{ $order?->patient?->name ?? __('Unknown') }}</p>
                             @if ($unpaid)
-                                <flux:badge size="sm" color="red">{{ __('Unpaid') }}</flux:badge>
+                                <flux:badge size="sm" color="red" class="!text-black">{{ __('Unpaid') }}</flux:badge>
                             @else
-                                <flux:badge size="sm" color="green">{{ __('Paid') }}</flux:badge>
+                                <flux:badge size="sm" color="green" class="!text-black">{{ __('Paid') }}</flux:badge>
                             @endif
                         </div>
                         <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
@@ -307,8 +303,12 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                                 @endforeach
                             </div>
 
-                            <div class="flex flex-wrap items-center gap-2 text-black">
-                                <flux:badge size="sm" :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($dripOverdue ? 'amber' : 'sky')">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <flux:badge
+                                    size="sm"
+                                    class="!text-black"
+                                    :color="$drip->status === \App\Enums\DripLineStatus::Pending ? 'zinc' : ($dripOverdue ? 'amber' : 'sky')"
+                                >
                                     {{ $drip->status->label() }}
                                     @if ($dripOverdue)
                                         · {{ __('Check due') }}
@@ -346,7 +346,25 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                         </div>
                     @endforeach
 
-                    @if ($hasContext)
+                    @if (filled($order?->complaint_or_diagnosis) || filled($order?->notes))
+                        <div class="space-y-2 border-t border-dashed border-zinc-400/70 pt-2">
+                            @if (filled($order?->complaint_or_diagnosis))
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Complaint / diagnosis') }}</p>
+                                    <p class="whitespace-pre-line text-sm font-medium text-black">{{ $order->complaint_or_diagnosis }}</p>
+                                </div>
+                            @endif
+
+                            @if (filled($order?->notes))
+                                <div>
+                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Notes') }}</p>
+                                    <p class="whitespace-pre-line text-base font-medium text-black">{{ $order->notes }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if ($orderMedicines->isNotEmpty() || $orderInjections->isNotEmpty())
                         <div class="space-y-2 border-t border-dashed border-zinc-300/80 pt-2 opacity-55">
                             @if ($orderMedicines->isNotEmpty())
                                 <div>
@@ -385,20 +403,6 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                                             </span>
                                         </p>
                                     @endforeach
-                                </div>
-                            @endif
-
-                            @if (filled($order?->complaint_or_diagnosis))
-                                <div>
-                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Complaint / diagnosis') }}</p>
-                                    <p class="whitespace-pre-line text-xs text-zinc-600">{{ $order->complaint_or_diagnosis }}</p>
-                                </div>
-                            @endif
-
-                            @if (filled($order?->notes))
-                                <div>
-                                    <p class="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Notes') }}</p>
-                                    <p class="whitespace-pre-line text-xs text-zinc-600">{{ $order->notes }}</p>
                                 </div>
                             @endif
                         </div>
