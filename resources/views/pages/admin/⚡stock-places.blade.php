@@ -6,6 +6,7 @@ use App\Models\Thing;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -14,6 +15,8 @@ use Livewire\WithPagination;
 new #[Title('Stock Places')] class extends Component
 {
     use WithPagination;
+
+    private const BULK_ROWS = 10;
 
     public string $activeTab = 'places';
 
@@ -35,19 +38,22 @@ new #[Title('Stock Places')] class extends Component
 
     public bool $thingIsActive = true;
 
-    public ?int $assignPlaceId = null;
+    public bool $showBulkModal = false;
 
-    public ?int $assignThingId = null;
+    public ?int $bulkPlaceId = null;
 
-    public int $assignStockPoint = 1;
+    /**
+     * @var list<array{name: string, unit: string, stock_point: string}>
+     */
+    public array $bulkRows = [];
 
     public bool $showAssignModal = false;
 
-    public ?int $editingAssignmentThingId = null;
+    public ?int $assignThingId = null;
 
-    public int $editStockPoint = 1;
+    public ?int $assignPlaceId = null;
 
-    public bool $editAssignmentIsActive = true;
+    public int $assignStockPoint = 1;
 
     public ?int $viewingCheckId = null;
 
@@ -56,6 +62,8 @@ new #[Title('Stock Places')] class extends Component
         if (! auth()->user()?->isAdmin()) {
             abort(403);
         }
+
+        $this->bulkRows = $this->emptyBulkRows();
     }
 
     public function setTab(string $tab): void
@@ -75,33 +83,24 @@ new #[Title('Stock Places')] class extends Component
     }
 
     /**
-     * @return Collection<int, Thing>
+     * @return Collection<int, Place>
      */
     #[Computed]
-    public function things(): Collection
+    public function activePlaces(): Collection
     {
-        return Thing::query()->orderBy('name')->get();
+        return Place::query()->active()->orderBy('name')->get();
     }
 
     /**
      * @return Collection<int, Thing>
      */
     #[Computed]
-    public function activeThings(): Collection
+    public function things(): Collection
     {
-        return Thing::query()->active()->orderBy('name')->get();
-    }
-
-    #[Computed]
-    public function assignPlace(): ?Place
-    {
-        if ($this->assignPlaceId === null) {
-            return null;
-        }
-
-        return Place::query()
-            ->with(['things' => fn ($query) => $query->orderBy('name')])
-            ->find($this->assignPlaceId);
+        return Thing::query()
+            ->with(['places' => fn ($query) => $query->orderBy('name')])
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -167,14 +166,14 @@ new #[Title('Stock Places')] class extends Component
 
         $this->showPlaceModal = false;
         $this->resetPlaceForm();
-        unset($this->places);
+        unset($this->places, $this->activePlaces);
     }
 
     public function togglePlaceActive(int $id): void
     {
         $place = Place::query()->findOrFail($id);
         $place->update(['is_active' => ! $place->is_active]);
-        unset($this->places);
+        unset($this->places, $this->activePlaces);
 
         Flux::toast(
             variant: 'success',
@@ -182,10 +181,79 @@ new #[Title('Stock Places')] class extends Component
         );
     }
 
-    public function openCreateThingModal(): void
+    public function openBulkModal(): void
     {
-        $this->resetThingForm();
-        $this->showThingModal = true;
+        $this->bulkPlaceId = null;
+        $this->bulkRows = $this->emptyBulkRows();
+        $this->resetValidation();
+        $this->showBulkModal = true;
+    }
+
+    public function saveBulkThings(): void
+    {
+        $validated = $this->validate([
+            'bulkPlaceId' => ['required', 'integer', 'exists:places,id'],
+            'bulkRows' => ['required', 'array', 'size:'.self::BULK_ROWS],
+            'bulkRows.*.name' => ['nullable', 'string', 'max:255'],
+            'bulkRows.*.unit' => ['nullable', 'string', 'max:50'],
+            'bulkRows.*.stock_point' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $rows = collect($validated['bulkRows'])
+            ->filter(fn (array $row): bool => filled($row['name'] ?? null))
+            ->values();
+
+        if ($rows->isEmpty()) {
+            $this->addError('bulkRows', __('Enter at least one thing name.'));
+
+            return;
+        }
+
+        foreach ($rows as $index => $row) {
+            if (! array_key_exists('stock_point', $row) || $row['stock_point'] === null || $row['stock_point'] === '') {
+                $this->addError("bulkRows.{$index}.stock_point", __('Stock point is required when a name is entered.'));
+            }
+        }
+
+        if ($this->getErrorBag()->isNotEmpty()) {
+            return;
+        }
+
+        $place = Place::query()->findOrFail($validated['bulkPlaceId']);
+
+        $created = DB::transaction(function () use ($rows, $place): int {
+            $count = 0;
+
+            foreach ($rows as $row) {
+                $thing = Thing::query()->create([
+                    'name' => $row['name'],
+                    'unit' => filled($row['unit'] ?? null) ? $row['unit'] : null,
+                    'is_active' => true,
+                ]);
+
+                $place->things()->attach($thing->id, [
+                    'stock_point' => (int) $row['stock_point'],
+                    'is_active' => true,
+                ]);
+
+                $count++;
+            }
+
+            return $count;
+        });
+
+        Flux::toast(
+            variant: 'success',
+            text: __(':count things added and assigned to :place.', [
+                'count' => $created,
+                'place' => $place->name,
+            ]),
+        );
+
+        $this->showBulkModal = false;
+        $this->bulkPlaceId = null;
+        $this->bulkRows = $this->emptyBulkRows();
+        unset($this->things);
     }
 
     public function editThing(int $id): void
@@ -208,30 +276,23 @@ new #[Title('Stock Places')] class extends Component
             'thingIsActive' => ['required', 'boolean'],
         ]);
 
-        $attributes = [
+        Thing::query()->findOrFail($this->editingThingId)->update([
             'name' => $validated['thingName'],
             'unit' => filled($validated['thingUnit']) ? $validated['thingUnit'] : null,
             'is_active' => $validated['thingIsActive'],
-        ];
+        ]);
 
-        if ($this->editingThingId !== null) {
-            Thing::query()->findOrFail($this->editingThingId)->update($attributes);
-            Flux::toast(variant: 'success', text: __('Thing updated.'));
-        } else {
-            Thing::query()->create($attributes);
-            Flux::toast(variant: 'success', text: __('Thing created.'));
-        }
-
+        Flux::toast(variant: 'success', text: __('Thing updated.'));
         $this->showThingModal = false;
         $this->resetThingForm();
-        unset($this->things, $this->activeThings, $this->assignPlace);
+        unset($this->things);
     }
 
     public function toggleThingActive(int $id): void
     {
         $thing = Thing::query()->findOrFail($id);
         $thing->update(['is_active' => ! $thing->is_active]);
-        unset($this->things, $this->activeThings, $this->assignPlace);
+        unset($this->things);
 
         Flux::toast(
             variant: 'success',
@@ -239,103 +300,56 @@ new #[Title('Stock Places')] class extends Component
         );
     }
 
-    public function updatedAssignPlaceId(): void
+    public function openAssignModal(int $thingId): void
     {
-        unset($this->assignPlace);
-    }
+        $thing = Thing::query()->findOrFail($thingId);
 
-    public function openAssignModal(): void
-    {
-        if ($this->assignPlaceId === null) {
-            Flux::toast(variant: 'danger', text: __('Select a place first.'));
-
-            return;
-        }
-
-        $this->assignThingId = null;
+        $this->assignThingId = $thing->id;
+        $this->assignPlaceId = null;
         $this->assignStockPoint = 1;
         $this->resetValidation();
         $this->showAssignModal = true;
     }
 
-    public function assignThing(): void
+    public function assignThingToPlace(): void
     {
         $validated = $this->validate([
-            'assignPlaceId' => ['required', 'integer', 'exists:places,id'],
             'assignThingId' => ['required', 'integer', 'exists:things,id'],
+            'assignPlaceId' => ['required', 'integer', 'exists:places,id'],
             'assignStockPoint' => ['required', 'integer', 'min:0'],
         ]);
 
         $place = Place::query()->findOrFail($validated['assignPlaceId']);
+        $thingId = $validated['assignThingId'];
 
-        if ($place->things()->where('things.id', $validated['assignThingId'])->exists()) {
-            $this->addError('assignThingId', __('This thing is already assigned to this place.'));
+        if ($place->things()->where('things.id', $thingId)->exists()) {
+            $place->things()->updateExistingPivot($thingId, [
+                'stock_point' => $validated['assignStockPoint'],
+                'is_active' => true,
+            ]);
 
-            return;
+            Flux::toast(variant: 'success', text: __('Assignment updated.'));
+        } else {
+            $place->things()->attach($thingId, [
+                'stock_point' => $validated['assignStockPoint'],
+                'is_active' => true,
+            ]);
+
+            Flux::toast(variant: 'success', text: __('Thing assigned to place.'));
         }
 
-        $place->things()->attach($validated['assignThingId'], [
-            'stock_point' => $validated['assignStockPoint'],
-            'is_active' => true,
-        ]);
-
-        Flux::toast(variant: 'success', text: __('Thing assigned to place.'));
         $this->showAssignModal = false;
         $this->assignThingId = null;
+        $this->assignPlaceId = null;
         $this->assignStockPoint = 1;
-        unset($this->assignPlace);
+        unset($this->things);
     }
 
-    public function editAssignment(int $thingId): void
+    public function removeAssignment(int $thingId, int $placeId): void
     {
-        $place = $this->assignPlace;
-
-        if ($place === null) {
-            return;
-        }
-
-        $thing = $place->things->firstWhere('id', $thingId);
-
-        if ($thing === null) {
-            return;
-        }
-
-        $this->editingAssignmentThingId = $thingId;
-        $this->editStockPoint = (int) $thing->pivot->stock_point;
-        $this->editAssignmentIsActive = (bool) $thing->pivot->is_active;
-        $this->resetValidation();
-    }
-
-    public function saveAssignment(): void
-    {
-        $validated = $this->validate([
-            'assignPlaceId' => ['required', 'integer', 'exists:places,id'],
-            'editingAssignmentThingId' => ['required', 'integer', 'exists:things,id'],
-            'editStockPoint' => ['required', 'integer', 'min:0'],
-            'editAssignmentIsActive' => ['required', 'boolean'],
-        ]);
-
-        $place = Place::query()->findOrFail($validated['assignPlaceId']);
-
-        $place->things()->updateExistingPivot($validated['editingAssignmentThingId'], [
-            'stock_point' => $validated['editStockPoint'],
-            'is_active' => $validated['editAssignmentIsActive'],
-        ]);
-
-        Flux::toast(variant: 'success', text: __('Assignment updated.'));
-        $this->editingAssignmentThingId = null;
-        unset($this->assignPlace);
-    }
-
-    public function removeAssignment(int $thingId): void
-    {
-        if ($this->assignPlaceId === null) {
-            return;
-        }
-
-        Place::query()->findOrFail($this->assignPlaceId)->things()->detach($thingId);
+        Place::query()->findOrFail($placeId)->things()->detach($thingId);
         Flux::toast(variant: 'success', text: __('Thing removed from place.'));
-        unset($this->assignPlace);
+        unset($this->things);
     }
 
     public function viewCheck(int $id): void
@@ -348,6 +362,17 @@ new #[Title('Stock Places')] class extends Component
     {
         $this->viewingCheckId = null;
         unset($this->viewingCheck);
+    }
+
+    /**
+     * @return list<array{name: string, unit: string, stock_point: string}>
+     */
+    private function emptyBulkRows(): array
+    {
+        return array_map(
+            fn (): array => ['name' => '', 'unit' => '', 'stock_point' => ''],
+            range(1, self::BULK_ROWS),
+        );
     }
 
     private function resetPlaceForm(): void
@@ -380,7 +405,6 @@ new #[Title('Stock Places')] class extends Component
         @foreach ([
             'places' => __('Places'),
             'things' => __('Things'),
-            'assign' => __('Assign'),
             'history' => __('History'),
         ] as $tab => $label)
             <button
@@ -442,10 +466,10 @@ new #[Title('Stock Places')] class extends Component
 
     @if ($activeTab === 'things')
         <flux:card>
-            <div class="mb-4 flex items-center justify-between gap-4">
-                <flux:text>{{ __('Shared catalog of things that can be stocked at places.') }}</flux:text>
-                <flux:button variant="primary" icon="plus" wire:click="openCreateThingModal">
-                    {{ __('Add thing') }}
+            <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <flux:text>{{ __('Add things in bulk to a place, or assign existing things from the list.') }}</flux:text>
+                <flux:button variant="primary" icon="plus" wire:click="openBulkModal">
+                    {{ __('Bulk add (10)') }}
                 </flux:button>
             </div>
 
@@ -453,6 +477,7 @@ new #[Title('Stock Places')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('Name') }}</flux:table.column>
                     <flux:table.column>{{ __('Unit') }}</flux:table.column>
+                    <flux:table.column>{{ __('Assigned places') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
                     <flux:table.column>{{ __('Actions') }}</flux:table.column>
                 </flux:table.columns>
@@ -462,12 +487,37 @@ new #[Title('Stock Places')] class extends Component
                             <flux:table.cell class="font-medium">{{ $thing->name }}</flux:table.cell>
                             <flux:table.cell>{{ $thing->unit ?: '—' }}</flux:table.cell>
                             <flux:table.cell>
+                                @if ($thing->places->isEmpty())
+                                    <span class="text-zinc-500">{{ __('None') }}</span>
+                                @else
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach ($thing->places as $place)
+                                            <flux:badge size="sm" color="zinc" class="gap-1">
+                                                {{ $place->name }}: {{ $place->pivot->stock_point }}
+                                                <button
+                                                    type="button"
+                                                    class="ms-1 text-zinc-500 hover:text-red-600"
+                                                    wire:click="removeAssignment({{ $thing->id }}, {{ $place->id }})"
+                                                    wire:confirm="{{ __('Remove :thing from :place?', ['thing' => $thing->name, 'place' => $place->name]) }}"
+                                                    title="{{ __('Remove') }}"
+                                                >
+                                                    ×
+                                                </button>
+                                            </flux:badge>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </flux:table.cell>
+                            <flux:table.cell>
                                 <flux:badge size="sm" :color="$thing->is_active ? 'green' : 'zinc'">
                                     {{ $thing->is_active ? __('Active') : __('Inactive') }}
                                 </flux:badge>
                             </flux:table.cell>
                             <flux:table.cell>
-                                <div class="flex gap-2">
+                                <div class="flex flex-wrap gap-2">
+                                    <flux:button size="sm" variant="ghost" wire:click="openAssignModal({{ $thing->id }})">
+                                        {{ __('Assign') }}
+                                    </flux:button>
                                     <flux:button size="sm" variant="ghost" wire:click="editThing({{ $thing->id }})">
                                         {{ __('Edit') }}
                                     </flux:button>
@@ -479,109 +529,13 @@ new #[Title('Stock Places')] class extends Component
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="4" class="text-center text-zinc-500">
-                                {{ __('No things yet.') }}
+                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                {{ __('No things yet. Use Bulk add to create and assign them.') }}
                             </flux:table.cell>
                         </flux:table.row>
                     @endforelse
                 </flux:table.rows>
             </flux:table>
-        </flux:card>
-    @endif
-
-    @if ($activeTab === 'assign')
-        <flux:card>
-            <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <flux:field class="w-full sm:max-w-xs">
-                    <flux:label>{{ __('Place') }}</flux:label>
-                    <flux:select wire:model.live="assignPlaceId">
-                        <option value="">{{ __('Select a place…') }}</option>
-                        @foreach ($this->places as $place)
-                            <option value="{{ $place->id }}">{{ $place->name }}</option>
-                        @endforeach
-                    </flux:select>
-                </flux:field>
-                <flux:button
-                    variant="primary"
-                    icon="plus"
-                    wire:click="openAssignModal"
-                    :disabled="$assignPlaceId === null"
-                >
-                    {{ __('Assign thing') }}
-                </flux:button>
-            </div>
-
-            @if ($this->assignPlace)
-                <flux:table>
-                    <flux:table.columns>
-                        <flux:table.column>{{ __('Thing') }}</flux:table.column>
-                        <flux:table.column>{{ __('Stock point') }}</flux:table.column>
-                        <flux:table.column>{{ __('Status') }}</flux:table.column>
-                        <flux:table.column>{{ __('Actions') }}</flux:table.column>
-                    </flux:table.columns>
-                    <flux:table.rows>
-                        @forelse ($this->assignPlace->things as $thing)
-                            <flux:table.row wire:key="assignment-{{ $thing->id }}">
-                                <flux:table.cell class="font-medium">
-                                    {{ $thing->name }}
-                                    @if ($thing->unit)
-                                        <span class="text-zinc-500">({{ $thing->unit }})</span>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    @if ($editingAssignmentThingId === $thing->id)
-                                        <flux:input type="number" min="0" wire:model="editStockPoint" class="w-24" />
-                                        <flux:error name="editStockPoint" />
-                                    @else
-                                        {{ $thing->pivot->stock_point }}
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    @if ($editingAssignmentThingId === $thing->id)
-                                        <flux:switch wire:model="editAssignmentIsActive" />
-                                    @else
-                                        <flux:badge size="sm" :color="$thing->pivot->is_active ? 'green' : 'zinc'">
-                                            {{ $thing->pivot->is_active ? __('Active') : __('Inactive') }}
-                                        </flux:badge>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    <div class="flex gap-2">
-                                        @if ($editingAssignmentThingId === $thing->id)
-                                            <flux:button size="sm" variant="primary" wire:click="saveAssignment">
-                                                {{ __('Save') }}
-                                            </flux:button>
-                                            <flux:button size="sm" variant="ghost" wire:click="$set('editingAssignmentThingId', null)">
-                                                {{ __('Cancel') }}
-                                            </flux:button>
-                                        @else
-                                            <flux:button size="sm" variant="ghost" wire:click="editAssignment({{ $thing->id }})">
-                                                {{ __('Edit') }}
-                                            </flux:button>
-                                            <flux:button
-                                                size="sm"
-                                                variant="ghost"
-                                                wire:click="removeAssignment({{ $thing->id }})"
-                                                wire:confirm="{{ __('Remove this thing from the place?') }}"
-                                            >
-                                                {{ __('Remove') }}
-                                            </flux:button>
-                                        @endif
-                                    </div>
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @empty
-                            <flux:table.row>
-                                <flux:table.cell colspan="4" class="text-center text-zinc-500">
-                                    {{ __('No things assigned to this place yet.') }}
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @endforelse
-                    </flux:table.rows>
-                </flux:table>
-            @else
-                <flux:text class="text-zinc-500">{{ __('Select a place to manage its things and stock points.') }}</flux:text>
-            @endif
         </flux:card>
     @endif
 
@@ -700,11 +654,64 @@ new #[Title('Stock Places')] class extends Component
         </form>
     </flux:modal>
 
+    <flux:modal wire:model="showBulkModal" class="max-w-4xl">
+        <form wire:submit="saveBulkThings" class="space-y-4">
+            <div>
+                <flux:heading size="lg">{{ __('Bulk add things') }}</flux:heading>
+                <flux:text class="text-zinc-500">
+                    {{ __('Choose the place once, then fill up to 10 things with stock points. Empty name rows are skipped.') }}
+                </flux:text>
+            </div>
+
+            <flux:field class="max-w-sm">
+                <flux:label>{{ __('Assign to place') }}</flux:label>
+                <flux:select wire:model="bulkPlaceId">
+                    <option value="">{{ __('Select a place…') }}</option>
+                    @foreach ($this->activePlaces as $place)
+                        <option value="{{ $place->id }}">{{ $place->name }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="bulkPlaceId" />
+            </flux:field>
+
+            <div class="space-y-2">
+                <div class="hidden gap-2 px-3 text-xs font-medium text-zinc-500 sm:grid sm:grid-cols-12">
+                    <div class="sm:col-span-5">{{ __('Name') }}</div>
+                    <div class="sm:col-span-3">{{ __('Unit') }}</div>
+                    <div class="sm:col-span-4">{{ __('Stock point') }}</div>
+                </div>
+
+                @foreach ($bulkRows as $index => $row)
+                    <div wire:key="bulk-row-{{ $index }}" class="grid gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 sm:grid-cols-12">
+                        <div class="sm:col-span-5">
+                            <flux:input wire:model="bulkRows.{{ $index }}.name" placeholder="{{ __('Name') }}" />
+                            <flux:error name="bulkRows.{{ $index }}.name" />
+                        </div>
+                        <div class="sm:col-span-3">
+                            <flux:input wire:model="bulkRows.{{ $index }}.unit" placeholder="{{ __('Unit') }}" />
+                            <flux:error name="bulkRows.{{ $index }}.unit" />
+                        </div>
+                        <div class="sm:col-span-4">
+                            <flux:input type="number" min="0" wire:model="bulkRows.{{ $index }}.stock_point" placeholder="{{ __('Stock point') }}" />
+                            <flux:error name="bulkRows.{{ $index }}.stock_point" />
+                        </div>
+                    </div>
+                @endforeach
+                <flux:error name="bulkRows" />
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:button type="button" variant="ghost" wire:click="$set('showBulkModal', false)">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Save all') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
     <flux:modal wire:model="showThingModal" class="max-w-md">
         <form wire:submit="saveThing" class="space-y-4">
-            <flux:heading size="lg">
-                {{ $editingThingId ? __('Edit thing') : __('Add thing') }}
-            </flux:heading>
+            <flux:heading size="lg">{{ __('Edit thing') }}</flux:heading>
 
             <flux:field>
                 <flux:label>{{ __('Name') }}</flux:label>
@@ -733,20 +740,21 @@ new #[Title('Stock Places')] class extends Component
     </flux:modal>
 
     <flux:modal wire:model="showAssignModal" class="max-w-md">
-        <form wire:submit="assignThing" class="space-y-4">
-            <flux:heading size="lg">{{ __('Assign thing') }}</flux:heading>
+        <form wire:submit="assignThingToPlace" class="space-y-4">
+            <flux:heading size="lg">{{ __('Assign to place') }}</flux:heading>
+            <flux:text class="text-zinc-500">
+                {{ __('If already assigned, the stock point will be updated.') }}
+            </flux:text>
 
             <flux:field>
-                <flux:label>{{ __('Thing') }}</flux:label>
-                <flux:select wire:model="assignThingId">
+                <flux:label>{{ __('Place') }}</flux:label>
+                <flux:select wire:model="assignPlaceId">
                     <option value="">{{ __('Select…') }}</option>
-                    @foreach ($this->activeThings as $thing)
-                        <option value="{{ $thing->id }}">
-                            {{ $thing->name }}{{ $thing->unit ? " ({$thing->unit})" : '' }}
-                        </option>
+                    @foreach ($this->activePlaces as $place)
+                        <option value="{{ $place->id }}">{{ $place->name }}</option>
                     @endforeach
                 </flux:select>
-                <flux:error name="assignThingId" />
+                <flux:error name="assignPlaceId" />
             </flux:field>
 
             <flux:field>
