@@ -49,6 +49,9 @@ Route::livewire('display/medication', 'pages::display.medication-delivery')
 Route::livewire('display/drips', 'pages::display.drip-delivery')
     ->name('display.drips');
 
+Route::livewire('display/stock', 'pages::display.catalog-stock')
+    ->name('display.stock');
+
 Route::view('display/er-drips', 'pages.display.er-drips')
     ->name('display.er_drips');
 

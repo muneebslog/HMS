@@ -493,14 +493,14 @@ Separate from `users` / staff profiles. Used for kiosk PIN identity when deliver
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint | PK |
-| station | string | UQ — `er` / `drip` (`StationType`) |
+| station | string | UQ — `er` / `drip` / `stock` (`StationType`) |
 | health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | authenticated_at | timestamp | nullable |
 | expires_at | timestamp | nullable |
 | last_seen_at | timestamp | nullable |
 | timestamps | | |
 
-One row per kiosk station. Updated when a health aide unlocks ER or Drip with PIN; expired when `expires_at <= now()`.
+One row per kiosk station. Updated when a health aide unlocks ER, Drip, or Stock with PIN; expired when `expires_at <= now()`.
 
 ### `medication_orders`
 | Column | Type | Notes |

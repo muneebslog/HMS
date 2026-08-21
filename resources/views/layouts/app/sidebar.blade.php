@@ -232,6 +232,9 @@
                         <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
                             {{ __('Drip Delivery') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="archive-box" :href="route('display.stock')" :current="request()->routeIs('display.stock')" wire:navigate>
+                            {{ __('Stock Station') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
                             {{ __('ER + Drips') }}
                         </flux:sidebar.item>
