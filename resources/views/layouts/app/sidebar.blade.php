@@ -21,10 +21,6 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
-                    <flux:sidebar.item icon="clipboard-document-list" :href="route('stock.refill')" :current="request()->routeIs('stock.refill')" wire:navigate>
-                        {{ __('Stock Refill') }}
-                    </flux:sidebar.item>
-
                     @if (auth()->user()->isDoctor())
                         <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
                             {{ __('Doctor Portal') }}
@@ -162,9 +158,6 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
                             {{ __('Health Aides') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="archive-box" :href="route('admin.stock-places')" :current="request()->routeIs('admin.stock-places')" wire:navigate>
-                            {{ __('Stock Places') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
                             {{ __('Leave Calendar') }}
