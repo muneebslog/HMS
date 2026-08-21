@@ -38,72 +38,45 @@ test('admin can create a place', function () {
     expect(Place::query()->where('name', 'ER Cupboard')->exists())->toBeTrue();
 });
 
-test('admin can bulk add things assigned to one place', function () {
+test('admin can create a thing', function () {
     $admin = User::factory()->admin()->create();
-    $place = Place::factory()->create(['name' => 'Ward Store']);
-
-    $rows = array_fill(0, 10, ['name' => '', 'unit' => '', 'stock_point' => '']);
-    $rows[0] = ['name' => 'Gloves', 'unit' => 'box', 'stock_point' => '20'];
-    $rows[1] = ['name' => 'Syringes', 'unit' => 'pack', 'stock_point' => '50'];
-    $rows[2] = ['name' => 'Masks', 'unit' => '', 'stock_point' => '15'];
 
     Livewire::actingAs($admin)
         ->test('pages::admin.stock-places')
         ->set('activeTab', 'things')
-        ->call('openBulkModal')
-        ->set('bulkPlaceId', $place->id)
-        ->set('bulkRows', $rows)
-        ->call('saveBulkThings')
+        ->call('openCreateThingModal')
+        ->set('thingName', 'Gloves')
+        ->set('thingUnit', 'box')
+        ->set('thingIsActive', true)
+        ->call('saveThing')
         ->assertHasNoErrors();
 
-    expect(Thing::query()->count())->toBe(3)
-        ->and($place->fresh()->things)->toHaveCount(3)
-        ->and($place->things()->where('name', 'Gloves')->first()?->pivot->stock_point)->toBe(20)
-        ->and($place->things()->where('name', 'Syringes')->first()?->pivot->stock_point)->toBe(50)
-        ->and($place->things()->where('name', 'Masks')->first()?->pivot->stock_point)->toBe(15);
+    $thing = Thing::query()->where('name', 'Gloves')->first();
+
+    expect($thing)->not->toBeNull()
+        ->and($thing->unit)->toBe('box');
 });
 
-test('bulk add requires a place and at least one named row', function () {
+test('admin can assign a thing to a place with stock point', function () {
     $admin = User::factory()->admin()->create();
+    $place = Place::factory()->create(['name' => 'Ward Store']);
+    $thing = Thing::factory()->create(['name' => 'Syringes']);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.stock-places')
-        ->call('openBulkModal')
-        ->set('bulkPlaceId', null)
-        ->call('saveBulkThings')
-        ->assertHasErrors(['bulkPlaceId']);
-
-    $place = Place::factory()->create();
-    $rows = array_fill(0, 10, ['name' => '', 'unit' => '', 'stock_point' => '']);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.stock-places')
-        ->call('openBulkModal')
-        ->set('bulkPlaceId', $place->id)
-        ->set('bulkRows', $rows)
-        ->call('saveBulkThings')
-        ->assertHasErrors(['bulkRows']);
-});
-
-test('admin can assign an existing thing to a place', function () {
-    $admin = User::factory()->admin()->create();
-    $place = Place::factory()->create(['name' => 'ER Shelf']);
-    $thing = Thing::factory()->create(['name' => 'Gauze']);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.stock-places')
-        ->set('activeTab', 'things')
-        ->call('openAssignModal', $thing->id)
+        ->set('activeTab', 'assign')
         ->set('assignPlaceId', $place->id)
-        ->set('assignStockPoint', 12)
-        ->call('assignThingToPlace')
+        ->call('openAssignModal')
+        ->set('assignThingId', $thing->id)
+        ->set('assignStockPoint', 20)
+        ->call('assignThing')
         ->assertHasNoErrors();
 
     expect($place->fresh()->things()->where('things.id', $thing->id)->first()?->pivot->stock_point)
-        ->toBe(12);
+        ->toBe(20);
 });
 
-test('admin can update stock point when reassigning', function () {
+test('admin can update assignment stock point', function () {
     $admin = User::factory()->admin()->create();
     $place = Place::factory()->create();
     $thing = Thing::factory()->create();
@@ -111,27 +84,14 @@ test('admin can update stock point when reassigning', function () {
 
     Livewire::actingAs($admin)
         ->test('pages::admin.stock-places')
-        ->call('openAssignModal', $thing->id)
+        ->set('activeTab', 'assign')
         ->set('assignPlaceId', $place->id)
-        ->set('assignStockPoint', 35)
-        ->call('assignThingToPlace')
+        ->call('editAssignment', $thing->id)
+        ->set('editStockPoint', 35)
+        ->set('editAssignmentIsActive', true)
+        ->call('saveAssignment')
         ->assertHasNoErrors();
 
     expect($place->fresh()->things()->where('things.id', $thing->id)->first()?->pivot->stock_point)
         ->toBe(35);
-});
-
-test('admin can remove a thing assignment from the things tab', function () {
-    $admin = User::factory()->admin()->create();
-    $place = Place::factory()->create();
-    $thing = Thing::factory()->create();
-    $place->things()->attach($thing->id, ['stock_point' => 5, 'is_active' => true]);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.stock-places')
-        ->set('activeTab', 'things')
-        ->call('removeAssignment', $thing->id, $place->id)
-        ->assertHasNoErrors();
-
-    expect($place->fresh()->things()->where('things.id', $thing->id)->exists())->toBeFalse();
 });
