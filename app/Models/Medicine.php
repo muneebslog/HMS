@@ -26,6 +26,7 @@ class Medicine extends Model
         'default_dose',
         'default_days',
         'is_active',
+        'stock_quantity',
     ];
 
     /**
@@ -37,6 +38,7 @@ class Medicine extends Model
         'default_dose' => '1-0-0',
         'default_days' => 3,
         'is_active' => true,
+        'stock_quantity' => 0,
     ];
 
     /**
@@ -50,6 +52,7 @@ class Medicine extends Model
             'default_dose' => MedicineDose::class,
             'default_days' => 'integer',
             'is_active' => 'boolean',
+            'stock_quantity' => 'integer',
         ];
     }
 

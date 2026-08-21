@@ -434,6 +434,7 @@ Doctor-set minute timers for rechecking a patient (e.g. BP again). Due items toa
 | default_dose | string | default `1-0-0` (`MedicineDose`) |
 | default_days | unsignedSmallInteger | default 3 |
 | is_active | boolean | default true, IDX |
+| stock_quantity | integer | default 0; on-hand stock (may go negative) |
 | timestamps | | |
 
 ### `symptoms`
@@ -463,6 +464,7 @@ Admin-managed catalog used by doctors to pick one or more symptoms when prescrib
 | short_form | string | nullable, e.g. `DIC` for search shortcuts |
 | default_administration_type | string | default `im` (`InjectionAdministrationType`) |
 | is_active | boolean | default true, IDX |
+| stock_quantity | integer | default 0; on-hand stock (may go negative) |
 | timestamps | | |
 
 ### `drip_bases`
@@ -473,6 +475,7 @@ Admin-managed catalog used by doctors to pick one or more symptoms when prescrib
 | default_volume_ml | decimal(8,2) | |
 | show_on_er | boolean | default false; displays the drip on its medication order's ER slip |
 | is_active | boolean | default true, IDX |
+| stock_quantity | integer | default 0; on-hand stock (may go negative) |
 | timestamps | | |
 
 ### `health_aides`

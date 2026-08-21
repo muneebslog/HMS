@@ -25,6 +25,7 @@ class MedicineFactory extends Factory
             'default_dose' => fake()->randomElement(MedicineDose::cases()),
             'default_days' => fake()->numberBetween(1, 10),
             'is_active' => true,
+            'stock_quantity' => 100,
         ];
     }
 

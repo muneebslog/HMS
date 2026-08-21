@@ -22,6 +22,7 @@ class DripBaseFactory extends Factory
             'default_volume_ml' => fake()->randomElement([100, 250, 500, 1000]),
             'show_on_er' => false,
             'is_active' => true,
+            'stock_quantity' => 100,
         ];
     }
 

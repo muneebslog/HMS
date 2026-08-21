@@ -4,9 +4,11 @@ use App\Enums\DripLineStatus;
 use App\Enums\StationType;
 use App\Models\MedicationOrderDrip;
 use App\Services\HealthAidePinSession;
+use App\Services\CatalogStockService;
 use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -153,7 +155,7 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         }
 
         $drip = MedicationOrderDrip::query()
-            ->with('medicationOrder.dripCharges')
+            ->with(['additives', 'medicationOrder.dripCharges'])
             ->find($this->pendingDripId);
 
         if ($drip === null || $drip->status !== DripLineStatus::Pending) {
@@ -171,13 +173,23 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             return;
         }
 
-        $drip->update([
-            'status' => DripLineStatus::Started,
-            'started_at' => now(),
-            'started_by_health_aide_id' => $aide->id,
-            'check_due_at' => now()->addMinutes(30),
-            'check_notified_at' => null,
-        ]);
+        DB::transaction(function () use ($drip, $aide): void {
+            $stock = app(CatalogStockService::class);
+
+            $stock->decrementDripBase($drip->drip_base_id);
+
+            foreach ($drip->additives as $additive) {
+                $stock->decrementInjection($additive->injection_id);
+            }
+
+            $drip->update([
+                'status' => DripLineStatus::Started,
+                'started_at' => now(),
+                'started_by_health_aide_id' => $aide->id,
+                'check_due_at' => now()->addMinutes(30),
+                'check_notified_at' => null,
+            ]);
+        });
 
         app(StationSessionService::class)->bump(StationType::Drip, $aide);
 

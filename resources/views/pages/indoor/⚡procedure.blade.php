@@ -2,6 +2,7 @@
 
 use App\Enums\ProcedureAttachmentType;
 use App\Enums\ProcedureMedicationDoseStatus;
+use App\Enums\ProcedureMedicationForm;
 use App\Enums\ProcedureNoteStyle;
 use App\Models\DripBase;
 use App\Models\Injection;
@@ -18,9 +19,11 @@ use App\Models\ProcedurePostOpOrder;
 use App\Models\ProcedurePreOpOrder;
 use App\Models\ProcedureProgressNote;
 use App\Models\ProcedureVital;
+use App\Services\CatalogStockService;
 use App\Services\ProcedureMedicationScheduler;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -750,13 +753,25 @@ new #[Title('Procedure Chart')] class extends Component
 
         $dose = ProcedureMedicationDose::query()
             ->whereHas('medication', fn ($query) => $query->where('procedure_id', $this->procedureId))
+            ->with('medication')
             ->findOrFail($doseId);
 
-        $dose->update([
-            'status' => ProcedureMedicationDoseStatus::Given,
-            'given_at' => now(),
-            'given_by' => auth()->id(),
-        ]);
+        DB::transaction(function () use ($dose): void {
+            $dose->update([
+                'status' => ProcedureMedicationDoseStatus::Given,
+                'given_at' => now(),
+                'given_by' => auth()->id(),
+            ]);
+
+            $medication = $dose->medication;
+            $stock = app(CatalogStockService::class);
+
+            match ($medication->form) {
+                ProcedureMedicationForm::Tab => $stock->decrementMedicine($medication->medicine_id),
+                ProcedureMedicationForm::Inj => $stock->decrementInjection($medication->injection_id),
+                ProcedureMedicationForm::Drip => $stock->decrementDripBase($medication->drip_base_id),
+            };
+        });
 
         unset($this->procedure);
 

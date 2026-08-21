@@ -22,6 +22,7 @@ class DripBase extends Model
         'default_volume_ml',
         'show_on_er',
         'is_active',
+        'stock_quantity',
     ];
 
     /**
@@ -32,6 +33,7 @@ class DripBase extends Model
     protected $attributes = [
         'show_on_er' => false,
         'is_active' => true,
+        'stock_quantity' => 0,
     ];
 
     /**
@@ -45,6 +47,7 @@ class DripBase extends Model
             'default_volume_ml' => 'float',
             'show_on_er' => 'boolean',
             'is_active' => 'boolean',
+            'stock_quantity' => 'integer',
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\HealthAidePinSession;
+use App\Services\CatalogStockService;
 use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -425,8 +426,28 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         }
 
         DB::transaction(function () use ($order, $aide): void {
-            $order->medicines()
+            $stock = app(CatalogStockService::class);
+
+            $medicines = $order->medicines()
                 ->whereIn('id', $this->selectedMedicineIds)
+                ->whereNull('delivered_at')
+                ->get(['id', 'medicine_id']);
+
+            $injections = $order->injections()
+                ->whereIn('id', $this->selectedInjectionIds)
+                ->whereNull('delivered_at')
+                ->get(['id', 'injection_id']);
+
+            foreach ($medicines as $medicine) {
+                $stock->decrementMedicine($medicine->medicine_id);
+            }
+
+            foreach ($injections as $injection) {
+                $stock->decrementInjection($injection->injection_id);
+            }
+
+            $order->medicines()
+                ->whereIn('id', $medicines->pluck('id'))
                 ->whereNull('delivered_at')
                 ->update([
                     'delivered_at' => now(),
@@ -434,7 +455,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 ]);
 
             $order->injections()
-                ->whereIn('id', $this->selectedInjectionIds)
+                ->whereIn('id', $injections->pluck('id'))
                 ->whereNull('delivered_at')
                 ->update([
                     'delivered_at' => now(),

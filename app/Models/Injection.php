@@ -23,6 +23,7 @@ class Injection extends Model
         'short_form',
         'default_administration_type',
         'is_active',
+        'stock_quantity',
     ];
 
     /**
@@ -33,6 +34,7 @@ class Injection extends Model
     protected $attributes = [
         'default_administration_type' => 'im',
         'is_active' => true,
+        'stock_quantity' => 0,
     ];
 
     /**
@@ -45,6 +47,7 @@ class Injection extends Model
         return [
             'default_administration_type' => InjectionAdministrationType::class,
             'is_active' => 'boolean',
+            'stock_quantity' => 'integer',
         ];
     }
 

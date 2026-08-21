@@ -23,6 +23,7 @@ class InjectionFactory extends Factory
             'short_form' => null,
             'default_administration_type' => fake()->randomElement(InjectionAdministrationType::cases()),
             'is_active' => true,
+            'stock_quantity' => 100,
         ];
     }
 
