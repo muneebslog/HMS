@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_20_151243_create_ward_maintenance_tables`.
+> Last reviewed against migrations through `2026_08_21_165150_create_stock_check_items_table`.
 
 Conventions used below:
 
@@ -1117,6 +1117,62 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 
 ---
 
+## Stock Places & Refill Checks
+
+Admin-configured storage places and shared thing catalog. Things are assigned to places with a stock point (target quantity). Staff unlock with a health aide PIN, enter current counts, and save a refill check (full history).
+
+### `places`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| is_active | boolean | default true |
+| timestamps | | |
+
+### `things`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| unit | string | nullable — e.g. box, pack |
+| is_active | boolean | default true |
+| timestamps | | |
+
+### `place_thing`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| place_id | FK → places | cascadeOnDelete |
+| thing_id | FK → things | cascadeOnDelete |
+| stock_point | unsignedInteger | target quantity at this place |
+| is_active | boolean | default true |
+| timestamps | | |
+| | | UQ `(place_id, thing_id)` |
+
+### `stock_checks`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| place_id | FK → places | cascadeOnDelete |
+| health_aide_id | FK → health_aides | cascadeOnDelete — PIN identity |
+| user_id | FK → users | nullable, nullOnDelete — logged-in user |
+| checked_at | timestamp | |
+| timestamps | | |
+
+### `stock_check_items`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| stock_check_id | FK → stock_checks | cascadeOnDelete |
+| thing_id | FK → things | cascadeOnDelete |
+| stock_point | unsignedInteger | snapshot of place stock point at check time |
+| counted_quantity | unsignedInteger | count entered by staff |
+| refill_needed | unsignedInteger | `max(0, stock_point - counted_quantity)` |
+| timestamps | | |
+| | | UQ `(stock_check_id, thing_id)` |
+
+---
+
 ## Ward Maintenance Checklist
 
 Gyne Ward & Private Rooms daily maintenance form. One submission per calendar date + shift (`morning` / `evening` / `night`). Filled by incharge nurses; admins review submissions. Fault statuses, unavailable/non-functional equipment, fault-log rows, and patient-safety “yes” trigger admin notifications.
@@ -1325,6 +1381,9 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │
         ├── health_aides
         ├── station_sessions ── health_aides
+        ├── places ── place_thing ── things
+        ├── stock_checks ──┬── places / health_aides / users
+        │                  └── stock_check_items ── things
         ├── pdf_print_jobs
         ├── drive_folders ──┬── drive_folders (parent)
         │                   └── drive_files
