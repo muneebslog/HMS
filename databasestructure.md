@@ -518,7 +518,7 @@ Separate from `users` / staff profiles. Used for kiosk PIN identity when deliver
 | health_aide_id | FK → health_aides | nullable, nullOnDelete |
 | last_seen_at | timestamp | nullable — last fetch from device |
 | timestamps | | |
-| | | UQ `(attendance_device_id, device_user_id)` |
+| | | UQ `(attendance_device_id, device_user_id)` as `att_device_users_device_user_unique` |
 
 Users enrolled on the biometric device, synced via Fetch Users, then linked to HMS health aides.
 

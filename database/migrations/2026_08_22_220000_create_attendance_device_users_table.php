@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamp('last_seen_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['attendance_device_id', 'device_user_id']);
+            $table->unique(['attendance_device_id', 'device_user_id'], 'att_device_users_device_user_unique');
             $table->index('health_aide_id');
         });
     }
