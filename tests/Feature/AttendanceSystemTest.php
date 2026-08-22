@@ -3,6 +3,7 @@
 use App\Enums\AttendanceRecordStatus;
 use App\Enums\DutyAssignmentType;
 use App\Models\AttendanceDevice;
+use App\Models\AttendanceDeviceUser;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
 use App\Models\DutyAssignment;
@@ -12,6 +13,7 @@ use App\Models\HealthAideLeave;
 use App\Models\User;
 use App\Services\AttendanceProcessingService;
 use App\Services\PayrollReportService;
+use App\Services\ZktecoSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
@@ -188,4 +190,48 @@ test('duplicate attendance punches are ignored on sync import', function () {
     );
 
     expect(AttendancePunch::query()->count())->toBe(1);
+});
+
+test('linking a device user maps health aide and remaps punches', function () {
+    $device = AttendanceDevice::factory()->create();
+    $aide = HealthAide::factory()->create();
+    $deviceUser = AttendanceDeviceUser::factory()->create([
+        'attendance_device_id' => $device->id,
+        'device_user_id' => '42',
+        'name' => 'Ali on Device',
+    ]);
+
+    AttendancePunch::factory()->create([
+        'attendance_device_id' => $device->id,
+        'device_user_id' => '42',
+        'health_aide_id' => null,
+        'punched_at' => now(),
+    ]);
+
+    app(ZktecoSyncService::class)->linkDeviceUserToHealthAide($deviceUser, $aide);
+
+    expect($aide->fresh()->device_user_id)->toBe('42')
+        ->and($aide->fresh()->attendance_enrolled_at)->not->toBeNull()
+        ->and($deviceUser->fresh()->health_aide_id)->toBe($aide->id)
+        ->and(AttendancePunch::query()->where('device_user_id', '42')->where('health_aide_id', $aide->id)->count())->toBe(1);
+});
+
+test('unlinking a device user clears health aide enrollment', function () {
+    $device = AttendanceDevice::factory()->create();
+    $aide = HealthAide::factory()->create([
+        'device_user_id' => '9',
+        'attendance_enrolled_at' => now(),
+    ]);
+    $deviceUser = AttendanceDeviceUser::factory()->create([
+        'attendance_device_id' => $device->id,
+        'device_user_id' => '9',
+        'name' => 'Sara',
+        'health_aide_id' => $aide->id,
+    ]);
+
+    app(ZktecoSyncService::class)->unlinkDeviceUser($deviceUser);
+
+    expect($aide->fresh()->device_user_id)->toBeNull()
+        ->and($aide->fresh()->attendance_enrolled_at)->toBeNull()
+        ->and($deviceUser->fresh()->health_aide_id)->toBeNull();
 });

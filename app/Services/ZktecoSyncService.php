@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\AttendanceDevice;
+use App\Models\AttendanceDeviceUser;
 use App\Models\AttendancePunch;
 use App\Models\HealthAide;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 use ZkTeco\Enums\Privilege;
 use ZkTeco\Enums\PunchState;
@@ -78,6 +80,109 @@ class ZktecoSyncService
                 'punch_state_label' => $record->punchState->name,
             ])
             ->all();
+    }
+
+    /**
+     * Fetch enrolled users from the device and store/update them locally.
+     *
+     * @return array{synced: int, total: int}
+     */
+    public function syncUsers(?AttendanceDevice $device = null): array
+    {
+        $device ??= AttendanceDevice::defaultDevice();
+        $users = $this->fetchDeviceUsers($device);
+        $synced = 0;
+
+        foreach ($users as $user) {
+            $deviceUser = AttendanceDeviceUser::query()->updateOrCreate(
+                [
+                    'attendance_device_id' => $device->id,
+                    'device_user_id' => $user->userId,
+                ],
+                [
+                    'device_uid' => $user->uid,
+                    'name' => $user->name !== '' ? $user->name : null,
+                    'last_seen_at' => now(),
+                ],
+            );
+
+            if ($deviceUser->health_aide_id === null) {
+                $linkedAide = HealthAide::query()
+                    ->where('device_user_id', $user->userId)
+                    ->first();
+
+                if ($linkedAide !== null) {
+                    $deviceUser->update(['health_aide_id' => $linkedAide->id]);
+                }
+            }
+
+            $synced++;
+        }
+
+        return [
+            'synced' => $synced,
+            'total' => count($users),
+        ];
+    }
+
+    /**
+     * Link a device user to a health aide and remap existing punches.
+     */
+    public function linkDeviceUserToHealthAide(AttendanceDeviceUser $deviceUser, HealthAide $healthAide): void
+    {
+        DB::transaction(function () use ($deviceUser, $healthAide): void {
+            HealthAide::query()
+                ->where('device_user_id', $deviceUser->device_user_id)
+                ->whereKeyNot($healthAide->id)
+                ->update([
+                    'device_user_id' => null,
+                    'attendance_enrolled_at' => null,
+                ]);
+
+            AttendanceDeviceUser::query()
+                ->where('health_aide_id', $healthAide->id)
+                ->whereKeyNot($deviceUser->id)
+                ->update(['health_aide_id' => null]);
+
+            $deviceUser->update(['health_aide_id' => $healthAide->id]);
+
+            $healthAide->update([
+                'device_user_id' => $deviceUser->device_user_id,
+                'attendance_enrolled_at' => now(),
+            ]);
+
+            AttendancePunch::query()
+                ->where('device_user_id', $deviceUser->device_user_id)
+                ->update(['health_aide_id' => $healthAide->id]);
+        });
+    }
+
+    /**
+     * Unlink a device user from its health aide.
+     */
+    public function unlinkDeviceUser(AttendanceDeviceUser $deviceUser): void
+    {
+        DB::transaction(function () use ($deviceUser): void {
+            if ($deviceUser->health_aide_id !== null) {
+                HealthAide::query()
+                    ->whereKey($deviceUser->health_aide_id)
+                    ->where('device_user_id', $deviceUser->device_user_id)
+                    ->update([
+                        'device_user_id' => null,
+                        'attendance_enrolled_at' => null,
+                    ]);
+            }
+
+            $deviceUser->update(['health_aide_id' => null]);
+        });
+    }
+
+    /**
+     * @return list<DeviceUser>
+     */
+    public function fetchDeviceUsers(AttendanceDevice $device): array
+    {
+        return $this->withDevice($device, fn (Device $zkDevice) => $zkDevice->users()->all());
     }
 
     /**

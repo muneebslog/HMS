@@ -53,6 +53,14 @@ class AttendanceDevice extends Model
     }
 
     /**
+     * @return HasMany<AttendanceDeviceUser, $this>
+     */
+    public function deviceUsers(): HasMany
+    {
+        return $this->hasMany(AttendanceDeviceUser::class);
+    }
+
+    /**
      * Resolve the configured default device, creating it when missing.
      */
     public static function defaultDevice(): self

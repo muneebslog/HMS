@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_22_200000_create_attendance_system_tables`.
+> Last reviewed against migrations through `2026_08_22_220000_create_attendance_device_users_table`.
 
 Conventions used below:
 
@@ -506,6 +506,21 @@ Separate from `users` / staff profiles. Used for kiosk PIN identity when deliver
 | consecutive_sync_failures | unsignedSmallInteger | default 0 |
 | is_active | boolean | default true |
 | timestamps | | |
+
+### `attendance_device_users`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| attendance_device_id | FK → attendance_devices | cascadeOnDelete |
+| device_uid | unsignedInteger | nullable — device-local slot |
+| device_user_id | string | human-facing ID used in punches |
+| name | string | nullable — name stored on the K60 |
+| health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| last_seen_at | timestamp | nullable — last fetch from device |
+| timestamps | | |
+| | | UQ `(attendance_device_id, device_user_id)` |
+
+Users enrolled on the biometric device, synced via Fetch Users, then linked to HMS health aides.
 
 ### `duty_shift_templates`
 | Column | Type | Notes |
@@ -1450,6 +1465,7 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │                  ├── health_aide_leaves
         │                  ├── duty_assignments ── duty_shift_templates
         │                  ├── attendance_punches ── attendance_devices
+        │                  ├── attendance_device_users ── attendance_devices
         │                  └── attendance_records ── attendance_adjustments
         ├── pdf_print_jobs
         ├── drive_folders ──┬── drive_folders (parent)
