@@ -20,7 +20,11 @@ new #[Title('Attendance Device')] class extends Component
 
     public ?int $mapToHealthAideId = null;
 
+    public bool $showLinkModal = false;
+
     public ?int $linkingDeviceUserId = null;
+
+    public string $linkingDeviceUserLabel = '';
 
     public ?int $linkHealthAideId = null;
 
@@ -115,14 +119,20 @@ new #[Title('Attendance Device')] class extends Component
 
     public function startLinkDeviceUser(int $deviceUserId): void
     {
-        $this->linkingDeviceUserId = $deviceUserId;
-        $this->linkHealthAideId = AttendanceDeviceUser::query()->find($deviceUserId)?->health_aide_id;
+        $deviceUser = AttendanceDeviceUser::query()->findOrFail($deviceUserId);
+
+        $this->linkingDeviceUserId = $deviceUser->id;
+        $this->linkingDeviceUserLabel = trim(($deviceUser->name ?: __('User')).' (#'.$deviceUser->device_user_id.')');
+        $this->linkHealthAideId = $deviceUser->health_aide_id;
         $this->resetValidation();
+        $this->showLinkModal = true;
     }
 
     public function cancelLinkDeviceUser(): void
     {
+        $this->showLinkModal = false;
         $this->linkingDeviceUserId = null;
+        $this->linkingDeviceUserLabel = '';
         $this->linkHealthAideId = null;
         $this->resetValidation();
     }
@@ -264,27 +274,6 @@ new #[Title('Attendance Device')] class extends Component
         </flux:table>
     </flux:card>
 
-    @if ($linkingDeviceUserId)
-        <flux:card>
-            <flux:heading size="lg" class="mb-4">{{ __('Link Device User to Health Aide') }}</flux:heading>
-            <form wire:submit="saveDeviceUserLink" class="flex flex-wrap items-end gap-4">
-                <flux:select wire:model="linkHealthAideId" label="{{ __('Health Aide') }}" required>
-                    <option value="">{{ __('Select aide') }}</option>
-                    @foreach ($this->healthAides as $aide)
-                        <option value="{{ $aide->id }}">
-                            {{ $aide->name }}
-                            @if ($aide->device_user_id)
-                                ({{ __('already linked to :id', ['id' => $aide->device_user_id]) }})
-                            @endif
-                        </option>
-                    @endforeach
-                </flux:select>
-                <flux:button type="submit" variant="primary">{{ __('Save Link') }}</flux:button>
-                <flux:button type="button" wire:click="cancelLinkDeviceUser">{{ __('Cancel') }}</flux:button>
-            </form>
-        </flux:card>
-    @endif
-
     <flux:card>
         <flux:heading size="lg" class="mb-4">{{ __('Push Health Aide to Device') }}</flux:heading>
         <flux:text class="mb-4">{{ __('Optional: create a new user on the K60 from an HMS health aide (uses health aide ID as device user ID). Prefer linking existing device users above when they already have fingerprints.') }}</flux:text>
@@ -339,4 +328,38 @@ new #[Title('Attendance Device')] class extends Component
             </form>
         </flux:card>
     @endif
+
+    <flux:modal wire:model="showLinkModal" class="max-w-md">
+        <form wire:submit="saveDeviceUserLink" class="space-y-4">
+            <div>
+                <flux:heading size="lg">{{ __('Link to Health Aide') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Device user: :label', ['label' => $linkingDeviceUserLabel]) }}</flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('Health Aide') }}</flux:label>
+                <flux:select wire:model="linkHealthAideId" required>
+                    <option value="">{{ __('Select health aide…') }}</option>
+                    @foreach ($this->healthAides as $aide)
+                        <option value="{{ $aide->id }}">
+                            {{ $aide->name }}
+                            @if ($aide->device_user_id)
+                                ({{ __('already linked to :id', ['id' => $aide->device_user_id]) }})
+                            @endif
+                        </option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="linkHealthAideId" />
+            </flux:field>
+
+            <div class="flex justify-end gap-2">
+                <flux:button type="button" variant="ghost" wire:click="cancelLinkDeviceUser">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('OK') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>
