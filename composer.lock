@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "868817b9fd374f347b272043011a2d84",
+    "content-hash": "38eeed0a4281adafb0e5a959cf6b432d",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2987,6 +2987,66 @@
                 }
             ],
             "time": "2026-01-02T08:56:05+00:00"
+        },
+        {
+            "name": "msaied/zkteco",
+            "version": "v0.2.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/msaied/zkteco-php.git",
+                "reference": "ac611e8f17dbc37e2f19ab73fc30f64d94765a3d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/msaied/zkteco-php/zipball/ac611e8f17dbc37e2f19ab73fc30f64d94765a3d",
+                "reference": "ac611e8f17dbc37e2f19ab73fc30f64d94765a3d",
+                "shasum": ""
+            },
+            "require": {
+                "ext-iconv": "*",
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.27",
+                "mockery/mockery": "^1.6",
+                "orchestra/testbench": "^11.0",
+                "pestphp/pest": "^4.7"
+            },
+            "suggest": {
+                "illuminate/support": "Enables the Laravel bridge: auto-discovered service provider, facade, config, and the zkteco:listen command (^11.0 || ^12.0 || ^13.0)."
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "ZkTeco\\Laravel\\ZkTecoServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "ZkTeco\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A PHP client for ZKTeco biometric attendance devices — a port of pyzk, with an optional Laravel bridge.",
+            "keywords": [
+                "Fingerprint",
+                "attendance",
+                "biometric",
+                "laravel",
+                "pyzk",
+                "time-clock",
+                "zkteco"
+            ],
+            "support": {
+                "issues": "https://github.com/msaied/zkteco-php/issues",
+                "source": "https://github.com/msaied/zkteco-php/tree/v0.2.2"
+            },
+            "time": "2026-06-28T04:32:46+00:00"
         },
         {
             "name": "nesbot/carbon",

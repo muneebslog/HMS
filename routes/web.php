@@ -160,6 +160,13 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('admin/drive/files/{driveFile}/view', [DriveFileController::class, 'view'])
             ->name('admin.drive.view');
         Route::livewire('admin/pdf-print', 'pages::admin.pdf-print')->name('admin.pdf-print');
+        Route::livewire('admin/attendance', 'pages::admin.attendance-dashboard')->name('admin.attendance');
+        Route::livewire('admin/attendance/roster', 'pages::admin.attendance-roster')->name('admin.attendance.roster');
+        Route::livewire('admin/attendance/leaves', 'pages::admin.attendance-leaves')->name('admin.attendance.leaves');
+        Route::livewire('admin/attendance/punches', 'pages::admin.attendance-punches')->name('admin.attendance.punches');
+        Route::livewire('admin/attendance/daily', 'pages::admin.attendance-daily')->name('admin.attendance.daily');
+        Route::livewire('admin/attendance/payroll', 'pages::admin.attendance-payroll')->name('admin.attendance.payroll');
+        Route::livewire('admin/attendance/device', 'pages::admin.attendance-device')->name('admin.attendance.device');
     });
 
     Route::middleware('role:'.UserRole::InchargeNurse->value)->group(function () {

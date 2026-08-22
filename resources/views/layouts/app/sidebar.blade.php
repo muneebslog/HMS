@@ -128,6 +128,9 @@
                         <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
                             {{ __('Shift History') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="clock" :href="route('admin.attendance')" :current="request()->routeIs('admin.attendance*')" wire:navigate>
+                            {{ __('Attendance') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
                             {{ __('Lab Entries Listings') }}
                         </flux:sidebar.item>

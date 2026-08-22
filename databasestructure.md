@@ -3,7 +3,7 @@
 > **Source of truth for agents.** Prefer this file over reading migrations.
 > Keep it in sync whenever a migration is created or run (see `AGENTS.md`).
 >
-> Last reviewed against migrations through `2026_08_20_151243_create_ward_maintenance_tables`.
+> Last reviewed against migrations through `2026_08_22_200000_create_attendance_system_tables`.
 
 Conventions used below:
 
@@ -485,9 +485,129 @@ Admin-managed catalog used by doctors to pick one or more symptoms when prescrib
 | name | string | |
 | pin | string | hashed PIN (unique among active aides at validation) |
 | is_active | boolean | default true |
+| device_user_id | string | nullable, UQ — ZKTeco user ID on biometric device |
+| attendance_enrolled_at | timestamp | nullable |
 | timestamps | | |
 
-Separate from `users` / staff profiles. Used for kiosk PIN identity when delivering medicines, injections, and drips.
+Separate from `users` / staff profiles. Used for kiosk PIN identity when delivering medicines, injections, and drips, and for biometric attendance via ZKTeco K60.
+
+### `attendance_devices`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | |
+| ip_address | string | |
+| port | unsignedSmallInteger | default 4370 |
+| serial_number | string | nullable |
+| settings | json | nullable — device field mapping / probe results |
+| last_sync_at | timestamp | nullable |
+| last_sync_status | string | nullable |
+| last_sync_error | text | nullable |
+| consecutive_sync_failures | unsignedSmallInteger | default 0 |
+| is_active | boolean | default true |
+| timestamps | | |
+
+### `duty_shift_templates`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | Morning / Evening / Night / Custom |
+| start_time | time | |
+| end_time | time | crosses midnight when end < start |
+| grace_minutes_in | unsignedSmallInteger | default 15 |
+| grace_minutes_out | unsignedSmallInteger | default 10 |
+| break_minutes | unsignedSmallInteger | default 0 |
+| station | string | nullable |
+| is_active | boolean | default true |
+| timestamps | | |
+
+### `health_aide_leaves`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| health_aide_id | FK → health_aides | cascadeOnDelete |
+| leave_date | date | |
+| replacement_health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| duty_start_time | time | nullable |
+| duty_end_time | time | nullable |
+| is_informed | boolean | default false |
+| informed_by | string | nullable |
+| notes | text | nullable |
+| created_by | FK → users | |
+| timestamps | | |
+| | | UQ `(health_aide_id, leave_date)` |
+
+### `duty_assignments`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| health_aide_id | FK → health_aides | cascadeOnDelete |
+| duty_shift_template_id | FK → duty_shift_templates | nullable, nullOnDelete |
+| date | date | calendar date duty starts |
+| starts_at | datetime | |
+| ends_at | datetime | |
+| assignment_type | string | `regular` / `extra` / `emergency` / `replacement` |
+| replaces_health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| health_aide_leave_id | FK → health_aide_leaves | nullable, nullOnDelete |
+| station | string | nullable |
+| notes | text | nullable |
+| status | string | `scheduled` / `cancelled` |
+| created_by | FK → users | |
+| approved_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+| | | IDX `(date, status)` |
+| | | IDX `(health_aide_id, starts_at)` |
+
+### `attendance_punches`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| attendance_device_id | FK → attendance_devices | cascadeOnDelete |
+| device_punch_uid | string | UQ with device |
+| device_user_id | string | |
+| health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| punched_at | datetime | |
+| verify_type | unsignedTinyInteger | nullable — fingerprint/card/etc. |
+| punch_state | unsignedSmallInteger | nullable — 0=in, 1=out, 255=raw |
+| punch_state_source | string | `device` / `inferred_first` / `inferred_last` / `manual` |
+| processed_at | timestamp | nullable |
+| timestamps | | |
+| | | IDX `(health_aide_id, punched_at)` |
+
+### `attendance_records`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| health_aide_id | FK → health_aides | cascadeOnDelete |
+| duty_assignment_id | FK → duty_assignments | nullable, nullOnDelete, UQ with health_aide |
+| date | date | |
+| scheduled_starts_at | datetime | nullable |
+| scheduled_ends_at | datetime | nullable |
+| first_in_at | datetime | nullable |
+| last_out_at | datetime | nullable |
+| worked_minutes | unsignedInteger | default 0 |
+| late_minutes | unsignedInteger | default 0 |
+| early_leave_minutes | unsignedInteger | default 0 |
+| overtime_minutes | unsignedInteger | default 0 |
+| payable_minutes | unsignedInteger | default 0 |
+| status | string | `present` / `late` / `early_leave` / `absent` / `on_leave` / `incomplete` / `extra_only` |
+| is_manual_override | boolean | default false |
+| override_reason | text | nullable |
+| overridden_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+| | | IDX `(date, status)` |
+
+### `attendance_adjustments`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| attendance_record_id | FK → attendance_records | cascadeOnDelete |
+| field_changed | string | |
+| old_value | text | nullable |
+| new_value | text | nullable |
+| reason | text | |
+| created_by | FK → users | |
+| timestamps | | |
 
 ### `station_sessions`
 | Column | Type | Notes |
@@ -1326,8 +1446,11 @@ users ──┬── shifts ──┬── invoices ──── invoice_items
         │            │                                                                                       └── medication_order_drip_additives ── injections
         │            └── print_jobs
         │
-        ├── health_aides
-        ├── station_sessions ── health_aides
+        ├── health_aides ──┬── station_sessions
+        │                  ├── health_aide_leaves
+        │                  ├── duty_assignments ── duty_shift_templates
+        │                  ├── attendance_punches ── attendance_devices
+        │                  └── attendance_records ── attendance_adjustments
         ├── pdf_print_jobs
         ├── drive_folders ──┬── drive_folders (parent)
         │                   └── drive_files

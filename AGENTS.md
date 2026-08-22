@@ -13,6 +13,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
 - laravel/prompts (PROMPTS) - v0
+- laravel/reverb (REVERB) - v1
 - laravel/sanctum (SANCTUM) - v4
 - livewire/flux (FLUXUI_FREE) - v2
 - livewire/livewire (LIVEWIRE) - v4
@@ -25,6 +26,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - pestphp/pest (PEST) - v4
 - phpunit/phpunit (PHPUNIT) - v12
 - tailwindcss (TAILWINDCSS) - v4
+- laravel-echo (ECHO) - v2
 
 ## Skills Activation
 
@@ -52,12 +54,6 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 ## Documentation Files
 
 - You must only create documentation files if explicitly requested by the user.
-
-## Database Structure
-
-- Prefer `databasestructure.md` over reading migrations when you need the current schema (tables, columns, FKs, indexes).
-- Whenever you create a migration **or** run `php artisan migrate` (including migrate:fresh / migrate:refresh), update `databasestructure.md` in the same change so it reflects the final schema after that migration.
-- Document the resulting table state (not the migration steps). Keep the same section style and conventions already used in the file.
 
 ## Replies
 

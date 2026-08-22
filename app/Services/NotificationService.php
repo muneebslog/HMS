@@ -8,6 +8,7 @@ use App\Events\ReceptionMemoPosted;
 use App\Models\AdminNotification;
 use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
+use App\Models\DutyAssignment;
 use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
@@ -1102,6 +1103,113 @@ class NotificationService
         );
 
         $this->broadcastSafely(new ReceptionMemoPosted($memo, $user));
+    }
+
+    /**
+     * Notify admins about a missing check-in punch for a started duty.
+     */
+    public function notifyAttendanceMissingPunch(DutyAssignment $assignment): bool
+    {
+        $alreadyNotified = AdminNotification::query()
+            ->where('type', 'attendance_missing_punch')
+            ->whereJsonContains('metadata', ['duty_assignment_id' => $assignment->id])
+            ->exists();
+
+        if ($alreadyNotified) {
+            return false;
+        }
+
+        $systemUser = User::query()->where('role', UserRole::Admin)->first();
+
+        if ($systemUser === null) {
+            return false;
+        }
+
+        $this->createAdminNotification(
+            $systemUser,
+            'attendance_missing_punch',
+            __('Missing Check-In'),
+            __(':name has not checked in for duty starting at :time.', [
+                'name' => $assignment->healthAide->name,
+                'time' => $assignment->starts_at->format('M j, H:i'),
+            ]),
+            route('admin.attendance.daily', ['date' => $assignment->date->toDateString()]),
+            [
+                'duty_assignment_id' => $assignment->id,
+                'health_aide_id' => $assignment->health_aide_id,
+            ],
+        );
+
+        return true;
+    }
+
+    /**
+     * Notify admins when device sync fails repeatedly.
+     */
+    public function notifyAttendanceSyncFailed(string $deviceName, string $error): void
+    {
+        $systemUser = User::query()->where('role', UserRole::Admin)->first();
+
+        if ($systemUser === null) {
+            return;
+        }
+
+        $this->createAdminNotification(
+            $systemUser,
+            'attendance_sync_failed',
+            __('Attendance Sync Failed'),
+            __('Device :device failed to sync: :error', [
+                'device' => $deviceName,
+                'error' => $error,
+            ]),
+            route('admin.attendance.device'),
+            ['device_name' => $deviceName],
+        );
+    }
+
+    /**
+     * Notify admins about yesterday's attendance issues.
+     */
+    public function notifyAttendanceDailySummary(string $date, int $absences, int $lates, int $incomplete): void
+    {
+        $systemUser = User::query()->where('role', UserRole::Admin)->first();
+
+        if ($systemUser === null) {
+            return;
+        }
+
+        $this->createAdminNotification(
+            $systemUser,
+            'attendance_daily_summary',
+            __('Attendance Summary'),
+            __(':date — :absences absent, :lates late, :incomplete incomplete.', [
+                'date' => $date,
+                'absences' => $absences,
+                'lates' => $lates,
+                'incomplete' => $incomplete,
+            ]),
+            route('admin.attendance.daily', ['date' => $date]),
+            compact('date', 'absences', 'lates', 'incomplete'),
+        );
+    }
+
+    /**
+     * Notify management that an emergency shift was assigned.
+     */
+    public function notifyEmergencyShiftAssigned(DutyAssignment $assignment, User $user): AdminNotification
+    {
+        return $this->createAdminNotification(
+            $user,
+            'attendance_emergency_shift',
+            __('Emergency Shift Assigned'),
+            __(':name assigned to emergency duty from :start to :end.', [
+                'name' => $assignment->healthAide->name,
+                'start' => $assignment->starts_at->format('M j, H:i'),
+                'end' => $assignment->ends_at->format('M j, H:i'),
+            ]),
+            route('admin.attendance.roster'),
+            ['duty_assignment_id' => $assignment->id],
+        );
     }
 
     /**

@@ -170,6 +170,7 @@ new #[Title('Health Aides')] class extends Component
         <flux:table>
             <flux:table.columns>
                 <flux:table.column>{{ __('Name') }}</flux:table.column>
+                <flux:table.column>{{ __('Attendance') }}</flux:table.column>
                 <flux:table.column>{{ __('Status') }}</flux:table.column>
                 <flux:table.column>{{ __('Actions') }}</flux:table.column>
             </flux:table.columns>
@@ -177,6 +178,13 @@ new #[Title('Health Aides')] class extends Component
                 @forelse ($this->aides as $aide)
                     <flux:table.row wire:key="health-aide-{{ $aide->id }}">
                         <flux:table.cell class="font-medium">{{ $aide->name }}</flux:table.cell>
+                        <flux:table.cell>
+                            @if ($aide->isAttendanceEnrolled())
+                                <flux:badge color="green">{{ __('Enrolled') }} (#{{ $aide->device_user_id }})</flux:badge>
+                            @else
+                                <flux:badge color="zinc">{{ __('Not enrolled') }}</flux:badge>
+                            @endif
+                        </flux:table.cell>
                         <flux:table.cell>
                             <flux:badge size="sm" :color="$aide->is_active ? 'green' : 'zinc'">
                                 {{ $aide->is_active ? __('Active') : __('Inactive') }}
