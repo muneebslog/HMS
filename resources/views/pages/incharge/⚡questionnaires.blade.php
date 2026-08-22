@@ -65,33 +65,56 @@ new #[Title('Questionnaires')] class extends Component
                     $block = $this->blockFor($questionnaire);
                     $submitted = $this->hasSubmitted($questionnaire);
                 @endphp
-                <flux:card wire:key="questionnaire-{{ $questionnaire->id }}">
+                <flux:card
+                    wire:key="questionnaire-{{ $questionnaire->id }}"
+                    class="relative overflow-hidden {{ $submitted ? 'border-s-4 border-s-emerald-500 dark:border-s-emerald-400' : 'border-s-4 border-s-amber-500 dark:border-s-amber-400' }}"
+                >
                     <div class="flex flex-col gap-4">
                         <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <flux:heading level="2">{{ $questionnaire->name }}</flux:heading>
-                                @if ($questionnaire->description)
-                                    <flux:text class="mt-1 text-zinc-500">{{ $questionnaire->description }}</flux:text>
-                                @endif
+                            <div class="flex items-start gap-3">
+                                <flux:icon name="clipboard-document-list" class="mt-0.5 size-5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+                                <div>
+                                    <flux:heading level="2">{{ $questionnaire->name }}</flux:heading>
+                                    @if ($questionnaire->description)
+                                        <flux:text class="mt-1 text-zinc-500">{{ $questionnaire->description }}</flux:text>
+                                    @endif
+                                </div>
                             </div>
                             @if ($submitted)
-                                <flux:badge size="sm" color="green">{{ __('Submitted') }}</flux:badge>
+                                <span class="status-badge-success">
+                                    <flux:icon name="check-circle" class="size-3.5" />
+                                    {{ __('Submitted') }}
+                                </span>
                             @else
-                                <flux:badge size="sm" color="amber">{{ __('Due') }}</flux:badge>
+                                <span class="status-badge-warning">
+                                    <flux:icon name="clock" class="size-3.5" />
+                                    {{ __('Due') }}
+                                </span>
                             @endif
                         </div>
 
-                        <div class="flex flex-col gap-1 text-sm text-zinc-500">
-                            <span>{{ $questionnaire->intervalLabel() }}</span>
-                            <span>{{ __('Current block: :start - :end', ['start' => $block['start']->format('H:i'), 'end' => $block['end']->format('H:i')]) }}</span>
-                            <span>{{ __(':count questions', ['count' => $questionnaire->active_questions_count]) }}</span>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
+                            <span class="inline-flex items-center gap-1">
+                                <flux:icon name="arrow-path" class="size-3.5" />
+                                {{ $questionnaire->intervalLabel() }}
+                            </span>
+                            <span class="inline-flex items-center gap-1">
+                                <flux:icon name="clock" class="size-3.5" />
+                                {{ __(':start - :end', ['start' => $block['start']->format('H:i'), 'end' => $block['end']->format('H:i')]) }}
+                            </span>
+                            <span class="inline-flex items-center gap-1">
+                                <flux:icon name="question-mark-circle" class="size-3.5" />
+                                {{ __(':count questions', ['count' => $questionnaire->active_questions_count]) }}
+                            </span>
                         </div>
 
                         @if ($questionnaire->active_questions_count === 0)
-                            <flux:text class="text-zinc-500">{{ __('This form has no questions yet.') }}</flux:text>
+                            <flux:callout icon="information-circle" variant="subtle">
+                                <flux:callout.text>{{ __('This form has no questions yet.') }}</flux:callout.text>
+                            </flux:callout>
                         @else
                             <div class="flex justify-end">
-                                <flux:button variant="primary" :href="route('incharge.questionnaire', $questionnaire)" wire:navigate>
+                                <flux:button variant="primary" :href="route('incharge.questionnaire', $questionnaire)" wire:navigate icon="{{ $submitted ? 'eye' : 'pencil-square' }}">
                                     {{ $submitted ? __('View Submission') : __('Fill Form') }}
                                 </flux:button>
                             </div>
@@ -100,7 +123,13 @@ new #[Title('Questionnaires')] class extends Component
                 </flux:card>
             @empty
                 <flux:card class="md:col-span-2">
-                    <flux:text class="text-center text-zinc-500">{{ __('No questionnaires are available right now.') }}</flux:text>
+                    <div class="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+                        <flux:icon name="clipboard-document-list" class="size-12 text-zinc-300 dark:text-zinc-600" />
+                        <div>
+                            <flux:heading level="3">{{ __('No questionnaires available') }}</flux:heading>
+                            <flux:text class="text-zinc-500">{{ __('Check back later or contact your supervisor.') }}</flux:text>
+                        </div>
+                    </div>
                 </flux:card>
             @endforelse
         </div>

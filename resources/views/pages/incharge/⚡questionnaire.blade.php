@@ -99,6 +99,22 @@ new #[Title('Fill Questionnaire')] class extends Component
     }
 
     /**
+     * Set an answer for a question.
+     */
+    public function setAnswer(int $questionId, string $value): void
+    {
+        if (! in_array($value, ['yes', 'no'], true)) {
+            return;
+        }
+
+        $this->answers[$questionId] = $value;
+
+        if ($value !== 'no') {
+            $this->remarks[$questionId] = '';
+        }
+    }
+
+    /**
      * Submit the questionnaire for the current block.
      */
     public function submit(): void
@@ -203,15 +219,21 @@ new #[Title('Fill Questionnaire')] class extends Component
         @endif
 
         @if ($this->existingEntry)
-            <flux:card>
-                <div class="mb-4 flex items-center justify-between">
+            <flux:card class="border-s-4 border-s-emerald-500 dark:border-s-emerald-400">
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <flux:heading level="2">{{ __('Submitted Questionnaire') }}</flux:heading>
+                        <flux:heading level="2" class="inline-flex items-center gap-2">
+                            <flux:icon name="check-circle" class="size-5 text-emerald-600 dark:text-emerald-400" />
+                            {{ __('Submitted Questionnaire') }}
+                        </flux:heading>
                         <flux:text class="text-zinc-500">
                             {{ __('Submitted at :time', ['time' => $this->existingEntry->submitted_at->format('Y-m-d H:i:s')]) }}
                         </flux:text>
                     </div>
-                    <flux:badge size="sm" color="green">{{ __('Completed') }}</flux:badge>
+                    <span class="status-badge-success">
+                        <flux:icon name="check-circle" class="size-3.5" />
+                        {{ __('Completed') }}
+                    </span>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -225,14 +247,28 @@ new #[Title('Fill Questionnaire')] class extends Component
                         </thead>
                         <tbody>
                             @foreach ($this->existingEntry->responses as $response)
-                                <tr class="border-b border-zinc-100 dark:border-zinc-800 {{ $response->isNo() ? 'bg-red-50 dark:bg-red-950/30' : '' }}" wire:key="response-{{ $response->id }}">
+                                <tr class="border-b border-zinc-100 dark:border-zinc-800 {{ $response->isNo() ? 'bg-rose-50 dark:bg-rose-950/30' : '' }}" wire:key="response-{{ $response->id }}">
                                     <td class="py-3 pe-4 align-top">{{ $response->question->question_text }}</td>
                                     <td class="py-3 pe-4 align-top">
-                                        <flux:badge size="sm" color="{{ $response->isNo() ? 'red' : 'green' }}">
-                                            {{ $response->answer->label() }}
-                                        </flux:badge>
+                                        @if ($response->isNo())
+                                            <span class="status-badge-danger">
+                                                <flux:icon name="x-circle" class="size-3.5" />
+                                                {{ $response->answer->label() }}
+                                            </span>
+                                        @else
+                                            <span class="status-badge-success">
+                                                <flux:icon name="check-circle" class="size-3.5" />
+                                                {{ $response->answer->label() }}
+                                            </span>
+                                        @endif
                                     </td>
-                                    <td class="py-3 align-top">{{ $response->remarks ?: '-' }}</td>
+                                    <td class="py-3 align-top">
+                                        @if ($response->remarks)
+                                            {{ $response->remarks }}
+                                        @else
+                                            <span class="text-zinc-400">—</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -240,10 +276,26 @@ new #[Title('Fill Questionnaire')] class extends Component
                 </div>
             </flux:card>
         @else
+            @php
+                $answeredCount = collect($this->questions)->filter(fn ($q) => filled($this->answers[$q->id] ?? null))->count();
+                $totalCount = $this->questions->count();
+            @endphp
             <form wire:submit="submit" class="flex flex-col gap-6">
                 <flux:card>
-                    <div class="mb-4">
-                        <flux:heading level="2">{{ __('Fill Questionnaire') }}</flux:heading>
+                    <div class="mb-4 space-y-2">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <flux:heading level="2">{{ __('Fill Questionnaire') }}</flux:heading>
+                            <flux:text class="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                                {{ __(':answered of :total answered', ['answered' => $answeredCount, 'total' => $totalCount]) }}
+                            </flux:text>
+                        </div>
+                        <div class="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div
+                                class="h-full rounded-full bg-primary transition-all duration-300"
+                                style="width: {{ $totalCount > 0 ? ($answeredCount / $totalCount) * 100 : 0 }}%"
+                                aria-hidden="true"
+                            ></div>
+                        </div>
                         <flux:text class="text-zinc-500">
                             {{ __('Answer Yes or No. If you select No, you must add a remark.') }}
                         </flux:text>
@@ -251,29 +303,64 @@ new #[Title('Fill Questionnaire')] class extends Component
 
                     <div class="flex flex-col gap-6">
                         @foreach ($this->questions as $question)
-                            <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700" wire:key="question-{{ $question->id }}">
+                            @php
+                                $answer = $this->answers[$question->id] ?? null;
+                            @endphp
+                            <div
+                                class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700"
+                                wire:key="question-{{ $question->id }}"
+                                x-data="{}"
+                            >
                                 <flux:heading level="3" class="mb-4">{{ $question->question_text }}</flux:heading>
 
-                                <flux:radio.group wire:model.live="answers.{{ $question->id }}" class="flex flex-wrap gap-6">
-                                    <flux:radio value="yes" :label="__('Yes')" />
-                                    <flux:radio value="no" :label="__('No')" />
-                                </flux:radio.group>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        wire:click="setAnswer({{ $question->id }}, 'yes')"
+                                        class="answer-card {{ $answer === 'yes' ? 'answer-card-yes' : '' }}"
+                                        aria-pressed="{{ $answer === 'yes' ? 'true' : 'false' }}"
+                                    >
+                                        <flux:icon name="check-circle" class="size-5 {{ $answer === 'yes' ? 'text-emerald-600 dark:text-emerald-300' : 'text-zinc-400 dark:text-zinc-500' }}" />
+                                        <span class="font-medium">{{ __('Yes') }}</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        wire:click="setAnswer({{ $question->id }}, 'no')"
+                                        class="answer-card {{ $answer === 'no' ? 'answer-card-no' : '' }}"
+                                        aria-pressed="{{ $answer === 'no' ? 'true' : 'false' }}"
+                                    >
+                                        <flux:icon name="x-circle" class="size-5 {{ $answer === 'no' ? 'text-rose-600 dark:text-rose-300' : 'text-zinc-400 dark:text-zinc-500' }}" />
+                                        <span class="font-medium">{{ __('No') }}</span>
+                                    </button>
+                                </div>
                                 <flux:error name="answers.{{ $question->id }}" />
 
-                                @if (($answers[$question->id] ?? null) === 'no')
-                                    <flux:field class="mt-4">
+                                <div
+                                    x-show="$wire.answers[{{ $question->id }}] === 'no'"
+                                    x-transition:enter="transition ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 -translate-y-1"
+                                    x-transition:enter-end="opacity-100 translate-y-0"
+                                    x-transition:leave="transition ease-in duration-150"
+                                    x-transition:leave-start="opacity-100 translate-y-0"
+                                    x-transition:leave-end="opacity-0 -translate-y-1"
+                                >
+                                    <flux:field class="mt-4 rounded-lg border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-800 dark:bg-rose-950/20">
                                         <flux:label>{{ __('Remark') }}</flux:label>
                                         <flux:textarea wire:model="remarks.{{ $question->id }}" rows="2" required />
                                         <flux:description>{{ __('Required because you answered No.') }}</flux:description>
                                         <flux:error name="remarks.{{ $question->id }}" />
                                     </flux:field>
-                                @endif
+                                </div>
                             </div>
                         @endforeach
                     </div>
 
-                    <div class="mt-6">
-                        <flux:button type="submit" variant="primary">
+                    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+                        <flux:text class="text-sm text-zinc-500">
+                            {{ __(':answered of :total answered', ['answered' => $answeredCount, 'total' => $totalCount]) }}
+                        </flux:text>
+                        <flux:button type="submit" variant="primary" icon="check">
                             {{ __('Submit Questionnaire') }}
                         </flux:button>
                     </div>

@@ -289,23 +289,33 @@ new #[Title('Nurse Questionnaires')] class extends Component
                             <flux:table.cell>{{ $questionnaire->questions_count }}</flux:table.cell>
                             <flux:table.cell>
                                 @if ($questionnaire->is_active)
-                                    <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
+                                    <span class="status-badge-success">
+                                        <flux:icon name="check-circle" class="size-3.5" />
+                                        {{ __('Yes') }}
+                                    </span>
                                 @else
-                                    <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                    <span class="status-badge-neutral">
+                                        <flux:icon name="x-circle" class="size-3.5" />
+                                        {{ __('No') }}
+                                    </span>
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button size="sm" variant="ghost" icon="list-bullet" wire:click="manageQuestions({{ $questionnaire->id }})" class="me-2">
                                     {{ __('Questions') }}
                                 </flux:button>
-                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editQuestionnaire({{ $questionnaire->id }})" class="me-2" />
-                                <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteQuestionnaire({{ $questionnaire->id }})" wire:confirm="{{ __('Are you sure you want to delete this questionnaire?') }}" />
+                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editQuestionnaire({{ $questionnaire->id }})" class="me-2" aria-label="{{ __('Edit questionnaire') }}" />
+                                <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteQuestionnaire({{ $questionnaire->id }})" wire:confirm="{{ __('Are you sure you want to delete this questionnaire?') }}" aria-label="{{ __('Delete questionnaire') }}" />
                             </flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="5" class="text-center text-zinc-500">
-                                {{ __('No questionnaires found.') }}
+                            <flux:table.cell colspan="5">
+                                <div class="flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+                                    <flux:icon name="clipboard-document-list" class="size-10 text-zinc-300 dark:text-zinc-600" />
+                                    <flux:heading level="3" class="text-base">{{ __('No questionnaires found') }}</flux:heading>
+                                    <flux:text class="text-zinc-500">{{ __('Create a questionnaire to get started.') }}</flux:text>
+                                </div>
                             </flux:table.cell>
                         </flux:table.row>
                     @endforelse
@@ -410,20 +420,30 @@ new #[Title('Nurse Questionnaires')] class extends Component
                                 <flux:table.cell>{{ $question->sort_order }}</flux:table.cell>
                                 <flux:table.cell>
                                     @if ($question->is_active)
-                                        <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
+                                        <span class="status-badge-success">
+                                            <flux:icon name="check-circle" class="size-3.5" />
+                                            {{ __('Yes') }}
+                                        </span>
                                     @else
-                                        <flux:badge size="sm" color="zinc">{{ __('No') }}</flux:badge>
+                                        <span class="status-badge-neutral">
+                                            <flux:icon name="x-circle" class="size-3.5" />
+                                            {{ __('No') }}
+                                        </span>
                                     @endif
                                 </flux:table.cell>
                                 <flux:table.cell class="text-right">
-                                    <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editQuestion({{ $question->id }})" class="me-2" />
-                                    <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteQuestion({{ $question->id }})" wire:confirm="{{ __('Are you sure you want to delete this question?') }}" />
+                                    <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editQuestion({{ $question->id }})" class="me-2" aria-label="{{ __('Edit question') }}" />
+                                    <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteQuestion({{ $question->id }})" wire:confirm="{{ __('Are you sure you want to delete this question?') }}" aria-label="{{ __('Delete question') }}" />
                                 </flux:table.cell>
                             </flux:table.row>
                         @empty
                             <flux:table.row>
-                                <flux:table.cell colspan="4" class="text-center text-zinc-500">
-                                    {{ __('No questions found.') }}
+                                <flux:table.cell colspan="4">
+                                    <div class="flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+                                        <flux:icon name="question-mark-circle" class="size-10 text-zinc-300 dark:text-zinc-600" />
+                                        <flux:heading level="3" class="text-base">{{ __('No questions found') }}</flux:heading>
+                                        <flux:text class="text-zinc-500">{{ __('Add the first question for this questionnaire.') }}</flux:text>
+                                    </div>
                                 </flux:table.cell>
                             </flux:table.row>
                         @endforelse

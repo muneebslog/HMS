@@ -265,6 +265,152 @@ new #[Title('Fill Ward Maintenance')] class extends Component
         $this->redirect(route('incharge.ward-maintenance', ['date' => $this->checklistDate]), navigate: true);
     }
 
+    /**
+     * Determine whether a status cell has been answered.
+     */
+    public function statusIsFilled(string $section, string $itemKey, string $locationKey = ''): bool
+    {
+        $key = $this->statusKey($section, $itemKey, $locationKey);
+
+        return filled($this->statuses[$key] ?? null);
+    }
+
+    /**
+     * Get the completion counts for a section.
+     *
+     * @return array{answered: int, total: int}
+     */
+    public function sectionCompletion(string $section): array
+    {
+        $service = app(WardMaintenanceService::class);
+        $answered = 0;
+        $total = 0;
+
+        $countCell = function (string $cellSection, string $itemKey, string $locationKey = '') use (&$answered, &$total, $service): void {
+            $key = $service->statusKey($cellSection, $itemKey, $locationKey);
+            $total++;
+            if (filled($this->statuses[$key] ?? null)) {
+                $answered++;
+            }
+        };
+
+        $addCells = function (string $cellSection, array $items, array $locations = ['']) use ($countCell): void {
+            foreach ($items as $itemKey => $label) {
+                foreach ($locations as $locationKey => $locationLabel) {
+                    $countCell($cellSection, $itemKey, is_string($locationKey) ? $locationKey : $locationLabel);
+                }
+            }
+        };
+
+        $sectionHandler = match ($section) {
+            'header' => function () use (&$answered, &$total): void {
+                $total = 1;
+                $answered = filled($this->checkedByName) ? 1 : 0;
+            },
+            'A' => function () use ($addCells): void {
+                $addCells('A', $this->definition->sectionAItems(), $this->definition->beds());
+            },
+            'B' => function () use ($addCells): void {
+                $addCells('B', $this->definition->sectionBItems(), $this->definition->areas());
+            },
+            'C' => function () use ($countCell): void {
+                foreach ($this->definition->sectionCGyneItems() as $itemKey => $label) {
+                    $countCell('C_gyne', $itemKey, 'gyne_ward');
+                }
+                foreach ($this->definition->sectionCPrivateItems() as $itemKey => $label) {
+                    foreach ($this->definition->privateAreas() as $locationKey => $locationLabel) {
+                        $countCell('C_private', $itemKey, $locationKey);
+                    }
+                }
+            },
+            'D' => function () use ($countCell): void {
+                foreach ($this->definition->sectionDGyneItems() as $itemKey => $label) {
+                    $countCell('D', $itemKey, 'gyne_ward');
+                }
+                foreach ($this->definition->sectionDPrivateItems() as $itemKey => $label) {
+                    foreach (['private_1', 'private_2', 'shared_private'] as $locationKey) {
+                        $countCell('D', $itemKey, $locationKey);
+                    }
+                }
+            },
+            'E' => function () use (&$answered, &$total): void {
+                foreach (array_keys($this->definition->sectionEItems()) as $itemKey) {
+                    $total += 2;
+                    if (($this->equipment[$itemKey]['available'] ?? null) !== null) {
+                        $answered++;
+                    }
+                    if (($this->equipment[$itemKey]['functional'] ?? null) !== null) {
+                        $answered++;
+                    }
+                }
+            },
+            'F' => function () use ($countCell): void {
+                foreach ($this->definition->sectionFItems() as $itemKey => $label) {
+                    $countCell('F', $itemKey, '');
+                }
+            },
+            'G' => function () use ($countCell): void {
+                foreach ($this->definition->sectionGItems() as $itemKey => $label) {
+                    $countCell('G', $itemKey, '');
+                }
+            },
+            'I' => function () use (&$answered, &$total): void {
+                $total = 3;
+                $answered = filled($this->patientSafetyFault) ? $answered + 1 : $answered;
+                $answered = filled($this->patientSafetyReported) ? $answered + 1 : $answered;
+                $answered = filled($this->roomUnavailable) ? $answered + 1 : $answered;
+            },
+            default => fn () => null,
+        };
+
+        $sectionHandler();
+
+        return ['answered' => $answered, 'total' => $total];
+    }
+
+    /**
+     * Determine whether a section is fully completed.
+     */
+    public function isSectionComplete(string $section): bool
+    {
+        $completion = $this->sectionCompletion($section);
+
+        return $completion['total'] > 0 && $completion['answered'] === $completion['total'];
+    }
+
+    /**
+     * Get a color class for a status value indicator.
+     */
+    public function statusColorClass(string $statusValue): string
+    {
+        return match ($statusValue) {
+            'ok' => 'bg-emerald-500',
+            'fault' => 'bg-rose-500',
+            'na' => 'bg-zinc-400',
+            default => 'bg-transparent',
+        };
+    }
+
+    /**
+     * Get the overall completion across all scored sections.
+     *
+     * @return array{answered: int, total: int}
+     */
+    public function overallProgress(): array
+    {
+        $scoredSections = ['header', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'I'];
+        $answered = 0;
+        $total = 0;
+
+        foreach ($scoredSections as $section) {
+            $completion = $this->sectionCompletion($section);
+            $answered += $completion['answered'];
+            $total += $completion['total'];
+        }
+
+        return ['answered' => $answered, 'total' => $total];
+    }
+
     public function statusKey(string $section, string $itemKey, string $locationKey = ''): string
     {
         return app(WardMaintenanceService::class)->statusKey($section, $itemKey, $locationKey);
@@ -291,14 +437,44 @@ new #[Title('Fill Ward Maintenance')] class extends Component
         @if ($this->existingEntry)
             @include('pages.incharge.partials.ward-maintenance-view', ['entry' => $this->existingEntry])
         @else
-            <div class="flex flex-wrap gap-2">
+            @php
+                $progress = $this->overallProgress();
+            @endphp
+            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+                <div class="mb-2 flex items-center justify-between text-sm">
+                    <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ __('Overall progress') }}</span>
+                    <span class="font-medium text-zinc-600 dark:text-zinc-300">
+                        {{ __(':answered of :total completed', ['answered' => $progress['answered'], 'total' => $progress['total']]) }}
+                    </span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                    <div
+                        class="h-full rounded-full bg-primary transition-all duration-300"
+                        style="width: {{ $progress['total'] > 0 ? ($progress['answered'] / $progress['total']) * 100 : 0 }}%"
+                        aria-hidden="true"
+                    ></div>
+                </div>
+            </div>
+
+            <div class="sticky top-0 z-10 flex flex-wrap gap-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-2 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 @foreach ($this->sections() as $section)
+                    @php
+                        $isComplete = $section['key'] !== 'H' && $this->isSectionComplete($section['key']);
+                    @endphp
                     <flux:button
                         size="sm"
-                        :variant="$activeSection === $section['key'] ? 'primary' : 'ghost'"
+                        :variant="$activeSection === $section['key'] ? 'primary' : ($isComplete ? 'outline' : 'ghost')"
                         wire:click="setSection('{{ $section['key'] }}')"
+                        class="{{ $isComplete ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300' : '' }}"
                     >
-                        {{ $section['label'] }}
+                        <span class="inline-flex items-center gap-1.5">
+                            @if ($isComplete)
+                                <flux:icon name="check-circle" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                            @elseif ($section['key'] !== 'H' && $this->sectionCompletion($section['key'])['answered'] > 0)
+                                <span class="size-2 rounded-full bg-amber-500"></span>
+                            @endif
+                            {{ $section['label'] }}
+                        </span>
                     </flux:button>
                 @endforeach
             </div>
@@ -341,7 +517,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('A. Bed & Bedside Equipment') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('A')">{{ __('Mark all OK') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('A')">{{ __('Mark all OK') }}</flux:button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[900px] border-collapse text-sm">
@@ -380,7 +556,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('B. Room / Area Infrastructure') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('B')">{{ __('Mark all OK') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('B')">{{ __('Mark all OK') }}</flux:button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[700px] border-collapse text-sm">
@@ -420,19 +596,25 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                         <flux:card>
                             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                                 <flux:heading level="2">{{ __('C. Gyne Ward (Non-AC)') }}</flux:heading>
-                                <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('C')">{{ __('Mark all OK') }}</flux:button>
+                                <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('C')">{{ __('Mark all OK') }}</flux:button>
                             </div>
                             <div class="space-y-3">
                                 @foreach ($this->definition->sectionCGyneItems() as $itemKey => $label)
-                                    @php $key = $this->statusKey('C_gyne', $itemKey, 'gyne_ward'); @endphp
-                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:key="c-gyne-{{ $itemKey }}">
+                                    @php
+                                        $key = $this->statusKey('C_gyne', $itemKey, 'gyne_ward');
+                                        $statusValue = $this->statuses[$key] ?? '';
+                                    @endphp
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-100 p-3 dark:border-zinc-800" wire:key="c-gyne-{{ $itemKey }}">
                                         <flux:text>{{ $label }}</flux:text>
-                                        <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
-                                            <option value="">—</option>
-                                            <option value="ok">{{ __('OK') }}</option>
-                                            <option value="fault">{{ __('Fault') }}</option>
-                                            <option value="na">{{ __('N/A') }}</option>
-                                        </flux:select>
+                                        <div class="flex items-center gap-2">
+                                            <span class="size-2.5 rounded-full {{ $this->statusColorClass($statusValue) }}" aria-hidden="true"></span>
+                                            <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
+                                                <option value="">—</option>
+                                                <option value="ok">{{ __('OK') }}</option>
+                                                <option value="fault">{{ __('Fault') }}</option>
+                                                <option value="na">{{ __('N/A') }}</option>
+                                            </flux:select>
+                                        </div>
                                     </div>
                                 @endforeach
                             </div>
@@ -478,22 +660,28 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('D. Bathroom & Water Supply') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('D')">{{ __('Mark all OK') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('D')">{{ __('Mark all OK') }}</flux:button>
                         </div>
                         <div class="grid gap-6 lg:grid-cols-2">
                             <div>
                                 <flux:heading level="3" class="mb-3">{{ __('Gyne Ward Bathroom') }}</flux:heading>
                                 <div class="space-y-3">
                                     @foreach ($this->definition->sectionDGyneItems() as $itemKey => $label)
-                                        @php $key = $this->statusKey('D', $itemKey, 'gyne_ward'); @endphp
-                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:key="d-gyne-{{ $itemKey }}">
+                                        @php
+                                            $key = $this->statusKey('D', $itemKey, 'gyne_ward');
+                                            $statusValue = $this->statuses[$key] ?? '';
+                                        @endphp
+                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-100 p-3 dark:border-zinc-800" wire:key="d-gyne-{{ $itemKey }}">
                                             <flux:text>{{ $label }}</flux:text>
-                                            <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
-                                                <option value="">—</option>
-                                                <option value="ok">{{ __('OK') }}</option>
-                                                <option value="fault">{{ __('Fault') }}</option>
-                                                <option value="na">{{ __('N/A') }}</option>
-                                            </flux:select>
+                                            <div class="flex items-center gap-2">
+                                                <span class="size-2.5 rounded-full {{ $this->statusColorClass($statusValue) }}" aria-hidden="true"></span>
+                                                <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
+                                                    <option value="">—</option>
+                                                    <option value="ok">{{ __('OK') }}</option>
+                                                    <option value="fault">{{ __('Fault') }}</option>
+                                                    <option value="na">{{ __('N/A') }}</option>
+                                                </flux:select>
+                                            </div>
                                         </div>
                                     @endforeach
                                 </div>
@@ -504,15 +692,21 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                                     <flux:heading level="3" class="mb-3">{{ $this->definition->bathrooms()[$locationKey] }}</flux:heading>
                                     <div class="space-y-3">
                                         @foreach ($this->definition->sectionDPrivateItems() as $itemKey => $label)
-                                            @php $key = $this->statusKey('D', $itemKey, $locationKey); @endphp
-                                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:key="d-{{ $locationKey }}-{{ $itemKey }}">
+                                            @php
+                                                $key = $this->statusKey('D', $itemKey, $locationKey);
+                                                $statusValue = $this->statuses[$key] ?? '';
+                                            @endphp
+                                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-100 p-3 dark:border-zinc-800" wire:key="d-{{ $locationKey }}-{{ $itemKey }}">
                                                 <flux:text>{{ $label }}</flux:text>
-                                                <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
-                                                    <option value="">—</option>
-                                                    <option value="ok">{{ __('OK') }}</option>
-                                                    <option value="fault">{{ __('Fault') }}</option>
-                                                    <option value="na">{{ __('N/A') }}</option>
-                                                </flux:select>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="size-2.5 rounded-full {{ $this->statusColorClass($statusValue) }}" aria-hidden="true"></span>
+                                                    <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
+                                                        <option value="">—</option>
+                                                        <option value="ok">{{ __('OK') }}</option>
+                                                        <option value="fault">{{ __('Fault') }}</option>
+                                                        <option value="na">{{ __('N/A') }}</option>
+                                                    </flux:select>
+                                                </div>
                                             </div>
                                         @endforeach
                                     </div>
@@ -526,7 +720,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('E. Medical / Patient-Care Equipment') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('E')">{{ __('Mark all available & functional') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('E')">{{ __('Mark all available & functional') }}</flux:button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[700px] border-collapse text-sm">
@@ -571,19 +765,25 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('F. Common Area Check') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('F')">{{ __('Mark all OK') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('F')">{{ __('Mark all OK') }}</flux:button>
                         </div>
                         <div class="space-y-3">
                             @foreach ($this->definition->sectionFItems() as $itemKey => $label)
-                                @php $key = $this->statusKey('F', $itemKey, ''); @endphp
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:key="f-{{ $itemKey }}">
+                                @php
+                                    $key = $this->statusKey('F', $itemKey, '');
+                                    $statusValue = $this->statuses[$key] ?? '';
+                                @endphp
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-100 p-3 dark:border-zinc-800" wire:key="f-{{ $itemKey }}">
                                     <flux:text>{{ $label }}</flux:text>
-                                    <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
-                                        <option value="">—</option>
-                                        <option value="ok">{{ __('OK') }}</option>
-                                        <option value="fault">{{ __('Fault') }}</option>
-                                        <option value="na">{{ __('N/A') }}</option>
-                                    </flux:select>
+                                    <div class="flex items-center gap-2">
+                                        <span class="size-2.5 rounded-full {{ $this->statusColorClass($statusValue) }}" aria-hidden="true"></span>
+                                        <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
+                                            <option value="">—</option>
+                                            <option value="ok">{{ __('OK') }}</option>
+                                            <option value="fault">{{ __('Fault') }}</option>
+                                            <option value="na">{{ __('N/A') }}</option>
+                                        </flux:select>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
@@ -594,19 +794,25 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     <flux:card>
                         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <flux:heading level="2">{{ __('G. Safety Check') }}</flux:heading>
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="markSectionOk('G')">{{ __('Mark all OK') }}</flux:button>
+                            <flux:button type="button" size="sm" variant="outline" wire:click="markSectionOk('G')">{{ __('Mark all OK') }}</flux:button>
                         </div>
                         <div class="space-y-3">
                             @foreach ($this->definition->sectionGItems() as $itemKey => $label)
-                                @php $key = $this->statusKey('G', $itemKey, ''); @endphp
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" wire:key="g-{{ $itemKey }}">
+                                @php
+                                    $key = $this->statusKey('G', $itemKey, '');
+                                    $statusValue = $this->statuses[$key] ?? '';
+                                @endphp
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-zinc-100 p-3 dark:border-zinc-800" wire:key="g-{{ $itemKey }}">
                                     <flux:text>{{ $label }}</flux:text>
-                                    <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
-                                        <option value="">—</option>
-                                        <option value="ok">{{ __('OK') }}</option>
-                                        <option value="fault">{{ __('Fault') }}</option>
-                                        <option value="na">{{ __('N/A') }}</option>
-                                    </flux:select>
+                                    <div class="flex items-center gap-2">
+                                        <span class="size-2.5 rounded-full {{ $this->statusColorClass($statusValue) }}" aria-hidden="true"></span>
+                                        <flux:select wire:model="statuses.{{ $key }}" class="sm:w-36">
+                                            <option value="">—</option>
+                                            <option value="ok">{{ __('OK') }}</option>
+                                            <option value="fault">{{ __('Fault') }}</option>
+                                            <option value="na">{{ __('N/A') }}</option>
+                                        </flux:select>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
@@ -725,13 +931,21 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     </flux:card>
                 @endif
 
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <flux:text class="text-sm text-zinc-500">
-                        {{ __('Use section tabs to complete the form, then submit from any section.') }}
-                    </flux:text>
-                    <flux:button type="submit" variant="primary">
-                        {{ __('Submit Checklist') }}
-                    </flux:button>
+                <div class="sticky bottom-0 z-10 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/95">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                <flux:icon name="chart-pie" class="size-4 text-primary" />
+                                {{ __(':answered of :total completed', ['answered' => $progress['answered'], 'total' => $progress['total']]) }}
+                            </div>
+                            <flux:text class="text-xs text-zinc-500">
+                                {{ __('Use section tabs to complete the form, then submit from any section.') }}
+                            </flux:text>
+                        </div>
+                        <flux:button type="submit" variant="primary" icon="check">
+                            {{ __('Submit Checklist') }}
+                        </flux:button>
+                    </div>
                 </div>
             </form>
         @endif

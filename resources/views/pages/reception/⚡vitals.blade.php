@@ -354,7 +354,7 @@ new #[Title('Vitals')] class extends Component
 
             <form wire:submit="saveAndNext" class="mt-2 flex flex-col gap-4 border-t border-dashed border-zinc-400/70 pt-4">
                 <flux:field>
-                    <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('Temperature (°F)') }}</flux:label>
+                    <flux:label class="text-base">{{ __('Temperature') }}</flux:label>
                     <flux:input
                         wire:model="temperatureFahrenheit"
                         type="number"
@@ -362,51 +362,57 @@ new #[Title('Vitals')] class extends Component
                         step="0.1"
                         min="86"
                         max="113"
-                        class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
+                        class="h-14 text-2xl"
+                        aria-describedby="temp-unit"
                         autofocus
                     />
+                    <flux:description id="temp-unit">{{ __('Degrees Fahrenheit (°F)') }}</flux:description>
                     <flux:error name="temperatureFahrenheit" />
                 </flux:field>
 
                 <div class="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
                     <flux:field>
-                        <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BP Systolic') }}</flux:label>
+                        <flux:label class="text-base">{{ __('BP Systolic') }}</flux:label>
                         <flux:input
                             wire:model="bpSystolic"
                             type="number"
                             inputmode="numeric"
                             min="50"
                             max="300"
-                            class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
+                            class="h-14 text-2xl"
+                            aria-describedby="bp-unit"
                         />
                         <flux:error name="bpSystolic" />
                     </flux:field>
-                    <span class="pb-4 text-2xl font-light text-zinc-400">/</span>
+                    <span class="pb-4 text-2xl font-light text-zinc-400" id="bp-unit">/</span>
 
                     <flux:field>
-                        <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BP Diastolic') }}</flux:label>
+                        <flux:label class="text-base">{{ __('BP Diastolic') }}</flux:label>
                         <flux:input
                             wire:model="bpDiastolic"
                             type="number"
                             inputmode="numeric"
                             min="30"
                             max="200"
-                            class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
+                            class="h-14 text-2xl"
+                            aria-describedby="bp-unit"
                         />
                         <flux:error name="bpDiastolic" />
                     </flux:field>
                 </div>
 
                 <flux:field>
-                    <flux:label class="text-base !text-zinc-800 dark:!text-zinc-800">{{ __('BSR (mg/dL)') }}</flux:label>
+                    <flux:label class="text-base">{{ __('BSR') }}</flux:label>
                     <flux:input
                         wire:model="bsr"
                         type="number"
                         inputmode="numeric"
                         min="20"
                         max="600"
-                        class="!h-14 !text-2xl !border-zinc-300 !bg-white !text-zinc-800 dark:!border-zinc-300 dark:!bg-white dark:!text-zinc-800"
+                        class="h-14 text-2xl"
+                        aria-describedby="bsr-unit"
                     />
+                    <flux:description id="bsr-unit">{{ __('Blood sugar random (mg/dL)') }}</flux:description>
                     <flux:error name="bsr" />
                 </flux:field>
 
