@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\PunchPairingRole;
 use App\Enums\PunchStateSource;
 use Database\Factories\AttendancePunchFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AttendancePunch extends Model
 {
@@ -27,21 +29,33 @@ class AttendancePunch extends Model
         'verify_type',
         'punch_state',
         'punch_state_source',
+        'pairing_role',
+        'notes',
+        'created_by',
         'processed_at',
     ];
 
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     protected function casts(): array
     {
         return [
             'punched_at' => 'datetime',
             'punch_state_source' => PunchStateSource::class,
+            'pairing_role' => PunchPairingRole::class,
             'processed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether this punch is excluded from pairing.
+     */
+    public function isIgnored(): bool
+    {
+        return $this->pairing_role === PunchPairingRole::Ignore;
     }
 
     /**
@@ -58,5 +72,29 @@ class AttendancePunch extends Model
     public function healthAide(): BelongsTo
     {
         return $this->belongsTo(HealthAide::class);
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return HasOne<AttendanceWorkSession, $this>
+     */
+    public function workSessionAsIn(): HasOne
+    {
+        return $this->hasOne(AttendanceWorkSession::class, 'in_punch_id');
+    }
+
+    /**
+     * @return HasOne<AttendanceWorkSession, $this>
+     */
+    public function workSessionAsOut(): HasOne
+    {
+        return $this->hasOne(AttendanceWorkSession::class, 'out_punch_id');
     }
 }

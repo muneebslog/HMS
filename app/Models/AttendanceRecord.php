@@ -22,6 +22,7 @@ class AttendanceRecord extends Model
     protected $fillable = [
         'health_aide_id',
         'duty_assignment_id',
+        'attendance_work_session_id',
         'date',
         'scheduled_starts_at',
         'scheduled_ends_at',
@@ -70,6 +71,14 @@ class AttendanceRecord extends Model
     public function dutyAssignment(): BelongsTo
     {
         return $this->belongsTo(DutyAssignment::class);
+    }
+
+    /**
+     * @return BelongsTo<AttendanceWorkSession, $this>
+     */
+    public function workSession(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceWorkSession::class, 'attendance_work_session_id');
     }
 
     /**

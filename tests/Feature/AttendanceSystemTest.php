@@ -6,6 +6,7 @@ use App\Models\AttendanceDevice;
 use App\Models\AttendanceDeviceUser;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRecord;
+use App\Models\AttendanceWorkSession;
 use App\Models\DutyAssignment;
 use App\Models\DutyShiftTemplate;
 use App\Models\HealthAide;
@@ -38,7 +39,7 @@ test('receptionist cannot visit attendance dashboard', function () {
         ->assertForbidden();
 });
 
-test('attendance processing pairs overnight punches using roster fallback', function () {
+test('attendance processing pairs overnight punches using roster after confirm', function () {
     $aide = HealthAide::factory()->create(['device_user_id' => '7']);
     $admin = User::factory()->admin()->create();
 
@@ -69,12 +70,16 @@ test('attendance processing pairs overnight punches using roster fallback', func
         'punch_state' => 255,
     ]);
 
-    $record = app(AttendanceProcessingService::class)->processAssignment($assignment);
+    $service = app(AttendanceProcessingService::class);
+    $service->rebuildSessionsForAide($aide->id);
+    $session = AttendanceWorkSession::query()->first();
+    $record = $service->confirmSession($session, $admin);
 
     expect($record->status)->toBe(AttendanceRecordStatus::Present)
         ->and($record->first_in_at->format('H:i'))->toBe('22:55')
         ->and($record->last_out_at->format('H:i'))->toBe('07:08')
-        ->and($record->worked_minutes)->toBeGreaterThan(480);
+        ->and($record->worked_minutes)->toBeGreaterThan(480)
+        ->and($record->duty_assignment_id)->toBe($assignment->id);
 });
 
 test('health aide on leave is marked on leave not absent', function () {
@@ -129,10 +134,14 @@ test('extra shift overtime is calculated when configured', function () {
         'device_user_id' => (string) $aide->id,
     ]);
 
-    $record = app(AttendanceProcessingService::class)->processAssignment($assignment);
+    $service = app(AttendanceProcessingService::class);
+    $service->rebuildSessionsForAide($aide->id);
+    $session = AttendanceWorkSession::query()->first();
+    $record = $service->confirmSession($session, $admin);
 
     expect($record->overtime_minutes)->toBeGreaterThan(0)
-        ->and($record->payable_minutes)->toBeGreaterThan(0);
+        ->and($record->payable_minutes)->toBeGreaterThan(0)
+        ->and($record->duty_assignment_id)->toBe($assignment->id);
 });
 
 test('payroll report aggregates monthly payable hours', function () {

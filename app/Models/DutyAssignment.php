@@ -117,4 +117,12 @@ class DutyAssignment extends Model
     {
         return $this->hasOne(AttendanceRecord::class);
     }
+
+    /**
+     * @return HasOne<AttendanceWorkSession, $this>
+     */
+    public function workSession(): HasOne
+    {
+        return $this->hasOne(AttendanceWorkSession::class);
+    }
 }

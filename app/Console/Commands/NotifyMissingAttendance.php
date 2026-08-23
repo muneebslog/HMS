@@ -33,6 +33,10 @@ class NotifyMissingAttendance extends Command
         foreach ($assignments as $assignment) {
             $hasInPunch = AttendancePunch::query()
                 ->where('health_aide_id', $assignment->health_aide_id)
+                ->where(function ($query) {
+                    $query->whereNull('pairing_role')
+                        ->orWhere('pairing_role', '!=', 'ignore');
+                })
                 ->where('punched_at', '>=', $assignment->starts_at->copy()->subMinutes(config('attendance.pre_window_minutes', 30)))
                 ->exists();
 

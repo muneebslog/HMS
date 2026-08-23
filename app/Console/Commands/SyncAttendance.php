@@ -21,9 +21,9 @@ class SyncAttendance extends Command
 
         $this->info("Imported {$result['imported']} of {$result['total']} punch(es).");
 
-        $processed = $processingService->processRecentAssignments();
+        $sessions = $processingService->rebuildRecentSessions();
 
-        $this->info("Processed {$processed} duty assignment(s).");
+        $this->info("Rebuilt {$sessions} work session(s).");
 
         return self::SUCCESS;
     }

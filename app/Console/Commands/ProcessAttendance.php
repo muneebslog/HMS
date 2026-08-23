@@ -8,7 +8,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('attendance:process')]
-#[Description('Process duty assignments into attendance records.')]
+#[Description('Rebuild punch pairs and process roster-linked attendance.')]
 class ProcessAttendance extends Command
 {
     /**
