@@ -2,6 +2,7 @@
 
 use App\Models\Patient;
 use App\Services\PatientIntakeService;
+use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -12,6 +13,12 @@ new #[Title('MR Lookup')] class extends Component
     public string $search = '';
 
     public ?int $selectedPatientId = null;
+
+    public bool $isEditingPatient = false;
+
+    public string $editName = '';
+
+    public ?int $editAge = null;
 
     /**
      * @return Collection<int, Patient>
@@ -68,14 +75,65 @@ new #[Title('MR Lookup')] class extends Component
 
     public function selectPatient(int $patientId): void
     {
+        $this->cancelEditingPatient();
         $this->selectedPatientId = $patientId;
         unset($this->selectedPatient);
     }
 
     public function clearSelection(): void
     {
+        $this->cancelEditingPatient();
         $this->selectedPatientId = null;
         unset($this->selectedPatient);
+    }
+
+    public function startEditingPatient(): void
+    {
+        $patient = $this->selectedPatient;
+
+        if ($patient === null) {
+            return;
+        }
+
+        $this->editName = $patient->name;
+        $this->editAge = $patient->age;
+        $this->isEditingPatient = true;
+        $this->resetValidation(['editName', 'editAge']);
+    }
+
+    public function cancelEditingPatient(): void
+    {
+        $this->isEditingPatient = false;
+        $this->editName = '';
+        $this->editAge = null;
+        $this->resetValidation(['editName', 'editAge']);
+    }
+
+    public function savePatientDetails(): void
+    {
+        $patient = $this->selectedPatient;
+
+        if ($patient === null) {
+            Flux::toast(variant: 'danger', text: __('Patient could not be found.'));
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'editName' => ['required', 'string', 'max:255'],
+            'editAge' => ['nullable', 'integer', 'min:0', 'max:150'],
+        ]);
+
+        app(PatientIntakeService::class)->updatePatientDemographics(
+            $patient,
+            $validated['editName'],
+            $validated['editAge'],
+        );
+
+        $this->cancelEditingPatient();
+        unset($this->selectedPatient, $this->patients);
+
+        Flux::toast(variant: 'success', text: __('Patient details updated.'));
     }
 }; ?>
 
@@ -170,8 +228,44 @@ new #[Title('MR Lookup')] class extends Component
                 </div>
 
                 <flux:card>
-                    <flux:heading size="sm" class="mb-4">{{ __('Patient details') }}</flux:heading>
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <flux:heading size="sm">{{ __('Patient details') }}</flux:heading>
+                        @if (! $isEditingPatient)
+                            <flux:button type="button" size="sm" variant="ghost" icon="pencil-square" wire:click="startEditingPatient">
+                                {{ __('Edit') }}
+                            </flux:button>
+                        @endif
+                    </div>
+
+                    @if ($isEditingPatient)
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <flux:field>
+                                <flux:label>{{ __('Name') }}</flux:label>
+                                <flux:input wire:model="editName" type="text" required />
+                                <flux:error name="editName" />
+                            </flux:field>
+
+                            <flux:field>
+                                <flux:label>{{ __('Age') }}</flux:label>
+                                <flux:input wire:model="editAge" type="number" min="0" max="150" />
+                                <flux:error name="editAge" />
+                            </flux:field>
+                        </div>
+
+                        <div class="mt-4 flex justify-end gap-3">
+                            <flux:button type="button" size="sm" variant="ghost" wire:click="cancelEditingPatient">
+                                {{ __('Cancel') }}
+                            </flux:button>
+                            <flux:button type="button" size="sm" variant="primary" wire:click="savePatientDetails">
+                                {{ __('Save') }}
+                            </flux:button>
+                        </div>
+                    @else
                     <div class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                        <div>
+                            <flux:text class="text-zinc-500">{{ __('Name') }}</flux:text>
+                            <flux:text>{{ $patient->name }}</flux:text>
+                        </div>
                         <div>
                             <flux:text class="text-zinc-500">{{ __('MRN') }}</flux:text>
                             <flux:text>{{ $patient->mrn ?? __('No MRN') }}</flux:text>
@@ -197,6 +291,7 @@ new #[Title('MR Lookup')] class extends Component
                             <flux:text>{{ $patient->cnic ?? '-' }}</flux:text>
                         </div>
                     </div>
+                    @endif
                 </flux:card>
 
                 <flux:card>

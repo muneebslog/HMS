@@ -102,3 +102,47 @@ test('mr lookup requires at least two characters before searching', function () 
         ->assertSee(__('Search for a patient'))
         ->assertDontSee($patient->name);
 });
+
+test('mr lookup allows clinical staff to edit patient name and age', function (string $factoryState) {
+    $user = User::factory()->{$factoryState}()->create();
+    $patient = Patient::factory()->create([
+        'name' => 'Original Name',
+        'age' => 30,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->call('selectPatient', $patient->id)
+        ->call('startEditingPatient')
+        ->assertSet('editName', 'Original Name')
+        ->assertSet('editAge', 30)
+        ->set('editName', 'Updated Name')
+        ->set('editAge', 35)
+        ->call('savePatientDetails')
+        ->assertSet('isEditingPatient', false)
+        ->assertSee('Updated Name')
+        ->assertSee('35');
+
+    expect($patient->fresh())
+        ->name->toBe('Updated Name')
+        ->age->toBe(35);
+})->with([
+    'admin' => 'admin',
+    'doctor' => 'doctor',
+    'receptionist' => 'receptionist',
+]);
+
+test('mr lookup requires a patient name when saving edits', function () {
+    $user = User::factory()->receptionist()->create();
+    $patient = Patient::factory()->create(['name' => 'Original Name']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->call('selectPatient', $patient->id)
+        ->call('startEditingPatient')
+        ->set('editName', '')
+        ->call('savePatientDetails')
+        ->assertHasErrors(['editName' => 'required']);
+
+    expect($patient->fresh()->name)->toBe('Original Name');
+});

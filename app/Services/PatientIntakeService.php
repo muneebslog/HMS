@@ -107,6 +107,26 @@ class PatientIntakeService
     }
 
     /**
+     * Update a patient's name and age.
+     */
+    public function updatePatientDemographics(Patient $patient, string $name, ?int $age): Patient
+    {
+        return DB::transaction(function () use ($patient, $name, $age) {
+            $lockedPatient = Patient::query()
+                ->whereKey($patient->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedPatient->update([
+                'name' => $name,
+                'age' => $age,
+            ]);
+
+            return $lockedPatient->fresh(['family']);
+        });
+    }
+
+    /**
      * Update or clear the patient's family contact phone.
      */
     public function updateContactPhone(Patient $patient, ?string $phone): Patient
