@@ -146,3 +146,67 @@ test('mr lookup requires a patient name when saving edits', function () {
 
     expect($patient->fresh()->name)->toBe('Original Name');
 });
+
+test('admins see the recent patients button on mr lookup', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->assertSee(__('See patients'));
+});
+
+test('non admin users do not see the recent patients button on mr lookup', function () {
+    $user = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->assertDontSee(__('See patients'));
+});
+
+test('admins can browse recent reception patients in a paginated modal', function () {
+    $user = User::factory()->admin()->create();
+    $olderPatient = Patient::factory()->create(['name' => 'Older Patient']);
+    $recentPatient = Patient::factory()->create(['name' => 'Recent Patient']);
+
+    QueueToken::factory()->create([
+        'patient_id' => $olderPatient->id,
+        'arrived_at' => now()->subDays(2),
+    ]);
+
+    Invoice::factory()->create([
+        'patient_id' => $recentPatient->id,
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->call('openRecentPatientsModal')
+        ->assertSet('showRecentPatientsModal', true)
+        ->assertSee(__('Recent reception patients'))
+        ->assertSeeInOrder(['Recent Patient', 'Older Patient']);
+});
+
+test('admins can open a patient from the recent reception patients modal', function () {
+    $user = User::factory()->admin()->create();
+    $patient = Patient::factory()->create(['name' => 'Modal Patient']);
+    Invoice::factory()->create(['patient_id' => $patient->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->call('openRecentPatientsModal')
+        ->call('selectPatientFromRecentList', $patient->id)
+        ->assertSet('showRecentPatientsModal', false)
+        ->assertSet('selectedPatientId', $patient->id)
+        ->assertSee('Modal Patient')
+        ->assertSee(__('Patient details'));
+});
+
+test('non admins cannot open the recent reception patients modal', function () {
+    $user = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.mr-lookup')
+        ->call('openRecentPatientsModal')
+        ->assertForbidden();
+});

@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -48,6 +49,39 @@ class PatientIntakeService
             ->orderBy('name')
             ->limit(25)
             ->get();
+    }
+
+    /**
+     * Paginate patients with recent reception activity.
+     *
+     * @return LengthAwarePaginator<int, Patient>
+     */
+    public function paginateRecentReceptionPatients(int $perPage = 15): LengthAwarePaginator
+    {
+        $lastActivitySubquery = <<<'SQL'
+            (SELECT MAX(activity_at) FROM (
+                SELECT COALESCE(arrived_at, created_at) AS activity_at FROM queue_tokens WHERE patient_id = patients.id
+                UNION ALL
+                SELECT created_at AS activity_at FROM invoices WHERE patient_id = patients.id
+                UNION ALL
+                SELECT created_at AS activity_at FROM lab_invoices WHERE patient_id = patients.id
+                UNION ALL
+                SELECT created_at AS activity_at FROM procedures WHERE patient_id = patients.id
+            ) AS activities)
+        SQL;
+
+        return Patient::query()
+            ->with('family')
+            ->select('patients.*')
+            ->selectRaw("{$lastActivitySubquery} as last_reception_at")
+            ->where(function ($query): void {
+                $query->whereHas('queueTokens')
+                    ->orWhereHas('invoices')
+                    ->orWhereHas('labInvoices')
+                    ->orWhereHas('procedures');
+            })
+            ->orderByDesc('last_reception_at')
+            ->paginate($perPage);
     }
 
     /**

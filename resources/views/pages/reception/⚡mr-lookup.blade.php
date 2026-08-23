@@ -4,12 +4,17 @@ use App\Models\Patient;
 use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Title('MR Lookup')] class extends Component
 {
+    use WithPagination;
+
     public string $search = '';
 
     public ?int $selectedPatientId = null;
@@ -19,6 +24,8 @@ new #[Title('MR Lookup')] class extends Component
     public string $editName = '';
 
     public ?int $editAge = null;
+
+    public bool $showRecentPatientsModal = false;
 
     /**
      * @return Collection<int, Patient>
@@ -31,6 +38,21 @@ new #[Title('MR Lookup')] class extends Component
         }
 
         return app(PatientIntakeService::class)->findPatientsByMrnOrName($this->search);
+    }
+
+    #[Computed]
+    public function isAdmin(): bool
+    {
+        return auth()->user()?->isAdmin() ?? false;
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, Patient>
+     */
+    #[Computed]
+    public function recentReceptionPatients(): LengthAwarePaginator
+    {
+        return app(PatientIntakeService::class)->paginateRecentReceptionPatients();
     }
 
     #[Computed]
@@ -135,13 +157,48 @@ new #[Title('MR Lookup')] class extends Component
 
         Flux::toast(variant: 'success', text: __('Patient details updated.'));
     }
+
+    public function openRecentPatientsModal(): void
+    {
+        $this->ensureAdmin();
+        $this->resetPage();
+        $this->showRecentPatientsModal = true;
+        unset($this->recentReceptionPatients);
+    }
+
+    public function closeRecentPatientsModal(): void
+    {
+        $this->showRecentPatientsModal = false;
+    }
+
+    public function selectPatientFromRecentList(int $patientId): void
+    {
+        $this->ensureAdmin();
+        $this->showRecentPatientsModal = false;
+        $this->selectPatient($patientId);
+    }
+
+    private function ensureAdmin(): void
+    {
+        if (! auth()->user()?->isAdmin()) {
+            abort(403);
+        }
+    }
 }; ?>
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
-        <div>
-            <flux:heading level="1">{{ __('MR Lookup') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">{{ __('Find a patient by MRN, name, or phone number.') }}</flux:text>
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <flux:heading level="1">{{ __('MR Lookup') }}</flux:heading>
+                <flux:text class="mt-1 text-zinc-500">{{ __('Find a patient by MRN, name, or phone number.') }}</flux:text>
+            </div>
+
+            @if ($this->isAdmin)
+                <flux:button type="button" variant="ghost" icon="users" wire:click="openRecentPatientsModal">
+                    {{ __('See patients') }}
+                </flux:button>
+            @endif
         </div>
 
         <flux:card>
@@ -512,4 +569,67 @@ new #[Title('MR Lookup')] class extends Component
             @endif
         @endif
     </div>
+
+    <flux:modal wire:model="showRecentPatientsModal" class="md:max-w-3xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Recent reception patients') }}</flux:heading>
+                <flux:text class="mt-2">
+                    {{ __('Patients with the latest queue, invoice, lab, or procedure activity from reception.') }}
+                </flux:text>
+            </div>
+
+            <div class="max-h-[28rem] space-y-2 overflow-y-auto">
+                @forelse ($this->recentReceptionPatients as $patient)
+                    <button
+                        type="button"
+                        wire:key="recent-reception-patient-{{ $patient->id }}"
+                        wire:click="selectPatientFromRecentList({{ $patient->id }})"
+                        class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left transition hover:border-zinc-300 active:scale-[0.99] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600"
+                    >
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-base font-semibold text-zinc-900 dark:text-white">
+                                {{ $patient->name }}
+                            </span>
+                            <span class="mt-0.5 block truncate text-sm text-zinc-500 dark:text-zinc-400">
+                                {{ $patient->mrn ?? __('No MRN') }}
+                                @if ($patient->contactPhone())
+                                    · {{ $patient->contactPhone() }}
+                                @endif
+                                @if ($patient->age)
+                                    · {{ $patient->age }} {{ __('yrs') }}
+                                @endif
+                            </span>
+                        </span>
+                        <span class="shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400">
+                            @if ($patient->last_reception_at)
+                                <span class="block font-medium text-zinc-700 dark:text-zinc-300">
+                                    {{ Carbon::parse($patient->last_reception_at)->timezone(config('app.timezone'))->format('d M Y') }}
+                                </span>
+                                <span>{{ Carbon::parse($patient->last_reception_at)->timezone(config('app.timezone'))->format('h:i A') }}</span>
+                            @else
+                                -
+                            @endif
+                        </span>
+                    </button>
+                @empty
+                    <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                        <p class="text-sm text-zinc-500">{{ __('No reception patients found.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+
+            @if ($this->recentReceptionPatients->hasPages())
+                <div>
+                    {{ $this->recentReceptionPatients->links() }}
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeRecentPatientsModal">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>
