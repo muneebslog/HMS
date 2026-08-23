@@ -188,9 +188,10 @@ test('current staff page lists open check-ins only', function () {
     expect(AttendanceWorkSession::query()->open()->count())->toBe(1);
 
     $this->actingAs($admin)
-        ->get(route('admin.attendance.current'))
+        ->get(route('admin.attendance'))
         ->assertSuccessful()
-        ->assertSee($aide->name);
+        ->assertSee($aide->name)
+        ->assertSee(__('Current Staff'));
 });
 
 test('missing punch notify still uses roster without check-in', function () {

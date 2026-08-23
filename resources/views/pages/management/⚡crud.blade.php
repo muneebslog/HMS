@@ -12,6 +12,7 @@ use App\Models\LabTest;
 use App\Models\Medicine;
 use App\Models\ProcedureType;
 use App\Models\ProcedureTypeDocument;
+use App\Models\AppSetting;
 use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServicePrice;
@@ -233,6 +234,12 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public array $symptomMedicineIds = [];
 
+    #[Validate]
+    public string $ntfyAdminTopic = '';
+
+    #[Validate]
+    public string $ntfyReceptionTopic = '';
+
     /**
      * @var list<\Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
      */
@@ -367,6 +374,10 @@ new #[Title('Management')] class extends Component
                 'symptomIsActive' => ['boolean'],
                 'symptomMedicineIds' => ['array'],
                 'symptomMedicineIds.*' => ['integer', 'exists:medicines,id'],
+            ],
+            'notifications' => [
+                'ntfyAdminTopic' => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z0-9_-]+$/'],
+                'ntfyReceptionTopic' => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z0-9_-]+$/'],
             ],
             default => [],
         };
@@ -715,6 +726,8 @@ new #[Title('Management')] class extends Component
             'symptomName',
             'symptomIsActive',
             'symptomMedicineIds',
+            'ntfyAdminTopic',
+            'ntfyReceptionTopic',
             'medicineBulkRows',
             'injectionBulkRows',
         ]);
@@ -1457,6 +1470,41 @@ new #[Title('Management')] class extends Component
         $this->editingId = null;
         $this->showModal = false;
         $this->closeDocumentsModal();
+
+        if ($tab === 'notifications') {
+            $this->loadNotificationSettings();
+        }
+    }
+
+    /**
+     * Load the current ntfy channel settings into the form.
+     */
+    public function loadNotificationSettings(): void
+    {
+        $this->ntfyAdminTopic = AppSetting::get(
+            AppSetting::NtfyAdminTopic,
+            (string) config('services.ntfy.admin_topic', 'mmc-hms'),
+        ) ?? '';
+
+        $this->ntfyReceptionTopic = AppSetting::get(
+            AppSetting::NtfyReceptionTopic,
+            (string) config('services.ntfy.reception_topic', 'mmc-hms-reception'),
+        ) ?? '';
+    }
+
+    /**
+     * Persist ntfy channel settings.
+     */
+    public function saveNotificationSettings(): void
+    {
+        $this->activeTab = 'notifications';
+
+        $validated = $this->validate();
+
+        AppSetting::set(AppSetting::NtfyAdminTopic, $validated['ntfyAdminTopic']);
+        AppSetting::set(AppSetting::NtfyReceptionTopic, $validated['ntfyReceptionTopic']);
+
+        Flux::toast(variant: 'success', text: __('Notification settings saved.'));
     }
 
     /**
@@ -1610,9 +1658,11 @@ new #[Title('Management')] class extends Component
                         {{ now()->format('Y-m-d H:i:s') }}
                     </flux:badge>
                 </div>
+                @if ($activeTab !== 'notifications')
                 <flux:button variant="primary" icon="plus" wire:click="create">
                     {{ in_array($activeTab, ['medicines', 'injections'], true) ? __('Bulk add') : __('Add new') }}
                 </flux:button>
+                @endif
             </div>
 
             <flux:card>
@@ -1694,6 +1744,13 @@ new #[Title('Management')] class extends Component
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'rooms' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
                             {{ __('Rooms') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('notifications')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'notifications' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Notifications') }}
                         </button>
                     </nav>
                 </div>
@@ -2146,6 +2203,33 @@ new #[Title('Management')] class extends Component
                             @endforelse
                         </flux:table.rows>
                     </flux:table>
+                @elseif ($activeTab === 'notifications')
+                    <form wire:submit="saveNotificationSettings" class="max-w-lg space-y-6">
+                        <div class="space-y-1">
+                            <flux:heading level="3">{{ __('Push notifications (ntfy.sh)') }}</flux:heading>
+                            <flux:text class="text-zinc-500">
+                                {{ __('Configure the ntfy channel names used for admin and reception push alerts.') }}
+                            </flux:text>
+                        </div>
+
+                        <flux:field>
+                            <flux:label>{{ __('Admin channel name') }}</flux:label>
+                            <flux:input wire:model="ntfyAdminTopic" type="text" required />
+                            <flux:description>{{ __('Used for admin alerts and reports.') }}</flux:description>
+                            <flux:error name="ntfyAdminTopic" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Reception channel name') }}</flux:label>
+                            <flux:input wire:model="ntfyReceptionTopic" type="text" required />
+                            <flux:description>{{ __('Used for reception memo and reception-facing alerts.') }}</flux:description>
+                            <flux:error name="ntfyReceptionTopic" />
+                        </flux:field>
+
+                        <div class="flex justify-end">
+                            <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+                        </div>
+                    </form>
                 @else
                     <flux:table>
                         <flux:table.columns>

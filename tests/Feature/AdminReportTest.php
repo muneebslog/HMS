@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Models\AdminNotification;
 use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
+use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -237,5 +238,24 @@ test('admin can start a report thread and notifies reception at priority 4', fun
     Http::assertSent(function ($request) {
         return $request->url() === 'https://ntfy.sh/mmc-hms-reception'
             && $request->header('Priority')[0] === '4';
+    });
+});
+
+test('ntfy push uses channel names saved in management settings', function () {
+    AppSetting::set(AppSetting::NtfyAdminTopic, 'saved-admin-topic');
+    AppSetting::set(AppSetting::NtfyReceptionTopic, 'saved-reception-topic');
+
+    $receptionist = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($receptionist)
+        ->test('report-to-admin')
+        ->call('openCreateForm')
+        ->set('subject', 'Printer is jammed')
+        ->set('body', 'The front desk printer will not print receipts.')
+        ->call('startReport')
+        ->assertHasNoErrors();
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://ntfy.sh/saved-admin-topic';
     });
 });

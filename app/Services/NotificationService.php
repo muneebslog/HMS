@@ -8,6 +8,7 @@ use App\Events\ReceptionMemoPosted;
 use App\Models\AdminNotification;
 use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
+use App\Models\AppSetting;
 use App\Models\DutyAssignment;
 use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
@@ -1320,7 +1321,10 @@ class NotificationService
      */
     private function adminTopic(): string
     {
-        return (string) config('services.ntfy.admin_topic', 'mmc-hms');
+        return (string) AppSetting::get(
+            AppSetting::NtfyAdminTopic,
+            (string) config('services.ntfy.admin_topic', 'mmc-hms'),
+        );
     }
 
     /**
@@ -1328,6 +1332,9 @@ class NotificationService
      */
     private function receptionTopic(): string
     {
-        return (string) config('services.ntfy.reception_topic', 'mmc-hms-reception');
+        return (string) AppSetting::get(
+            AppSetting::NtfyReceptionTopic,
+            (string) config('services.ntfy.reception_topic', 'mmc-hms-reception'),
+        );
     }
 }

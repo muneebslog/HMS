@@ -31,6 +31,16 @@ new #[Title('Attendance')] class extends Component
     }
 
     #[Computed]
+    public function openSessions()
+    {
+        return AttendanceWorkSession::query()
+            ->open()
+            ->with(['healthAide', 'inPunch', 'dutyAssignment'])
+            ->orderBy('starts_at')
+            ->get();
+    }
+
+    #[Computed]
     public function recentPunches()
     {
         return AttendancePunch::query()
@@ -72,7 +82,6 @@ new #[Title('Attendance')] class extends Component
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <flux:heading level="1">{{ __('Attendance') }}</flux:heading>
         <div class="flex flex-wrap gap-2">
-            <flux:button :href="route('admin.attendance.current')" wire:navigate icon="user-group">{{ __('Current Staff') }}</flux:button>
             <flux:button :href="route('admin.attendance.roster')" wire:navigate icon="calendar">{{ __('Roster') }}</flux:button>
             <flux:button :href="route('admin.attendance.punches')" wire:navigate icon="finger-print">{{ __('Punches') }}</flux:button>
             <flux:button :href="route('admin.attendance.daily')" wire:navigate icon="clipboard-document-check">{{ __('Daily Review') }}</flux:button>
@@ -134,25 +143,60 @@ new #[Title('Attendance')] class extends Component
         </flux:card>
 
         <flux:card>
-            <flux:heading size="lg" class="mb-4">{{ __('Recent Punches') }}</flux:heading>
+            <div class="mb-4">
+                <flux:heading size="lg">{{ __('Current Staff') }}</flux:heading>
+                <flux:text>{{ __('People with an open check-in and no check-out yet.') }}</flux:text>
+            </div>
             <flux:table>
                 <flux:table.columns>
-                    <flux:table.column>{{ __('Aide') }}</flux:table.column>
-                    <flux:table.column>{{ __('Time') }}</flux:table.column>
-                    <flux:table.column>{{ __('State') }}</flux:table.column>
+                    <flux:table.column>{{ __('Health Aide') }}</flux:table.column>
+                    <flux:table.column>{{ __('Checked In') }}</flux:table.column>
+                    <flux:table.column>{{ __('Duration') }}</flux:table.column>
+                    <flux:table.column>{{ __('Roster') }}</flux:table.column>
                 </flux:table.columns>
                 <flux:table.rows>
-                    @forelse ($this->recentPunches as $punch)
-                        <flux:table.row wire:key="punch-{{ $punch->id }}">
-                            <flux:table.cell>{{ $punch->healthAide?->name ?? __('Unmapped') }} ({{ $punch->device_user_id }})</flux:table.cell>
-                            <flux:table.cell>{{ $punch->punched_at->format('M j, H:i') }}</flux:table.cell>
-                            <flux:table.cell>{{ $punch->pairing_role?->label() ?? ($punch->punch_state ?? __('Raw')) }}</flux:table.cell>
+                    @forelse ($this->openSessions as $session)
+                        <flux:table.row wire:key="open-session-{{ $session->id }}">
+                            <flux:table.cell>{{ $session->healthAide->name }}</flux:table.cell>
+                            <flux:table.cell>{{ $session->starts_at->format('M j, H:i') }}</flux:table.cell>
+                            <flux:table.cell>{{ $session->starts_at->diffForHumans(now(), true) }}</flux:table.cell>
+                            <flux:table.cell>
+                                @if ($session->dutyAssignment)
+                                    {{ $session->dutyAssignment->starts_at->format('H:i') }} - {{ $session->dutyAssignment->ends_at->format('H:i') }}
+                                @else
+                                    —
+                                @endif
+                            </flux:table.cell>
                         </flux:table.row>
                     @empty
-                        <flux:table.row><flux:table.cell colspan="3">{{ __('No punches synced yet.') }}</flux:table.cell></flux:table.row>
+                        <flux:table.row>
+                            <flux:table.cell colspan="4">{{ __('No staff currently checked in.') }}</flux:table.cell>
+                        </flux:table.row>
                     @endforelse
                 </flux:table.rows>
             </flux:table>
         </flux:card>
     </div>
+
+    <flux:card>
+        <flux:heading size="lg" class="mb-4">{{ __('Recent Punches') }}</flux:heading>
+        <flux:table>
+            <flux:table.columns>
+                <flux:table.column>{{ __('Aide') }}</flux:table.column>
+                <flux:table.column>{{ __('Time') }}</flux:table.column>
+                <flux:table.column>{{ __('State') }}</flux:table.column>
+            </flux:table.columns>
+            <flux:table.rows>
+                @forelse ($this->recentPunches as $punch)
+                    <flux:table.row wire:key="punch-{{ $punch->id }}">
+                        <flux:table.cell>{{ $punch->healthAide?->name ?? __('Unmapped') }} ({{ $punch->device_user_id }})</flux:table.cell>
+                        <flux:table.cell>{{ $punch->punched_at->format('M j, H:i') }}</flux:table.cell>
+                        <flux:table.cell>{{ $punch->pairing_role?->label() ?? ($punch->punch_state ?? __('Raw')) }}</flux:table.cell>
+                    </flux:table.row>
+                @empty
+                    <flux:table.row><flux:table.cell colspan="3">{{ __('No punches synced yet.') }}</flux:table.cell></flux:table.row>
+                @endforelse
+            </flux:table.rows>
+        </flux:table>
+    </flux:card>
 </div>

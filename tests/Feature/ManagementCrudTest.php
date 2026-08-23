@@ -2,6 +2,7 @@
 
 use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
+use App\Models\AppSetting;
 use App\Models\Doctor;
 use App\Models\DripBase;
 use App\Models\LabTest;
@@ -848,4 +849,31 @@ test('room numbers must be unique', function () {
         ->assertHasErrors(['roomNumber']);
 
     expect(Room::where('number', 'Room 101')->count())->toBe(1);
+});
+
+test('authenticated users can save ntfy channel names from management', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('switchTab', 'notifications')
+        ->set('ntfyAdminTopic', 'custom-admin')
+        ->set('ntfyReceptionTopic', 'custom-reception')
+        ->call('saveNotificationSettings')
+        ->assertHasNoErrors();
+
+    expect(AppSetting::get(AppSetting::NtfyAdminTopic))->toBe('custom-admin')
+        ->and(AppSetting::get(AppSetting::NtfyReceptionTopic))->toBe('custom-reception');
+});
+
+test('ntfy channel names reject invalid characters', function () {
+    $user = User::factory()->admin()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('switchTab', 'notifications')
+        ->set('ntfyAdminTopic', 'invalid channel!')
+        ->set('ntfyReceptionTopic', 'mmc-hms-reception')
+        ->call('saveNotificationSettings')
+        ->assertHasErrors(['ntfyAdminTopic']);
 });

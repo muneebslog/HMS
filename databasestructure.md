@@ -1151,6 +1151,14 @@ Diagnosis history for the order. A symptom is only attached while at least one o
 | attachments | json | nullable |
 | timestamps | | |
 
+### `app_settings`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| key | string | UQ — e.g. `ntfy.admin_topic`, `ntfy.reception_topic` |
+| value | text | nullable |
+| timestamps | | |
+
 ---
 
 ## Supervisor Checklist
