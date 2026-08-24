@@ -94,6 +94,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/nurse-questionnaires', 'pages::admin.nurse-questionnaires')->name('admin.nurse-questionnaires');
         Route::livewire('admin/nurse-questionnaire-submissions', 'pages::admin.nurse-questionnaire-submissions')->name('admin.nurse-questionnaire-submissions');
         Route::livewire('admin/ward-maintenance-submissions', 'pages::admin.ward-maintenance-submissions')->name('admin.ward-maintenance-submissions');
+        Route::livewire('admin/equipment-inspection-submissions', 'pages::admin.equipment-inspection-submissions')->name('admin.equipment-inspection-submissions');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -174,6 +175,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
         Route::livewire('incharge/ward-maintenance', 'pages::incharge.ward-maintenance')->name('incharge.ward-maintenance');
         Route::livewire('incharge/ward-maintenance/{shift}', 'pages::incharge.ward-maintenance-form')->name('incharge.ward-maintenance.form');
+        Route::livewire('incharge/equipment-inspections', 'pages::incharge.equipment-inspections')->name('incharge.equipment-inspections');
+        Route::livewire('incharge/equipment-inspections/{area}', 'pages::incharge.equipment-inspection-area')->name('incharge.equipment-inspections.area');
+        Route::livewire('incharge/equipment-inspections/{area}/{shift}', 'pages::incharge.equipment-inspection-form')->name('incharge.equipment-inspections.form');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

@@ -12,6 +12,9 @@ use App\Models\AppSetting;
 use App\Models\DutyAssignment;
 use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
+use App\Models\EquipmentInspectionAnswer;
+use App\Models\EquipmentInspectionEntry;
+use App\Models\EquipmentInspectionRegisterRow;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
@@ -975,6 +978,83 @@ class NotificationService
             [
                 'nurse_id' => $nurse->id,
                 'entry_id' => $entry->id,
+                'checklist_date' => $entry->checklist_date->format('Y-m-d'),
+                'shift' => $entry->shift->value,
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an equipment inspection was submitted with faults.
+     */
+    public function notifyEquipmentInspectionFaults(User $nurse, EquipmentInspectionEntry $entry): AdminNotification
+    {
+        $definition = app(EquipmentInspectionChecklistDefinition::class);
+        $labels = $definition->allItemLabels($entry->area);
+
+        $faultAnswers = $entry->answers
+            ->filter(fn (EquipmentInspectionAnswer $answer) => $answer->isFault())
+            ->take(12)
+            ->map(function (EquipmentInspectionAnswer $answer) use ($labels): string {
+                $label = $labels[$answer->item_key] ?? $answer->item_key;
+                $parts = [];
+
+                if ($answer->present === false) {
+                    $parts[] = __('not present');
+                }
+
+                if ($answer->functional === false) {
+                    $parts[] = __('not functional');
+                }
+
+                if ($answer->maint_req === true) {
+                    $parts[] = __('maintenance required');
+                }
+
+                if ($answer->checked === false) {
+                    $parts[] = __('not done');
+                }
+
+                return '- '.$label.($parts !== [] ? ' ('.implode(', ', $parts).')' : '');
+            })
+            ->values()
+            ->all();
+
+        $registerRows = $entry->registerRows
+            ->filter(fn (EquipmentInspectionRegisterRow $row) => filled($row->problem))
+            ->take(5)
+            ->map(fn (EquipmentInspectionRegisterRow $row): string => '- '.($row->equipment ?: __('Equipment')).': '.$row->problem)
+            ->values()
+            ->all();
+
+        $items = collect($faultAnswers)->merge($registerRows)->implode("\n");
+
+        $title = __('⚠️ Equipment Inspection Faults Reported');
+        $message = __(
+            "Incharge nurse :name submitted the :area :shift inspection for :date with faults:\n:items",
+            [
+                'name' => $nurse->name,
+                'area' => $entry->area->label(),
+                'shift' => $entry->shift->label(),
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'items' => trim($items) !== '' ? $items : __('See submission for details.'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $nurse,
+            'equipment_inspection_faults',
+            $title,
+            $message,
+            route('admin.equipment-inspection-submissions', [
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'area' => $entry->area->value,
+                'shift' => $entry->shift->value,
+            ]),
+            [
+                'nurse_id' => $nurse->id,
+                'entry_id' => $entry->id,
+                'area' => $entry->area->value,
                 'checklist_date' => $entry->checklist_date->format('Y-m-d'),
                 'shift' => $entry->shift->value,
             ]
