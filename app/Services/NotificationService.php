@@ -10,6 +10,8 @@ use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
 use App\Models\AppSetting;
 use App\Models\DutyAssignment;
+use App\Models\EmergencyDepartmentLogAnswer;
+use App\Models\EmergencyDepartmentLogEntry;
 use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
 use App\Models\EquipmentInspectionAnswer;
@@ -1055,6 +1057,68 @@ class NotificationService
                 'nurse_id' => $nurse->id,
                 'entry_id' => $entry->id,
                 'area' => $entry->area->value,
+                'checklist_date' => $entry->checklist_date->format('Y-m-d'),
+                'shift' => $entry->shift->value,
+            ]
+        );
+    }
+
+    /**
+     * Notify admins that an emergency department operational log was submitted with faults.
+     */
+    public function notifyEmergencyDepartmentLogFaults(User $nurse, EmergencyDepartmentLogEntry $entry): AdminNotification
+    {
+        $labels = app(EmergencyDepartmentLogDefinition::class)->allItemLabels();
+
+        $faultAnswers = $entry->answers
+            ->filter(fn (EmergencyDepartmentLogAnswer $answer) => $answer->isFault())
+            ->take(12)
+            ->map(function (EmergencyDepartmentLogAnswer $answer) use ($labels): string {
+                $label = $labels[$answer->item_key] ?? $answer->item_key;
+                $parts = [];
+
+                if ($answer->status?->value === 'issue') {
+                    $parts[] = __('issue');
+                }
+
+                if ($answer->adequate === false) {
+                    $parts[] = __('not adequate');
+                }
+
+                if ($answer->checked === false) {
+                    $parts[] = __('not done');
+                }
+
+                return '- '.$label.($parts !== [] ? ' ('.implode(', ', $parts).')' : '');
+            })
+            ->values()
+            ->all();
+
+        $items = collect($faultAnswers)->implode("\n");
+
+        $title = __('⚠️ ER Operational Log Faults Reported');
+        $message = __(
+            "Incharge nurse :name submitted the :shift emergency department log for :date with faults:\n:items",
+            [
+                'name' => $nurse->name,
+                'shift' => $entry->shift->label(),
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'items' => trim($items) !== '' ? $items : __('See submission for details.'),
+            ]
+        );
+
+        return $this->createAdminNotification(
+            $nurse,
+            'emergency_department_log_faults',
+            $title,
+            $message,
+            route('admin.emergency-department-log-submissions', [
+                'date' => $entry->checklist_date->format('Y-m-d'),
+                'shift' => $entry->shift->value,
+            ]),
+            [
+                'nurse_id' => $nurse->id,
+                'entry_id' => $entry->id,
                 'checklist_date' => $entry->checklist_date->format('Y-m-d'),
                 'shift' => $entry->shift->value,
             ]

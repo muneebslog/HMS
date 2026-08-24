@@ -43,6 +43,9 @@
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('incharge.equipment-inspections')" :current="request()->routeIs('incharge.equipment-inspection*')" wire:navigate>
                             {{ __('Equipment Inspection') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="shield-check" :href="route('incharge.emergency-department-log')" :current="request()->routeIs('incharge.emergency-department-log*')" wire:navigate>
+                            {{ __('ER Operational Log') }}
+                        </flux:sidebar.item>
                     @endif
 
                     @if (auth()->user()->isIndoor() || auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isDoctor())
@@ -221,6 +224,9 @@
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.equipment-inspection-submissions')" :current="request()->routeIs('admin.equipment-inspection-submissions')" wire:navigate>
                             {{ __('Equipment Inspection') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="shield-check" :href="route('admin.emergency-department-log-submissions')" :current="request()->routeIs('admin.emergency-department-log-submissions')" wire:navigate>
+                            {{ __('ER Operational Log') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif

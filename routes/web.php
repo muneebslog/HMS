@@ -95,6 +95,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/nurse-questionnaire-submissions', 'pages::admin.nurse-questionnaire-submissions')->name('admin.nurse-questionnaire-submissions');
         Route::livewire('admin/ward-maintenance-submissions', 'pages::admin.ward-maintenance-submissions')->name('admin.ward-maintenance-submissions');
         Route::livewire('admin/equipment-inspection-submissions', 'pages::admin.equipment-inspection-submissions')->name('admin.equipment-inspection-submissions');
+        Route::livewire('admin/emergency-department-log-submissions', 'pages::admin.emergency-department-log-submissions')->name('admin.emergency-department-log-submissions');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -178,6 +179,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('incharge/equipment-inspections', 'pages::incharge.equipment-inspections')->name('incharge.equipment-inspections');
         Route::livewire('incharge/equipment-inspections/{area}', 'pages::incharge.equipment-inspection-area')->name('incharge.equipment-inspections.area');
         Route::livewire('incharge/equipment-inspections/{area}/{shift}', 'pages::incharge.equipment-inspection-form')->name('incharge.equipment-inspections.form');
+        Route::livewire('incharge/emergency-department-log', 'pages::incharge.emergency-department-log')->name('incharge.emergency-department-log');
+        Route::livewire('incharge/emergency-department-log/{shift}', 'pages::incharge.emergency-department-log-form')->name('incharge.emergency-department-log.form');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {
