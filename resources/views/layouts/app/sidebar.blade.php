@@ -195,6 +195,9 @@
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
                             {{ __('Monthly Report') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
+                            {{ __('Procedure Finances') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
                             {{ __('Service Statistics') }}
                         </flux:sidebar.item>

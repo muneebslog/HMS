@@ -105,6 +105,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             ->name('admin.policy-journals.download');
         Route::livewire('admin/reports', 'pages::admin.reports')->name('admin.reports');
         Route::livewire('admin/monthly-report', 'pages::admin.monthly-report')->name('admin.monthly-report');
+        Route::livewire('admin/procedure-finances', 'pages::admin.procedure-finances')->name('admin.procedure-finances');
         Route::livewire('admin/rechecks', 'pages::admin.rechecks')->name('admin.rechecks');
         Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
         Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
