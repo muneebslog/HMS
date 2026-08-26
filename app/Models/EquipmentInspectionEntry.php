@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $user_id
+ * @property int|null $health_aide_id
  * @property EquipmentInspectionArea $area
  * @property Carbon $checklist_date
  * @property EquipmentInspectionShift $shift
@@ -24,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property User $user
+ * @property HealthAide|null $healthAide
  */
 class EquipmentInspectionEntry extends Model
 {
@@ -37,6 +39,7 @@ class EquipmentInspectionEntry extends Model
      */
     protected $fillable = [
         'user_id',
+        'health_aide_id',
         'area',
         'checklist_date',
         'shift',
@@ -70,6 +73,16 @@ class EquipmentInspectionEntry extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the health aide who completed this checklist.
+     *
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function healthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class);
     }
 
     /**

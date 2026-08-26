@@ -144,6 +144,7 @@ class EquipmentInspectionService
         $entry = DB::transaction(function () use ($nurse, $area, $date, $shift, $header, $equipment, $checklist, $signOff, $registerRows): EquipmentInspectionEntry {
             $entry = EquipmentInspectionEntry::create([
                 'user_id' => $nurse->id,
+                'health_aide_id' => $header['health_aide_id'] ?? null,
                 'area' => $area,
                 'checklist_date' => $date->toDateString(),
                 'shift' => $shift,

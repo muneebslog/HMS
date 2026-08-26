@@ -71,9 +71,6 @@ class HealthAide extends Model
     }
 
     /**
-     * Whether the plain PIN is already used by another active health aide.
-     */
-    /**
      * @return HasMany<DutyAssignment, $this>
      */
     public function dutyAssignments(): HasMany
@@ -111,6 +108,26 @@ class HealthAide extends Model
     public function isAttendanceEnrolled(): bool
     {
         return filled($this->device_user_id) && $this->attendance_enrolled_at !== null;
+    }
+
+    /**
+     * Find an active health aide by plain PIN code.
+     */
+    public static function findByPin(string $plainPin): ?self
+    {
+        $plainPin = trim($plainPin);
+
+        if ($plainPin === '') {
+            return null;
+        }
+
+        foreach (static::query()->active()->get() as $aide) {
+            if (Hash::check($plainPin, $aide->pin)) {
+                return $aide;
+            }
+        }
+
+        return null;
     }
 
     /**

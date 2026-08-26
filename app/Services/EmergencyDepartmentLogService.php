@@ -113,7 +113,7 @@ class EmergencyDepartmentLogService
     /**
      * Persist a completed operational log and notify admins when faults exist.
      *
-     * @param  array{completed_by_name: string, supervisor_name: string, equipment_issues_log: string}  $header
+     * @param  array{completed_by_name: string, supervisor_name: string, equipment_issues_log: string, health_aide_id?: int|null}  $header
      * @param  array<string, array{count: int|string, remarks: string}>  $handover
      * @param  array<string, array{status: string, remarks: string}>  $equipment
      * @param  array<string, array{adequate: bool|null, remarks: string}>  $crashCart
@@ -138,6 +138,7 @@ class EmergencyDepartmentLogService
         $entry = DB::transaction(function () use ($nurse, $date, $shift, $header, $handover, $equipment, $crashCart, $cleaning): EmergencyDepartmentLogEntry {
             $entry = EmergencyDepartmentLogEntry::create([
                 'user_id' => $nurse->id,
+                'health_aide_id' => $header['health_aide_id'] ?? null,
                 'checklist_date' => $date->toDateString(),
                 'shift' => $shift,
                 'completed_by_name' => $header['completed_by_name'],

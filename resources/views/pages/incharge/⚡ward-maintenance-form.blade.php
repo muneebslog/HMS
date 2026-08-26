@@ -3,6 +3,7 @@
 use App\Enums\WardMaintenanceFaultPriority;
 use App\Enums\WardMaintenanceShift;
 use App\Enums\WardMaintenanceStatus;
+use App\Models\HealthAide;
 use App\Models\WardMaintenanceEntry;
 use App\Services\WardMaintenanceChecklistDefinition;
 use App\Services\WardMaintenanceService;
@@ -23,11 +24,9 @@ new #[Title('Fill Ward Maintenance')] class extends Component
 
     public string $activeSection = 'header';
 
-    public string $checkedByName = '';
+    public string $healthAideCode = '';
 
     public string $supervisorName = '';
-
-    public string $checkedByTime = '';
 
     public string $supervisorTime = '';
 
@@ -65,8 +64,6 @@ new #[Title('Fill Ward Maintenance')] class extends Component
 
         $this->shiftValue = $shiftEnum->value;
         $this->checklistDate = $date ?: now()->format('Y-m-d');
-        $this->checkedByName = auth()->user()->name;
-        $this->checkedByTime = now()->format('H:i');
 
         $service = app(WardMaintenanceService::class);
 
@@ -117,7 +114,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
         return app(WardMaintenanceService::class)->findEntry(
             Carbon::parse($this->checklistDate),
             $this->shift
-        )?->load(['answers', 'faults', 'user']);
+        )?->load(['answers', 'faults', 'user', 'healthAide']);
     }
 
     /**
@@ -198,9 +195,8 @@ new #[Title('Fill Ward Maintenance')] class extends Component
 
         $service = app(WardMaintenanceService::class);
         $rules = [
-            'checkedByName' => ['required', 'string', 'max:255'],
+            'healthAideCode' => ['required', 'digits_between:4,6'],
             'supervisorName' => ['nullable', 'string', 'max:255'],
-            'checkedByTime' => ['nullable', 'string', 'max:20'],
             'supervisorTime' => ['nullable', 'string', 'max:20'],
             'patientSafetyFault' => ['required', Rule::in(['yes', 'no'])],
             'patientSafetyReported' => ['required', Rule::in(['yes', 'no', 'na'])],
@@ -209,7 +205,10 @@ new #[Title('Fill Ward Maintenance')] class extends Component
             'reasonRemarks' => ['nullable', 'string', 'max:2000'],
             'supervisorRemarks' => ['nullable', 'string', 'max:2000'],
         ];
-        $messages = [];
+        $messages = [
+            'healthAideCode.required' => __('Enter the health aide code.'),
+            'healthAideCode.digits_between' => __('The health aide code must be 4 to 6 digits.'),
+        ];
 
         foreach ($this->definition->statusCells() as $cell) {
             $key = $service->statusKey($cell['section'], $cell['item_key'], $cell['location_key']);
@@ -239,14 +238,23 @@ new #[Title('Fill Ward Maintenance')] class extends Component
 
         $validated = $this->validate($rules, $messages);
 
+        $aide = HealthAide::findByPin($validated['healthAideCode']);
+
+        if ($aide === null) {
+            $this->addError('healthAideCode', __('Invalid health aide code.'));
+
+            return;
+        }
+
         $service->submit(
             auth()->user(),
             Carbon::parse($this->checklistDate),
             $this->shift,
             [
-                'checked_by_name' => $validated['checkedByName'],
+                'health_aide_id' => $aide->id,
+                'checked_by_name' => $aide->name,
                 'supervisor_name' => $validated['supervisorName'] ?? '',
-                'checked_by_time' => $validated['checkedByTime'] ?? '',
+                'checked_by_time' => now()->format('H:i'),
                 'supervisor_time' => $validated['supervisorTime'] ?? '',
                 'patient_safety_fault' => $validated['patientSafetyFault'],
                 'patient_safety_reported' => $validated['patientSafetyReported'],
@@ -305,7 +313,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
         $sectionHandler = match ($section) {
             'header' => function () use (&$answered, &$total): void {
                 $total = 1;
-                $answered = filled($this->checkedByName) ? 1 : 0;
+                $answered = filled($this->healthAideCode) ? 1 : 0;
             },
             'A' => function () use ($addCells): void {
                 $addCells('A', $this->definition->sectionAItems(), $this->definition->beds());
@@ -490,14 +498,17 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                         </flux:callout>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <flux:field>
-                                <flux:label>{{ __('Checked By') }}</flux:label>
-                                <flux:input wire:model="checkedByName" required />
-                                <flux:error name="checkedByName" />
-                            </flux:field>
-                            <flux:field>
-                                <flux:label>{{ __('Checked By Time') }}</flux:label>
-                                <flux:input wire:model="checkedByTime" />
-                                <flux:error name="checkedByTime" />
+                                <flux:label>{{ __('Health Aide Code') }}</flux:label>
+                                <flux:input
+                                    wire:model="healthAideCode"
+                                    type="password"
+                                    inputmode="numeric"
+                                    autocomplete="one-time-code"
+                                    maxlength="6"
+                                    required
+                                />
+                                <flux:description>{{ __('Time is recorded automatically on submit.') }}</flux:description>
+                                <flux:error name="healthAideCode" />
                             </flux:field>
                             <flux:field>
                                 <flux:label>{{ __('Supervisor') }}</flux:label>

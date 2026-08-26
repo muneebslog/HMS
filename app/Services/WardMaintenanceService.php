@@ -101,6 +101,7 @@ class WardMaintenanceService
         $entry = DB::transaction(function () use ($nurse, $date, $shift, $header, $statuses, $equipment, $faultRows): WardMaintenanceEntry {
             $entry = WardMaintenanceEntry::create([
                 'user_id' => $nurse->id,
+                'health_aide_id' => $header['health_aide_id'] ?? null,
                 'checklist_date' => $date->toDateString(),
                 'shift' => $shift,
                 'checked_by_name' => $header['checked_by_name'],

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\HealthAide;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
 
 class HealthAidePinSession
@@ -20,23 +19,15 @@ class HealthAidePinSession
      */
     public function attempt(string $pin): ?HealthAide
     {
-        $pin = trim($pin);
+        $aide = HealthAide::findByPin($pin);
 
-        if ($pin === '') {
+        if ($aide === null) {
             return null;
         }
 
-        $aides = HealthAide::query()->active()->get();
+        $this->store($aide);
 
-        foreach ($aides as $aide) {
-            if (Hash::check($pin, $aide->pin)) {
-                $this->store($aide);
-
-                return $aide;
-            }
-        }
-
-        return null;
+        return $aide;
     }
 
     /**

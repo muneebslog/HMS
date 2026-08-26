@@ -3,6 +3,7 @@
 use App\Enums\EquipmentInspectionArea;
 use App\Enums\EquipmentInspectionShift;
 use App\Models\EquipmentInspectionEntry;
+use App\Models\HealthAide;
 use App\Services\EquipmentInspectionChecklistDefinition;
 use App\Services\EquipmentInspectionService;
 use Flux\Flux;
@@ -25,7 +26,7 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
     public string $activeSection = 'header';
 
-    public string $checkedByName = '';
+    public string $healthAideCode = '';
 
     public string $supervisorName = '';
 
@@ -58,7 +59,6 @@ new #[Title('Fill Equipment Inspection')] class extends Component
         $this->areaValue = $areaEnum->value;
         $this->shiftValue = $shiftEnum->value;
         $this->checklistDate = $date ?: now()->format('Y-m-d');
-        $this->checkedByName = auth()->user()->name;
 
         $service = app(EquipmentInspectionService::class);
 
@@ -118,7 +118,7 @@ new #[Title('Fill Equipment Inspection')] class extends Component
             $this->area,
             Carbon::parse($this->checklistDate),
             $this->shift
-        )?->load(['answers', 'registerRows', 'user']);
+        )?->load(['answers', 'registerRows', 'user', 'healthAide']);
     }
 
     /**
@@ -182,10 +182,13 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
         $service = app(EquipmentInspectionService::class);
         $rules = [
-            'checkedByName' => ['required', 'string', 'max:255'],
+            'healthAideCode' => ['required', 'digits_between:4,6'],
             'supervisorName' => ['nullable', 'string', 'max:255'],
         ];
-        $messages = [];
+        $messages = [
+            'healthAideCode.required' => __('Enter the health aide code.'),
+            'healthAideCode.digits_between' => __('The health aide code must be 4 to 6 digits.'),
+        ];
 
         foreach ($this->definition->equipmentItems($this->area) as $itemKey => $item) {
             $rules["equipment.{$itemKey}.present"] = ['required', 'boolean'];
@@ -242,13 +245,22 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
         $validated = $this->validate($rules, $messages);
 
+        $aide = HealthAide::findByPin($validated['healthAideCode']);
+
+        if ($aide === null) {
+            $this->addError('healthAideCode', __('Invalid health aide code.'));
+
+            return;
+        }
+
         $service->submit(
             auth()->user(),
             $this->area,
             Carbon::parse($this->checklistDate),
             $this->shift,
             [
-                'checked_by_name' => $validated['checkedByName'],
+                'health_aide_id' => $aide->id,
+                'checked_by_name' => $aide->name,
                 'supervisor_name' => $validated['supervisorName'] ?? '',
             ],
             $validated['equipment'] ?? [],
@@ -276,7 +288,7 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
         if ($section === 'header') {
             return [
-                'answered' => filled($this->checkedByName) ? 1 : 0,
+                'answered' => filled($this->healthAideCode) ? 1 : 0,
                 'total' => 1,
             ];
         }
@@ -452,9 +464,17 @@ new #[Title('Fill Equipment Inspection')] class extends Component
                         </flux:callout>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <flux:field>
-                                <flux:label>{{ __('Checked By') }}</flux:label>
-                                <flux:input wire:model="checkedByName" required />
-                                <flux:error name="checkedByName" />
+                                <flux:label>{{ __('Health Aide Code') }}</flux:label>
+                                <flux:input
+                                    wire:model="healthAideCode"
+                                    type="password"
+                                    inputmode="numeric"
+                                    autocomplete="one-time-code"
+                                    maxlength="6"
+                                    required
+                                />
+                                <flux:description>{{ __('Time is recorded automatically on submit.') }}</flux:description>
+                                <flux:error name="healthAideCode" />
                             </flux:field>
                             <flux:field>
                                 <flux:label>{{ __('Supervisor') }}</flux:label>
