@@ -237,3 +237,21 @@ test('mark section ok fills status cells', function () {
         ->call('markSectionOk', 'F')
         ->assertSet("statuses.{$key}", WardMaintenanceStatus::Ok->value);
 });
+
+test('wizard navigation moves between sections and shows save on the last step', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
+        ->assertSet('activeSection', 'header')
+        ->assertSee('Next')
+        ->assertDontSee('Save')
+        ->call('nextSection')
+        ->assertSet('activeSection', 'A')
+        ->call('previousSection')
+        ->assertSet('activeSection', 'header')
+        ->call('setSection', 'I')
+        ->assertSet('activeSection', 'I')
+        ->assertSee('Save')
+        ->assertDontSee(__('Submit Checklist'));
+});

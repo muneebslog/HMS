@@ -221,3 +221,18 @@ test('mark helpers fill section answers', function () {
         ->call('markCleaningDone')
         ->assertSet("cleaning.{$cleaningKey}", true);
 });
+
+test('wizard navigation moves between sections and shows save on the last step', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
+        ->assertSet('activeSection', 'header')
+        ->assertSee('Next')
+        ->call('nextSection')
+        ->assertSet('activeSection', 'A')
+        ->call('setSection', 'D')
+        ->assertSet('activeSection', 'D')
+        ->assertSee('Save')
+        ->assertDontSee(__('Submit Log'));
+});

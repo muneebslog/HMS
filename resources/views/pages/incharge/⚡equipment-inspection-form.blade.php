@@ -2,6 +2,7 @@
 
 use App\Enums\EquipmentInspectionArea;
 use App\Enums\EquipmentInspectionShift;
+use App\Livewire\Concerns\HasChecklistWizard;
 use App\Models\EquipmentInspectionEntry;
 use App\Models\HealthAide;
 use App\Services\EquipmentInspectionChecklistDefinition;
@@ -16,6 +17,7 @@ use Livewire\Component;
 
 new #[Title('Fill Equipment Inspection')] class extends Component
 {
+    use HasChecklistWizard;
     #[Locked]
     public string $areaValue;
 
@@ -127,11 +129,6 @@ new #[Title('Fill Equipment Inspection')] class extends Component
     public function sections(): array
     {
         return $this->definition->sections($this->area);
-    }
-
-    public function setSection(string $section): void
-    {
-        $this->activeSection = $section;
     }
 
     public function markEquipmentOk(): void
@@ -413,45 +410,17 @@ new #[Title('Fill Equipment Inspection')] class extends Component
         @else
             @php
                 $progress = $this->overallProgress();
+                $completedKeys = collect($this->sections())
+                    ->filter(fn (array $section): bool => $this->isSectionComplete($section['key']))
+                    ->pluck('key')
+                    ->all();
             @endphp
-            <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-                <div class="mb-2 flex items-center justify-between text-sm">
-                    <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ __('Overall progress') }}</span>
-                    <span class="font-medium text-zinc-600 dark:text-zinc-300">
-                        {{ __(':answered of :total completed', ['answered' => $progress['answered'], 'total' => $progress['total']]) }}
-                    </span>
-                </div>
-                <div class="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                    <div
-                        class="h-full rounded-full bg-primary transition-all duration-300"
-                        style="width: {{ $progress['total'] > 0 ? ($progress['answered'] / $progress['total']) * 100 : 0 }}%"
-                        aria-hidden="true"
-                    ></div>
-                </div>
-            </div>
 
-            <div class="sticky top-0 z-10 flex flex-wrap gap-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-2 backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                @foreach ($this->sections() as $section)
-                    @php
-                        $isComplete = $this->isSectionComplete($section['key']);
-                    @endphp
-                    <flux:button
-                        size="sm"
-                        :variant="$activeSection === $section['key'] ? 'primary' : ($isComplete ? 'outline' : 'ghost')"
-                        wire:click="setSection('{{ $section['key'] }}')"
-                        class="{{ $isComplete ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300' : '' }}"
-                    >
-                        <span class="inline-flex items-center gap-1.5">
-                            @if ($isComplete)
-                                <flux:icon name="check-circle" class="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                            @elseif ($this->sectionCompletion($section['key'])['answered'] > 0)
-                                <span class="size-2 rounded-full bg-amber-500"></span>
-                            @endif
-                            {{ $section['label'] }}
-                        </span>
-                    </flux:button>
-                @endforeach
-            </div>
+            <x-checklist-wizard-steps
+                :steps="$this->sections()"
+                :active="$activeSection"
+                :completed="$completedKeys"
+            />
 
             <form wire:submit="submit" class="flex flex-col gap-6">
                 @if ($activeSection === 'header')
@@ -642,11 +611,13 @@ new #[Title('Fill Equipment Inspection')] class extends Component
                     </flux:card>
                 @endif
 
-                <div class="flex justify-end gap-3">
-                    <flux:button type="submit" variant="primary" wire:loading.attr="disabled">
-                        {{ __('Submit Checklist') }}
-                    </flux:button>
-                </div>
+                <x-checklist-wizard-footer
+                    :is-first="$this->isFirstSection()"
+                    :is-last="$this->isLastSection()"
+                    :answered="$progress['answered']"
+                    :total="$progress['total']"
+                    :save-label="__('Save')"
+                />
             </form>
         @endif
     </div>

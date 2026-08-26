@@ -278,3 +278,21 @@ test('mark equipment ok fills equipment cells', function () {
         ->assertSet('equipment.examination_couch.clean', true)
         ->assertSet('equipment.examination_couch.maint_req', false);
 });
+
+test('wizard navigation moves between sections and shows save on the last step', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.equipment-inspection-form', [
+            'area' => 'consultation_room',
+            'shift' => 'morning',
+        ])
+        ->assertSet('activeSection', 'header')
+        ->assertSee('Next')
+        ->call('nextSection')
+        ->assertSet('activeSection', 'A')
+        ->call('setSection', 'signoff')
+        ->assertSet('activeSection', 'signoff')
+        ->assertSee('Save')
+        ->assertDontSee(__('Submit Checklist'));
+});
