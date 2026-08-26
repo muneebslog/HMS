@@ -73,15 +73,51 @@ test('incharge nurses can visit the equipment inspection pages', function () {
     ]))->assertOk();
 });
 
-test('non-incharge users cannot visit equipment inspection pages', function (UserRole $role, string $expected) {
+test('indoor staff can visit the equipment inspection pages', function () {
+    $staff = User::factory()->indoor()->create();
+
+    $this->actingAs($staff)->get(route('incharge.equipment-inspections'))->assertOk();
+    $this->actingAs($staff)->get(route('incharge.equipment-inspections.area', ['area' => 'consultation_room']))->assertOk();
+    $this->actingAs($staff)->get(route('incharge.equipment-inspections.form', [
+        'area' => 'consultation_room',
+        'shift' => 'morning',
+    ]))->assertOk();
+});
+
+test('unauthorized users cannot visit equipment inspection pages', function (UserRole $role, string $expected) {
     $user = User::factory()->create(['role' => $role]);
 
     $this->actingAs($user)->get(route('incharge.equipment-inspections'))->{$expected}();
 })->with([
     'admin' => [UserRole::Admin, 'assertOk'],
+    'indoor' => [UserRole::Indoor, 'assertOk'],
     'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
 ]);
+
+test('indoor staff can submit a fully ok consultation room checklist without notifying admins', function () {
+    $staff = User::factory()->indoor()->create();
+    $payload = equipmentInspectionAllOkPayload();
+
+    Livewire::actingAs($staff)
+        ->test('pages::incharge.equipment-inspection-form', [
+            'area' => 'consultation_room',
+            'shift' => 'morning',
+        ])
+        ->set('checkedByName', $staff->name)
+        ->set('equipment', $payload['equipment'])
+        ->set('checklist', $payload['checklist'])
+        ->set('signOff', $payload['signOff'])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $entry = EquipmentInspectionEntry::query()->first();
+
+    expect($entry)->not->toBeNull()
+        ->and($entry->user_id)->toBe($staff->id)
+        ->and($entry->hasFaults())->toBeFalse()
+        ->and(AdminNotification::count())->toBe(0);
+});
 
 test('incharge nurse can submit a fully ok consultation room checklist without notifying admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();

@@ -959,7 +959,7 @@ class NotificationService
 
         $title = __('⚠️ Ward Maintenance Faults Reported');
         $message = __(
-            "Incharge nurse :name submitted the :shift ward maintenance checklist for :date with faults:\n:items",
+            ":name submitted the :shift ward maintenance checklist for :date with faults:\n:items",
             [
                 'name' => $nurse->name,
                 'shift' => $entry->shift->label(),
@@ -1033,7 +1033,7 @@ class NotificationService
 
         $title = __('⚠️ Equipment Inspection Faults Reported');
         $message = __(
-            "Incharge nurse :name submitted the :area :shift inspection for :date with faults:\n:items",
+            ":name submitted the :area :shift inspection for :date with faults:\n:items",
             [
                 'name' => $nurse->name,
                 'area' => $entry->area->label(),

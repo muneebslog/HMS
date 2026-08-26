@@ -51,15 +51,45 @@ test('incharge nurses can visit the ward maintenance pages', function () {
     $this->actingAs($nurse)->get(route('incharge.ward-maintenance.form', ['shift' => 'morning']))->assertOk();
 });
 
-test('non-incharge users cannot visit ward maintenance pages', function (UserRole $role, string $expected) {
+test('indoor staff can visit the ward maintenance pages', function () {
+    $staff = User::factory()->indoor()->create();
+
+    $this->actingAs($staff)->get(route('incharge.ward-maintenance'))->assertOk();
+    $this->actingAs($staff)->get(route('incharge.ward-maintenance.form', ['shift' => 'morning']))->assertOk();
+});
+
+test('unauthorized users cannot visit ward maintenance pages', function (UserRole $role, string $expected) {
     $user = User::factory()->create(['role' => $role]);
 
     $this->actingAs($user)->get(route('incharge.ward-maintenance'))->{$expected}();
 })->with([
     'admin' => [UserRole::Admin, 'assertOk'],
+    'indoor' => [UserRole::Indoor, 'assertOk'],
     'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
 ]);
+
+test('indoor staff can submit a fully ok checklist without notifying admins', function () {
+    $staff = User::factory()->indoor()->create();
+    $payload = wardMaintenanceAllOkPayload();
+
+    Livewire::actingAs($staff)
+        ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
+        ->set('checkedByName', $staff->name)
+        ->set('patientSafetyFault', 'no')
+        ->set('patientSafetyReported', 'na')
+        ->set('roomUnavailable', 'no')
+        ->set('statuses', $payload['statuses'])
+        ->set('equipment', $payload['equipment'])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $entry = WardMaintenanceEntry::query()->first();
+
+    expect($entry)->not->toBeNull()
+        ->and($entry->user_id)->toBe($staff->id)
+        ->and(AdminNotification::count())->toBe(0);
+});
 
 test('incharge nurse can submit a fully ok checklist without notifying admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();

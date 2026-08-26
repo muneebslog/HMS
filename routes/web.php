@@ -175,13 +175,16 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::InchargeNurse->value)->group(function () {
         Route::livewire('incharge/questionnaires', 'pages::incharge.questionnaires')->name('incharge.questionnaires');
         Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
+        Route::livewire('incharge/emergency-department-log', 'pages::incharge.emergency-department-log')->name('incharge.emergency-department-log');
+        Route::livewire('incharge/emergency-department-log/{shift}', 'pages::incharge.emergency-department-log-form')->name('incharge.emergency-department-log.form');
+    });
+
+    Route::middleware('role:'.UserRole::InchargeNurse->value.','.UserRole::Indoor->value)->group(function () {
         Route::livewire('incharge/ward-maintenance', 'pages::incharge.ward-maintenance')->name('incharge.ward-maintenance');
         Route::livewire('incharge/ward-maintenance/{shift}', 'pages::incharge.ward-maintenance-form')->name('incharge.ward-maintenance.form');
         Route::livewire('incharge/equipment-inspections', 'pages::incharge.equipment-inspections')->name('incharge.equipment-inspections');
         Route::livewire('incharge/equipment-inspections/{area}', 'pages::incharge.equipment-inspection-area')->name('incharge.equipment-inspections.area');
         Route::livewire('incharge/equipment-inspections/{area}/{shift}', 'pages::incharge.equipment-inspection-form')->name('incharge.equipment-inspections.form');
-        Route::livewire('incharge/emergency-department-log', 'pages::incharge.emergency-department-log')->name('incharge.emergency-department-log');
-        Route::livewire('incharge/emergency-department-log/{shift}', 'pages::incharge.emergency-department-log-form')->name('incharge.emergency-department-log.form');
     });
 
     Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {

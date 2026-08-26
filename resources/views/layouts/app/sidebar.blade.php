@@ -37,14 +37,17 @@
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('incharge.questionnaires')" :current="request()->routeIs('incharge.questionnaire*')" wire:navigate>
                             {{ __('Questionnaires') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="shield-check" :href="route('incharge.emergency-department-log')" :current="request()->routeIs('incharge.emergency-department-log*')" wire:navigate>
+                            {{ __('ER Operational Log') }}
+                        </flux:sidebar.item>
+                    @endif
+
+                    @if (auth()->user()->isInchargeNurse() || auth()->user()->isIndoor() || auth()->user()->isAdmin())
                         <flux:sidebar.item icon="wrench-screwdriver" :href="route('incharge.ward-maintenance')" :current="request()->routeIs('incharge.ward-maintenance*')" wire:navigate>
                             {{ __('Ward Maintenance') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('incharge.equipment-inspections')" :current="request()->routeIs('incharge.equipment-inspection*')" wire:navigate>
                             {{ __('Equipment Inspection') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="shield-check" :href="route('incharge.emergency-department-log')" :current="request()->routeIs('incharge.emergency-department-log*')" wire:navigate>
-                            {{ __('ER Operational Log') }}
                         </flux:sidebar.item>
                     @endif
 
