@@ -5,6 +5,7 @@ use App\Enums\EmergencyDepartmentShift;
 use App\Enums\UserRole;
 use App\Models\AdminNotification;
 use App\Models\EmergencyDepartmentLogEntry;
+use App\Models\HealthAide;
 use App\Models\User;
 use App\Services\EmergencyDepartmentLogDefinition;
 use App\Services\EmergencyDepartmentLogService;
@@ -58,6 +59,14 @@ function emergencyDepartmentLogAllOkPayload(): array
     return compact('handover', 'equipment', 'crashCart', 'cleaning');
 }
 
+function emergencyDepartmentLogAide(string $pin = '1234', string $name = 'Aide Sara'): HealthAide
+{
+    return HealthAide::factory()->create([
+        'name' => $name,
+        'pin' => $pin,
+    ]);
+}
+
 test('guests are redirected from emergency department log pages', function () {
     $this->get(route('incharge.emergency-department-log'))->assertRedirect(route('login'));
     $this->get(route('incharge.emergency-department-log.form', ['shift' => 'morning']))->assertRedirect(route('login'));
@@ -68,13 +77,6 @@ test('incharge nurses can visit the emergency department log pages', function ()
 
     $this->actingAs($nurse)->get(route('incharge.emergency-department-log'))->assertOk();
     $this->actingAs($nurse)->get(route('incharge.emergency-department-log.form', ['shift' => 'morning']))->assertOk();
-});
-
-test('indoor staff can visit the emergency department log pages', function () {
-    $staff = User::factory()->indoor()->create();
-
-    $this->actingAs($staff)->get(route('incharge.emergency-department-log'))->assertOk();
-    $this->actingAs($staff)->get(route('incharge.emergency-department-log.form', ['shift' => 'morning']))->assertOk();
 });
 
 test('unauthorized users cannot visit emergency department log pages', function (UserRole $role, string $expected) {
@@ -90,12 +92,13 @@ test('unauthorized users cannot visit emergency department log pages', function 
 
 test('incharge nurse can submit a fully ok log without notifying admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    $aide = emergencyDepartmentLogAide();
     $payload = emergencyDepartmentLogAllOkPayload();
     $definition = app(EmergencyDepartmentLogDefinition::class);
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
-        ->set('completedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('handover', $payload['handover'])
         ->set('equipment', $payload['equipment'])
         ->set('crashCart', $payload['crashCart'])
@@ -112,21 +115,41 @@ test('incharge nurse can submit a fully ok log without notifying admins', functi
     expect($entry)->not->toBeNull()
         ->and($entry->shift)->toBe(EmergencyDepartmentShift::Morning)
         ->and($entry->user_id)->toBe($nurse->id)
-        ->and($entry->completed_by_name)->toBe($nurse->name)
+        ->and($entry->health_aide_id)->toBe($aide->id)
+        ->and($entry->completed_by_name)->toBe('Aide Sara')
         ->and($entry->answers)->toHaveCount($expectedAnswers)
         ->and($entry->hasFaults())->toBeFalse()
         ->and(AdminNotification::count())->toBe(0);
 });
 
+test('invalid health aide code is rejected', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
+    $payload = emergencyDepartmentLogAllOkPayload();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
+        ->set('healthAideCode', '9999')
+        ->set('handover', $payload['handover'])
+        ->set('equipment', $payload['equipment'])
+        ->set('crashCart', $payload['crashCart'])
+        ->set('cleaning', $payload['cleaning'])
+        ->call('submit')
+        ->assertHasErrors(['healthAideCode']);
+
+    expect(EmergencyDepartmentLogEntry::count())->toBe(0);
+});
+
 test('equipment issues notify admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
     $payload = emergencyDepartmentLogAllOkPayload();
     $payload['equipment']['defibrillator']['status'] = EmergencyDepartmentEquipmentStatus::Issue->value;
     $payload['equipment']['defibrillator']['remarks'] = 'Battery fault';
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.emergency-department-log-form', ['shift' => 'evening'])
-        ->set('completedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('handover', $payload['handover'])
         ->set('equipment', $payload['equipment'])
         ->set('crashCart', $payload['crashCart'])
@@ -140,12 +163,13 @@ test('equipment issues notify admins', function () {
 
 test('short crash cart stock notifies admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
     $payload = emergencyDepartmentLogAllOkPayload();
     $payload['crashCart']['adrenaline']['adequate'] = false;
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.emergency-department-log-form', ['shift' => 'night'])
-        ->set('completedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('handover', $payload['handover'])
         ->set('equipment', $payload['equipment'])
         ->set('crashCart', $payload['crashCart'])
@@ -161,6 +185,7 @@ test('short crash cart stock notifies admins', function () {
 
 test('a shift can only be submitted once', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
     EmergencyDepartmentLogEntry::factory()->create([
         'user_id' => $nurse->id,
         'checklist_date' => now()->toDateString(),
@@ -172,7 +197,7 @@ test('a shift can only be submitted once', function () {
     Livewire::actingAs($nurse)
         ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
         ->assertSee('Submitted Log')
-        ->set('completedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('handover', $payload['handover'])
         ->set('equipment', $payload['equipment'])
         ->set('crashCart', $payload['crashCart'])

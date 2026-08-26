@@ -4,6 +4,7 @@ use App\Enums\UserRole;
 use App\Enums\WardMaintenanceShift;
 use App\Enums\WardMaintenanceStatus;
 use App\Models\AdminNotification;
+use App\Models\HealthAide;
 use App\Models\User;
 use App\Models\WardMaintenanceEntry;
 use App\Services\WardMaintenanceChecklistDefinition;
@@ -39,6 +40,14 @@ function wardMaintenanceAllOkPayload(): array
     return compact('statuses', 'equipment');
 }
 
+function wardMaintenanceAide(string $pin = '1234', string $name = 'Aide Sara'): HealthAide
+{
+    return HealthAide::factory()->create([
+        'name' => $name,
+        'pin' => $pin,
+    ]);
+}
+
 test('guests are redirected from ward maintenance pages', function () {
     $this->get(route('incharge.ward-maintenance'))->assertRedirect(route('login'));
     $this->get(route('incharge.ward-maintenance.form', ['shift' => 'morning']))->assertRedirect(route('login'));
@@ -69,13 +78,42 @@ test('unauthorized users cannot visit ward maintenance pages', function (UserRol
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
 ]);
 
+test('incharge nurse can submit a fully ok checklist without notifying admins', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+    $aide = wardMaintenanceAide();
+    $payload = wardMaintenanceAllOkPayload();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
+        ->set('healthAideCode', '1234')
+        ->set('patientSafetyFault', 'no')
+        ->set('patientSafetyReported', 'na')
+        ->set('roomUnavailable', 'no')
+        ->set('statuses', $payload['statuses'])
+        ->set('equipment', $payload['equipment'])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $entry = WardMaintenanceEntry::query()->first();
+
+    expect($entry)->not->toBeNull()
+        ->and($entry->shift)->toBe(WardMaintenanceShift::Morning)
+        ->and($entry->user_id)->toBe($nurse->id)
+        ->and($entry->health_aide_id)->toBe($aide->id)
+        ->and($entry->checked_by_name)->toBe('Aide Sara')
+        ->and($entry->checked_by_time)->toBe(now()->format('H:i'))
+        ->and($entry->answers)->toHaveCount(count($payload['statuses']) + count($payload['equipment']))
+        ->and(AdminNotification::count())->toBe(0);
+});
+
 test('indoor staff can submit a fully ok checklist without notifying admins', function () {
     $staff = User::factory()->indoor()->create();
+    wardMaintenanceAide();
     $payload = wardMaintenanceAllOkPayload();
 
     Livewire::actingAs($staff)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
-        ->set('checkedByName', $staff->name)
+        ->set('healthAideCode', '1234')
         ->set('patientSafetyFault', 'no')
         ->set('patientSafetyReported', 'na')
         ->set('roomUnavailable', 'no')
@@ -91,32 +129,28 @@ test('indoor staff can submit a fully ok checklist without notifying admins', fu
         ->and(AdminNotification::count())->toBe(0);
 });
 
-test('incharge nurse can submit a fully ok checklist without notifying admins', function () {
+test('invalid health aide code is rejected', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
     $payload = wardMaintenanceAllOkPayload();
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '9999')
         ->set('patientSafetyFault', 'no')
         ->set('patientSafetyReported', 'na')
         ->set('roomUnavailable', 'no')
         ->set('statuses', $payload['statuses'])
         ->set('equipment', $payload['equipment'])
         ->call('submit')
-        ->assertHasNoErrors();
+        ->assertHasErrors(['healthAideCode']);
 
-    $entry = WardMaintenanceEntry::query()->first();
-
-    expect($entry)->not->toBeNull()
-        ->and($entry->shift)->toBe(WardMaintenanceShift::Morning)
-        ->and($entry->user_id)->toBe($nurse->id)
-        ->and($entry->answers)->toHaveCount(count($payload['statuses']) + count($payload['equipment']))
-        ->and(AdminNotification::count())->toBe(0);
+    expect(WardMaintenanceEntry::count())->toBe(0);
 });
 
 test('fault answers notify admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
     $payload = wardMaintenanceAllOkPayload();
     $service = app(WardMaintenanceService::class);
     $faultKey = $service->statusKey('A', 'bed_condition', 'B1');
@@ -124,7 +158,7 @@ test('fault answers notify admins', function () {
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'evening'])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('patientSafetyFault', 'no')
         ->set('patientSafetyReported', 'na')
         ->set('roomUnavailable', 'no')
@@ -139,11 +173,12 @@ test('fault answers notify admins', function () {
 
 test('fault report rows notify admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
     $payload = wardMaintenanceAllOkPayload();
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'night'])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('patientSafetyFault', 'no')
         ->set('patientSafetyReported', 'na')
         ->set('roomUnavailable', 'no')
@@ -169,6 +204,7 @@ test('fault report rows notify admins', function () {
 
 test('a shift can only be submitted once', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
     WardMaintenanceEntry::factory()->create([
         'user_id' => $nurse->id,
         'checklist_date' => now()->toDateString(),
@@ -180,7 +216,7 @@ test('a shift can only be submitted once', function () {
     Livewire::actingAs($nurse)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
         ->assertSee('Submitted Checklist')
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('patientSafetyFault', 'no')
         ->set('patientSafetyReported', 'na')
         ->set('roomUnavailable', 'no')

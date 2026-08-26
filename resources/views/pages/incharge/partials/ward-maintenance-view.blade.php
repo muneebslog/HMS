@@ -37,7 +37,7 @@
         </div>
 
         <div class="grid gap-3 text-sm sm:grid-cols-2">
-            <div><span class="text-zinc-500">{{ __('Checked By') }}:</span> {{ $entry->checked_by_name }} @if($entry->checked_by_time) ({{ $entry->checked_by_time }}) @endif</div>
+            <div><span class="text-zinc-500">{{ __('Completed By') }}:</span> {{ $entry->checked_by_name }} @if($entry->checked_by_time) ({{ $entry->checked_by_time }}) @endif</div>
             <div><span class="text-zinc-500">{{ __('Supervisor') }}:</span> {{ $entry->supervisor_name ?: '—' }} @if($entry->supervisor_time) ({{ $entry->supervisor_time }}) @endif</div>
             <div><span class="text-zinc-500">{{ __('Patient safety fault') }}:</span> {{ strtoupper($entry->patient_safety_fault ?? '—') }}</div>
             <div><span class="text-zinc-500">{{ __('Reported to maintenance') }}:</span> {{ strtoupper($entry->patient_safety_reported ?? '—') }}</div>

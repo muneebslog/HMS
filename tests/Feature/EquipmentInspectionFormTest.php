@@ -5,6 +5,7 @@ use App\Enums\EquipmentInspectionShift;
 use App\Enums\UserRole;
 use App\Models\AdminNotification;
 use App\Models\EquipmentInspectionEntry;
+use App\Models\HealthAide;
 use App\Models\User;
 use App\Services\EquipmentInspectionChecklistDefinition;
 use App\Services\EquipmentInspectionService;
@@ -53,6 +54,14 @@ function equipmentInspectionAllOkPayload(EquipmentInspectionArea $area = Equipme
     return compact('equipment', 'checklist', 'signOff');
 }
 
+function equipmentInspectionAide(string $pin = '1234', string $name = 'Aide Sara'): HealthAide
+{
+    return HealthAide::factory()->create([
+        'name' => $name,
+        'pin' => $pin,
+    ]);
+}
+
 test('guests are redirected from equipment inspection pages', function () {
     $this->get(route('incharge.equipment-inspections'))->assertRedirect(route('login'));
     $this->get(route('incharge.equipment-inspections.area', ['area' => 'consultation_room']))->assertRedirect(route('login'));
@@ -95,8 +104,39 @@ test('unauthorized users cannot visit equipment inspection pages', function (Use
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
 ]);
 
+test('incharge nurse can submit a fully ok consultation room checklist without notifying admins', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+    $aide = equipmentInspectionAide();
+    $payload = equipmentInspectionAllOkPayload();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.equipment-inspection-form', [
+            'area' => 'consultation_room',
+            'shift' => 'morning',
+        ])
+        ->set('healthAideCode', '1234')
+        ->set('equipment', $payload['equipment'])
+        ->set('checklist', $payload['checklist'])
+        ->set('signOff', $payload['signOff'])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $entry = EquipmentInspectionEntry::query()->first();
+
+    expect($entry)->not->toBeNull()
+        ->and($entry->area)->toBe(EquipmentInspectionArea::ConsultationRoom)
+        ->and($entry->shift)->toBe(EquipmentInspectionShift::Morning)
+        ->and($entry->user_id)->toBe($nurse->id)
+        ->and($entry->health_aide_id)->toBe($aide->id)
+        ->and($entry->checked_by_name)->toBe('Aide Sara')
+        ->and($entry->answers)->toHaveCount(count($payload['equipment']) + count($payload['checklist']))
+        ->and($entry->hasFaults())->toBeFalse()
+        ->and(AdminNotification::count())->toBe(0);
+});
+
 test('indoor staff can submit a fully ok consultation room checklist without notifying admins', function () {
     $staff = User::factory()->indoor()->create();
+    equipmentInspectionAide();
     $payload = equipmentInspectionAllOkPayload();
 
     Livewire::actingAs($staff)
@@ -104,7 +144,7 @@ test('indoor staff can submit a fully ok consultation room checklist without not
             'area' => 'consultation_room',
             'shift' => 'morning',
         ])
-        ->set('checkedByName', $staff->name)
+        ->set('healthAideCode', '1234')
         ->set('equipment', $payload['equipment'])
         ->set('checklist', $payload['checklist'])
         ->set('signOff', $payload['signOff'])
@@ -119,8 +159,9 @@ test('indoor staff can submit a fully ok consultation room checklist without not
         ->and(AdminNotification::count())->toBe(0);
 });
 
-test('incharge nurse can submit a fully ok consultation room checklist without notifying admins', function () {
+test('invalid health aide code is rejected', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    equipmentInspectionAide();
     $payload = equipmentInspectionAllOkPayload();
 
     Livewire::actingAs($nurse)
@@ -128,26 +169,19 @@ test('incharge nurse can submit a fully ok consultation room checklist without n
             'area' => 'consultation_room',
             'shift' => 'morning',
         ])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '9999')
         ->set('equipment', $payload['equipment'])
         ->set('checklist', $payload['checklist'])
         ->set('signOff', $payload['signOff'])
         ->call('submit')
-        ->assertHasNoErrors();
+        ->assertHasErrors(['healthAideCode']);
 
-    $entry = EquipmentInspectionEntry::query()->first();
-
-    expect($entry)->not->toBeNull()
-        ->and($entry->area)->toBe(EquipmentInspectionArea::ConsultationRoom)
-        ->and($entry->shift)->toBe(EquipmentInspectionShift::Morning)
-        ->and($entry->user_id)->toBe($nurse->id)
-        ->and($entry->answers)->toHaveCount(count($payload['equipment']) + count($payload['checklist']))
-        ->and($entry->hasFaults())->toBeFalse()
-        ->and(AdminNotification::count())->toBe(0);
+    expect(EquipmentInspectionEntry::count())->toBe(0);
 });
 
 test('equipment faults notify admins', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    equipmentInspectionAide();
     $payload = equipmentInspectionAllOkPayload();
     $payload['equipment']['examination_couch']['present'] = false;
     $payload['equipment']['examination_couch']['maint_req'] = true;
@@ -157,7 +191,7 @@ test('equipment faults notify admins', function () {
             'area' => 'consultation_room',
             'shift' => 'evening',
         ])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('equipment', $payload['equipment'])
         ->set('checklist', $payload['checklist'])
         ->set('signOff', $payload['signOff'])
@@ -170,6 +204,7 @@ test('equipment faults notify admins', function () {
 
 test('a shift can only be submitted once per area', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    equipmentInspectionAide();
     EquipmentInspectionEntry::factory()->create([
         'user_id' => $nurse->id,
         'area' => EquipmentInspectionArea::ConsultationRoom,
@@ -185,7 +220,7 @@ test('a shift can only be submitted once per area', function () {
             'shift' => 'morning',
         ])
         ->assertSee('Submitted Checklist')
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('equipment', $payload['equipment'])
         ->set('checklist', $payload['checklist'])
         ->set('signOff', $payload['signOff'])
@@ -196,6 +231,7 @@ test('a shift can only be submitted once per area', function () {
 
 test('maintenance register rows are persisted', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    equipmentInspectionAide();
     $area = EquipmentInspectionArea::MaintenanceRegister;
     $payload = equipmentInspectionAllOkPayload($area);
 
@@ -204,7 +240,7 @@ test('maintenance register rows are persisted', function () {
             'area' => 'maintenance_register',
             'shift' => 'morning',
         ])
-        ->set('checkedByName', $nurse->name)
+        ->set('healthAideCode', '1234')
         ->set('signOff', $payload['signOff'])
         ->set('registerRows', [[
             'item_date' => now()->toDateString(),

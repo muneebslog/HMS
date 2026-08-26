@@ -34,6 +34,7 @@
             <div><span class="text-zinc-500">{{ __('Shift') }}:</span> {{ $entry->shift->label() }}</div>
             <div><span class="text-zinc-500">{{ __('Date') }}:</span> {{ $entry->checklist_date->format('M j, Y') }}</div>
             <div><span class="text-zinc-500">{{ __('Completed By') }}:</span> {{ $entry->completed_by_name }}</div>
+            <div><span class="text-zinc-500">{{ __('Completed At') }}:</span> {{ $entry->submitted_at->format('Y-m-d H:i') }}</div>
             <div><span class="text-zinc-500">{{ __('Supervisor') }}:</span> {{ $entry->supervisor_name ?: '—' }}</div>
             <div class="sm:col-span-2">
                 <span class="text-zinc-500">{{ __('Equipment Issues / Maintenance Log') }}:</span>

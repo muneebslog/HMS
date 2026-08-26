@@ -32,7 +32,8 @@
         <div class="grid gap-3 text-sm sm:grid-cols-2">
             <div><span class="text-zinc-500">{{ __('Area') }}:</span> {{ $entry->area->label() }}</div>
             <div><span class="text-zinc-500">{{ __('Shift') }}:</span> {{ $entry->shift->label() }}</div>
-            <div><span class="text-zinc-500">{{ __('Checked By') }}:</span> {{ $entry->checked_by_name }}</div>
+            <div><span class="text-zinc-500">{{ __('Completed By') }}:</span> {{ $entry->checked_by_name }}</div>
+            <div><span class="text-zinc-500">{{ __('Completed At') }}:</span> {{ $entry->submitted_at->format('Y-m-d H:i') }}</div>
             <div><span class="text-zinc-500">{{ __('Supervisor') }}:</span> {{ $entry->supervisor_name ?: '—' }}</div>
             @foreach ($signOffFields as $fieldKey => $field)
                 <div>
