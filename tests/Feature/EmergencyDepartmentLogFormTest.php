@@ -70,12 +70,20 @@ test('incharge nurses can visit the emergency department log pages', function ()
     $this->actingAs($nurse)->get(route('incharge.emergency-department-log.form', ['shift' => 'morning']))->assertOk();
 });
 
-test('non-incharge users cannot visit emergency department log pages', function (UserRole $role, string $expected) {
+test('indoor staff can visit the emergency department log pages', function () {
+    $staff = User::factory()->indoor()->create();
+
+    $this->actingAs($staff)->get(route('incharge.emergency-department-log'))->assertOk();
+    $this->actingAs($staff)->get(route('incharge.emergency-department-log.form', ['shift' => 'morning']))->assertOk();
+});
+
+test('unauthorized users cannot visit emergency department log pages', function (UserRole $role, string $expected) {
     $user = User::factory()->create(['role' => $role]);
 
     $this->actingAs($user)->get(route('incharge.emergency-department-log'))->{$expected}();
 })->with([
     'admin' => [UserRole::Admin, 'assertOk'],
+    'indoor' => [UserRole::Indoor, 'assertOk'],
     'receptionist' => [UserRole::Receptionist, 'assertForbidden'],
     'doctor' => [UserRole::Doctor, 'assertForbidden'],
 ]);
