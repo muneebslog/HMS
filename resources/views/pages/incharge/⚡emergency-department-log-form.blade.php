@@ -4,7 +4,6 @@ use App\Enums\EmergencyDepartmentEquipmentStatus;
 use App\Enums\EmergencyDepartmentShift;
 use App\Livewire\Concerns\HasChecklistWizard;
 use App\Models\EmergencyDepartmentLogEntry;
-use App\Models\HealthAide;
 use App\Services\EmergencyDepartmentLogDefinition;
 use App\Services\EmergencyDepartmentLogService;
 use Flux\Flux;
@@ -24,8 +23,6 @@ new #[Title('Fill ER Operational Log')] class extends Component
     public string $checklistDate = '';
 
     public string $activeSection = 'header';
-
-    public string $healthAideCode = '';
 
     public string $supervisorName = '';
 
@@ -178,10 +175,8 @@ new #[Title('Fill ER Operational Log')] class extends Component
 
         $validated = $this->validate($rules, $messages);
 
-        $aide = HealthAide::findByPin($validated['healthAideCode']);
-
-        if ($aide === null) {
-            $this->addError('healthAideCode', __('Invalid health aide code.'));
+        if (! $this->hasVerifiedHealthAide() && ! $this->verifyHealthAideCode()) {
+            $this->activeSection = 'header';
 
             return;
         }
@@ -191,8 +186,8 @@ new #[Title('Fill ER Operational Log')] class extends Component
             Carbon::parse($this->checklistDate),
             $this->shift,
             [
-                'health_aide_id' => $aide->id,
-                'completed_by_name' => $aide->name,
+                'health_aide_id' => $this->verifiedHealthAideId,
+                'completed_by_name' => $this->verifiedHealthAideName,
                 'supervisor_name' => $validated['supervisorName'] ?? '',
                 'equipment_issues_log' => $validated['equipmentIssuesLog'] ?? '',
             ],
@@ -218,7 +213,7 @@ new #[Title('Fill ER Operational Log')] class extends Component
 
         if ($section === 'header') {
             return [
-                'answered' => filled($this->healthAideCode) ? 1 : 0,
+                'answered' => $this->hasVerifiedHealthAide() ? 1 : 0,
                 'total' => 1,
             ];
         }
@@ -353,26 +348,13 @@ new #[Title('Fill ER Operational Log')] class extends Component
                                 {{ __('Mohsin Medical Complex — Standard Operating Checklist & Departmental Audit. Complete handover counts, equipment status, crash-cart stock, and cleaning checks for this shift.') }}
                             </flux:callout.text>
                         </flux:callout>
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <flux:field>
-                                <flux:label>{{ __('Health Aide Code') }}</flux:label>
-                                <flux:input
-                                    wire:model="healthAideCode"
-                                    type="password"
-                                    inputmode="numeric"
-                                    autocomplete="one-time-code"
-                                    maxlength="6"
-                                    required
-                                />
-                                <flux:description>{{ __('Time is recorded automatically on submit.') }}</flux:description>
-                                <flux:error name="healthAideCode" />
-                            </flux:field>
+                        <x-checklist-health-aide-code>
                             <flux:field>
                                 <flux:label>{{ __('Supervisor') }}</flux:label>
                                 <flux:input wire:model="supervisorName" />
                                 <flux:error name="supervisorName" />
                             </flux:field>
-                        </div>
+                        </x-checklist-health-aide-code>
                     </flux:card>
                 @endif
 
@@ -531,6 +513,7 @@ new #[Title('Fill ER Operational Log')] class extends Component
                     :is-last="$this->isLastSection()"
                     :answered="$progress['answered']"
                     :total="$progress['total']"
+                    :verified-name="$this->hasVerifiedHealthAide() ? $this->verifiedHealthAideName : null"
                     :save-label="__('Save')"
                 />
             </form>

@@ -224,15 +224,38 @@ test('mark helpers fill section answers', function () {
 
 test('wizard navigation moves between sections and shows save on the last step', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
         ->assertSet('activeSection', 'header')
         ->assertSee('Next')
+        ->set('healthAideCode', '1234')
+        ->call('verifyHealthAideCode')
+        ->assertHasNoErrors()
+        ->assertSet('verifiedHealthAideName', 'Aide Sara')
+        ->assertSee('Continuing as Aide Sara')
         ->call('nextSection')
         ->assertSet('activeSection', 'A')
         ->call('setSection', 'D')
         ->assertSet('activeSection', 'D')
         ->assertSee('Save')
         ->assertDontSee(__('Submit Log'));
+});
+
+test('next section is blocked until a valid health aide code is verified', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+    emergencyDepartmentLogAide();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.emergency-department-log-form', ['shift' => 'morning'])
+        ->set('healthAideCode', '9999')
+        ->call('nextSection')
+        ->assertHasErrors(['healthAideCode'])
+        ->assertSet('activeSection', 'header')
+        ->set('healthAideCode', '1234')
+        ->call('nextSection')
+        ->assertHasNoErrors()
+        ->assertSet('activeSection', 'A')
+        ->assertSet('verifiedHealthAideName', 'Aide Sara');
 });

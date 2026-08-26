@@ -4,7 +4,6 @@ use App\Enums\WardMaintenanceFaultPriority;
 use App\Enums\WardMaintenanceShift;
 use App\Enums\WardMaintenanceStatus;
 use App\Livewire\Concerns\HasChecklistWizard;
-use App\Models\HealthAide;
 use App\Models\WardMaintenanceEntry;
 use App\Services\WardMaintenanceChecklistDefinition;
 use App\Services\WardMaintenanceService;
@@ -25,8 +24,6 @@ new #[Title('Fill Ward Maintenance')] class extends Component
     public string $checklistDate = '';
 
     public string $activeSection = 'header';
-
-    public string $healthAideCode = '';
 
     public string $supervisorName = '';
 
@@ -235,10 +232,8 @@ new #[Title('Fill Ward Maintenance')] class extends Component
 
         $validated = $this->validate($rules, $messages);
 
-        $aide = HealthAide::findByPin($validated['healthAideCode']);
-
-        if ($aide === null) {
-            $this->addError('healthAideCode', __('Invalid health aide code.'));
+        if (! $this->hasVerifiedHealthAide() && ! $this->verifyHealthAideCode()) {
+            $this->activeSection = 'header';
 
             return;
         }
@@ -248,8 +243,8 @@ new #[Title('Fill Ward Maintenance')] class extends Component
             Carbon::parse($this->checklistDate),
             $this->shift,
             [
-                'health_aide_id' => $aide->id,
-                'checked_by_name' => $aide->name,
+                'health_aide_id' => $this->verifiedHealthAideId,
+                'checked_by_name' => $this->verifiedHealthAideName,
                 'supervisor_name' => $validated['supervisorName'] ?? '',
                 'checked_by_time' => now()->format('H:i'),
                 'supervisor_time' => $validated['supervisorTime'] ?? '',
@@ -310,7 +305,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
         $sectionHandler = match ($section) {
             'header' => function () use (&$answered, &$total): void {
                 $total = 1;
-                $answered = filled($this->healthAideCode) ? 1 : 0;
+                $answered = $this->hasVerifiedHealthAide() ? 1 : 0;
             },
             'A' => function () use ($addCells): void {
                 $addCells('A', $this->definition->sectionAItems(), $this->definition->beds());
@@ -465,20 +460,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                                 {{ __('Legend: OK = acceptable, Fault = issue found, N/A = not applicable. Areas: Gyne Ward (B1–B5), Private 1 (B6), Private 2 (B7), Shared Private (B8–B9).') }}
                             </flux:callout.text>
                         </flux:callout>
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <flux:field>
-                                <flux:label>{{ __('Health Aide Code') }}</flux:label>
-                                <flux:input
-                                    wire:model="healthAideCode"
-                                    type="password"
-                                    inputmode="numeric"
-                                    autocomplete="one-time-code"
-                                    maxlength="6"
-                                    required
-                                />
-                                <flux:description>{{ __('Time is recorded automatically on submit.') }}</flux:description>
-                                <flux:error name="healthAideCode" />
-                            </flux:field>
+                        <x-checklist-health-aide-code>
                             <flux:field>
                                 <flux:label>{{ __('Supervisor') }}</flux:label>
                                 <flux:input wire:model="supervisorName" />
@@ -489,7 +471,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                                 <flux:input wire:model="supervisorTime" />
                                 <flux:error name="supervisorTime" />
                             </flux:field>
-                        </div>
+                        </x-checklist-health-aide-code>
                     </flux:card>
                 @endif
 
@@ -916,6 +898,7 @@ new #[Title('Fill Ward Maintenance')] class extends Component
                     :is-last="$this->isLastSection()"
                     :answered="$progress['answered']"
                     :total="$progress['total']"
+                    :verified-name="$this->hasVerifiedHealthAide() ? $this->verifiedHealthAideName : null"
                     :save-label="__('Save')"
                 />
             </form>

@@ -240,12 +240,17 @@ test('mark section ok fills status cells', function () {
 
 test('wizard navigation moves between sections and shows save on the last step', function () {
     $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
 
     Livewire::actingAs($nurse)
         ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
         ->assertSet('activeSection', 'header')
         ->assertSee('Next')
-        ->assertDontSee('Save')
+        ->set('healthAideCode', '1234')
+        ->call('verifyHealthAideCode')
+        ->assertHasNoErrors()
+        ->assertSet('verifiedHealthAideName', 'Aide Sara')
+        ->assertSee('Continuing as Aide Sara')
         ->call('nextSection')
         ->assertSet('activeSection', 'A')
         ->call('previousSection')
@@ -254,4 +259,22 @@ test('wizard navigation moves between sections and shows save on the last step',
         ->assertSet('activeSection', 'I')
         ->assertSee('Save')
         ->assertDontSee(__('Submit Checklist'));
+});
+
+test('next section is blocked until a valid health aide code is verified', function () {
+    $nurse = User::factory()->inchargeNurse()->create();
+    wardMaintenanceAide();
+
+    Livewire::actingAs($nurse)
+        ->test('pages::incharge.ward-maintenance-form', ['shift' => 'morning'])
+        ->set('healthAideCode', '9999')
+        ->call('nextSection')
+        ->assertHasErrors(['healthAideCode'])
+        ->assertSet('activeSection', 'header')
+        ->assertSet('verifiedHealthAideName', '')
+        ->set('healthAideCode', '1234')
+        ->call('nextSection')
+        ->assertHasNoErrors()
+        ->assertSet('activeSection', 'A')
+        ->assertSet('verifiedHealthAideName', 'Aide Sara');
 });

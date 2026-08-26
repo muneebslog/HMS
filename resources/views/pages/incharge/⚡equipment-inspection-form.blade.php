@@ -4,7 +4,6 @@ use App\Enums\EquipmentInspectionArea;
 use App\Enums\EquipmentInspectionShift;
 use App\Livewire\Concerns\HasChecklistWizard;
 use App\Models\EquipmentInspectionEntry;
-use App\Models\HealthAide;
 use App\Services\EquipmentInspectionChecklistDefinition;
 use App\Services\EquipmentInspectionService;
 use Flux\Flux;
@@ -27,8 +26,6 @@ new #[Title('Fill Equipment Inspection')] class extends Component
     public string $checklistDate = '';
 
     public string $activeSection = 'header';
-
-    public string $healthAideCode = '';
 
     public string $supervisorName = '';
 
@@ -242,10 +239,8 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
         $validated = $this->validate($rules, $messages);
 
-        $aide = HealthAide::findByPin($validated['healthAideCode']);
-
-        if ($aide === null) {
-            $this->addError('healthAideCode', __('Invalid health aide code.'));
+        if (! $this->hasVerifiedHealthAide() && ! $this->verifyHealthAideCode()) {
+            $this->activeSection = 'header';
 
             return;
         }
@@ -256,8 +251,8 @@ new #[Title('Fill Equipment Inspection')] class extends Component
             Carbon::parse($this->checklistDate),
             $this->shift,
             [
-                'health_aide_id' => $aide->id,
-                'checked_by_name' => $aide->name,
+                'health_aide_id' => $this->verifiedHealthAideId,
+                'checked_by_name' => $this->verifiedHealthAideName,
                 'supervisor_name' => $validated['supervisorName'] ?? '',
             ],
             $validated['equipment'] ?? [],
@@ -285,7 +280,7 @@ new #[Title('Fill Equipment Inspection')] class extends Component
 
         if ($section === 'header') {
             return [
-                'answered' => filled($this->healthAideCode) ? 1 : 0,
+                'answered' => $this->hasVerifiedHealthAide() ? 1 : 0,
                 'total' => 1,
             ];
         }
@@ -431,26 +426,13 @@ new #[Title('Fill Equipment Inspection')] class extends Component
                                 {{ __('Columns: Present, Functional, Clean, Maint. Req. Tick Maint. Req. only when corrective maintenance is needed.') }}
                             </flux:callout.text>
                         </flux:callout>
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <flux:field>
-                                <flux:label>{{ __('Health Aide Code') }}</flux:label>
-                                <flux:input
-                                    wire:model="healthAideCode"
-                                    type="password"
-                                    inputmode="numeric"
-                                    autocomplete="one-time-code"
-                                    maxlength="6"
-                                    required
-                                />
-                                <flux:description>{{ __('Time is recorded automatically on submit.') }}</flux:description>
-                                <flux:error name="healthAideCode" />
-                            </flux:field>
+                        <x-checklist-health-aide-code>
                             <flux:field>
                                 <flux:label>{{ __('Supervisor') }}</flux:label>
                                 <flux:input wire:model="supervisorName" />
                                 <flux:error name="supervisorName" />
                             </flux:field>
-                        </div>
+                        </x-checklist-health-aide-code>
                     </flux:card>
                 @endif
 
@@ -616,6 +598,7 @@ new #[Title('Fill Equipment Inspection')] class extends Component
                     :is-last="$this->isLastSection()"
                     :answered="$progress['answered']"
                     :total="$progress['total']"
+                    :verified-name="$this->hasVerifiedHealthAide() ? $this->verifiedHealthAideName : null"
                     :save-label="__('Save')"
                 />
             </form>

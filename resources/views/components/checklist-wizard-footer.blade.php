@@ -4,6 +4,7 @@
     'answered' => 0,
     'total' => 0,
     'saveLabel' => null,
+    'verifiedName' => null,
 ])
 
 @php
@@ -17,6 +18,11 @@
                 <flux:icon name="chart-pie" class="size-4 text-primary" />
                 {{ __(':answered of :total completed', ['answered' => $answered, 'total' => $total]) }}
             </div>
+            @if (filled($verifiedName))
+                <flux:text class="text-xs text-emerald-700 dark:text-emerald-300">
+                    {{ __('Health aide: :name', ['name' => $verifiedName]) }}
+                </flux:text>
+            @endif
             <flux:text class="text-xs text-zinc-500">
                 @if ($isLast)
                     {{ __('Review this last section, then save the checklist.') }}

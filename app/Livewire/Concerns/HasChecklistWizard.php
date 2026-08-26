@@ -2,8 +2,16 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Models\HealthAide;
+
 trait HasChecklistWizard
 {
+    public string $healthAideCode = '';
+
+    public ?int $verifiedHealthAideId = null;
+
+    public string $verifiedHealthAideName = '';
+
     /**
      * Ordered section keys for the current checklist wizard.
      *
@@ -46,11 +54,78 @@ trait HasChecklistWizard
     }
 
     /**
+     * Clear verified aide details when the code changes.
+     */
+    public function updatedHealthAideCode(): void
+    {
+        $this->verifiedHealthAideId = null;
+        $this->verifiedHealthAideName = '';
+        $this->resetErrorBag('healthAideCode');
+    }
+
+    /**
+     * Verify the entered health aide code and capture the aide name.
+     */
+    public function verifyHealthAideCode(): bool
+    {
+        $this->validate([
+            'healthAideCode' => ['required', 'digits_between:4,6'],
+        ], [
+            'healthAideCode.required' => __('Enter the health aide code.'),
+            'healthAideCode.digits_between' => __('The health aide code must be 4 to 6 digits.'),
+        ]);
+
+        $aide = HealthAide::findByPin($this->healthAideCode);
+
+        if ($aide === null) {
+            $this->verifiedHealthAideId = null;
+            $this->verifiedHealthAideName = '';
+            $this->addError('healthAideCode', __('Invalid health aide code.'));
+
+            return false;
+        }
+
+        $this->verifiedHealthAideId = $aide->id;
+        $this->verifiedHealthAideName = $aide->name;
+        $this->resetErrorBag('healthAideCode');
+
+        return true;
+    }
+
+    /**
+     * Whether a health aide has already been verified for this form.
+     */
+    public function hasVerifiedHealthAide(): bool
+    {
+        return $this->verifiedHealthAideId !== null && filled($this->verifiedHealthAideName);
+    }
+
+    /**
+     * Ensure the header health aide code is verified before leaving that step.
+     */
+    protected function ensureHeaderCanContinue(): bool
+    {
+        if ($this->activeSection !== 'header') {
+            return true;
+        }
+
+        if ($this->hasVerifiedHealthAide()) {
+            return true;
+        }
+
+        return $this->verifyHealthAideCode();
+    }
+
+    /**
      * Jump to a wizard section by key.
      */
     public function setSection(string $section): void
     {
         if (! in_array($section, $this->sectionKeys(), true)) {
+            return;
+        }
+
+        if ($this->activeSection === 'header' && $section !== 'header' && ! $this->ensureHeaderCanContinue()) {
             return;
         }
 
@@ -62,6 +137,10 @@ trait HasChecklistWizard
      */
     public function nextSection(): void
     {
+        if (! $this->ensureHeaderCanContinue()) {
+            return;
+        }
+
         $keys = $this->sectionKeys();
         $index = $this->currentSectionIndex();
 
