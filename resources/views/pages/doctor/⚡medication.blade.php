@@ -72,7 +72,7 @@ new #[Title('Medication')] class extends Component
      * Whether medications are picked with searchable selects (`typing`) or catalog badges (`visual`).
      */
     #[Session(key: 'medication-order-input-mode')]
-    public string $orderInputMode = 'typing';
+    public string $orderInputMode = 'visual';
 
     public bool $showWrittenMedicationInput = false;
 
