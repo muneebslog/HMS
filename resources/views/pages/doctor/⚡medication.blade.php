@@ -2477,11 +2477,14 @@ new #[Title('Medication')] class extends Component
                 @php($selectedMedications = collect($medicationLines)->pluck('selection')->filter()->all())
                 <div class="space-y-3">
                     @foreach ([
-                        ['label' => __('Medicines'), 'prefix' => 'medicine', 'items' => $this->medicines, 'color' => 'green'],
-                        ['label' => __('Injections'), 'prefix' => 'injection', 'items' => $this->injections, 'color' => 'sky'],
+                        ['label' => __('Medicines'), 'prefix' => 'medicine', 'items' => $this->medicines, 'idleColor' => 'violet', 'selectedColor' => 'green', 'icon' => 'pill'],
+                        ['label' => __('Injections'), 'prefix' => 'injection', 'items' => $this->injections, 'idleColor' => 'blue', 'selectedColor' => 'sky', 'icon' => 'syringe'],
                     ] as $group)
                         <div wire:key="visual-group-{{ $group['prefix'] }}" class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ $group['label'] }}</p>
+                            <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                                <flux:icon :name="$group['icon']" variant="mini" class="size-3.5" />
+                                {{ $group['label'] }}
+                            </p>
                             <div class="flex flex-wrap gap-2">
                                 @forelse ($group['items'] as $item)
                                     @php($value = $group['prefix'].':'.$item->id)
@@ -2490,8 +2493,8 @@ new #[Title('Medication')] class extends Component
                                         as="button"
                                         type="button"
                                         size="lg"
-                                        :color="$isSelected ? $group['color'] : 'zinc'"
-                                        :icon="$isSelected ? 'check' : null"
+                                        :color="$isSelected ? $group['selectedColor'] : $group['idleColor']"
+                                        :icon="$isSelected ? 'check' : $group['icon']"
                                         class="cursor-pointer"
                                         wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
                                         wire:click="toggleMedicationSelection('{{ $value }}')"
@@ -2635,16 +2638,19 @@ new #[Title('Medication')] class extends Component
                 @php($selectedDripBaseIds = collect($dripLines)->pluck('drip_base_id')->filter()->map(fn (mixed $id): int => (int) $id)->all())
                 <div class="space-y-3">
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drip bases') }}</p>
-                        <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                        <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                            <flux:icon name="droplets" variant="mini" class="size-3.5" />
+                            {{ __('Drip bases') }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
                             @forelse ($this->dripBases as $dripBase)
                                 @php($isSelected = in_array($dripBase->id, $selectedDripBaseIds, true))
                                 <flux:badge
                                     as="button"
                                     type="button"
                                     size="lg"
-                                    :color="$isSelected ? 'teal' : 'zinc'"
-                                    :icon="$isSelected ? 'check' : null"
+                                    :color="$isSelected ? 'teal' : 'cyan'"
+                                    :icon="$isSelected ? 'check' : 'droplets'"
                                     class="cursor-pointer"
                                     wire:key="visual-drip-{{ $dripBase->id }}"
                                     wire:click="toggleDripSelection({{ $dripBase->id }})"
@@ -2684,15 +2690,15 @@ new #[Title('Medication')] class extends Component
                                             {{ __('Add') }}
                                         </flux:badge>
                                     </div>
-                                    <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                                    <div class="flex flex-wrap gap-2">
                                         @forelse ($this->injections as $injection)
                                             @php($isSelected = in_array($injection->id, $selectedAdditiveIds, true))
                                             <flux:badge
                                                 as="button"
                                                 type="button"
                                                 size="lg"
-                                                :color="$isSelected ? 'sky' : 'zinc'"
-                                                :icon="$isSelected ? 'check' : null"
+                                                :color="$isSelected ? 'sky' : 'blue'"
+                                                :icon="$isSelected ? 'check' : 'syringe'"
                                                 class="cursor-pointer"
                                                 wire:key="visual-drip-{{ $dripIndex }}-additive-{{ $injection->id }}"
                                                 wire:click="toggleDripAdditive({{ $dripIndex }}, {{ $injection->id }})"
