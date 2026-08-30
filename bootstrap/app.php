@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureOpenShift;
+use App\Http\Middleware\EnsurePageAccess;
 use App\Http\Middleware\EnsurePdfPrintAgentToken;
 use App\Http\Middleware\EnsurePrintAgentToken;
 use App\Http\Middleware\EnsureRoleAssigned;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'open.shift' => EnsureOpenShift::class,
+            'page.access' => EnsurePageAccess::class,
             'print.agent' => EnsurePrintAgentToken::class,
             'pdf.print.agent' => EnsurePdfPrintAgentToken::class,
             'role' => EnsureUserRole::class,

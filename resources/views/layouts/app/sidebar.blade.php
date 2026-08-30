@@ -4,6 +4,37 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
+        @php
+            $pageAccess = app(\App\Services\PageAccessService::class);
+            $user = auth()->user();
+
+            $platformRoutes = [
+                'doctor.portal', 'doctor.medication', 'doctor.procedures',
+                'incharge.questionnaires', 'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
+                'indoor.ward', 'reception.mr-lookup',
+            ];
+            $receptionRoutes = [
+                'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry',
+                'lab-entries', 'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
+                'reception.token-flow', 'payout.daily', 'supervisor.checklist',
+            ];
+            $managementRoutes = [
+                'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history',
+                'admin.attendance', 'lab-entries', 'admin.drive', 'admin.pdf-print', 'admin.notifications',
+            ];
+            $administrationRoutes = [
+                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
+                'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban', 'admin.policy-journal',
+                'admin.notifications', 'admin.reports', 'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
+                'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow', 'admin.supervisor-questions',
+                'admin.supervisor-checklist', 'admin.nurse-questionnaires', 'admin.nurse-questionnaire-submissions',
+                'admin.ward-maintenance-submissions', 'admin.equipment-inspection-submissions', 'admin.emergency-department-log-submissions',
+                'admin.page-access',
+            ];
+            $systemRoutes = [
+                'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders', 'reception.shift',
+            ];
+        @endphp
         <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:sidebar.header>
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
@@ -21,252 +52,361 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
-                    @if (auth()->user()->isDoctor())
+                    @pageAccess('doctor.portal')
                         <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
                             {{ __('Doctor Portal') }}
                         </flux:sidebar.item>
+                    @endpageAccess
+                    @pageAccess('doctor.medication')
                         <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
                             {{ __('Medication') }}
                         </flux:sidebar.item>
+                    @endpageAccess
+                    @pageAccess('doctor.procedures')
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
                             {{ __('My Procedures') }}
                         </flux:sidebar.item>
-                    @endif
+                    @endpageAccess
 
-                    @if (auth()->user()->isInchargeNurse() || auth()->user()->isAdmin())
+                    @pageAccess('incharge.questionnaires')
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('incharge.questionnaires')" :current="request()->routeIs('incharge.questionnaire*')" wire:navigate>
                             {{ __('Questionnaires') }}
                         </flux:sidebar.item>
-                    @endif
+                    @endpageAccess
 
-                    @if (auth()->user()->isInchargeNurse() || auth()->user()->isIndoor() || auth()->user()->isAdmin())
+                    @pageAccess('incharge.ward-maintenance')
                         <flux:sidebar.item icon="wrench-screwdriver" :href="route('incharge.ward-maintenance')" :current="request()->routeIs('incharge.ward-maintenance*')" wire:navigate>
                             {{ __('Ward Maintenance') }}
                         </flux:sidebar.item>
+                    @endpageAccess
+                    @pageAccess('incharge.equipment-inspections')
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('incharge.equipment-inspections')" :current="request()->routeIs('incharge.equipment-inspection*')" wire:navigate>
                             {{ __('Equipment Inspection') }}
                         </flux:sidebar.item>
+                    @endpageAccess
+                    @pageAccess('incharge.emergency-department-log')
                         <flux:sidebar.item icon="shield-check" :href="route('incharge.emergency-department-log')" :current="request()->routeIs('incharge.emergency-department-log*')" wire:navigate>
                             {{ __('ER Operational Log') }}
                         </flux:sidebar.item>
-                    @endif
+                    @endpageAccess
 
-                    @if (auth()->user()->isIndoor() || auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isDoctor())
+                    @pageAccess('indoor.ward')
                         <flux:sidebar.item icon="building-office-2" :href="route('indoor.ward')" :current="request()->routeIs('indoor.*')" wire:navigate>
                             {{ __('Indoor Ward') }}
                         </flux:sidebar.item>
-                    @endif
+                    @endpageAccess
 
                     <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
                         {{ __('Lab') }}
                     </flux:sidebar.item>
 
-                    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement() || auth()->user()->isDoctor())
+                    @pageAccess('reception.mr-lookup')
                         <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
                             {{ __('MR Lookup') }}
                         </flux:sidebar.item>
-                    @endif
+                    @endpageAccess
                 </flux:sidebar.group>
 
-                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
+                @if ($pageAccess->canAccessAny($user, $receptionRoutes))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
                             <span class="size-2 rounded-full bg-teal-500"></span>
                             {{ __('Reception') }}
                         </div>
 
-                        <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
-                            {{ __('Walk-in') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="calendar" :href="route('reception.reservation')" :current="request()->routeIs('reception.reservation')" wire:navigate>
-                            {{ __('Reservations') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="phone" :href="route('reception.patient-calling')" :current="request()->routeIs('reception.patient-calling')" wire:navigate>
-                            {{ __('Patient Calling') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
-                            {{ __('Lab Entry') }}
-                        </flux:sidebar.item>
-                        @if (auth()->user()->isReceptionist())
+                        @pageAccess('reception.walkin')
+                            <flux:sidebar.item icon="user-plus" :href="route('reception.walkin')" :current="request()->routeIs('reception.walkin')" wire:navigate>
+                                {{ __('Walk-in') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.reservation')
+                            <flux:sidebar.item icon="calendar" :href="route('reception.reservation')" :current="request()->routeIs('reception.reservation')" wire:navigate>
+                                {{ __('Reservations') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.patient-calling')
+                            <flux:sidebar.item icon="phone" :href="route('reception.patient-calling')" :current="request()->routeIs('reception.patient-calling')" wire:navigate>
+                                {{ __('Patient Calling') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.lab-entry')
+                            <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
+                                {{ __('Lab Entry') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('lab-entries')
                             <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
                                 {{ __('Lab Entries Listings') }}
                             </flux:sidebar.item>
-                        @endif
-                        <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
-                            {{ __('Vitals') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
-                            {{ __('Ultrasound') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
-                            {{ __('Procedures') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="home" :href="route('reception.rooms')" :current="request()->routeIs('reception.rooms')" wire:navigate>
-                            {{ __('Rooms') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="list-bullet" :href="route('reception.token-flow')" :current="request()->routeIs('reception.token-flow')" wire:navigate>
-                            {{ __('Token Flow') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
-                            {{ __('Daily Payout') }}
-                        </flux:sidebar.item>
-                        @if (auth()->user()->isReceptionist())
+                        @endpageAccess
+                        @pageAccess('reception.vitals')
+                            <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
+                                {{ __('Vitals') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.ultrasound')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
+                                {{ __('Ultrasound') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.procedures')
+                            <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
+                                {{ __('Procedures') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.rooms')
+                            <flux:sidebar.item icon="home" :href="route('reception.rooms')" :current="request()->routeIs('reception.rooms')" wire:navigate>
+                                {{ __('Rooms') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.token-flow')
+                            <flux:sidebar.item icon="list-bullet" :href="route('reception.token-flow')" :current="request()->routeIs('reception.token-flow')" wire:navigate>
+                                {{ __('Token Flow') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('payout.daily')
+                            <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
+                                {{ __('Daily Payout') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('supervisor.checklist')
                             <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.checklist')" :current="request()->routeIs('supervisor.checklist')" wire:navigate>
                                 {{ __('Checklist') }}
                             </flux:sidebar.item>
-                        @endif
+                        @endpageAccess
                     </flux:sidebar.group>
                 @endif
 
-                @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+                @if ($pageAccess->canAccessAny($user, $managementRoutes))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                             <span class="size-2 rounded-full bg-amber-500"></span>
                             {{ __('Management') }}
                         </div>
 
-                        <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
-                            {{ __('Invoices') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
-                            {{ __('Queue') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
-                            {{ __('Doctor Payout') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
-                            {{ __('Shift History') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clock" :href="route('admin.attendance')" :current="request()->routeIs('admin.attendance*')" wire:navigate>
-                            {{ __('Attendance') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                            {{ __('Lab Entries Listings') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="cloud" :href="route('admin.drive')" :current="request()->routeIs('admin.drive*')" wire:navigate>
-                            {{ __('HMS Drive') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
-                            {{ __('PDF Print') }}
-                        </flux:sidebar.item>
+                        @pageAccess('reception.invoices')
+                            <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
+                                {{ __('Invoices') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.queue')
+                            <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
+                                {{ __('Queue') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('payout.doctor')
+                            <flux:sidebar.item icon="banknotes" :href="route('payout.doctor')" :current="request()->routeIs('payout.doctor')" wire:navigate>
+                                {{ __('Doctor Payout') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('management.shift-history')
+                            <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
+                                {{ __('Shift History') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.attendance')
+                            <flux:sidebar.item icon="clock" :href="route('admin.attendance')" :current="request()->routeIs('admin.attendance*')" wire:navigate>
+                                {{ __('Attendance') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('lab-entries')
+                            <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                                {{ __('Lab Entries Listings') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.drive')
+                            <flux:sidebar.item icon="cloud" :href="route('admin.drive')" :current="request()->routeIs('admin.drive*')" wire:navigate>
+                                {{ __('HMS Drive') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.pdf-print')
+                            <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
+                                {{ __('PDF Print') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
                     </flux:sidebar.group>
                 @endif
 
-                @if (auth()->user()->isAdmin())
+                @if ($user->isAdmin())
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
                             <span class="size-2 rounded-full bg-purple-500"></span>
                             {{ __('Administration') }}
                         </div>
 
-                        <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
-                            {{ __('Management CRUD') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
-                            {{ __('Users') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="identification" :href="route('admin.employees')" :current="request()->routeIs('admin.employees*')" wire:navigate>
-                            {{ __('Staff Profiles') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
-                            {{ __('Health Aides') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
-                            {{ __('Leave Calendar') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
-                            {{ __('SMS Logs') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
-                            {{ __('Merge Duplicates') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
-                            {{ __('SQL Runner') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
-                            {{ __('Kanban') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="book-open" :href="route('admin.policy-journal')" :current="request()->routeIs('admin.policy-journal')" wire:navigate>
-                            {{ __('Policy Journal') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
-                            {{ __('Notifications') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="inbox-arrow-down" :href="route('admin.reports')" :current="request()->routeIs('admin.reports')" wire:navigate>
-                            {{ __('Reports to Admin') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
-                            {{ __('Monthly Report') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
-                            {{ __('Procedure Finances') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
-                            {{ __('Service Statistics') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
-                            {{ __('Medication Deliveries') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
-                            {{ __('Recheck Timers') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="map" :href="route('admin.patient-flow')" :current="request()->routeIs('admin.patient-flow')" wire:navigate>
-                            {{ __('Patient Flow') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
-                            {{ __('Checklist Questions') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
-                            {{ __('Checklist Summary') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('admin.nurse-questionnaires')" :current="request()->routeIs('admin.nurse-questionnaires')" wire:navigate>
-                            {{ __('Nurse Questionnaires') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.nurse-questionnaire-submissions')" :current="request()->routeIs('admin.nurse-questionnaire-submissions')" wire:navigate>
-                            {{ __('Nurse Form Submissions') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="wrench-screwdriver" :href="route('admin.ward-maintenance-submissions')" :current="request()->routeIs('admin.ward-maintenance-submissions')" wire:navigate>
-                            {{ __('Ward Maintenance') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.equipment-inspection-submissions')" :current="request()->routeIs('admin.equipment-inspection-submissions')" wire:navigate>
-                            {{ __('Equipment Inspection') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="shield-check" :href="route('admin.emergency-department-log-submissions')" :current="request()->routeIs('admin.emergency-department-log-submissions')" wire:navigate>
-                            {{ __('ER Operational Log') }}
+                        @pageAccess('management.crud')
+                            <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
+                                {{ __('Management CRUD') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.users')
+                            <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
+                                {{ __('Users') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.employees')
+                            <flux:sidebar.item icon="identification" :href="route('admin.employees')" :current="request()->routeIs('admin.employees*')" wire:navigate>
+                                {{ __('Staff Profiles') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.health-aides')
+                            <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
+                                {{ __('Health Aides') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.leave-calendar')
+                            <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
+                                {{ __('Leave Calendar') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.sms-logs')
+                            <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
+                                {{ __('SMS Logs') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.merge-duplicates')
+                            <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
+                                {{ __('Merge Duplicates') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.sql-runner')
+                            <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
+                                {{ __('SQL Runner') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.kanban')
+                            <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
+                                {{ __('Kanban') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.policy-journal')
+                            <flux:sidebar.item icon="book-open" :href="route('admin.policy-journal')" :current="request()->routeIs('admin.policy-journal')" wire:navigate>
+                                {{ __('Policy Journal') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.notifications')
+                            <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
+                                {{ __('Notifications') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.reports')
+                            <flux:sidebar.item icon="inbox-arrow-down" :href="route('admin.reports')" :current="request()->routeIs('admin.reports')" wire:navigate>
+                                {{ __('Reports to Admin') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.monthly-report')
+                            <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
+                                {{ __('Monthly Report') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.procedure-finances')
+                            <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
+                                {{ __('Procedure Finances') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.service-stats')
+                            <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
+                                {{ __('Service Statistics') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.medication-deliveries')
+                            <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
+                                {{ __('Medication Deliveries') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.rechecks')
+                            <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
+                                {{ __('Recheck Timers') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.patient-flow')
+                            <flux:sidebar.item icon="map" :href="route('admin.patient-flow')" :current="request()->routeIs('admin.patient-flow')" wire:navigate>
+                                {{ __('Patient Flow') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.supervisor-questions')
+                            <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
+                                {{ __('Checklist Questions') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.supervisor-checklist')
+                            <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
+                                {{ __('Checklist Summary') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.nurse-questionnaires')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('admin.nurse-questionnaires')" :current="request()->routeIs('admin.nurse-questionnaires')" wire:navigate>
+                                {{ __('Nurse Questionnaires') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.nurse-questionnaire-submissions')
+                            <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.nurse-questionnaire-submissions')" :current="request()->routeIs('admin.nurse-questionnaire-submissions')" wire:navigate>
+                                {{ __('Nurse Form Submissions') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.ward-maintenance-submissions')
+                            <flux:sidebar.item icon="wrench-screwdriver" :href="route('admin.ward-maintenance-submissions')" :current="request()->routeIs('admin.ward-maintenance-submissions')" wire:navigate>
+                                {{ __('Ward Maintenance') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.equipment-inspection-submissions')
+                            <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.equipment-inspection-submissions')" :current="request()->routeIs('admin.equipment-inspection-submissions')" wire:navigate>
+                                {{ __('Equipment Inspection') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('admin.emergency-department-log-submissions')
+                            <flux:sidebar.item icon="shield-check" :href="route('admin.emergency-department-log-submissions')" :current="request()->routeIs('admin.emergency-department-log-submissions')" wire:navigate>
+                                {{ __('ER Operational Log') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>
+                            {{ __('Page Access') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
 
-                @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement() || auth()->user()->isIndoor())
+                @if ($pageAccess->canAccessAny($user, $systemRoutes))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                             <span class="size-2 rounded-full bg-rose-500"></span>
                             {{ __('System') }}
                         </div>
 
-                        <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
-                            {{ __('Token Display') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="beaker" :href="route('display.er')" :current="request()->routeIs('display.er')" wire:navigate>
-                            {{ __('ER Station') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
-                            {{ __('Drip Delivery') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="archive-box" :href="route('display.stock')" :current="request()->routeIs('display.stock')" wire:navigate>
-                            {{ __('Stock Station') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
-                            {{ __('ER + Drips') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('display.shift_orders')" :current="request()->routeIs('display.shift_orders')" wire:navigate>
-                            {{ __('Shift Orders') }}
-                        </flux:sidebar.item>
-                        @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist() || auth()->user()->isManagement())
+                        @pageAccess('display.tokens')
+                            <flux:sidebar.item icon="tv" :href="route('display.tokens')" :current="request()->routeIs('display.tokens')" wire:navigate>
+                                {{ __('Token Display') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('display.er')
+                            <flux:sidebar.item icon="beaker" :href="route('display.er')" :current="request()->routeIs('display.er')" wire:navigate>
+                                {{ __('ER Station') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('display.drips')
+                            <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
+                                {{ __('Drip Delivery') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('display.stock')
+                            <flux:sidebar.item icon="archive-box" :href="route('display.stock')" :current="request()->routeIs('display.stock')" wire:navigate>
+                                {{ __('Stock Station') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('display.er_drips')
+                            <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
+                                {{ __('ER + Drips') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('display.shift_orders')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('display.shift_orders')" :current="request()->routeIs('display.shift_orders')" wire:navigate>
+                                {{ __('Shift Orders') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.shift')
                             <flux:sidebar.item icon="clock" :href="route('reception.shift')" :current="request()->routeIs('reception.shift')" wire:navigate>
                                 {{ __('Shift') }}
                             </flux:sidebar.item>
-                        @endif
+                        @endpageAccess
                     </flux:sidebar.group>
                 @endif
             </flux:sidebar.nav>

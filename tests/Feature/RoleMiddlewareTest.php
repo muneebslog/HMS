@@ -3,10 +3,15 @@
 use App\Enums\UserRole;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 $routeMap = [
     'admin' => [

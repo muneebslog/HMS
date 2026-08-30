@@ -76,11 +76,15 @@ Route::get('display/shift-orders/export', function (Request $request, ShiftOrder
 })->name('display.shift_orders.export');
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
-    Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
-
-    Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
-
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
+        Route::livewire('admin/page-access', 'pages::admin.page-access')->name('admin.page-access');
+    });
+
+    Route::middleware('page.access')->group(function () {
+        Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
+
+        Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
+
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
         Route::get('management/procedure-type-documents/{document}/preview', ProcedureTypeDocumentPreviewController::class)
             ->name('management.procedure-type-documents.preview');
@@ -110,52 +114,36 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
         Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
         Route::livewire('admin/medication-deliveries', 'pages::admin.medication-deliveries')->name('admin.medication-deliveries');
-    });
 
-    Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::get('employee-documents/{document}/download', [EmployeeDocumentController::class, 'download'])->name('employee-documents.download');
         Route::get('employee-photos/{employee}', EmployeePhotoController::class)->name('employee-photos.show');
         Route::get('employee-qualifications/{qualification}/download', EmployeeQualificationDownloadController::class)->name('employee-qualifications.download');
-    });
 
-    Route::middleware('role:'.UserRole::Doctor->value)->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
         Route::livewire('doctor/medication', 'pages::doctor.medication')->name('doctor.medication');
         Route::livewire('doctor/procedures', 'pages::doctor.procedures')->name('doctor.procedures');
-    });
 
-    Route::middleware('role:'.UserRole::Indoor->value.','.UserRole::Admin->value.','.UserRole::Receptionist->value.','.UserRole::Doctor->value)->group(function () {
         Route::livewire('indoor/ward', 'pages::indoor.ward')->name('indoor.ward');
         Route::livewire('indoor/procedures/{procedure}', 'pages::indoor.procedure')->name('indoor.procedure');
         Route::get('indoor/attachments/{attachment}', ProcedureAttachmentController::class)->name('indoor.attachments.show');
         Route::get('indoor/procedures/{procedure}/discharge-certificate', ProcedureDischargeCertificateController::class)->name('indoor.procedures.discharge-certificate');
         Route::get('indoor/procedures/{procedure}/birth-certificate', ProcedureBirthCertificateController::class)->name('indoor.procedures.birth-certificate');
         Route::get('indoor/procedures/{procedure}/bill', ProcedurePrintController::class)->name('indoor.procedures.print');
-    });
 
-    Route::middleware('role:'.UserRole::Management->value)->group(function () {
         Route::livewire('doctor-payout', 'pages::payout.doctor')->name('payout.doctor');
         Route::livewire('reception/invoices', 'pages::reception.invoices')->middleware('open.shift')->name('reception.invoices');
         Route::livewire('reception/queue', 'pages::reception.queue')->middleware(['open.shift', RedirectLegacyDisplayDevices::class])->name('reception.queue');
         Route::get('reception/queue/tv', QueueTvController::class)->middleware('open.shift')->name('reception.queue.tv');
         Route::livewire('management/shift-history', 'pages::management.shift-history')->name('management.shift-history');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
-    });
 
-    Route::middleware('role:'.UserRole::Receptionist->value.','.UserRole::Management->value.','.UserRole::Admin->value.','.UserRole::Doctor->value)->group(function () {
         Route::livewire('reception/mr-lookup', 'pages::reception.mr-lookup')->name('reception.mr-lookup');
-    });
 
-    Route::middleware('role:'.UserRole::Receptionist->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
-    });
 
-    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value.','.UserRole::Receptionist->value)->group(function () {
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
-    });
 
-    Route::middleware('role:'.UserRole::Admin->value.','.UserRole::Management->value)->group(function () {
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
         Route::get('admin/drive/files/{driveFile}/download', [DriveFileController::class, 'download'])
@@ -170,14 +158,10 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/attendance/daily', 'pages::admin.attendance-daily')->name('admin.attendance.daily');
         Route::livewire('admin/attendance/payroll', 'pages::admin.attendance-payroll')->name('admin.attendance.payroll');
         Route::livewire('admin/attendance/device', 'pages::admin.attendance-device')->name('admin.attendance.device');
-    });
 
-    Route::middleware('role:'.UserRole::InchargeNurse->value)->group(function () {
         Route::livewire('incharge/questionnaires', 'pages::incharge.questionnaires')->name('incharge.questionnaires');
         Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
-    });
 
-    Route::middleware('role:'.UserRole::InchargeNurse->value.','.UserRole::Indoor->value)->group(function () {
         Route::livewire('incharge/ward-maintenance', 'pages::incharge.ward-maintenance')->name('incharge.ward-maintenance');
         Route::livewire('incharge/ward-maintenance/{shift}', 'pages::incharge.ward-maintenance-form')->name('incharge.ward-maintenance.form');
         Route::livewire('incharge/equipment-inspections', 'pages::incharge.equipment-inspections')->name('incharge.equipment-inspections');
@@ -185,9 +169,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('incharge/equipment-inspections/{area}/{shift}', 'pages::incharge.equipment-inspection-form')->name('incharge.equipment-inspections.form');
         Route::livewire('incharge/emergency-department-log', 'pages::incharge.emergency-department-log')->name('incharge.emergency-department-log');
         Route::livewire('incharge/emergency-department-log/{shift}', 'pages::incharge.emergency-department-log-form')->name('incharge.emergency-department-log.form');
-    });
 
-    Route::middleware('role:'.UserRole::Receptionist->value)->group(function () {
         Route::middleware('open.shift')->group(function () {
             Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');

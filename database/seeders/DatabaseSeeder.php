@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             ServiceSeeder::class,
             ServicePriceSeeder::class,
             LabTestSeeder::class,
+            RolePagePermissionSeeder::class,
         ]);
     }
 }

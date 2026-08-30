@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
+use App\Services\PageAccessService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -145,6 +146,14 @@ class User extends Authenticatable implements PasskeyUser
     public function hasRole(UserRole $role): bool
     {
         return $this->role === $role;
+    }
+
+    /**
+     * Determine whether the user can access the given route.
+     */
+    public function canAccessRoute(string $routeName): bool
+    {
+        return app(PageAccessService::class)->canAccess($this, $routeName);
     }
 
     /**
