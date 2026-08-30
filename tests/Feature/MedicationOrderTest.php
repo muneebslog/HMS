@@ -7,6 +7,7 @@ use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DoctorRecheck;
 use App\Models\DripBase;
+use App\Models\Family;
 use App\Models\Injection;
 use App\Models\MedicationOrder;
 use App\Models\Medicine;
@@ -98,6 +99,23 @@ test('medication queue excludes tokens for services that do not need medication'
         ->test('pages::doctor.medication')
         ->assertDontSee($patient->name)
         ->assertSee(__('No patients need medication'));
+});
+
+test('medication queue shows phone linked indicator for patients', function () {
+    [$user, , , , , $patientWithPhone, $tokenWithPhone] = createMedicationQueuePatient();
+    $patientWithPhone->update([
+        'family_id' => Family::factory()->create(['phone' => '03001234567'])->id,
+    ]);
+
+    [, , , , , $patientWithoutPhone] = createMedicationQueuePatient();
+    $patientWithoutPhone->update(['name' => 'No Phone Patient', 'family_id' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSeeHtml('bg-green-500')
+        ->assertSeeHtml('bg-orange-500')
+        ->assertSee('Sana Malik')
+        ->assertSee('No Phone Patient');
 });
 
 test('medication queue includes overnight daily queues after midnight', function () {

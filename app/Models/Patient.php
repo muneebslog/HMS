@@ -59,6 +59,14 @@ class Patient extends Model
     }
 
     /**
+     * Determine whether the patient has a linked family phone number.
+     */
+    public function hasLinkedPhone(): bool
+    {
+        return filled($this->contactPhone());
+    }
+
+    /**
      * Get the queue tokens associated with this patient.
      *
      * @return HasMany<QueueToken, $this>

@@ -131,7 +131,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder', 'activeRecheck'])
+            ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder', 'activeRecheck'])
             ->where(function ($query): void {
                 $query->whereIn('status', ['waiting', 'serving'])
                     ->orWhere(function ($servedQuery): void {
@@ -185,7 +185,7 @@ new #[Title('Medication')] class extends Component
         }
 
         $orders = MedicationOrder::query()
-            ->with(['patient', 'queueToken.serviceQueue.service'])
+            ->with(['patient.family', 'queueToken.serviceQueue.service'])
             ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
             ->whereHas(
                 'queueToken.serviceQueue',
@@ -211,7 +211,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
+            ?? QueueToken::with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
                 ->find($this->selectedTokenId);
     }
 
@@ -490,7 +490,7 @@ new #[Title('Medication')] class extends Component
 
         return MedicationOrder::query()
             ->with([
-                'patient',
+                'patient.family',
                 'medicines',
                 'injections',
                 'drips.additives',
@@ -538,7 +538,7 @@ new #[Title('Medication')] class extends Component
         return $this->browseableMedOrders->firstWhere('id', $this->selectedBrowseOrderId)
             ?? MedicationOrder::query()
                 ->with([
-                    'patient',
+                    'patient.family',
                     'medicines',
                     'injections',
                     'drips.additives',
@@ -656,7 +656,7 @@ new #[Title('Medication')] class extends Component
         unset($this->queue);
 
         $dueRechecks = DoctorRecheck::query()
-            ->with('patient')
+            ->with('patient.family')
             ->due()
             ->whereNull('notified_at')
             ->get();
@@ -850,7 +850,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return MedicationOrder::query()
-            ->with(['patient', 'queueToken'])
+            ->with(['patient.family', 'queueToken'])
             ->whereKey($this->selectedRecallOrderId)
             ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
             ->whereHas(
@@ -2226,9 +2226,12 @@ new #[Title('Medication')] class extends Component
                     class="min-h-48 active:scale-[0.99] hover:-translate-y-0.5"
                 >
                     <div class="flex items-start justify-between gap-2">
-                        <p class="truncate text-lg font-semibold text-zinc-900">
-                            {{ $token->patient?->name ?? __('Unknown') }}
-                        </p>
+                        <div class="flex min-w-0 items-center gap-2">
+                            <x-patient-phone-indicator :patient="$token->patient" />
+                            <p class="truncate text-lg font-semibold text-zinc-900">
+                                {{ $token->patient?->name ?? __('Unknown') }}
+                            </p>
+                        </div>
                         @if ($recheck?->isDue())
                             <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
                         @elseif ($recheck)
@@ -2270,8 +2273,9 @@ new #[Title('Medication')] class extends Component
                     {{ $token?->token_number }}
                 </span>
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-lg font-semibold text-zinc-900 dark:text-white">
-                        {{ $token?->patient?->name ?? __('Unknown') }}
+                    <p class="flex min-w-0 items-center gap-2 truncate text-lg font-semibold text-zinc-900 dark:text-white">
+                        <x-patient-phone-indicator :patient="$token?->patient" />
+                        <span class="truncate">{{ $token?->patient?->name ?? __('Unknown') }}</span>
                         @if ($activeRecheck?->isDue())
                             <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
                         @endif
@@ -2880,8 +2884,9 @@ new #[Title('Medication')] class extends Component
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <p class="truncate text-base font-semibold text-zinc-900">
-                                    {{ $order->patient?->name ?? __('Unknown') }}
+                                <p class="flex min-w-0 items-center gap-2 truncate text-base font-semibold text-zinc-900">
+                                    <x-patient-phone-indicator :patient="$order->patient" />
+                                    <span class="truncate">{{ $order->patient?->name ?? __('Unknown') }}</span>
                                 </p>
                                 <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
                                     {{ $order->patient?->mrn ?? __('No MRN') }}
@@ -2916,9 +2921,12 @@ new #[Title('Medication')] class extends Component
         <div class="space-y-4">
             <div>
                 <flux:heading level="2">{{ __('Recall fulfilled order') }}</flux:heading>
-                <flux:text class="mt-1">
-                    {{ $this->selectedRecallOrder?->patient?->name ?? __('Patient') }}
-                    ? {{ __('Token :token', ['token' => $this->selectedRecallOrder?->queueToken?->token_number ?? '?']) }}
+                <flux:text class="mt-1 flex items-center gap-2">
+                    <x-patient-phone-indicator :patient="$this->selectedRecallOrder?->patient" />
+                    <span>
+                        {{ $this->selectedRecallOrder?->patient?->name ?? __('Patient') }}
+                        · {{ __('Token :token', ['token' => $this->selectedRecallOrder?->queueToken?->token_number ?? '?']) }}
+                    </span>
                 </flux:text>
             </div>
 
@@ -2965,7 +2973,10 @@ new #[Title('Medication')] class extends Component
                 class="mx-auto w-full max-w-lg"
             >
                 <div class="space-y-1">
-                    <p class="truncate text-lg font-semibold text-zinc-900">{{ $this->selectedToken?->patient?->name ?? __('Unknown') }}</p>
+                    <p class="flex min-w-0 items-center gap-2 truncate text-lg font-semibold text-zinc-900">
+                        <x-patient-phone-indicator :patient="$this->selectedToken?->patient" />
+                        <span class="truncate">{{ $this->selectedToken?->patient?->name ?? __('Unknown') }}</span>
+                    </p>
                     <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
                         {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
                         · {{ $this->selectedToken?->serviceQueue?->service?->name }}
@@ -3052,9 +3063,12 @@ new #[Title('Medication')] class extends Component
     <flux:modal name="medication-history" wire:model="showHistoryModal" class="w-full max-w-2xl">
         <div class="space-y-4">
             <flux:heading level="2">{{ __('Medication history') }}</flux:heading>
-            <p class="text-sm text-zinc-500">
-                {{ $this->selectedToken?->patient?->name ?? __('Unknown') }}
-                · {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
+            <p class="flex items-center gap-2 text-sm text-zinc-500">
+                <x-patient-phone-indicator :patient="$this->selectedToken?->patient" />
+                <span>
+                    {{ $this->selectedToken?->patient?->name ?? __('Unknown') }}
+                    · {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
+                </span>
             </p>
 
             <div class="max-h-[70vh] space-y-4 overflow-y-auto pe-1">
@@ -3183,8 +3197,9 @@ new #[Title('Medication')] class extends Component
                 <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                     <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
                         <div>
-                            <p class="text-sm font-semibold text-zinc-900 dark:text-white">
-                                {{ $browseOrder->patient?->name ?? __('Unknown') }}
+                            <p class="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                                <x-patient-phone-indicator :patient="$browseOrder->patient" />
+                                <span class="truncate">{{ $browseOrder->patient?->name ?? __('Unknown') }}</span>
                             </p>
                             <p class="text-xs text-zinc-500">
                                 {{ $browseOrder->patient?->mrn ?? __('No MRN') }}
@@ -3262,8 +3277,9 @@ new #[Title('Medication')] class extends Component
                             class="flex w-full items-start justify-between gap-3 rounded-xl border border-zinc-200 p-3 text-start transition hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500"
                         >
                             <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold text-zinc-900 dark:text-white">
-                                    {{ $order->patient?->name ?? __('Unknown') }}
+                                <p class="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                                    <x-patient-phone-indicator :patient="$order->patient" />
+                                    <span class="truncate">{{ $order->patient?->name ?? __('Unknown') }}</span>
                                 </p>
                                 <p class="truncate text-xs text-zinc-500">
                                     {{ $order->patient?->mrn ?? __('No MRN') }}
