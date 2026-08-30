@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureDisplayKioskSession;
 use App\Http\Middleware\EnsureOpenShift;
 use App\Http\Middleware\EnsurePageAccess;
 use App\Http\Middleware\EnsurePdfPrintAgentToken;
@@ -26,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->replace(TrustProxiesMiddleware::class, TrustProxies::class);
 
         $middleware->prepend(ForceHttpsForDomain::class);
+
+        $middleware->prepend(EnsureDisplayKioskSession::class);
 
         $middleware->alias([
             'open.shift' => EnsureOpenShift::class,

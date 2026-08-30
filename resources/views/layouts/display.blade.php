@@ -17,6 +17,33 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @fluxAppearance
 
+        {{-- Recover from stale Livewire/Laravel sessions without closing the browser. --}}
+        <script>
+            document.addEventListener('livewire:init', () => {
+                Livewire.interceptRequest(({ onError }) => {
+                    onError(({ response, preventDefault }) => {
+                        if (response.status !== 419) {
+                            return;
+                        }
+
+                        preventDefault();
+
+                        document.cookie.split(';').forEach((entry) => {
+                            const name = entry.split('=')[0]?.trim();
+
+                            if (! name) {
+                                return;
+                            }
+
+                            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+                        });
+
+                        window.location.reload();
+                    });
+                });
+            });
+        </script>
+
         {{-- Fallback redirect for older Android TV browsers that the server-side middleware may miss. --}}
         <script>
             (function () {

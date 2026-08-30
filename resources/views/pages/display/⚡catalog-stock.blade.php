@@ -235,7 +235,7 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
     }
 }; ?>
 
-<div class="flex min-h-screen flex-col bg-zinc-950 text-white">
+<div class="flex min-h-screen flex-col bg-zinc-950 text-white" wire:poll.30s>
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div>
             <flux:heading level="1" size="lg">{{ __('Catalog Stock') }}</flux:heading>

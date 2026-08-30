@@ -70,6 +70,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated IPs that may send X-Forwarded-* headers. Defaults to
+    | cloudflared on localhost. Do not use '*' on LAN deployments — kiosk
+    | browsers can then spoof X-Forwarded-Proto and break HTTP sessions.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES', '127.0.0.1,::1'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
