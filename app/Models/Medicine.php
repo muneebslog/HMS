@@ -74,4 +74,16 @@ class Medicine extends Model
     {
         return $this->belongsToMany(Symptom::class)->withTimestamps();
     }
+
+    /**
+     * Label for catalog pickers; omits unit when it is a placeholder dot.
+     */
+    public function catalogLabel(): string
+    {
+        if (filled($this->unit) && $this->unit !== '.') {
+            return $this->name.' ('.$this->unit.')';
+        }
+
+        return $this->name;
+    }
 }

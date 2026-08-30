@@ -64,6 +64,11 @@ function createMedicationQueuePatient(
     return [$user, $doctor, $shift, $service, $queue, $patient, $token];
 }
 
+function fillMedicationDiagnosis(Livewire\Features\SupportTesting\Testable $component, string $diagnosis = 'General'): Livewire\Features\SupportTesting\Testable
+{
+    return $component->set('complaintOrDiagnosis', $diagnosis);
+}
+
 test('doctors can visit the medication page', function () {
     $user = User::factory()->doctor()->create();
 
@@ -217,6 +222,7 @@ test('medication queue excludes patients after an order is saved', function () {
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors()
         ->assertDontSee($patient->name);
@@ -254,6 +260,7 @@ test('doctor can recall a pending medication order and edit the same order', fun
         ->call('selectToken', $token->id)
         ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.selection', 'medicine:'.$replacementMedicine->id)
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -318,6 +325,7 @@ test('recalling an administered order creates a blank draft on the same token', 
         ->assertCount('medicationLines', 6)
         ->assertSet('medicationLines.0.selection', null)
         ->set('medicationLines.0.selection', 'medicine:'.$newMedicine->id)
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -553,6 +561,7 @@ test('doctor previews an order as an er slip before confirming it', function () 
             ],
         ])
         ->set('notes', 'Give after food.')
+        ->set('complaintOrDiagnosis', 'General')
         ->call('previewOrder')
         ->assertHasNoErrors()
         ->assertSet('showOrderPreviewModal', true)
@@ -592,6 +601,7 @@ test('only one medication modal is open at a time', function () {
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('previewOrder')
         ->assertHasNoErrors()
         ->assertSet('showOrderPreviewModal', true)
@@ -624,6 +634,7 @@ test('medication queue keeps patients with an active recheck after an order is s
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors()
         ->assertDontSee($patient->name);
@@ -763,6 +774,7 @@ test('medication order keeps the queue doctor when the service has one', functio
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -871,7 +883,8 @@ test('visual badges toggle catalog medications with their default dose and admin
         ->call('toggleMedicationSelection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.selection', 'injection:'.$injection->id);
 
-    $component->call('save')->assertHasNoErrors();
+    $component->set('complaintOrDiagnosis', 'General')
+        ->call('save')->assertHasNoErrors();
 
     $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
 
@@ -910,6 +923,7 @@ test('doctor can write and select tab or inj medications from the visual badges'
         ->assertHasNoErrors()
         ->assertSet('medicationLines.1.selection', 'custom-injection:Inj Ketorolac 30mg')
         ->assertSee('Inj Ketorolac 30mg')
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -962,6 +976,7 @@ test('visual badges toggle drip bases on the drips tab', function () {
     $component
         ->call('toggleDripSelection', $dripBase->id)
         ->call('toggleDripAdditive', 0, $additive->id)
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -1003,6 +1018,7 @@ test('doctor can write a custom drip additive from the visual badges', function 
         ->assertSet('writtenAdditiveName', '')
         ->assertSet('dripLines.0.additives.0.injection_id', 'custom:Vitamin C 500mg')
         ->assertSee('Vitamin C 500mg')
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -1109,6 +1125,7 @@ test('blank default order rows are ignored when saving', function () {
         ->call('selectToken', $token->id)
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', '1-0-1')
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -1201,6 +1218,7 @@ test('doctor can write a medicine that is not in the catalog', function () {
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -1238,6 +1256,7 @@ test('doctor can write an injection and a drip additive that are not in the cata
                 'injection_id' => 'custom:Vitamin C 500mg',
             ]],
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasNoErrors();
 
@@ -1299,7 +1318,8 @@ test('reopening an order restores written injection names', function () {
     expect($component->get('medicationLines.0.selection'))->toBe('custom-injection:Ketorolac 30mg')
         ->and($component->get('dripLines.0.additives.0.injection_id'))->toBe('custom:Vitamin C 500mg');
 
-    $component->call('save')->assertHasNoErrors();
+    $component->set('complaintOrDiagnosis', 'General')
+        ->call('save')->assertHasNoErrors();
 
     $this->assertDatabaseHas('medication_order_injections', [
         'medication_order_id' => $order->id,
@@ -1320,6 +1340,7 @@ test('written injections appear in the er order preview', function () {
             'administration_type' => 'iv',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('previewOrder')
         ->assertHasNoErrors()
         ->assertSet('showOrderPreviewModal', true)
@@ -1361,10 +1382,38 @@ test('a blank written injection name is rejected', function () {
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('save')
         ->assertHasErrors('medicationLines.0.selection');
 
     expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
+});
+
+test('diagnosis is required before saving a medication order', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
+        ->call('save')
+        ->assertHasErrors(['complaintOrDiagnosis' => 'required']);
+
+    expect(MedicationOrder::query()->where('queue_token_id', $token->id)->exists())->toBeFalse();
+});
+
+test('visual medicine badges hide placeholder dot units', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    Medicine::factory()->create(['name' => 'Bisacodyl', 'unit' => '.']);
+    Medicine::factory()->create(['name' => 'Paracetamol', 'unit' => '500mg']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee('Bisacodyl')
+        ->assertDontSee('Bisacodyl (.)')
+        ->assertSee('Paracetamol (500mg)');
 });
 
 test('doctor can enter diagnosis as free text', function () {

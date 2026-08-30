@@ -297,9 +297,7 @@ new #[Title('Medication')] class extends Component
     {
         return $this->medicines
             ->map(function (Medicine $medicine): array {
-                $label = filled($medicine->unit)
-                    ? $medicine->name.' ('.$medicine->unit.')'
-                    : $medicine->name;
+                $label = $medicine->catalogLabel();
 
                 if (filled($medicine->short_form)) {
                     $label = $medicine->short_form.' — '.$label;
@@ -1813,7 +1811,7 @@ new #[Title('Medication')] class extends Component
     private function orderRules(): array
     {
         return [
-            'complaintOrDiagnosis' => ['nullable', 'string', 'max:2000'],
+            'complaintOrDiagnosis' => ['required', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'suggestedPrice' => ['nullable', 'numeric', 'min:0'],
             'dripServiceId' => [
@@ -2406,6 +2404,7 @@ new #[Title('Medication')] class extends Component
                 wire:model.live="complaintOrDiagnosis"
                 type="text"
                 placeholder="{{ __('Enter diagnosis') }}"
+                required
             />
             <flux:error name="complaintOrDiagnosis" />
         </flux:field>
@@ -2483,7 +2482,7 @@ new #[Title('Medication')] class extends Component
                     ] as $group)
                         <div wire:key="visual-group-{{ $group['prefix'] }}" class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ $group['label'] }}</p>
-                            <div class="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                            <div class="flex flex-wrap gap-2">
                                 @forelse ($group['items'] as $item)
                                     @php($value = $group['prefix'].':'.$item->id)
                                     @php($isSelected = in_array($value, $selectedMedications, true))
@@ -2497,7 +2496,11 @@ new #[Title('Medication')] class extends Component
                                         wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
                                         wire:click="toggleMedicationSelection('{{ $value }}')"
                                     >
-                                        {{ $item->name }}@if (filled($item->unit ?? null)) ({{ $item->unit }}) @endif
+                                        @if ($group['prefix'] === 'medicine')
+                                            {{ $item->catalogLabel() }}
+                                        @else
+                                            {{ $item->name }}
+                                        @endif
                                     </flux:badge>
                                 @empty
                                     <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
