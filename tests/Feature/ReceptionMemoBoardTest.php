@@ -165,3 +165,28 @@ test('admin can delete another users memo', function () {
 
     expect(ReceptionMemo::query()->count())->toBe(0);
 });
+
+test('memo cards render with their selected color', function () {
+    $receptionist = User::factory()->receptionist()->create();
+
+    $roseMemo = ReceptionMemo::factory()->create([
+        'title' => 'Urgent supply',
+        'body' => 'Order more gloves.',
+        'color' => ReceptionMemoColor::Rose,
+    ]);
+
+    $limeMemo = ReceptionMemo::factory()->create([
+        'title' => 'Reminder',
+        'body' => 'Water the plants.',
+        'color' => ReceptionMemoColor::Lime,
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('reception-memo-board')
+        ->assertSee('Urgent supply')
+        ->assertSee('Reminder')
+        ->assertSeeHtml('memo-card-rose')
+        ->assertSeeHtml('memo-card-lime')
+        ->assertSee('Rose')
+        ->assertSee('Lime');
+});

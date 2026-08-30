@@ -742,6 +742,7 @@ test('drips tab does not offer ready-made drips', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->call('switchOrderTab', 'drips')
         ->assertSee(__('Search drip base'))
         ->assertDontSee(__('Ready-made drip'))
@@ -780,6 +781,7 @@ test('medication form uses searchable selects for catalog fields', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->assertSee(__('Medications'))
         ->assertSee(__('Search medicine or injection'))
         ->assertSee(__('Medicine').' — PCM — Searchable Paracetamol')
@@ -819,14 +821,14 @@ test('doctor can switch the medication form between typing and visual modes', fu
         ->call('selectToken', $token->id)
         ->assertSee(__('Typing'))
         ->assertSee(__('Visual'))
+        ->assertSee(__('Tap a medicine or injection above to add it.'))
+        ->assertSee('Visual Paracetamol')
+        ->assertSee('Visual Diclofenac')
+        ->set('orderInputMode', 'typing')
         ->assertSee(__('Search medicine or injection'))
         ->set('orderInputMode', 'visual')
         ->assertDontSee(__('Search medicine or injection'))
-        ->assertSee('Visual Paracetamol')
-        ->assertSee('Visual Diclofenac')
-        ->assertSee(__('Tap a medicine or injection above to add it.'))
-        ->set('orderInputMode', 'typing')
-        ->assertSee(__('Search medicine or injection'));
+        ->assertSee(__('Tap a medicine or injection above to add it.'));
 });
 
 test('an unknown input mode falls back to typing', function () {
@@ -837,6 +839,7 @@ test('an unknown input mode falls back to typing', function () {
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'nonsense')
         ->assertSet('orderInputMode', 'typing')
+        ->set('orderInputMode', 'typing')
         ->assertSee(__('Search medicine or injection'));
 });
 
@@ -1060,6 +1063,7 @@ test('doctor cannot add medicines to the catalog from the order form', function 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->assertDontSee(__('Medicine not listed? Add it'))
         ->assertDontSeeHtml('data-modal="medication-new-medicine"')
         ->assertSee(__('Search medicine or injection'));
@@ -1081,6 +1085,7 @@ test('medication form starts with common blank order rows', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->assertCount('medicationLines', 6)
         ->assertCount('dripLines', 1)
         ->assertCount('dripLines.0.additives', 2)
@@ -1188,6 +1193,7 @@ test('doctor can write a medicine that is not in the catalog', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->assertSee(__('Search medicine or injection'))
         ->set('medicationLines', [[
             'selection' => 'custom:Augmentin 625mg',
@@ -1218,6 +1224,7 @@ test('doctor can write an injection and a drip additive that are not in the cata
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
         ->assertSee(__('Search medicine or injection'))
         ->set('medicationLines', [[
             'selection' => 'custom-injection:Ketorolac 30mg',
@@ -1324,7 +1331,8 @@ test('order rows sit in one block and support alt arrow navigation', function ()
 
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectToken', $token->id);
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing');
 
     $component
         ->assertSeeHtml('@keydown.alt.arrow-up.prevent')

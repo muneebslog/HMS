@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ReceptionMemoColor;
 use App\Models\ReceptionMemo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -29,7 +30,7 @@ class ReceptionMemoFactory extends Factory
             'created_by' => User::factory(),
             'title' => $this->faker->sentence(3),
             'body' => $this->faker->paragraph(),
-            'color' => 'amber',
+            'color' => fake()->randomElement(ReceptionMemoColor::cases())->value,
         ];
     }
 }

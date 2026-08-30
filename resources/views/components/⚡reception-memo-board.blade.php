@@ -283,14 +283,21 @@ new class extends Component
 
                 <flux:field>
                     <flux:label>{{ __('Color') }}</flux:label>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="grid grid-cols-4 gap-2 sm:grid-cols-4">
                         @foreach (ReceptionMemoColor::cases() as $memoColor)
                             <button
                                 type="button"
                                 wire:click="$set('color', '{{ $memoColor->value }}')"
-                                title="{{ $memoColor->label() }}"
-                                class="size-8 rounded-full {{ $memoColor->swatchClasses() }} transition ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 {{ $color === $memoColor->value ? 'ring-current scale-110' : 'ring-transparent hover:scale-105' }}"
-                            ></button>
+                                @class([
+                                    'flex flex-col items-center gap-1.5 rounded-lg border p-2 transition',
+                                    $color === $memoColor->value
+                                        ? 'border-zinc-400 bg-white shadow-sm ring-2 ring-zinc-400 dark:border-zinc-500 dark:bg-zinc-800 dark:ring-zinc-500'
+                                        : 'border-transparent hover:bg-white/60 dark:hover:bg-zinc-800/60',
+                                ])
+                            >
+                                <span class="size-7 rounded-full {{ $memoColor->swatchClasses() }} ring-2 ring-offset-2 ring-offset-transparent {{ $color === $memoColor->value ? 'ring-current scale-110' : 'ring-transparent' }}"></span>
+                                <span class="text-[10px] font-medium text-zinc-600 dark:text-zinc-400">{{ $memoColor->label() }}</span>
+                            </button>
                         @endforeach
                     </div>
                     <flux:error name="color" />
@@ -326,7 +333,10 @@ new class extends Component
                     ])
                 >
                     <div class="flex items-start justify-between gap-2">
-                        <flux:heading level="3" class="text-base leading-snug">{{ $memo->title }}</flux:heading>
+                        <div class="min-w-0 space-y-1">
+                            <flux:heading level="3" class="text-base leading-snug">{{ $memo->title }}</flux:heading>
+                            <flux:badge size="sm" class="{{ $memoColor->swatchClasses() }} !text-white">{{ $memoColor->label() }}</flux:badge>
+                        </div>
                         <flux:icon name="bookmark" class="size-5 shrink-0 {{ $memoColor->iconClasses() }}" />
                     </div>
 
@@ -408,7 +418,10 @@ new class extends Component
                     class="flex flex-col gap-3 rounded-xl border p-4 opacity-80 {{ $memoColor->cardClasses() }}"
                 >
                     <div class="flex items-start justify-between gap-2">
-                        <flux:heading level="3" class="text-base leading-snug">{{ $memo->title }}</flux:heading>
+                        <div class="min-w-0 space-y-1">
+                            <flux:heading level="3" class="text-base leading-snug">{{ $memo->title }}</flux:heading>
+                            <flux:badge size="sm" class="{{ $memoColor->swatchClasses() }} !text-white">{{ $memoColor->label() }}</flux:badge>
+                        </div>
                         <flux:icon name="check-circle" class="size-5 shrink-0 text-green-500" />
                     </div>
 

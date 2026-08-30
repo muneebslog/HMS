@@ -182,6 +182,166 @@ select:focus[data-flux-control] {
     @apply inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 ring-1 ring-zinc-600/10 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-500/20;
 }
 
+@utility memo-card-amber {
+    @apply border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40;
+}
+
+@utility memo-card-sky {
+    @apply border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40;
+}
+
+@utility memo-card-rose {
+    @apply border-rose-300 bg-rose-50 dark:border-rose-700 dark:bg-rose-950/40;
+}
+
+@utility memo-card-lime {
+    @apply border-lime-300 bg-lime-50 dark:border-lime-700 dark:bg-lime-950/40;
+}
+
+@utility memo-card-violet {
+    @apply border-violet-300 bg-violet-50 dark:border-violet-700 dark:bg-violet-950/40;
+}
+
+@utility memo-card-orange {
+    @apply border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/40;
+}
+
+@utility memo-card-emerald {
+    @apply border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/40;
+}
+
+@utility memo-card-fuchsia {
+    @apply border-fuchsia-300 bg-fuchsia-50 dark:border-fuchsia-700 dark:bg-fuchsia-950/40;
+}
+
+@utility memo-divider-amber {
+    @apply border-amber-200 dark:border-amber-800;
+}
+
+@utility memo-divider-sky {
+    @apply border-sky-200 dark:border-sky-800;
+}
+
+@utility memo-divider-rose {
+    @apply border-rose-200 dark:border-rose-800;
+}
+
+@utility memo-divider-lime {
+    @apply border-lime-200 dark:border-lime-800;
+}
+
+@utility memo-divider-violet {
+    @apply border-violet-200 dark:border-violet-800;
+}
+
+@utility memo-divider-orange {
+    @apply border-orange-200 dark:border-orange-800;
+}
+
+@utility memo-divider-emerald {
+    @apply border-emerald-200 dark:border-emerald-800;
+}
+
+@utility memo-divider-fuchsia {
+    @apply border-fuchsia-200 dark:border-fuchsia-800;
+}
+
+@utility memo-icon-amber {
+    @apply text-amber-600 dark:text-amber-400;
+}
+
+@utility memo-icon-sky {
+    @apply text-sky-600 dark:text-sky-400;
+}
+
+@utility memo-icon-rose {
+    @apply text-rose-600 dark:text-rose-400;
+}
+
+@utility memo-icon-lime {
+    @apply text-lime-600 dark:text-lime-400;
+}
+
+@utility memo-icon-violet {
+    @apply text-violet-600 dark:text-violet-400;
+}
+
+@utility memo-icon-orange {
+    @apply text-orange-600 dark:text-orange-400;
+}
+
+@utility memo-icon-emerald {
+    @apply text-emerald-600 dark:text-emerald-400;
+}
+
+@utility memo-icon-fuchsia {
+    @apply text-fuchsia-600 dark:text-fuchsia-400;
+}
+
+@utility memo-swatch-amber {
+    @apply bg-amber-400 ring-amber-500;
+}
+
+@utility memo-swatch-sky {
+    @apply bg-sky-400 ring-sky-500;
+}
+
+@utility memo-swatch-rose {
+    @apply bg-rose-400 ring-rose-500;
+}
+
+@utility memo-swatch-lime {
+    @apply bg-lime-400 ring-lime-500;
+}
+
+@utility memo-swatch-violet {
+    @apply bg-violet-400 ring-violet-500;
+}
+
+@utility memo-swatch-orange {
+    @apply bg-orange-400 ring-orange-500;
+}
+
+@utility memo-swatch-emerald {
+    @apply bg-emerald-400 ring-emerald-500;
+}
+
+@utility memo-swatch-fuchsia {
+    @apply bg-fuchsia-400 ring-fuchsia-500;
+}
+
+@utility memo-form-amber {
+    @apply border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30;
+}
+
+@utility memo-form-sky {
+    @apply border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/30;
+}
+
+@utility memo-form-rose {
+    @apply border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/30;
+}
+
+@utility memo-form-lime {
+    @apply border-lime-200 bg-lime-50 dark:border-lime-800 dark:bg-lime-950/30;
+}
+
+@utility memo-form-violet {
+    @apply border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/30;
+}
+
+@utility memo-form-orange {
+    @apply border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30;
+}
+
+@utility memo-form-emerald {
+    @apply border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30;
+}
+
+@utility memo-form-fuchsia {
+    @apply border-fuchsia-200 bg-fuchsia-50 dark:border-fuchsia-800 dark:bg-fuchsia-950/30;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
