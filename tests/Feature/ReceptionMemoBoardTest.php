@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ReceptionMemoColor;
 use App\Models\ReceptionMemo;
 use App\Models\ReceptionMemoRead;
 use App\Models\User;
@@ -27,12 +28,17 @@ test('receptionist can create a memo and notifies reception at priority 5', func
         ->call('openCreateForm')
         ->set('title', 'Bring toner')
         ->set('body', 'Toner stock is low at reception.')
+        ->set('color', ReceptionMemoColor::Sky->value)
         ->call('createMemo')
         ->assertHasNoErrors()
-        ->assertSee('Bring toner')
-        ->assertSee('Toner stock is low at reception.');
+        ->assertSet('showCreateForm', false);
 
-    expect(ReceptionMemo::query()->count())->toBe(1);
+    $memo = ReceptionMemo::query()->first();
+
+    expect($memo)->not->toBeNull()
+        ->and($memo->title)->toBe('Bring toner')
+        ->and($memo->body)->toBe('Toner stock is low at reception.')
+        ->and($memo->color)->toBe(ReceptionMemoColor::Sky);
 
     Http::assertSent(function ($request) {
         return $request->url() === 'https://ntfy.sh/mmc-hms-reception'
@@ -106,4 +112,56 @@ test('marking a memo as read only dismisses it for that user', function () {
         ->test('reception-memo-board')
         ->assertSee('Shared memo')
         ->assertSee('Everyone should see this.');
+});
+
+test('acknowledged memos appear in history view', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    $memo = ReceptionMemo::factory()->create([
+        'title' => 'Shift handoff',
+        'body' => 'Remember to lock the supply cabinet.',
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('reception-memo-board')
+        ->set("confirmations.{$memo->id}", 'read it')
+        ->call('markAsRead', $memo->id)
+        ->assertHasNoErrors()
+        ->set('view', 'history')
+        ->assertSee('Shift handoff')
+        ->assertSee('Remember to lock the supply cabinet.')
+        ->assertSee('You acknowledged');
+});
+
+test('memo creator can delete a memo for everyone', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    $memo = ReceptionMemo::factory()->create([
+        'created_by' => $receptionist->id,
+        'title' => 'Remove me',
+        'body' => 'This memo should be deleted.',
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('reception-memo-board')
+        ->call('deleteMemo', $memo->id)
+        ->assertHasNoErrors()
+        ->assertDontSee('Remove me');
+
+    expect(ReceptionMemo::query()->count())->toBe(0);
+});
+
+test('admin can delete another users memo', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    $admin = User::factory()->admin()->create();
+    $memo = ReceptionMemo::factory()->create([
+        'created_by' => $receptionist->id,
+        'title' => 'Admin cleanup',
+        'body' => 'Admin can remove this.',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('reception-memo-board')
+        ->call('deleteMemo', $memo->id)
+        ->assertHasNoErrors();
+
+    expect(ReceptionMemo::query()->count())->toBe(0);
 });

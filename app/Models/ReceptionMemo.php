@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ReceptionMemoColor;
+use App\Enums\UserRole;
 use Database\Factories\ReceptionMemoFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,6 +41,18 @@ class ReceptionMemo extends Model
     protected $attributes = [
         'color' => 'amber',
     ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'color' => ReceptionMemoColor::class,
+        ];
+    }
 
     /**
      * The user who created this memo.
@@ -79,5 +93,36 @@ class ReceptionMemo extends Model
         return $query->whereDoesntHave('reads', function (Builder $reads) use ($user) {
             $reads->where('user_id', $user->id);
         });
+    }
+
+    /**
+     * Scope a query to only include memos read by the given user.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeReadFor(Builder $query, User $user): Builder
+    {
+        return $query->whereHas('reads', function (Builder $reads) use ($user) {
+            $reads->where('user_id', $user->id);
+        });
+    }
+
+    /**
+     * Count users who can see memos on the board.
+     */
+    public static function audienceCount(): int
+    {
+        return User::query()
+            ->whereIn('role', [UserRole::Admin, UserRole::Receptionist])
+            ->count();
+    }
+
+    /**
+     * Determine whether the given user may delete this memo.
+     */
+    public function canBeDeletedBy(User $user): bool
+    {
+        return $user->isAdmin() || $this->created_by === $user->id;
     }
 }
