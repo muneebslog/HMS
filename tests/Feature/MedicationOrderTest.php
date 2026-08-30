@@ -102,13 +102,20 @@ test('medication queue excludes tokens for services that do not need medication'
 });
 
 test('medication queue shows phone linked indicator for patients', function () {
-    [$user, , , , , $patientWithPhone, $tokenWithPhone] = createMedicationQueuePatient();
+    [$user, , , , $queue, $patientWithPhone] = createMedicationQueuePatient();
     $patientWithPhone->update([
         'family_id' => Family::factory()->create(['phone' => '03001234567'])->id,
     ]);
 
-    [, , , , , $patientWithoutPhone] = createMedicationQueuePatient();
-    $patientWithoutPhone->update(['name' => 'No Phone Patient', 'family_id' => null]);
+    $patientWithoutPhone = Patient::factory()->create(['name' => 'No Phone Patient', 'family_id' => null]);
+    QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'patient_id' => $patientWithoutPhone->id,
+        'invoice_item_id' => null,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now()->subMinutes(3),
+    ]);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
