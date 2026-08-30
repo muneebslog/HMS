@@ -64,11 +64,6 @@ function createMedicationQueuePatient(
     return [$user, $doctor, $shift, $service, $queue, $patient, $token];
 }
 
-function fillMedicationDiagnosis(Livewire\Features\SupportTesting\Testable $component, string $diagnosis = 'General'): Livewire\Features\SupportTesting\Testable
-{
-    return $component->set('complaintOrDiagnosis', $diagnosis);
-}
-
 test('doctors can visit the medication page', function () {
     $user = User::factory()->doctor()->create();
 
@@ -472,6 +467,7 @@ test('doctor can save an order and call the next patient when the token follows 
             'administration_type' => 'im',
             'comment' => '',
         ]])
+        ->set('complaintOrDiagnosis', 'General')
         ->call('saveAndNext')
         ->assertHasNoErrors()
         ->assertSet('selectedTokenId', $nextToken->id)
