@@ -97,7 +97,9 @@ test('admin can manage page access via livewire', function () {
     Livewire::actingAs($admin)
         ->test('pages::admin.page-access')
         ->assertSuccessful()
-        ->set('selectedRole', UserRole::Doctor->value)
+        ->assertSee(__('Receptionist'))
+        ->call('openRole', UserRole::Doctor->value)
+        ->assertSet('showModal', true)
         ->call('save')
         ->assertHasNoErrors();
 });
