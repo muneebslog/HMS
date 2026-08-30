@@ -126,7 +126,7 @@ class ShiftOrdersExportService
         $parts = collect();
 
         if ($type === self::TYPE_ALL || $type === self::TYPE_MEDICINE) {
-            foreach ($order->medicines as $medicine) {
+            foreach ($order->sortedMedicines() as $medicine) {
                 $parts->push($this->formatMedicine($medicine));
             }
         }

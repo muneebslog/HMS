@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\IdentifiesSyrupMedicine;
 use App\Enums\MedicineDose;
 use Database\Factories\MedicineFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Medicine extends Model
 {
     /** @use HasFactory<MedicineFactory> */
-    use HasFactory;
+    use HasFactory, IdentifiesSyrupMedicine;
 
     /**
      * The attributes that are mass assignable.

@@ -632,3 +632,45 @@ test('health aides can start leftover drips after a new shift opens', function (
 test('reception medication admin route no longer exists', function () {
     expect(fn () => route('reception.medication-admin'))->toThrow(RouteNotFoundException::class);
 });
+
+test('medication delivery lists syrups after tablets with syrup styling', function () {
+    [$order] = createDeliveryOrderContext(withMedicine: false);
+    $order->medicines()->create([
+        'name' => 'Syp. Calpol',
+        'dose' => MedicineDose::OneZeroOne,
+    ]);
+    $order->medicines()->create([
+        'name' => 'Tab. Panadol',
+        'dose' => MedicineDose::OneZeroZero,
+    ]);
+
+    Livewire::test('pages::display.medication-delivery')
+        ->set('pin', '1234')
+        ->call('verifyPin')
+        ->call('selectOrder', $order->id)
+        ->assertSeeInOrder(['Tab. Panadol', 'Syp. Calpol'])
+        ->assertSeeHtml('border-amber-300')
+        ->assertSeeHtml('text-amber-600');
+});
+
+test('sorted medicines place syrups after regular medicines', function () {
+    [$order] = createDeliveryOrderContext(withMedicine: false);
+
+    $tablet = $order->medicines()->create([
+        'name' => 'Tab. Panadol',
+        'dose' => MedicineDose::OneZeroZero,
+    ]);
+
+    $syrup = $order->medicines()->create([
+        'name' => 'Syp. Calpol',
+        'dose' => MedicineDose::OneZeroOne,
+    ]);
+
+    $anotherTablet = $order->medicines()->create([
+        'name' => 'Tab. Brufen',
+        'dose' => MedicineDose::OneOneOne,
+    ]);
+
+    expect($order->fresh()->sortedMedicines()->pluck('id')->all())
+        ->toBe([$tablet->id, $anotherTablet->id, $syrup->id]);
+});

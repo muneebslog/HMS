@@ -749,34 +749,18 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 <div class="space-y-4 border-t border-dashed border-zinc-400/70 pt-3">
                     <div>
                         <p class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{{ __('Medicines') }}</p>
-                        @forelse ($order?->medicines ?? [] as $medicine)
-                            @if ($medicine->delivered_at)
-                                <p class="mb-2 text-sm text-zinc-400 line-through">
-                                    {{ $medicine->name }} — {{ $medicine->dose->label() }}
-                                    @if (filled($medicine->comment))
-                                        · {{ $medicine->comment }}
-                                    @endif
-                                    <span class="ms-2 no-underline">{{ __('Delivered') }}</span>
-                                </p>
-                            @else
-                                <label wire:key="med-line-{{ $medicine->id }}" class="mb-2 flex cursor-pointer items-start gap-3 text-sm text-zinc-800">
-                                    <input
-                                        type="checkbox"
-                                        value="{{ $medicine->id }}"
-                                        wire:model="selectedMedicineIds"
-                                        class="mt-0.5 size-5 rounded border-zinc-400 bg-white text-zinc-900"
-                                    >
-                                    <span>
-                                        {{ $medicine->name }}
-                                        <span class="text-zinc-500">
-                                            — {{ $medicine->dose->label() }}
-                                            @if (filled($medicine->comment))
-                                                · {{ $medicine->comment }}
-                                            @endif
-                                        </span>
-                                    </span>
-                                </label>
-                            @endif
+                        @forelse ($order?->sortedMedicines() ?? [] as $medicine)
+                            @php($detail = collect([$medicine->dose->label(), $medicine->comment])->filter()->implode(' · '))
+                            <x-medicine-line
+                                wire:key="med-line-{{ $medicine->id }}"
+                                :name="$medicine->name"
+                                :detail="$detail"
+                                :is-syrup="$medicine->isSyrup()"
+                                :delivered="$medicine->delivered_at !== null"
+                                :selectable="! $medicine->delivered_at"
+                                :input-value="$medicine->id"
+                                wire:model="selectedMedicineIds"
+                            />
                         @empty
                             <p class="text-sm text-zinc-500">{{ __('None') }}</p>
                         @endforelse

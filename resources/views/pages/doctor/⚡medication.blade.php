@@ -2486,15 +2486,16 @@ new #[Title('Medication')] class extends Component
                                 {{ $group['label'] }}
                             </p>
                             <div class="flex flex-wrap gap-2">
-                                @forelse ($group['items'] as $item)
+                                @forelse ($group['prefix'] === 'medicine' ? $group['items']->sortBy(fn ($item) => [$item->isSyrup() ? 1 : 0, $item->catalogLabel()])->values() : $group['items'] as $item)
                                     @php($value = $group['prefix'].':'.$item->id)
                                     @php($isSelected = in_array($value, $selectedMedications, true))
+                                    @php($isSyrup = $group['prefix'] === 'medicine' && $item->isSyrup())
                                     <flux:badge
                                         as="button"
                                         type="button"
                                         size="lg"
-                                        :color="$isSelected ? $group['selectedColor'] : $group['idleColor']"
-                                        :icon="$isSelected ? 'check' : $group['icon']"
+                                        :color="$isSelected ? $group['selectedColor'] : ($isSyrup ? 'amber' : $group['idleColor'])"
+                                        :icon="$isSelected ? 'check' : ($isSyrup ? 'beaker' : $group['icon'])"
                                         class="cursor-pointer"
                                         wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
                                         wire:click="toggleMedicationSelection('{{ $value }}')"
@@ -3089,16 +3090,13 @@ new #[Title('Medication')] class extends Component
                         @if ($order->medicines->isNotEmpty())
                             <div class="mb-2">
                                 <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
-                                @foreach ($order->medicines as $medicine)
-                                    <p class="text-sm text-zinc-700 dark:text-zinc-200">
-                                        {{ $medicine->name }}
-                                        <span class="text-zinc-500">
-                                            — {{ $medicine->dose->label() }}
-                                            @if (filled($medicine->comment))
-                                                · {{ $medicine->comment }}
-                                            @endif
-                                        </span>
-                                    </p>
+                                @foreach ($order->sortedMedicines() as $medicine)
+                                    <x-medicine-line
+                                        :name="$medicine->name"
+                                        :detail="collect([$medicine->dose->label(), $medicine->comment])->filter()->implode(' · ')"
+                                        :is-syrup="$medicine->isSyrup()"
+                                        class="!bg-transparent !px-0 !py-0 !ring-0 dark:!text-zinc-200"
+                                    />
                                 @endforeach
                             </div>
                         @endif
@@ -3213,11 +3211,13 @@ new #[Title('Medication')] class extends Component
                     @if ($browseOrder->medicines->isNotEmpty())
                         <div class="mb-2">
                             <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Medicines') }}</p>
-                            @foreach ($browseOrder->medicines as $medicine)
-                                <p class="text-sm text-zinc-700 dark:text-zinc-200">
-                                    {{ $medicine->name }}
-                                    <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
-                                </p>
+                            @foreach ($browseOrder->sortedMedicines() as $medicine)
+                                <x-medicine-line
+                                    :name="$medicine->name"
+                                    :detail="$medicine->dose->label()"
+                                    :is-syrup="$medicine->isSyrup()"
+                                    class="!bg-transparent !px-0 !py-0 !ring-0 dark:!text-zinc-200"
+                                />
                             @endforeach
                         </div>
                     @endif

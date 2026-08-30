@@ -391,11 +391,13 @@ new #[Title('MR Lookup')] class extends Component
                                                 </p>
                                             @endif
 
-                                            @foreach ($order->medicines as $medicine)
-                                                <p class="text-sm text-zinc-800">
-                                                    {{ $medicine->name }}
-                                                    <span class="text-zinc-500">— {{ $medicine->dose->label() }}</span>
-                                                </p>
+                                            @foreach ($order->sortedMedicines() as $medicine)
+                                                <x-medicine-line
+                                                    :name="$medicine->name"
+                                                    :detail="$medicine->dose->label()"
+                                                    :is-syrup="$medicine->isSyrup()"
+                                                    class="!px-0 !py-0 !ring-0"
+                                                />
                                             @endforeach
 
                                             @foreach ($order->injections as $injection)

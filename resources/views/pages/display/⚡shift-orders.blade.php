@@ -312,18 +312,16 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
                         @if ($order->medicines->isEmpty())
                             <p class="text-sm text-zinc-500">{{ __('None') }}</p>
                         @else
-                            @foreach ($order->medicines as $medicine)
+                            @foreach ($order->sortedMedicines() as $medicine)
                                 @php($status = $this->medicineStatus($order, $medicine))
                                 <div wire:key="shift-med-{{ $medicine->id }}" class="mb-2 flex items-start justify-between gap-3">
-                                    <p @class(['text-sm text-zinc-800', 'text-zinc-400 line-through' => $status === 'given'])>
-                                        {{ $medicine->name }}
-                                        <span class="text-zinc-500 no-underline">
-                                            — {{ $medicine->dose->label() }}
-                                            @if (filled($medicine->comment))
-                                                · {{ $medicine->comment }}
-                                            @endif
-                                        </span>
-                                    </p>
+                                    <x-medicine-line
+                                        :name="$medicine->name"
+                                        :detail="collect([$medicine->dose->label(), $medicine->comment])->filter()->implode(' · ')"
+                                        :is-syrup="$medicine->isSyrup()"
+                                        :delivered="$status === 'given'"
+                                        class="mb-0 min-w-0 flex-1"
+                                    />
                                     <x-shift-order-status :status="$status" :label="$this->statusLabel($status)" />
                                 </div>
                             @endforeach

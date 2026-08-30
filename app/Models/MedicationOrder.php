@@ -6,6 +6,7 @@ use App\Enums\DripChargeStatus;
 use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use Database\Factories\MedicationOrderFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -218,6 +219,25 @@ class MedicationOrder extends Model
     public function medicines(): HasMany
     {
         return $this->hasMany(MedicationOrderMedicine::class);
+    }
+
+    /**
+     * Medicines sorted with syrups last.
+     *
+     * @return Collection<int, MedicationOrderMedicine>
+     */
+    public function sortedMedicines(): Collection
+    {
+        $medicines = $this->relationLoaded('medicines')
+            ? $this->medicines
+            : $this->medicines()->get();
+
+        return $medicines
+            ->sortBy(fn (MedicationOrderMedicine $medicine): array => [
+                $medicine->isSyrup() ? 1 : 0,
+                $medicine->id,
+            ])
+            ->values();
     }
 
     /**
