@@ -1,7 +1,9 @@
 <?php
 
 use App\Enums\LabApiStatus;
+use App\Jobs\SendLabCaseToLab;
 use App\Models\LabInvoice;
+use Flux\Flux;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -75,6 +77,32 @@ new #[Title('Lab Entries Listings')] class extends Component
     {
         $this->showDetailModal = false;
         $this->selectedInvoiceId = null;
+    }
+
+    /**
+     * Queue another attempt to sync a failed lab case to the lab app.
+     */
+    public function retryLabCase(int $id): void
+    {
+        $invoice = LabInvoice::with('labApiLog')->find($id);
+
+        if ($invoice === null) {
+            Flux::toast(variant: 'danger', text: __('Lab entry not found.'));
+
+            return;
+        }
+
+        if ($invoice->labApiLog?->status !== LabApiStatus::Failed) {
+            Flux::toast(variant: 'warning', text: __('Only failed lab syncs can be retried.'));
+
+            return;
+        }
+
+        SendLabCaseToLab::dispatch($invoice->id);
+
+        Flux::toast(variant: 'success', text: __('Lab sync retry queued for invoice :invoice.', [
+            'invoice' => $invoice->invoice_number,
+        ]));
     }
 }; ?>
 
@@ -158,6 +186,18 @@ new #[Title('Lab Entries Listings')] class extends Component
                                     >
                                         {{ __('View') }}
                                     </flux:button>
+
+                                    @if ($log?->status === App\Enums\LabApiStatus::Failed)
+                                        <flux:button
+                                            size="sm"
+                                            variant="ghost"
+                                            icon="arrow-path"
+                                            wire:click="retryLabCase({{ $invoice->id }})"
+                                            wire:loading.attr="disabled"
+                                        >
+                                            {{ __('Retry') }}
+                                        </flux:button>
+                                    @endif
 
                                     @if (filled(config('services.lab.url')))
                                         <flux:button
@@ -301,7 +341,19 @@ new #[Title('Lab Entries Listings')] class extends Component
                 @endif
             </div>
 
-            <div class="mt-6 flex justify-end">
+            <div class="mt-6 flex justify-end gap-2">
+                @if ($log?->status === App\Enums\LabApiStatus::Failed)
+                    <flux:button
+                        type="button"
+                        variant="primary"
+                        icon="arrow-path"
+                        wire:click="retryLabCase({{ $this->selectedInvoice->id }})"
+                        wire:loading.attr="disabled"
+                    >
+                        {{ __('Retry Sync') }}
+                    </flux:button>
+                @endif
+
                 <flux:button type="button" variant="ghost" wire:click="closeDetailModal">
                     {{ __('Close') }}
                 </flux:button>

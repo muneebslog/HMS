@@ -1,17 +1,21 @@
 <?php
 
 use App\Enums\LabApiStatus;
+use App\Jobs\SendLabCaseToLab;
 use App\Models\LabApiLog;
 use App\Models\LabInvoice;
 use App\Models\Patient;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
     Config::set('services.lab.url', 'https://lab.mohsinmedicalcomplex.com');
 });
 
@@ -153,4 +157,36 @@ test('admin can view lab entry details', function () {
         ->assertSee($invoice->patient->name)
         ->assertSee('Created')
         ->assertSee('Open in lab app');
+});
+
+test('admin can retry a failed lab case sync', function () {
+    Bus::fake();
+
+    $admin = User::factory()->admin()->create();
+    $invoice = LabInvoice::factory()->paid()->create();
+    LabApiLog::factory()->failed()->create([
+        'lab_invoice_id' => $invoice->id,
+        'error_message' => 'cURL error 28: Resolving timed out',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.lab-entries')
+        ->call('retryLabCase', $invoice->id)
+        ->assertSee('Retry');
+
+    Bus::assertDispatched(SendLabCaseToLab::class, fn (SendLabCaseToLab $job) => $job->labInvoiceId === $invoice->id);
+});
+
+test('retry is rejected when lab case sync is not failed', function () {
+    Bus::fake();
+
+    $admin = User::factory()->admin()->create();
+    $invoice = LabInvoice::factory()->paid()->create();
+    LabApiLog::factory()->sent()->create(['lab_invoice_id' => $invoice->id]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.lab-entries')
+        ->call('retryLabCase', $invoice->id);
+
+    Bus::assertNotDispatched(SendLabCaseToLab::class);
 });

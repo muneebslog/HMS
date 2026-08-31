@@ -5,10 +5,11 @@ namespace App\Jobs;
 use App\Models\LabInvoice;
 use App\Services\LabApiService;
 use App\Services\NotificationService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-class SendLabCaseToLab implements ShouldQueue
+class SendLabCaseToLab implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
@@ -25,12 +26,25 @@ class SendLabCaseToLab implements ShouldQueue
     public array $backoff = [30, 60, 120, 300];
 
     /**
+     * The number of seconds after which the job's unique lock will be released.
+     */
+    public int $uniqueFor = 300;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(
         public int $labInvoiceId,
     ) {
         //
+    }
+
+    /**
+     * The unique ID of the job.
+     */
+    public function uniqueId(): string
+    {
+        return (string) $this->labInvoiceId;
     }
 
     /**
