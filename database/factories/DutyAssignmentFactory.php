@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\DutyAssignmentStatus;
 use App\Enums\DutyAssignmentType;
 use App\Models\DutyAssignment;
+use App\Models\DutyLocation;
 use App\Models\DutyShiftTemplate;
 use App\Models\HealthAide;
 use App\Models\User;
@@ -30,6 +31,7 @@ class DutyAssignmentFactory extends Factory
         return [
             'health_aide_id' => HealthAide::factory(),
             'duty_shift_template_id' => DutyShiftTemplate::factory(),
+            'duty_location_id' => DutyLocation::factory(),
             'date' => $date,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,

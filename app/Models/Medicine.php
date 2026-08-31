@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\IdentifiesSyrupMedicine;
 use App\Enums\MedicineDose;
+use App\Models\Concerns\HasStockBalances;
 use Database\Factories\MedicineFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Medicine extends Model
 {
     /** @use HasFactory<MedicineFactory> */
-    use HasFactory, IdentifiesSyrupMedicine;
+    use HasFactory, HasStockBalances, IdentifiesSyrupMedicine;
 
     /**
      * The attributes that are mass assignable.
@@ -27,7 +28,6 @@ class Medicine extends Model
         'default_dose',
         'default_days',
         'is_active',
-        'stock_quantity',
     ];
 
     /**
@@ -39,7 +39,6 @@ class Medicine extends Model
         'default_dose' => '1-0-0',
         'default_days' => 3,
         'is_active' => true,
-        'stock_quantity' => 0,
     ];
 
     /**
@@ -53,7 +52,6 @@ class Medicine extends Model
             'default_dose' => MedicineDose::class,
             'default_days' => 'integer',
             'is_active' => 'boolean',
-            'stock_quantity' => 'integer',
         ];
     }
 

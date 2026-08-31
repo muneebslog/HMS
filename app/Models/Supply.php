@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasStockBalances;
-use Database\Factories\DripBaseFactory;
+use Database\Factories\SupplyFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class DripBase extends Model
+class Supply extends Model
 {
-    /** @use HasFactory<DripBaseFactory> */
+    /** @use HasFactory<SupplyFactory> */
     use HasFactory, HasStockBalances;
 
     /**
@@ -20,8 +20,10 @@ class DripBase extends Model
      */
     protected $fillable = [
         'name',
-        'default_volume_ml',
-        'show_on_er',
+        'short_form',
+        'category',
+        'unit',
+        'default_par',
         'is_active',
     ];
 
@@ -31,7 +33,6 @@ class DripBase extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'show_on_er' => false,
         'is_active' => true,
     ];
 
@@ -43,17 +44,16 @@ class DripBase extends Model
     protected function casts(): array
     {
         return [
-            'default_volume_ml' => 'float',
-            'show_on_er' => 'boolean',
+            'default_par' => 'integer',
             'is_active' => 'boolean',
         ];
     }
 
     /**
-     * Scope the query to only active drip bases.
+     * Scope the query to only active supplies.
      *
-     * @param  Builder<DripBase>  $query
-     * @return Builder<DripBase>
+     * @param  Builder<Supply>  $query
+     * @return Builder<Supply>
      */
     public function scopeActive(Builder $query): Builder
     {

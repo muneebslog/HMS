@@ -4,7 +4,7 @@ use App\Enums\DripLineStatus;
 use App\Enums\StationType;
 use App\Models\MedicationOrderDrip;
 use App\Services\HealthAidePinSession;
-use App\Services\CatalogStockService;
+use App\Services\InventoryStockService;
 use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -174,12 +174,13 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
         }
 
         DB::transaction(function () use ($drip, $aide): void {
-            $stock = app(CatalogStockService::class);
+            $stock = app(InventoryStockService::class);
+            $order = $drip->medicationOrder;
 
-            $stock->decrementDripBase($drip->drip_base_id);
+            $stock->decrementDripBase($drip->drip_base_id, 1, $order);
 
             foreach ($drip->additives as $additive) {
-                $stock->decrementInjection($additive->injection_id);
+                $stock->decrementInjection($additive->injection_id, 1, $order);
             }
 
             $drip->update([

@@ -19,7 +19,7 @@ use App\Models\ProcedurePostOpOrder;
 use App\Models\ProcedurePreOpOrder;
 use App\Models\ProcedureProgressNote;
 use App\Models\ProcedureVital;
-use App\Services\CatalogStockService;
+use App\Services\InventoryStockService;
 use App\Services\ProcedureMedicationScheduler;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -764,12 +764,12 @@ new #[Title('Procedure Chart')] class extends Component
             ]);
 
             $medication = $dose->medication;
-            $stock = app(CatalogStockService::class);
+            $stock = app(InventoryStockService::class);
 
             match ($medication->form) {
-                ProcedureMedicationForm::Tab => $stock->decrementMedicine($medication->medicine_id),
-                ProcedureMedicationForm::Inj => $stock->decrementInjection($medication->injection_id),
-                ProcedureMedicationForm::Drip => $stock->decrementDripBase($medication->drip_base_id),
+                ProcedureMedicationForm::Tab => $stock->decrementMedicine($medication->medicine_id, 1, $dose),
+                ProcedureMedicationForm::Inj => $stock->decrementInjection($medication->injection_id, 1, $dose),
+                ProcedureMedicationForm::Drip => $stock->decrementDripBase($medication->drip_base_id, 1, $dose),
             };
         });
 

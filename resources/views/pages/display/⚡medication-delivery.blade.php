@@ -8,7 +8,7 @@ use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\HealthAidePinSession;
-use App\Services\CatalogStockService;
+use App\Services\InventoryStockService;
 use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -426,7 +426,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         }
 
         DB::transaction(function () use ($order, $aide): void {
-            $stock = app(CatalogStockService::class);
+            $stock = app(InventoryStockService::class);
 
             $medicines = $order->medicines()
                 ->whereIn('id', $this->selectedMedicineIds)
@@ -439,11 +439,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 ->get(['id', 'injection_id']);
 
             foreach ($medicines as $medicine) {
-                $stock->decrementMedicine($medicine->medicine_id);
+                $stock->decrementMedicine($medicine->medicine_id, 1, $order);
             }
 
             foreach ($injections as $injection) {
-                $stock->decrementInjection($injection->injection_id);
+                $stock->decrementInjection($injection->injection_id, 1, $order);
             }
 
             $order->medicines()

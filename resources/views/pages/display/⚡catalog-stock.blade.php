@@ -1,13 +1,18 @@
 <?php
 
+use App\Enums\StockLocation;
+use App\Enums\StockMovementReason;
 use App\Enums\StationType;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\Medicine;
+use App\Models\Supply;
 use App\Services\HealthAidePinSession;
+use App\Services\InventoryStockService;
 use App\Services\StationSessionService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -21,22 +26,14 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
 
     public string $search = '';
 
+    public string $activeMode = 'back';
+
     public string $activeTab = 'medicines';
 
     /**
      * @var array<int|string, string>
      */
-    public array $medicineStocks = [];
-
-    /**
-     * @var array<int|string, string>
-     */
-    public array $injectionStocks = [];
-
-    /**
-     * @var array<int|string, string>
-     */
-    public array $dripBaseStocks = [];
+    public array $quantities = [];
 
     public function mount(HealthAidePinSession $pinSession): void
     {
@@ -46,7 +43,7 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
             return;
         }
 
-        $this->hydrateStockForms();
+        $this->hydrateQuantityForms();
     }
 
     /**
@@ -103,6 +100,26 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
             ->get();
     }
 
+    /**
+     * @return Collection<int, Supply>
+     */
+    #[Computed]
+    public function supplies(): Collection
+    {
+        return Supply::query()
+            ->active()
+            ->when($this->search !== '', function ($query): void {
+                $term = '%'.$this->search.'%';
+                $query->where(function ($inner) use ($term): void {
+                    $inner->where('name', 'like', $term)
+                        ->orWhere('short_form', 'like', $term)
+                        ->orWhere('category', 'like', $term);
+                });
+            })
+            ->orderBy('name')
+            ->get();
+    }
+
     #[Computed]
     public function currentAideName(): ?string
     {
@@ -111,16 +128,27 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
 
     public function updatedSearch(): void
     {
-        unset($this->medicines, $this->injections, $this->dripBases);
+        unset($this->medicines, $this->injections, $this->dripBases, $this->supplies);
+    }
+
+    public function switchMode(string $mode): void
+    {
+        if (! in_array($mode, ['back', 'issue', 'replenish', 'front'], true)) {
+            return;
+        }
+
+        $this->activeMode = $mode;
+        $this->hydrateQuantityForms();
     }
 
     public function switchTab(string $tab): void
     {
-        if (! in_array($tab, ['medicines', 'injections', 'dripBases'], true)) {
+        if (! in_array($tab, ['medicines', 'injections', 'dripBases', 'supplies'], true)) {
             return;
         }
 
         $this->activeTab = $tab;
+        $this->hydrateQuantityForms();
     }
 
     public function verifyPin(HealthAidePinSession $pinSession, StationSessionService $stationSessions): void
@@ -142,7 +170,7 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
         $this->pin = '';
         $this->showPinModal = false;
         $this->resetValidation();
-        $this->hydrateStockForms();
+        $this->hydrateQuantityForms();
 
         Flux::toast(variant: 'success', text: __('Unlocked as :name', ['name' => $aide->name]));
     }
@@ -152,28 +180,36 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
         $pinSession->forget();
         $stationSessions->clear(StationType::Stock);
         $this->showPinModal = true;
-        $this->medicineStocks = [];
-        $this->injectionStocks = [];
-        $this->dripBaseStocks = [];
+        $this->quantities = [];
         Flux::toast(text: __('Session locked.'));
     }
 
-    public function saveMedicineStock(int $medicineId): void
+    public function receiveStock(string $type, int $id): void
     {
-        $this->saveStock('medicine', $medicineId);
+        $this->performStockAction('receive', $type, $id);
     }
 
-    public function saveInjectionStock(int $injectionId): void
+    public function adjustBackStock(string $type, int $id): void
     {
-        $this->saveStock('injection', $injectionId);
+        $this->performStockAction('adjust', $type, $id);
     }
 
-    public function saveDripBaseStock(int $dripBaseId): void
+    public function issueToFront(string $type, int $id): void
     {
-        $this->saveStock('dripBase', $dripBaseId);
+        $this->performStockAction('issue', $type, $id);
     }
 
-    private function saveStock(string $type, int $id): void
+    public function replenishFront(string $type, int $id): void
+    {
+        $this->performStockAction('replenish', $type, $id);
+    }
+
+    public function useFromFront(string $type, int $id): void
+    {
+        $this->performStockAction('use', $type, $id);
+    }
+
+    private function performStockAction(string $action, string $type, int $id): void
     {
         $aide = app(HealthAidePinSession::class)->current();
 
@@ -184,54 +220,95 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
             return;
         }
 
-        $field = match ($type) {
-            'medicine' => "medicineStocks.{$id}",
-            'injection' => "injectionStocks.{$id}",
-            'dripBase' => "dripBaseStocks.{$id}",
-        };
+        $field = "quantities.{$type}.{$id}";
 
         $this->validate([
-            $field => ['required', 'integer'],
+            $field => ['required', 'integer', 'min:0'],
         ]);
 
-        $quantity = (int) match ($type) {
-            'medicine' => $this->medicineStocks[$id],
-            'injection' => $this->injectionStocks[$id],
-            'dripBase' => $this->dripBaseStocks[$id],
-        };
+        $quantity = (int) $this->quantities[$type][$id];
+        $stockable = $this->resolveStockable($type, $id);
+        $stock = app(InventoryStockService::class);
 
-        match ($type) {
-            'medicine' => Medicine::query()->whereKey($id)->update(['stock_quantity' => $quantity]),
-            'injection' => Injection::query()->whereKey($id)->update(['stock_quantity' => $quantity]),
-            'dripBase' => DripBase::query()->whereKey($id)->update(['stock_quantity' => $quantity]),
-        };
+        try {
+            match ($action) {
+                'receive' => $quantity > 0
+                    ? $stock->receive($stockable, $quantity, $aide)
+                    : throw new InvalidArgumentException(__('Receive quantity must be positive.')),
+                'adjust' => $stock->adjust($stockable, StockLocation::BackStorage, $quantity, $aide),
+                'issue' => $quantity > 0
+                    ? $stock->transfer($stockable, $quantity, StockMovementReason::ShiftIssue, $aide)
+                    : throw new InvalidArgumentException(__('Issue quantity must be positive.')),
+                'replenish' => $quantity > 0
+                    ? $stock->transfer($stockable, $quantity, StockMovementReason::Replenish, $aide)
+                    : throw new InvalidArgumentException(__('Replenish quantity must be positive.')),
+                'use' => $stockable instanceof Supply
+                    ? ($quantity > 0
+                        ? $stock->recordConsumableUse($stockable, $quantity, $aide)
+                        : throw new InvalidArgumentException(__('Use quantity must be positive.')))
+                    : throw new InvalidArgumentException(__('Only supplies can be manually used from front stock.')),
+            };
+        } catch (InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
 
         app(StationSessionService::class)->bump(StationType::Stock, $aide);
 
-        unset($this->medicines, $this->injections, $this->dripBases);
+        unset($this->medicines, $this->injections, $this->dripBases, $this->supplies);
+        $this->hydrateQuantityForms();
 
         Flux::toast(variant: 'success', text: __('Stock updated.'));
     }
 
-    private function hydrateStockForms(): void
+    /**
+     * @return Medicine|Injection|DripBase|Supply
+     */
+    private function resolveStockable(string $type, int $id): Model
     {
-        $this->medicineStocks = Medicine::query()
-            ->active()
-            ->pluck('stock_quantity', 'id')
-            ->map(fn (int $qty): string => (string) $qty)
-            ->all();
+        return match ($type) {
+            'medicine' => Medicine::query()->findOrFail($id),
+            'injection' => Injection::query()->findOrFail($id),
+            'dripBase' => DripBase::query()->findOrFail($id),
+            'supply' => Supply::query()->findOrFail($id),
+            default => throw new InvalidArgumentException(__('Unknown stock item type.')),
+        };
+    }
 
-        $this->injectionStocks = Injection::query()
-            ->active()
-            ->pluck('stock_quantity', 'id')
-            ->map(fn (int $qty): string => (string) $qty)
-            ->all();
+    private function hydrateQuantityForms(): void
+    {
+        $this->quantities = [
+            'medicine' => [],
+            'injection' => [],
+            'dripBase' => [],
+            'supply' => [],
+        ];
 
-        $this->dripBaseStocks = DripBase::query()
-            ->active()
-            ->pluck('stock_quantity', 'id')
-            ->map(fn (int $qty): string => (string) $qty)
-            ->all();
+        foreach ($this->medicines as $medicine) {
+            $this->quantities['medicine'][$medicine->id] = (string) $this->defaultQuantityFor($medicine);
+        }
+
+        foreach ($this->injections as $injection) {
+            $this->quantities['injection'][$injection->id] = (string) $this->defaultQuantityFor($injection);
+        }
+
+        foreach ($this->dripBases as $dripBase) {
+            $this->quantities['dripBase'][$dripBase->id] = (string) $this->defaultQuantityFor($dripBase);
+        }
+
+        foreach ($this->supplies as $supply) {
+            $this->quantities['supply'][$supply->id] = (string) $this->defaultQuantityFor($supply);
+        }
+    }
+
+    private function defaultQuantityFor(Medicine|Injection|DripBase|Supply $item): int
+    {
+        return match ($this->activeMode) {
+            'back' => $item->stockBalance(StockLocation::BackStorage),
+            'front' => $item->stockBalance(StockLocation::FrontWorking),
+            default => 0,
+        };
     }
 }; ?>
 
@@ -250,35 +327,41 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
 
     @if (! $showPinModal)
         <div class="flex flex-1 flex-col gap-4 p-4">
+            <nav class="flex flex-wrap gap-2" aria-label="{{ __('Stock modes') }}">
+                @foreach ([
+                    'back' => __('Back Storage'),
+                    'issue' => __('Issue to Front'),
+                    'replenish' => __('Replenish'),
+                    'front' => __('Front Stock'),
+                ] as $mode => $label)
+                    <flux:button
+                        type="button"
+                        size="sm"
+                        :variant="$activeMode === $mode ? 'primary' : 'ghost'"
+                        wire:click="switchMode('{{ $mode }}')"
+                    >
+                        {{ $label }}
+                    </flux:button>
+                @endforeach
+            </nav>
+
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <nav class="flex flex-wrap gap-2" aria-label="{{ __('Catalog tabs') }}">
-                    <flux:button
-                        type="button"
-                        size="sm"
-                        :variant="$activeTab === 'medicines' ? 'primary' : 'ghost'"
-                        wire:click="switchTab('medicines')"
-                    >
-                        {{ __('Medicines') }}
-                        <flux:badge size="sm" color="zinc" class="ms-1">{{ $this->medicines->count() }}</flux:badge>
-                    </flux:button>
-                    <flux:button
-                        type="button"
-                        size="sm"
-                        :variant="$activeTab === 'injections' ? 'primary' : 'ghost'"
-                        wire:click="switchTab('injections')"
-                    >
-                        {{ __('Injections') }}
-                        <flux:badge size="sm" color="zinc" class="ms-1">{{ $this->injections->count() }}</flux:badge>
-                    </flux:button>
-                    <flux:button
-                        type="button"
-                        size="sm"
-                        :variant="$activeTab === 'dripBases' ? 'primary' : 'ghost'"
-                        wire:click="switchTab('dripBases')"
-                    >
-                        {{ __('Drips') }}
-                        <flux:badge size="sm" color="zinc" class="ms-1">{{ $this->dripBases->count() }}</flux:badge>
-                    </flux:button>
+                    @foreach ([
+                        'medicines' => __('Medicines'),
+                        'injections' => __('Injections'),
+                        'dripBases' => __('Drips'),
+                        'supplies' => __('Supplies'),
+                    ] as $tab => $label)
+                        <flux:button
+                            type="button"
+                            size="sm"
+                            :variant="$activeTab === $tab ? 'primary' : 'ghost'"
+                            wire:click="switchTab('{{ $tab }}')"
+                        >
+                            {{ $label }}
+                        </flux:button>
+                    @endforeach
                 </nav>
 
                 <div class="w-full sm:max-w-xs">
@@ -292,95 +375,110 @@ new #[Layout('layouts.display')] #[Title('Catalog Stock')] class extends Compone
             </div>
 
             <div class="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
-                @if ($activeTab === 'medicines')
-                    <div class="divide-y divide-zinc-800">
-                        @forelse ($this->medicines as $medicine)
-                            <div wire:key="stock-med-{{ $medicine->id }}" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="min-w-0">
-                                    <p class="truncate font-medium">{{ $medicine->name }}</p>
-                                    <p class="text-sm text-zinc-400">
-                                        {{ $medicine->short_form ?: '—' }}
-                                        @if (filled($medicine->unit))
-                                            · {{ $medicine->unit }}
+                @php
+                    $items = match ($activeTab) {
+                        'medicines' => $this->medicines,
+                        'injections' => $this->injections,
+                        'dripBases' => $this->dripBases,
+                        'supplies' => $this->supplies,
+                    };
+                    $typeKey = match ($activeTab) {
+                        'medicines' => 'medicine',
+                        'injections' => 'injection',
+                        'dripBases' => 'dripBase',
+                        'supplies' => 'supply',
+                    };
+                @endphp
+
+                <div class="hidden border-b border-zinc-800 px-4 py-2 text-xs uppercase tracking-wide text-zinc-500 sm:grid sm:grid-cols-12 sm:gap-3">
+                    <div class="sm:col-span-5">{{ __('Item') }}</div>
+                    <div class="sm:col-span-2">{{ __('Back') }}</div>
+                    <div class="sm:col-span-2">{{ __('Front') }}</div>
+                    <div class="sm:col-span-3">{{ __('Action') }}</div>
+                </div>
+
+                <div class="divide-y divide-zinc-800">
+                    @forelse ($items as $item)
+                        <div wire:key="stock-{{ $typeKey }}-{{ $item->id }}" class="flex flex-col gap-3 p-4 sm:grid sm:grid-cols-12 sm:items-center sm:gap-3">
+                            <div class="min-w-0 sm:col-span-5">
+                                <p class="truncate font-medium">{{ $item->name }}</p>
+                                <p class="text-sm text-zinc-400">
+                                    @if ($item instanceof \App\Models\Supply)
+                                        {{ $item->category }}
+                                        @if (filled($item->unit))
+                                            · {{ $item->unit }}
                                         @endif
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-2">
+                                    @elseif ($item instanceof \App\Models\Medicine)
+                                        {{ $item->short_form ?: '—' }}
+                                        @if (filled($item->unit))
+                                            · {{ $item->unit }}
+                                        @endif
+                                    @elseif ($item instanceof \App\Models\Injection)
+                                        {{ $item->short_form ?: '—' }}
+                                        · {{ $item->default_administration_type->label() }}
+                                    @else
+                                        {{ rtrim(rtrim(number_format($item->default_volume_ml, 2), '0'), '.') }} ml
+                                    @endif
+                                </p>
+                            </div>
+
+                            <div class="text-sm text-zinc-300 sm:col-span-2">
+                                <span class="sm:hidden text-zinc-500">{{ __('Back') }}:</span>
+                                {{ $item->stockBalance(\App\Enums\StockLocation::BackStorage) }}
+                            </div>
+
+                            <div class="text-sm text-zinc-300 sm:col-span-2">
+                                <span class="sm:hidden text-zinc-500">{{ __('Front') }}:</span>
+                                {{ $item->stockBalance(\App\Enums\StockLocation::FrontWorking) }}
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2 sm:col-span-3">
+                                @if ($activeMode === 'front' && $typeKey === 'supply')
                                     <flux:input
                                         type="number"
-                                        wire:model="medicineStocks.{{ $medicine->id }}"
-                                        class="w-28"
+                                        wire:model="quantities.{{ $typeKey }}.{{ $item->id }}"
+                                        class="w-24"
+                                        min="0"
                                     />
-                                    <flux:button type="button" variant="primary" size="sm" wire:click="saveMedicineStock({{ $medicine->id }})">
-                                        {{ __('Save') }}
+                                    <flux:button type="button" variant="primary" size="sm" wire:click="useFromFront('{{ $typeKey }}', {{ $item->id }})">
+                                        {{ __('Use') }}
                                     </flux:button>
-                                </div>
-                                <flux:error name="medicineStocks.{{ $medicine->id }}" />
-                            </div>
-                        @empty
-                            <div class="px-4 py-12 text-center text-zinc-500">
-                                {{ __('No medicines found.') }}
-                            </div>
-                        @endforelse
-                    </div>
-                @elseif ($activeTab === 'injections')
-                    <div class="divide-y divide-zinc-800">
-                        @forelse ($this->injections as $injection)
-                            <div wire:key="stock-inj-{{ $injection->id }}" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="min-w-0">
-                                    <p class="truncate font-medium">{{ $injection->name }}</p>
-                                    <p class="text-sm text-zinc-400">
-                                        {{ $injection->short_form ?: '—' }}
-                                        · {{ $injection->default_administration_type->label() }}
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-2">
+                                @elseif ($activeMode === 'front')
+                                    <flux:text class="text-zinc-500">{{ __('View only') }}</flux:text>
+                                @else
                                     <flux:input
                                         type="number"
-                                        wire:model="injectionStocks.{{ $injection->id }}"
-                                        class="w-28"
+                                        wire:model="quantities.{{ $typeKey }}.{{ $item->id }}"
+                                        class="w-24"
+                                        min="0"
                                     />
-                                    <flux:button type="button" variant="primary" size="sm" wire:click="saveInjectionStock({{ $injection->id }})">
-                                        {{ __('Save') }}
-                                    </flux:button>
-                                </div>
-                                <flux:error name="injectionStocks.{{ $injection->id }}" />
+                                    @if ($activeMode === 'back')
+                                        <flux:button type="button" variant="ghost" size="sm" wire:click="receiveStock('{{ $typeKey }}', {{ $item->id }})">
+                                            {{ __('Receive') }}
+                                        </flux:button>
+                                        <flux:button type="button" variant="primary" size="sm" wire:click="adjustBackStock('{{ $typeKey }}', {{ $item->id }})">
+                                            {{ __('Set Back') }}
+                                        </flux:button>
+                                    @elseif ($activeMode === 'issue')
+                                        <flux:button type="button" variant="primary" size="sm" wire:click="issueToFront('{{ $typeKey }}', {{ $item->id }})">
+                                            {{ __('Issue') }}
+                                        </flux:button>
+                                    @elseif ($activeMode === 'replenish')
+                                        <flux:button type="button" variant="primary" size="sm" wire:click="replenishFront('{{ $typeKey }}', {{ $item->id }})">
+                                            {{ __('Replenish') }}
+                                        </flux:button>
+                                    @endif
+                                @endif
                             </div>
-                        @empty
-                            <div class="px-4 py-12 text-center text-zinc-500">
-                                {{ __('No injections found.') }}
-                            </div>
-                        @endforelse
-                    </div>
-                @else
-                    <div class="divide-y divide-zinc-800">
-                        @forelse ($this->dripBases as $dripBase)
-                            <div wire:key="stock-drip-{{ $dripBase->id }}" class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="min-w-0">
-                                    <p class="truncate font-medium">{{ $dripBase->name }}</p>
-                                    <p class="text-sm text-zinc-400">
-                                        {{ rtrim(rtrim(number_format($dripBase->default_volume_ml, 2), '0'), '.') }} ml
-                                    </p>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <flux:input
-                                        type="number"
-                                        wire:model="dripBaseStocks.{{ $dripBase->id }}"
-                                        class="w-28"
-                                    />
-                                    <flux:button type="button" variant="primary" size="sm" wire:click="saveDripBaseStock({{ $dripBase->id }})">
-                                        {{ __('Save') }}
-                                    </flux:button>
-                                </div>
-                                <flux:error name="dripBaseStocks.{{ $dripBase->id }}" />
-                            </div>
-                        @empty
-                            <div class="px-4 py-12 text-center text-zinc-500">
-                                {{ __('No drip bases found.') }}
-                            </div>
-                        @endforelse
-                    </div>
-                @endif
+
+                            <flux:error name="quantities.{{ $typeKey }}.{{ $item->id }}" class="sm:col-span-12" />
+                        </div>
+                    @empty
+                        <div class="px-4 py-12 text-center text-zinc-500">
+                            {{ __('No items found.') }}
+                        </div>
+                    @endforelse
+                </div>
             </div>
         </div>
     @endif

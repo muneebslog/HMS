@@ -3,9 +3,11 @@
 use App\Enums\DutyAssignmentStatus;
 use App\Enums\DutyAssignmentType;
 use App\Models\DutyAssignment;
+use App\Models\DutyLocation;
 use App\Models\DutyShiftTemplate;
 use App\Models\HealthAide;
 use App\Services\NotificationService;
+use App\Services\RosterSchedulingService;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -17,11 +19,11 @@ new #[Title('Duty Roster')] class extends Component
 {
     public string $weekStart;
 
-    public bool $showModal = false;
+    public ?int $filterHealthAideId = null;
 
-    public bool $showBulkModal = false;
+    public bool $showRecurringModal = false;
 
-    public bool $showEditModal = false;
+    public bool $showOverrideModal = false;
 
     public ?int $editingAssignmentId = null;
 
@@ -30,21 +32,22 @@ new #[Title('Duty Roster')] class extends Component
     /** @var list<int|string> */
     public array $selectedHealthAideIds = [];
 
-    public ?int $templateId = null;
+    /** @var list<int|string> */
+    public array $selectedWeekdays = [1, 2, 3, 4, 5, 6, 7];
 
-    public string $date = '';
+    public ?int $templateId = null;
 
     public string $dateFrom = '';
 
     public string $dateTo = '';
 
+    public string $dutyStartAt = '';
+
+    public string $dutyEndAt = '';
+
     public string $assignmentType = 'regular';
 
-    public ?string $customStart = null;
-
-    public ?string $customEnd = null;
-
-    public string $station = '';
+    public ?int $dutyLocationId = null;
 
     public string $notes = '';
 
@@ -58,18 +61,29 @@ new #[Title('Duty Roster')] class extends Component
     }
 
     #[Computed]
-    public function assignments()
+    public function weekDays()
     {
         $start = Carbon::parse($this->weekStart);
-        $end = $start->copy()->addDays(6);
 
-        return DutyAssignment::query()
-            ->scheduled()
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->with(['healthAide', 'shiftTemplate'])
-            ->orderBy('starts_at')
-            ->get()
-            ->groupBy(fn (DutyAssignment $assignment) => $assignment->date->toDateString());
+        return collect(range(0, 6))->map(fn (int $offset) => $start->copy()->addDays($offset));
+    }
+
+    #[Computed]
+    public function assignments()
+    {
+        return app(RosterSchedulingService::class)->assignmentsOverlappingWeek(
+            Carbon::parse($this->weekStart),
+            $this->filterHealthAideId,
+        );
+    }
+
+    #[Computed]
+    public function calendarSegments(): array
+    {
+        return app(RosterSchedulingService::class)->calendarSegmentsForWeek(
+            $this->assignments,
+            Carbon::parse($this->weekStart),
+        );
     }
 
     #[Computed]
@@ -85,192 +99,178 @@ new #[Title('Duty Roster')] class extends Component
     }
 
     #[Computed]
-    public function weekDays()
+    public function dutyLocations()
     {
-        $start = Carbon::parse($this->weekStart);
+        return DutyLocation::query()->active()->orderBy('sort_order')->orderBy('name')->get();
+    }
 
-        return collect(range(0, 6))->map(fn (int $offset) => $start->copy()->addDays($offset));
+    #[Computed]
+    public function dutyEndHint(): ?string
+    {
+        if ($this->dutyStartAt === '' || $this->dutyEndAt === '') {
+            return null;
+        }
+
+        $start = Carbon::parse($this->dutyStartAt);
+        $end = Carbon::parse($this->dutyEndAt);
+
+        if ($end->greaterThan($start) && $end->toDateString() !== $start->toDateString()) {
+            return __('Ends :day at :time (next day)', [
+                'day' => $end->format('D'),
+                'time' => $end->format('H:i'),
+            ]);
+        }
+
+        return null;
     }
 
     public function previousWeek(): void
     {
         $this->weekStart = Carbon::parse($this->weekStart)->subWeek()->toDateString();
-        unset($this->assignments);
+        $this->refreshCalendar();
     }
 
     public function nextWeek(): void
     {
         $this->weekStart = Carbon::parse($this->weekStart)->addWeek()->toDateString();
-        unset($this->assignments);
+        $this->refreshCalendar();
     }
 
-    public function openCreateModal(?string $date = null): void
+    public function goToToday(): void
     {
-        $this->resetForm();
-        $this->date = $date ?? today()->toDateString();
-        $this->showModal = true;
+        $this->weekStart = now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $this->refreshCalendar();
     }
 
-    public function openBulkModal(): void
+    public function openRecurringModal(): void
     {
         $this->resetForm();
         $this->dateFrom = Carbon::parse($this->weekStart)->toDateString();
         $this->dateTo = Carbon::parse($this->weekStart)->addDays(6)->toDateString();
-        $this->selectedHealthAideIds = [];
-        $this->showBulkModal = true;
+        $this->selectedWeekdays = [1, 2, 3, 4, 5, 6, 7];
+        $this->dutyStartAt = Carbon::parse($this->weekStart)->setTime(7, 0)->format('Y-m-d\TH:i');
+        $this->dutyEndAt = Carbon::parse($this->weekStart)->setTime(15, 0)->format('Y-m-d\TH:i');
+        $this->showRecurringModal = true;
     }
 
-    public function openEditModal(int $id): void
+    public function openOverrideModal(?string $date = null, ?int $hour = null): void
     {
-        $assignment = DutyAssignment::query()->findOrFail($id);
+        $this->resetForm();
+        $this->editingAssignmentId = null;
+
+        $start = $date !== null
+            ? Carbon::parse($date)->setTime($hour ?? 7, 0)
+            : now()->setMinute(0)->setSecond(0);
+
+        $this->dutyStartAt = $start->format('Y-m-d\TH:i');
+        $this->dutyEndAt = $start->copy()->addHours(8)->format('Y-m-d\TH:i');
+        $this->showOverrideModal = true;
+    }
+
+    public function openEditOverride(int $id): void
+    {
+        $assignment = DutyAssignment::query()->with('healthAide')->findOrFail($id);
 
         $this->editingAssignmentId = $assignment->id;
         $this->healthAideId = $assignment->health_aide_id;
         $this->templateId = $assignment->duty_shift_template_id;
-        $this->date = $assignment->date->toDateString();
+        $this->dutyStartAt = $assignment->starts_at->format('Y-m-d\TH:i');
+        $this->dutyEndAt = $assignment->ends_at->format('Y-m-d\TH:i');
         $this->assignmentType = $assignment->assignment_type->value;
-        $this->customStart = $assignment->starts_at->format('H:i');
-        $this->customEnd = $assignment->ends_at->format('H:i');
-        $this->station = $assignment->station ?? '';
+        $this->dutyLocationId = $assignment->duty_location_id;
         $this->notes = $assignment->notes ?? '';
-        $this->showEditModal = true;
+        $this->showOverrideModal = true;
     }
 
-    public function saveAssignment(NotificationService $notifications): void
-    {
-        $validated = $this->validate([
-            'healthAideId' => ['required', 'exists:health_aides,id'],
-            'templateId' => ['nullable', 'exists:duty_shift_templates,id'],
-            'date' => ['required', 'date'],
-            'assignmentType' => ['required', Rule::in(array_column(DutyAssignmentType::cases(), 'value'))],
-            'customStart' => ['nullable', 'date_format:H:i'],
-            'customEnd' => ['nullable', 'date_format:H:i'],
-            'station' => ['nullable', 'string', 'max:50'],
-            'notes' => ['nullable', 'string'],
-        ]);
-
-        $window = $this->resolveWindow(
-            Carbon::parse($validated['date']),
-            $validated['templateId'] ? (int) $validated['templateId'] : null,
-            $validated['customStart'] ?? null,
-            $validated['customEnd'] ?? null,
-        );
-
-        $assignment = DutyAssignment::query()->create([
-            'health_aide_id' => $validated['healthAideId'],
-            'duty_shift_template_id' => $validated['templateId'] ?: null,
-            'date' => Carbon::parse($validated['date'])->toDateString(),
-            'starts_at' => $window['starts_at'],
-            'ends_at' => $window['ends_at'],
-            'assignment_type' => DutyAssignmentType::from($validated['assignmentType']),
-            'station' => $validated['station'] ?: null,
-            'notes' => $validated['notes'] ?: null,
-            'status' => DutyAssignmentStatus::Scheduled,
-            'created_by' => auth()->id(),
-        ]);
-
-        if ($assignment->assignment_type === DutyAssignmentType::Emergency) {
-            $notifications->notifyEmergencyShiftAssigned($assignment, auth()->user());
-        }
-
-        $this->showModal = false;
-        $this->resetForm();
-        unset($this->assignments);
-        Flux::toast(variant: 'success', text: __('Duty assignment created.'));
-    }
-
-    public function saveBulkAssignments(NotificationService $notifications): void
+    public function saveRecurringSchedule(NotificationService $notifications, RosterSchedulingService $scheduler): void
     {
         $validated = $this->validate([
             'selectedHealthAideIds' => ['required', 'array', 'min:1'],
             'selectedHealthAideIds.*' => ['integer', 'exists:health_aides,id'],
+            'selectedWeekdays' => ['required', 'array', 'min:1'],
+            'selectedWeekdays.*' => ['integer', 'between:1,7'],
             'templateId' => ['nullable', 'exists:duty_shift_templates,id'],
             'dateFrom' => ['required', 'date'],
             'dateTo' => ['required', 'date', 'after_or_equal:dateFrom'],
+            'dutyStartAt' => ['required', 'date'],
+            'dutyEndAt' => ['required_without:templateId', 'nullable', 'date', 'after:dutyStartAt'],
             'assignmentType' => ['required', Rule::in(array_column(DutyAssignmentType::cases(), 'value'))],
-            'customStart' => ['nullable', 'date_format:H:i'],
-            'customEnd' => ['nullable', 'date_format:H:i'],
-            'station' => ['nullable', 'string', 'max:50'],
+            'dutyLocationId' => ['required', 'exists:duty_locations,id'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $from = Carbon::parse($validated['dateFrom'])->startOfDay();
-        $to = Carbon::parse($validated['dateTo'])->startOfDay();
-        $created = 0;
+        $template = $validated['templateId']
+            ? DutyShiftTemplate::query()->find((int) $validated['templateId'])
+            : null;
 
-        for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
-            $window = $this->resolveWindow(
-                $date->copy(),
-                $validated['templateId'] ? (int) $validated['templateId'] : null,
-                $validated['customStart'] ?? null,
-                $validated['customEnd'] ?? null,
-            );
+        $dutyStartAt = Carbon::parse($validated['dutyStartAt']);
+        $dutyEndAt = isset($validated['dutyEndAt']) ? Carbon::parse($validated['dutyEndAt']) : null;
 
-            foreach ($validated['selectedHealthAideIds'] as $aideId) {
-                $assignment = DutyAssignment::query()->create([
-                    'health_aide_id' => $aideId,
-                    'duty_shift_template_id' => $validated['templateId'] ?: null,
-                    'date' => $date->toDateString(),
-                    'starts_at' => $window['starts_at'],
-                    'ends_at' => $window['ends_at'],
-                    'assignment_type' => DutyAssignmentType::from($validated['assignmentType']),
-                    'station' => $validated['station'] ?: null,
-                    'notes' => $validated['notes'] ?: null,
-                    'status' => DutyAssignmentStatus::Scheduled,
-                    'created_by' => auth()->id(),
-                ]);
+        $created = $scheduler->createRecurringAssignments(
+            healthAideIds: array_map('intval', $validated['selectedHealthAideIds']),
+            dateFrom: Carbon::parse($validated['dateFrom'])->startOfDay(),
+            dateTo: Carbon::parse($validated['dateTo'])->startOfDay(),
+            weekdays: array_map('intval', $validated['selectedWeekdays']),
+            dutyStartAt: $dutyStartAt,
+            dutyEndAt: $dutyEndAt,
+            template: $template,
+            dutyLocationId: (int) $validated['dutyLocationId'],
+            assignmentType: DutyAssignmentType::from($validated['assignmentType']),
+            notes: $validated['notes'] ?: null,
+            createdBy: auth()->user(),
+        );
 
-                if ($assignment->assignment_type === DutyAssignmentType::Emergency) {
-                    $notifications->notifyEmergencyShiftAssigned($assignment, auth()->user());
-                }
-
-                $created++;
+        foreach ($created as $assignment) {
+            if ($assignment->assignment_type === DutyAssignmentType::Emergency) {
+                $notifications->notifyEmergencyShiftAssigned($assignment, auth()->user());
             }
         }
 
-        $this->showBulkModal = false;
+        $this->showRecurringModal = false;
         $this->resetForm();
-        unset($this->assignments);
-        Flux::toast(variant: 'success', text: __('Created :count duty assignment(s).', ['count' => $created]));
+        $this->refreshCalendar();
+        Flux::toast(variant: 'success', text: __('Created :count duty assignment(s).', ['count' => count($created)]));
     }
 
-    public function updateAssignment(): void
+    public function saveOverride(NotificationService $notifications, RosterSchedulingService $scheduler): void
     {
         $validated = $this->validate([
-            'editingAssignmentId' => ['required', 'exists:duty_assignments,id'],
+            'healthAideId' => ['required', 'exists:health_aides,id'],
+            'editingAssignmentId' => ['nullable', 'exists:duty_assignments,id'],
             'templateId' => ['nullable', 'exists:duty_shift_templates,id'],
-            'date' => ['required', 'date'],
+            'dutyStartAt' => ['required', 'date'],
+            'dutyEndAt' => ['required_without:templateId', 'nullable', 'date', 'after:dutyStartAt'],
             'assignmentType' => ['required', Rule::in(array_column(DutyAssignmentType::cases(), 'value'))],
-            'customStart' => ['required', 'date_format:H:i'],
-            'customEnd' => ['required', 'date_format:H:i'],
-            'station' => ['nullable', 'string', 'max:50'],
+            'dutyLocationId' => ['required', 'exists:duty_locations,id'],
             'notes' => ['nullable', 'string'],
         ]);
 
-        $assignment = DutyAssignment::query()->findOrFail($validated['editingAssignmentId']);
+        $template = $validated['templateId']
+            ? DutyShiftTemplate::query()->find((int) $validated['templateId'])
+            : null;
 
-        $window = $this->resolveWindow(
-            Carbon::parse($validated['date']),
-            $validated['templateId'] ? (int) $validated['templateId'] : null,
-            $validated['customStart'],
-            $validated['customEnd'],
+        $assignment = $scheduler->createOrUpdateOverride(
+            healthAideId: (int) $validated['healthAideId'],
+            dutyStartAt: Carbon::parse($validated['dutyStartAt']),
+            dutyEndAt: isset($validated['dutyEndAt']) ? Carbon::parse($validated['dutyEndAt']) : null,
+            template: $template,
+            dutyLocationId: (int) $validated['dutyLocationId'],
+            assignmentType: DutyAssignmentType::from($validated['assignmentType']),
+            notes: $validated['notes'] ?: null,
+            createdBy: auth()->user(),
+            editingAssignmentId: $validated['editingAssignmentId'] ? (int) $validated['editingAssignmentId'] : null,
         );
 
-        $assignment->update([
-            'duty_shift_template_id' => $validated['templateId'] ?: null,
-            'date' => Carbon::parse($validated['date'])->toDateString(),
-            'starts_at' => $window['starts_at'],
-            'ends_at' => $window['ends_at'],
-            'assignment_type' => DutyAssignmentType::from($validated['assignmentType']),
-            'station' => $validated['station'] ?: null,
-            'notes' => $validated['notes'] ?: null,
-        ]);
+        if ($assignment->assignment_type === DutyAssignmentType::Emergency && $validated['editingAssignmentId'] === null) {
+            $notifications->notifyEmergencyShiftAssigned($assignment, auth()->user());
+        }
 
-        $this->showEditModal = false;
-        $this->editingAssignmentId = null;
+        $this->showOverrideModal = false;
         $this->resetForm();
-        unset($this->assignments);
-        Flux::toast(variant: 'success', text: __('Duty assignment updated.'));
+        $this->refreshCalendar();
+        Flux::toast(variant: 'success', text: $validated['editingAssignmentId']
+            ? __('Duty assignment updated.')
+            : __('Date override saved.'));
     }
 
     public function cancelAssignment(int $id): void
@@ -279,7 +279,7 @@ new #[Title('Duty Roster')] class extends Component
             'status' => DutyAssignmentStatus::Cancelled,
         ]);
 
-        unset($this->assignments);
+        $this->refreshCalendar();
         Flux::toast(variant: 'success', text: __('Duty assignment cancelled.'));
     }
 
@@ -304,122 +304,99 @@ new #[Title('Duty Roster')] class extends Component
         $this->selectedHealthAideIds = [];
     }
 
-    /**
-     * @return array{starts_at: Carbon, ends_at: Carbon}
-     */
-    private function resolveWindow(Carbon $date, ?int $templateId, ?string $customStart, ?string $customEnd): array
+    public function toggleWeekday(int $weekday): void
     {
-        $template = $templateId
-            ? DutyShiftTemplate::query()->find($templateId)
-            : null;
+        $days = array_map('intval', $this->selectedWeekdays);
 
-        if ($template !== null) {
-            return $template->windowForDate($date);
+        if (in_array($weekday, $days, true)) {
+            $this->selectedWeekdays = array_values(array_filter($days, fn (int $day) => $day !== $weekday));
+        } else {
+            $this->selectedWeekdays = [...$days, $weekday];
+        }
+    }
+
+    public function updatedFilterHealthAideId(): void
+    {
+        $this->refreshCalendar();
+    }
+
+    public function updatedTemplateId(): void
+    {
+        if ($this->templateId === null || $this->templateId === '') {
+            return;
         }
 
-        $startsAt = $date->copy()->setTimeFromTimeString($customStart ?? '07:00');
-        $endsAt = $date->copy()->setTimeFromTimeString($customEnd ?? '15:00');
+        $template = DutyShiftTemplate::query()->find($this->templateId);
 
-        if ($endsAt->lessThanOrEqualTo($startsAt)) {
-            $endsAt->addDay();
+        if ($template === null) {
+            return;
         }
 
-        return [
-            'starts_at' => $startsAt,
-            'ends_at' => $endsAt,
-        ];
+        $reference = $this->dutyStartAt !== ''
+            ? Carbon::parse($this->dutyStartAt)
+            : Carbon::parse($this->weekStart)->setTime(7, 0);
+
+        $window = $template->windowForDate($reference->copy()->startOfDay());
+        $this->dutyStartAt = $window['starts_at']->format('Y-m-d\TH:i');
+        $this->dutyEndAt = $window['ends_at']->format('Y-m-d\TH:i');
     }
 
     public function resetForm(): void
     {
         $this->healthAideId = null;
         $this->selectedHealthAideIds = [];
+        $this->selectedWeekdays = [1, 2, 3, 4, 5, 6, 7];
         $this->templateId = null;
-        $this->date = today()->toDateString();
         $this->dateFrom = today()->toDateString();
         $this->dateTo = today()->toDateString();
+        $this->dutyStartAt = '';
+        $this->dutyEndAt = '';
         $this->assignmentType = DutyAssignmentType::Regular->value;
-        $this->customStart = null;
-        $this->customEnd = null;
-        $this->station = '';
+        $this->dutyLocationId = null;
         $this->notes = '';
         $this->editingAssignmentId = null;
         $this->resetValidation();
     }
+
+    private function refreshCalendar(): void
+    {
+        unset($this->assignments, $this->calendarSegments, $this->weekDays);
+    }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <flux:heading level="1">{{ __('Duty Roster') }}</flux:heading>
-        <div class="flex flex-wrap gap-2">
-            <flux:button wire:click="previousWeek" icon="chevron-left">{{ __('Previous') }}</flux:button>
-            <flux:button wire:click="nextWeek" icon="chevron-right">{{ __('Next') }}</flux:button>
-            <flux:button wire:click="openBulkModal" icon="users">{{ __('Bulk Assign') }}</flux:button>
-            <flux:button variant="primary" wire:click="openCreateModal" icon="plus">{{ __('Assign Duty') }}</flux:button>
-        </div>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-7">
-        @foreach ($this->weekDays as $day)
-            <flux:card wire:key="day-{{ $day->toDateString() }}">
-                <div class="mb-3 flex items-center justify-between">
-                    <flux:heading size="sm">{{ $day->format('D, M j') }}</flux:heading>
-                    <flux:button size="sm" variant="ghost" wire:click="openCreateModal('{{ $day->toDateString() }}')" icon="plus" />
-                </div>
-                <div class="space-y-2">
-                    @foreach ($this->assignments->get($day->toDateString(), collect()) as $assignment)
-                        <div wire:key="assignment-{{ $assignment->id }}" class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
-                            <div class="font-medium">{{ $assignment->healthAide->name }}</div>
-                            <div class="text-xs text-zinc-500">{{ $assignment->starts_at->format('H:i') }} - {{ $assignment->ends_at->format('H:i') }}</div>
-                            <flux:badge size="sm">{{ $assignment->assignment_type->label() }}</flux:badge>
-                            <div class="mt-1 flex gap-1">
-                                <flux:button size="xs" variant="ghost" wire:click="openEditModal({{ $assignment->id }})">{{ __('Edit') }}</flux:button>
-                                <flux:button size="xs" variant="ghost" wire:click="cancelAssignment({{ $assignment->id }})">{{ __('Cancel') }}</flux:button>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </flux:card>
-        @endforeach
-    </div>
-
-    <flux:modal wire:model="showModal" class="md:w-lg">
-        <flux:heading size="lg">{{ __('Assign Duty') }}</flux:heading>
-        <form wire:submit="saveAssignment" class="mt-4 space-y-4">
-            <flux:select wire:model="healthAideId" label="{{ __('Health Aide') }}" required>
-                <option value="">{{ __('Select aide') }}</option>
+        <div class="flex flex-wrap items-center gap-2">
+            <flux:select wire:model.live="filterHealthAideId" class="min-w-48">
+                <option value="">{{ __('All health aides') }}</option>
                 @foreach ($this->healthAides as $aide)
                     <option value="{{ $aide->id }}">{{ $aide->name }}</option>
                 @endforeach
             </flux:select>
-            <flux:input wire:model="date" type="date" label="{{ __('Date') }}" required />
-            <flux:select wire:model="templateId" label="{{ __('Shift Template') }}">
-                <option value="">{{ __('Custom times') }}</option>
-                @foreach ($this->templates as $template)
-                    <option value="{{ $template->id }}">{{ $template->name }} ({{ $template->start_time->format('H:i') }}-{{ $template->end_time->format('H:i') }})</option>
-                @endforeach
-            </flux:select>
-            <flux:select wire:model="assignmentType" label="{{ __('Type') }}">
-                @foreach (\App\Enums\DutyAssignmentType::cases() as $type)
-                    <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                @endforeach
-            </flux:select>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:input wire:model="customStart" type="time" label="{{ __('Custom Start') }}" />
-                <flux:input wire:model="customEnd" type="time" label="{{ __('Custom End') }}" />
-            </div>
-            <flux:input wire:model="station" label="{{ __('Station') }}" />
-            <flux:textarea wire:model="notes" label="{{ __('Notes') }}" />
-            <div class="flex justify-end gap-2">
-                <flux:button variant="ghost" type="button" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
-            </div>
-        </form>
-    </flux:modal>
+            <flux:button wire:click="previousWeek" icon="chevron-left">{{ __('Previous') }}</flux:button>
+            <flux:button wire:click="goToToday">{{ __('Today') }}</flux:button>
+            <flux:button wire:click="nextWeek" icon="chevron-right">{{ __('Next') }}</flux:button>
+            <flux:button wire:click="openRecurringModal" icon="calendar-days">{{ __('Recurring Schedule') }}</flux:button>
+            <flux:button variant="primary" wire:click="openOverrideModal" icon="plus">{{ __('Date Override') }}</flux:button>
+        </div>
+    </div>
 
-    <flux:modal wire:model="showBulkModal" class="md:w-2xl">
-        <flux:heading size="lg">{{ __('Bulk Assign Duties') }}</flux:heading>
-        <form wire:submit="saveBulkAssignments" class="mt-4 space-y-4">
+    <flux:text class="text-sm text-zinc-500">
+        {{ __('Week of :start – :end', [
+            'start' => $this->weekDays->first()->format('M j, Y'),
+            'end' => $this->weekDays->last()->format('M j, Y'),
+        ]) }}
+    </flux:text>
+
+    <x-roster.week-calendar
+        :week-days="$this->weekDays"
+        :segments="$this->calendarSegments"
+    />
+
+    <flux:modal wire:model="showRecurringModal" class="md:w-2xl">
+        <flux:heading size="lg">{{ __('Recurring Schedule') }}</flux:heading>
+        <form wire:submit="saveRecurringSchedule" class="mt-4 space-y-4">
             <div>
                 <div class="mb-2 flex items-center justify-between">
                     <flux:label>{{ __('Health Aides') }}</flux:label>
@@ -430,7 +407,7 @@ new #[Title('Duty Roster')] class extends Component
                 </div>
                 <div class="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                     @foreach ($this->healthAides as $aide)
-                        <label wire:key="bulk-aide-{{ $aide->id }}" class="flex cursor-pointer items-center gap-2 text-sm">
+                        <label wire:key="recurring-aide-{{ $aide->id }}" class="flex cursor-pointer items-center gap-2 text-sm">
                             <input
                                 type="checkbox"
                                 value="{{ $aide->id }}"
@@ -443,59 +420,121 @@ new #[Title('Duty Roster')] class extends Component
                 </div>
                 <flux:error name="selectedHealthAideIds" />
             </div>
+
+            <div>
+                <flux:label class="mb-2">{{ __('Repeat on') }}</flux:label>
+                <div class="flex flex-wrap gap-2">
+                    @foreach ([1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'] as $dayNumber => $dayLabel)
+                        <label wire:key="weekday-{{ $dayNumber }}" class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm dark:border-zinc-700">
+                            <input
+                                type="checkbox"
+                                value="{{ $dayNumber }}"
+                                wire:model="selectedWeekdays"
+                                class="size-4 rounded border-zinc-400"
+                            >
+                            <span>{{ __($dayLabel) }}</span>
+                        </label>
+                    @endforeach
+                </div>
+                <flux:error name="selectedWeekdays" />
+            </div>
+
             <div class="grid gap-4 sm:grid-cols-2">
                 <flux:input wire:model="dateFrom" type="date" label="{{ __('From') }}" required />
                 <flux:input wire:model="dateTo" type="date" label="{{ __('To') }}" required />
             </div>
-            <flux:select wire:model="templateId" label="{{ __('Shift Template') }}">
+
+            <flux:select wire:model.live="templateId" label="{{ __('Shift Template') }}">
                 <option value="">{{ __('Custom times') }}</option>
                 @foreach ($this->templates as $template)
                     <option value="{{ $template->id }}">{{ $template->name }} ({{ $template->start_time->format('H:i') }}-{{ $template->end_time->format('H:i') }})</option>
                 @endforeach
             </flux:select>
+
             <flux:select wire:model="assignmentType" label="{{ __('Type') }}">
                 @foreach (\App\Enums\DutyAssignmentType::cases() as $type)
                     <option value="{{ $type->value }}">{{ $type->label() }}</option>
                 @endforeach
             </flux:select>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:input wire:model="customStart" type="time" label="{{ __('Custom Start') }}" />
-                <flux:input wire:model="customEnd" type="time" label="{{ __('Custom End') }}" />
-            </div>
-            <flux:input wire:model="station" label="{{ __('Station') }}" />
+
+            <flux:input wire:model.live="dutyStartAt" type="datetime-local" label="{{ __('Duty starts at') }}" required />
+            <flux:input wire:model.live="dutyEndAt" type="datetime-local" label="{{ __('Duty ends at') }}" :required="$templateId === null || $templateId === ''" />
+            @if ($this->dutyEndHint)
+                <flux:text class="text-sm text-zinc-500">{{ $this->dutyEndHint }}</flux:text>
+            @endif
+
+            <flux:select wire:model="dutyLocationId" label="{{ __('Place') }}" required>
+                <option value="">{{ __('Select location') }}</option>
+                @foreach ($this->dutyLocations as $location)
+                    <option value="{{ $location->id }}">{{ $location->name }}</option>
+                @endforeach
+            </flux:select>
+
             <flux:textarea wire:model="notes" label="{{ __('Notes') }}" />
+
             <div class="flex justify-end gap-2">
-                <flux:button variant="ghost" type="button" wire:click="$set('showBulkModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button variant="ghost" type="button" wire:click="$set('showRecurringModal', false)">{{ __('Cancel') }}</flux:button>
                 <flux:button type="submit" variant="primary">{{ __('Create Assignments') }}</flux:button>
             </div>
         </form>
     </flux:modal>
 
-    <flux:modal wire:model="showEditModal" class="md:w-lg">
-        <flux:heading size="lg">{{ __('Edit Duty (override day)') }}</flux:heading>
-        <form wire:submit="updateAssignment" class="mt-4 space-y-4">
-            <flux:text>{{ $this->healthAides->firstWhere('id', $this->healthAideId)?->name }}</flux:text>
-            <flux:input wire:model="date" type="date" label="{{ __('Date') }}" required />
-            <flux:select wire:model="templateId" label="{{ __('Shift Template') }}">
+    <flux:modal wire:model="showOverrideModal" class="md:w-lg">
+        <flux:heading size="lg">
+            {{ $editingAssignmentId ? __('Edit Duty Override') : __('Date Override') }}
+        </flux:heading>
+        <form wire:submit="saveOverride" class="mt-4 space-y-4">
+            @if ($editingAssignmentId)
+                <flux:text>{{ $this->healthAides->firstWhere('id', $healthAideId)?->name }}</flux:text>
+            @else
+                <flux:select wire:model="healthAideId" label="{{ __('Health Aide') }}" required>
+                    <option value="">{{ __('Select aide') }}</option>
+                    @foreach ($this->healthAides as $aide)
+                        <option value="{{ $aide->id }}">{{ $aide->name }}</option>
+                    @endforeach
+                </flux:select>
+            @endif
+
+            <flux:select wire:model.live="templateId" label="{{ __('Shift Template') }}">
                 <option value="">{{ __('Custom times') }}</option>
                 @foreach ($this->templates as $template)
-                    <option value="{{ $template->id }}">{{ $template->name }}</option>
+                    <option value="{{ $template->id }}">{{ $template->name }} ({{ $template->start_time->format('H:i') }}-{{ $template->end_time->format('H:i') }})</option>
                 @endforeach
             </flux:select>
+
             <flux:select wire:model="assignmentType" label="{{ __('Type') }}">
                 @foreach (\App\Enums\DutyAssignmentType::cases() as $type)
                     <option value="{{ $type->value }}">{{ $type->label() }}</option>
                 @endforeach
             </flux:select>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:input wire:model="customStart" type="time" label="{{ __('Start') }}" required />
-                <flux:input wire:model="customEnd" type="time" label="{{ __('End') }}" required />
-            </div>
-            <flux:input wire:model="station" label="{{ __('Station') }}" />
+
+            <flux:input wire:model.live="dutyStartAt" type="datetime-local" label="{{ __('Duty starts at') }}" required />
+            <flux:input wire:model.live="dutyEndAt" type="datetime-local" label="{{ __('Duty ends at') }}" required />
+            @if ($this->dutyEndHint)
+                <flux:text class="text-sm text-zinc-500">{{ $this->dutyEndHint }}</flux:text>
+            @endif
+
+            <flux:select wire:model="dutyLocationId" label="{{ __('Place') }}" required>
+                <option value="">{{ __('Select location') }}</option>
+                @foreach ($this->dutyLocations as $location)
+                    <option value="{{ $location->id }}">{{ $location->name }}</option>
+                @endforeach
+            </flux:select>
+
             <flux:textarea wire:model="notes" label="{{ __('Notes') }}" />
-            <div class="flex justify-end gap-2">
-                <flux:button variant="ghost" type="button" wire:click="$set('showEditModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button type="submit" variant="primary">{{ __('Update') }}</flux:button>
+
+            <div class="flex justify-between gap-2">
+                @if ($editingAssignmentId)
+                    <flux:button type="button" variant="danger" wire:click="cancelAssignment({{ $editingAssignmentId }})" wire:confirm="{{ __('Cancel this duty assignment?') }}">
+                        {{ __('Cancel duty') }}
+                    </flux:button>
+                @else
+                    <span></span>
+                @endif
+                <div class="flex gap-2">
+                    <flux:button variant="ghost" type="button" wire:click="$set('showOverrideModal', false)">{{ __('Close') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ $editingAssignmentId ? __('Update') : __('Save Override') }}</flux:button>
+                </div>
             </div>
         </form>
     </flux:modal>

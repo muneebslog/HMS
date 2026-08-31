@@ -7,6 +7,7 @@ use App\Models\AttendanceDevice;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceWorkSession;
 use App\Models\DutyAssignment;
+use App\Models\DutyLocation;
 use App\Models\DutyShiftTemplate;
 use App\Models\HealthAide;
 use App\Models\User;
@@ -157,16 +158,21 @@ test('bulk roster creates assignments for aides across date range', function () 
     $admin = User::factory()->admin()->create();
     $aides = HealthAide::factory()->count(2)->create();
     $template = DutyShiftTemplate::factory()->create();
+    $location = DutyLocation::factory()->create();
 
     $this->actingAs($admin);
 
     Livewire::test('pages::admin.attendance-roster')
-        ->call('openBulkModal')
+        ->call('openRecurringModal')
         ->set('selectedHealthAideIds', $aides->pluck('id')->all())
+        ->set('selectedWeekdays', [1, 2, 3, 4, 5, 6, 7])
         ->set('dateFrom', '2026-08-20')
         ->set('dateTo', '2026-08-21')
         ->set('templateId', $template->id)
-        ->call('saveBulkAssignments')
+        ->set('dutyStartAt', '2026-08-20T07:00')
+        ->set('dutyEndAt', '2026-08-20T15:00')
+        ->set('dutyLocationId', $location->id)
+        ->call('saveRecurringSchedule')
         ->assertHasNoErrors();
 
     expect(DutyAssignment::query()->count())->toBe(4);

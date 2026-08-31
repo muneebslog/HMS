@@ -2,16 +2,15 @@
 
 namespace Database\Factories;
 
-use App\Enums\MedicineDose;
 use App\Enums\StockLocation;
-use App\Models\Medicine;
+use App\Models\Supply;
 use App\Services\InventoryStockService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<Medicine>
+ * @extends Factory<Supply>
  */
-class MedicineFactory extends Factory
+class SupplyFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -23,29 +22,29 @@ class MedicineFactory extends Factory
         return [
             'name' => fake()->words(2, true),
             'short_form' => null,
-            'unit' => fake()->randomElement(['tablet', 'syrup', 'capsule']),
-            'default_dose' => fake()->randomElement(MedicineDose::cases()),
-            'default_days' => fake()->numberBetween(1, 10),
+            'category' => fake()->randomElement(['consumables', 'iv_access', 'fluids', 'airway']),
+            'unit' => fake()->randomElement(['piece', 'box', 'pack', null]),
+            'default_par' => fake()->optional()->numberBetween(1, 20),
             'is_active' => true,
         ];
     }
 
     public function configure(): static
     {
-        return $this->afterCreating(function (Medicine $medicine): void {
-            app(InventoryStockService::class)->adjust($medicine, StockLocation::BackStorage, 100);
+        return $this->afterCreating(function (Supply $supply): void {
+            app(InventoryStockService::class)->adjust($supply, StockLocation::BackStorage, 100);
         });
     }
 
     public function withFrontStock(int $quantity): static
     {
-        return $this->afterCreating(function (Medicine $medicine) use ($quantity): void {
-            app(InventoryStockService::class)->adjust($medicine, StockLocation::FrontWorking, $quantity);
+        return $this->afterCreating(function (Supply $supply) use ($quantity): void {
+            app(InventoryStockService::class)->adjust($supply, StockLocation::FrontWorking, $quantity);
         });
     }
 
     /**
-     * Indicate that the medicine is inactive.
+     * Indicate that the supply is inactive.
      */
     public function inactive(): static
     {

@@ -30,6 +30,8 @@ class DutyAssignment extends Model
         'assignment_type',
         'replaces_health_aide_id',
         'health_aide_leave_id',
+        'duty_location_id',
+        'is_override',
         'station',
         'notes',
         'status',
@@ -50,6 +52,7 @@ class DutyAssignment extends Model
             'ends_at' => 'datetime',
             'assignment_type' => DutyAssignmentType::class,
             'status' => DutyAssignmentStatus::class,
+            'is_override' => 'boolean',
         ];
     }
 
@@ -92,6 +95,14 @@ class DutyAssignment extends Model
     public function healthAideLeave(): BelongsTo
     {
         return $this->belongsTo(HealthAideLeave::class);
+    }
+
+    /**
+     * @return BelongsTo<DutyLocation, $this>
+     */
+    public function dutyLocation(): BelongsTo
+    {
+        return $this->belongsTo(DutyLocation::class);
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Enums\MedicineDose;
 use App\Enums\ProcedureMedicationDoseStatus;
 use App\Enums\ProcedureMedicationForm;
 use App\Enums\ProcedureMedicationScheduleType;
+use App\Enums\StockLocation;
 use App\Enums\TokenResetType;
 use App\Models\DripBase;
 use App\Models\HealthAide;
@@ -61,13 +62,11 @@ function createStockDeliveryOrder(): array
         'status' => MedicationOrderStatus::Pending,
     ]);
 
-    $medicine = Medicine::factory()->create([
+    $medicine = Medicine::factory()->withFrontStock(10)->create([
         'name' => 'Paracetamol',
-        'stock_quantity' => 10,
     ]);
-    $injection = Injection::factory()->create([
+    $injection = Injection::factory()->withFrontStock(8)->create([
         'name' => 'Diclofenac',
-        'stock_quantity' => 8,
     ]);
 
     $order->medicines()->create([
@@ -89,7 +88,7 @@ function createStockDeliveryOrder(): array
     return [$order->fresh(['medicines', 'injections']), $medicine, $injection];
 }
 
-test('er delivery decrements catalog stock and ignores free-text lines', function () {
+test('er delivery decrements front working stock and ignores free-text lines', function () {
     [$order, $medicine, $injection] = createStockDeliveryOrder();
     HealthAide::factory()->create(['pin' => '1234']);
 
@@ -106,11 +105,12 @@ test('er delivery decrements catalog stock and ignores free-text lines', functio
         ->call('requestNext')
         ->assertHasNoErrors();
 
-    expect($medicine->fresh()->stock_quantity)->toBe(9)
-        ->and($injection->fresh()->stock_quantity)->toBe(7);
+    expect($medicine->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(9)
+        ->and($injection->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(7)
+        ->and($medicine->fresh()->stockBalance(StockLocation::BackStorage))->toBe(100);
 });
 
-test('starting a drip decrements drip base and additive injection stock', function () {
+test('starting a drip decrements front working drip base and additive injection stock', function () {
     $shift = Shift::factory()->open()->create();
     $service = Service::factory()->create([
         'needs_medication' => true,
@@ -140,13 +140,11 @@ test('starting a drip decrements drip base and additive injection stock', functi
         'status' => MedicationOrderStatus::Pending,
     ]);
 
-    $dripBase = DripBase::factory()->create([
+    $dripBase = DripBase::factory()->withFrontStock(5)->create([
         'name' => 'Normal Saline',
-        'stock_quantity' => 5,
     ]);
-    $additive = Injection::factory()->create([
+    $additive = Injection::factory()->withFrontStock(4)->create([
         'name' => 'Vitamin B',
-        'stock_quantity' => 4,
     ]);
 
     $drip = $order->drips()->create([
@@ -167,16 +165,16 @@ test('starting a drip decrements drip base and additive injection stock', functi
         ->call('requestStart', $drip->id)
         ->assertHasNoErrors();
 
-    expect($dripBase->fresh()->stock_quantity)->toBe(4)
-        ->and($additive->fresh()->stock_quantity)->toBe(3)
+    expect($dripBase->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(4)
+        ->and($additive->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(3)
         ->and($drip->fresh()->status)->toBe(DripLineStatus::Started);
 });
 
-test('marking a procedure dose given decrements stock but skipped does not', function () {
+test('marking a procedure dose given decrements front stock but skipped does not', function () {
     $user = User::factory()->indoor()->create();
     $procedure = Procedure::factory()->admitted()->create();
-    $medicine = Medicine::factory()->create(['stock_quantity' => 12]);
-    $injection = Injection::factory()->create(['stock_quantity' => 6]);
+    $medicine = Medicine::factory()->withFrontStock(12)->create();
+    $injection = Injection::factory()->withFrontStock(6)->create();
 
     Livewire::actingAs($user)
         ->test('pages::indoor.procedure', ['procedure' => $procedure])
@@ -199,7 +197,7 @@ test('marking a procedure dose given decrements stock but skipped does not', fun
         ->call('markDoseGiven', $givenDose->id)
         ->assertHasNoErrors();
 
-    expect($medicine->fresh()->stock_quantity)->toBe(11)
+    expect($medicine->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(11)
         ->and($givenDose->fresh()->status)->toBe(ProcedureMedicationDoseStatus::Given);
 
     $scheduler = app(ProcedureMedicationScheduler::class);
@@ -220,11 +218,11 @@ test('marking a procedure dose given decrements stock but skipped does not', fun
         ->call('markDoseSkipped', $skippedDose->id)
         ->assertHasNoErrors();
 
-    expect($injection->fresh()->stock_quantity)->toBe(6)
+    expect($injection->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(6)
         ->and($skippedDose->fresh()->status)->toBe(ProcedureMedicationDoseStatus::Skipped);
 });
 
-test('management can set and update stock quantity on catalog items', function () {
+test('management can set and update back stock on catalog items', function () {
     $user = User::factory()->admin()->create();
 
     Livewire::actingAs($user)
@@ -238,7 +236,7 @@ test('management can set and update stock quantity on catalog items', function (
         ->assertHasNoErrors();
 
     $medicine = Medicine::query()->where('name', 'Stocked PCM')->firstOrFail();
-    expect($medicine->stock_quantity)->toBe(25);
+    expect($medicine->stockBalance(StockLocation::BackStorage))->toBe(25);
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -248,7 +246,7 @@ test('management can set and update stock quantity on catalog items', function (
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($medicine->fresh()->stock_quantity)->toBe(40);
+    expect($medicine->fresh()->stockBalance(StockLocation::BackStorage))->toBe(40);
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -260,7 +258,7 @@ test('management can set and update stock quantity on catalog items', function (
         ->assertHasNoErrors();
 
     $injection = Injection::query()->where('name', 'Stocked Inj')->firstOrFail();
-    expect($injection->stock_quantity)->toBe(15);
+    expect($injection->stockBalance(StockLocation::BackStorage))->toBe(15);
 
     Livewire::actingAs($user)
         ->test('pages::management.crud')
@@ -272,8 +270,6 @@ test('management can set and update stock quantity on catalog items', function (
         ->call('save')
         ->assertHasNoErrors();
 
-    $this->assertDatabaseHas('drip_bases', [
-        'name' => 'Stocked NS',
-        'stock_quantity' => 30,
-    ]);
+    $dripBase = DripBase::query()->where('name', 'Stocked NS')->firstOrFail();
+    expect($dripBase->stockBalance(StockLocation::BackStorage))->toBe(30);
 });

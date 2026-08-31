@@ -3,7 +3,9 @@
 namespace Database\Factories;
 
 use App\Enums\InjectionAdministrationType;
+use App\Enums\StockLocation;
 use App\Models\Injection;
+use App\Services\InventoryStockService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,8 +25,21 @@ class InjectionFactory extends Factory
             'short_form' => null,
             'default_administration_type' => fake()->randomElement(InjectionAdministrationType::cases()),
             'is_active' => true,
-            'stock_quantity' => 100,
         ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Injection $injection): void {
+            app(InventoryStockService::class)->adjust($injection, StockLocation::BackStorage, 100);
+        });
+    }
+
+    public function withFrontStock(int $quantity): static
+    {
+        return $this->afterCreating(function (Injection $injection) use ($quantity): void {
+            app(InventoryStockService::class)->adjust($injection, StockLocation::FrontWorking, $quantity);
+        });
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InjectionAdministrationType;
+use App\Models\Concerns\HasStockBalances;
 use Database\Factories\InjectionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 class Injection extends Model
 {
     /** @use HasFactory<InjectionFactory> */
-    use HasFactory;
+    use HasFactory, HasStockBalances;
 
     /**
      * The attributes that are mass assignable.
@@ -23,7 +24,6 @@ class Injection extends Model
         'short_form',
         'default_administration_type',
         'is_active',
-        'stock_quantity',
     ];
 
     /**
@@ -34,7 +34,6 @@ class Injection extends Model
     protected $attributes = [
         'default_administration_type' => 'im',
         'is_active' => true,
-        'stock_quantity' => 0,
     ];
 
     /**
@@ -47,7 +46,6 @@ class Injection extends Model
         return [
             'default_administration_type' => InjectionAdministrationType::class,
             'is_active' => 'boolean',
-            'stock_quantity' => 'integer',
         ];
     }
 

@@ -2,10 +2,12 @@
 
 use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicineDose;
+use App\Enums\StockLocation;
 use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
+use App\Models\DutyLocation;
 use App\Models\Injection;
 use App\Models\LabDoctorShare;
 use App\Models\LabTest;
@@ -17,6 +19,8 @@ use App\Models\Room;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Symptom;
+use App\Models\Supply;
+use App\Services\InventoryStockService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -211,6 +215,27 @@ new #[Title('Management')] class extends Component
     public bool $dripBaseIsActive = true;
 
     #[Validate]
+    public string $supplyName = '';
+
+    #[Validate]
+    public string $supplyShortForm = '';
+
+    #[Validate]
+    public string $supplyCategory = 'consumables';
+
+    #[Validate]
+    public string $supplyUnit = '';
+
+    #[Validate]
+    public string $supplyDefaultPar = '';
+
+    #[Validate]
+    public string $supplyBackStockQuantity = '0';
+
+    #[Validate]
+    public bool $supplyIsActive = true;
+
+    #[Validate]
     public string $procedureTypeName = '';
 
     #[Validate]
@@ -221,6 +246,15 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $roomIsActive = true;
+
+    #[Validate]
+    public string $dutyLocationName = '';
+
+    #[Validate]
+    public string $dutyLocationSortOrder = '0';
+
+    #[Validate]
+    public bool $dutyLocationIsActive = true;
 
     #[Validate]
     public string $symptomName = '';
@@ -358,8 +392,17 @@ new #[Title('Management')] class extends Component
                 'dripBaseName' => ['required', 'string', 'max:255'],
                 'dripBaseDefaultVolumeMl' => ['required', 'numeric', 'min:0'],
                 'dripBaseShowOnEr' => ['boolean'],
-                'dripBaseStockQuantity' => ['required', 'integer'],
+                'dripBaseStockQuantity' => ['required', 'integer', 'min:0'],
                 'dripBaseIsActive' => ['boolean'],
+            ],
+            'supplies' => [
+                'supplyName' => ['required', 'string', 'max:255'],
+                'supplyShortForm' => ['nullable', 'string', 'max:50'],
+                'supplyCategory' => ['required', 'string', 'max:255'],
+                'supplyUnit' => ['nullable', 'string', 'max:255'],
+                'supplyDefaultPar' => ['nullable', 'integer', 'min:0'],
+                'supplyBackStockQuantity' => ['required', 'integer', 'min:0'],
+                'supplyIsActive' => ['boolean'],
             ],
             'procedureTypes' => [
                 'procedureTypeName' => ['required', 'string', 'max:255', Rule::unique('procedure_types', 'name')->ignore($this->editingId)],
@@ -368,6 +411,11 @@ new #[Title('Management')] class extends Component
             'rooms' => [
                 'roomNumber' => ['required', 'string', 'max:255', Rule::unique('rooms', 'number')->ignore($this->editingId)],
                 'roomIsActive' => ['boolean'],
+            ],
+            'dutyLocations' => [
+                'dutyLocationName' => ['required', 'string', 'max:255', Rule::unique('duty_locations', 'name')->ignore($this->editingId)],
+                'dutyLocationSortOrder' => ['required', 'integer', 'min:0'],
+                'dutyLocationIsActive' => ['boolean'],
             ],
             'symptoms' => [
                 'symptomName' => ['required', 'string', 'max:255', Rule::unique('symptoms', 'name')->ignore($this->editingId)],
@@ -499,8 +547,10 @@ new #[Title('Management')] class extends Component
             'medicines' => $this->loadMedicine($id),
             'injections' => $this->loadInjection($id),
             'dripBases' => $this->loadDripBase($id),
+            'supplies' => $this->loadSupply($id),
             'procedureTypes' => $this->loadProcedureType($id),
             'rooms' => $this->loadRoom($id),
+            'dutyLocations' => $this->loadDutyLocation($id),
             'symptoms' => $this->loadSymptom($id),
         };
 
@@ -597,7 +647,7 @@ new #[Title('Management')] class extends Component
         $this->medicineUnit = $medicine->unit ?? '';
         $this->medicineDefaultDose = $medicine->default_dose->value;
         $this->medicineDefaultDays = (string) $medicine->default_days;
-        $this->medicineStockQuantity = (string) $medicine->stock_quantity;
+        $this->medicineStockQuantity = (string) $medicine->stockBalance(StockLocation::BackStorage);
         $this->medicineIsActive = $medicine->is_active;
     }
 
@@ -611,7 +661,7 @@ new #[Title('Management')] class extends Component
         $this->injectionName = $injection->name;
         $this->injectionShortForm = $injection->short_form ?? '';
         $this->injectionDefaultAdministrationType = $injection->default_administration_type->value;
-        $this->injectionStockQuantity = (string) $injection->stock_quantity;
+        $this->injectionStockQuantity = (string) $injection->stockBalance(StockLocation::BackStorage);
         $this->injectionIsActive = $injection->is_active;
     }
 
@@ -625,8 +675,24 @@ new #[Title('Management')] class extends Component
         $this->dripBaseName = $dripBase->name;
         $this->dripBaseDefaultVolumeMl = (string) $dripBase->default_volume_ml;
         $this->dripBaseShowOnEr = $dripBase->show_on_er;
-        $this->dripBaseStockQuantity = (string) $dripBase->stock_quantity;
+        $this->dripBaseStockQuantity = (string) $dripBase->stockBalance(StockLocation::BackStorage);
         $this->dripBaseIsActive = $dripBase->is_active;
+    }
+
+    /**
+     * Load supply data into the form.
+     */
+    private function loadSupply(int $id): void
+    {
+        $supply = Supply::findOrFail($id);
+
+        $this->supplyName = $supply->name;
+        $this->supplyShortForm = $supply->short_form ?? '';
+        $this->supplyCategory = $supply->category;
+        $this->supplyUnit = $supply->unit ?? '';
+        $this->supplyDefaultPar = $supply->default_par !== null ? (string) $supply->default_par : '';
+        $this->supplyBackStockQuantity = (string) $supply->stockBalance(StockLocation::BackStorage);
+        $this->supplyIsActive = $supply->is_active;
     }
 
     /**
@@ -649,6 +715,18 @@ new #[Title('Management')] class extends Component
 
         $this->roomNumber = $room->number;
         $this->roomIsActive = $room->is_active;
+    }
+
+    /**
+     * Load duty location data into the form.
+     */
+    private function loadDutyLocation(int $id): void
+    {
+        $location = DutyLocation::findOrFail($id);
+
+        $this->dutyLocationName = $location->name;
+        $this->dutyLocationSortOrder = (string) $location->sort_order;
+        $this->dutyLocationIsActive = $location->is_active;
     }
 
     /**
@@ -719,10 +797,20 @@ new #[Title('Management')] class extends Component
             'dripBaseShowOnEr',
             'dripBaseStockQuantity',
             'dripBaseIsActive',
+            'supplyName',
+            'supplyShortForm',
+            'supplyCategory',
+            'supplyUnit',
+            'supplyDefaultPar',
+            'supplyBackStockQuantity',
+            'supplyIsActive',
             'procedureTypeName',
             'procedureTypeIsActive',
             'roomNumber',
             'roomIsActive',
+            'dutyLocationName',
+            'dutyLocationSortOrder',
+            'dutyLocationIsActive',
             'symptomName',
             'symptomIsActive',
             'symptomMedicineIds',
@@ -767,8 +855,10 @@ new #[Title('Management')] class extends Component
             'medicines' => $this->saveMedicine($validated),
             'injections' => $this->saveInjection($validated),
             'dripBases' => $this->saveDripBase($validated),
+            'supplies' => $this->saveSupply($validated),
             'procedureTypes' => $this->saveProcedureType($validated),
             'rooms' => $this->saveRoom($validated),
+            'dutyLocations' => $this->saveDutyLocation($validated),
             'symptoms' => $this->saveSymptom($validated),
         };
 
@@ -795,16 +885,19 @@ new #[Title('Management')] class extends Component
             }
 
             DB::transaction(function () use ($rows): void {
+                $stock = app(InventoryStockService::class);
+
                 foreach ($rows as $row) {
-                    Medicine::create([
+                    $medicine = Medicine::create([
                         'name' => $row['name'],
                         'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
                         'unit' => filled($row['unit'] ?? null) ? $row['unit'] : null,
                         'default_dose' => $row['default_dose'],
                         'default_days' => $row['default_days'],
-                        'stock_quantity' => (int) ($row['stock_quantity'] ?? 0),
                         'is_active' => (bool) ($row['is_active'] ?? true),
                     ]);
+
+                    $stock->adjust($medicine, StockLocation::BackStorage, (int) ($row['stock_quantity'] ?? 0), null, auth()->user());
                 }
             });
 
@@ -824,14 +917,17 @@ new #[Title('Management')] class extends Component
             }
 
             DB::transaction(function () use ($rows): void {
+                $stock = app(InventoryStockService::class);
+
                 foreach ($rows as $row) {
-                    Injection::create([
+                    $injection = Injection::create([
                         'name' => $row['name'],
                         'short_form' => filled($row['short_form'] ?? null) ? $row['short_form'] : null,
                         'default_administration_type' => $row['default_administration_type'],
-                        'stock_quantity' => (int) ($row['stock_quantity'] ?? 0),
                         'is_active' => (bool) ($row['is_active'] ?? true),
                     ]);
+
+                    $stock->adjust($injection, StockLocation::BackStorage, (int) ($row['stock_quantity'] ?? 0), null, auth()->user());
                 }
             });
 
@@ -980,17 +1076,25 @@ new #[Title('Management')] class extends Component
      */
     private function saveMedicine(array $validated): void
     {
-        $data = [
+        $medicine = Medicine::findOrFail($this->editingId);
+
+        $medicine->update([
             'name' => $validated['medicineName'],
             'short_form' => filled($validated['medicineShortForm'] ?? null) ? $validated['medicineShortForm'] : null,
             'unit' => filled($validated['medicineUnit'] ?? null) ? $validated['medicineUnit'] : null,
             'default_dose' => $validated['medicineDefaultDose'],
             'default_days' => $validated['medicineDefaultDays'],
-            'stock_quantity' => $validated['medicineStockQuantity'],
             'is_active' => $validated['medicineIsActive'],
-        ];
+        ]);
 
-        Medicine::findOrFail($this->editingId)->update($data);
+        app(InventoryStockService::class)->adjust(
+            $medicine,
+            StockLocation::BackStorage,
+            (int) $validated['medicineStockQuantity'],
+            null,
+            auth()->user(),
+        );
+
         Flux::toast(variant: 'success', text: __('Medicine updated.'));
     }
 
@@ -1001,15 +1105,23 @@ new #[Title('Management')] class extends Component
      */
     private function saveInjection(array $validated): void
     {
-        $data = [
+        $injection = Injection::findOrFail($this->editingId);
+
+        $injection->update([
             'name' => $validated['injectionName'],
             'short_form' => filled($validated['injectionShortForm'] ?? null) ? $validated['injectionShortForm'] : null,
             'default_administration_type' => $validated['injectionDefaultAdministrationType'],
-            'stock_quantity' => $validated['injectionStockQuantity'],
             'is_active' => $validated['injectionIsActive'],
-        ];
+        ]);
 
-        Injection::findOrFail($this->editingId)->update($data);
+        app(InventoryStockService::class)->adjust(
+            $injection,
+            StockLocation::BackStorage,
+            (int) $validated['injectionStockQuantity'],
+            null,
+            auth()->user(),
+        );
+
         Flux::toast(variant: 'success', text: __('Injection updated.'));
     }
 
@@ -1024,17 +1136,59 @@ new #[Title('Management')] class extends Component
             'name' => $validated['dripBaseName'],
             'default_volume_ml' => $validated['dripBaseDefaultVolumeMl'],
             'show_on_er' => $validated['dripBaseShowOnEr'],
-            'stock_quantity' => $validated['dripBaseStockQuantity'],
             'is_active' => $validated['dripBaseIsActive'],
         ];
 
         if ($this->editingId) {
-            DripBase::findOrFail($this->editingId)->update($data);
+            $dripBase = DripBase::findOrFail($this->editingId);
+            $dripBase->update($data);
             Flux::toast(variant: 'success', text: __('Drip base updated.'));
         } else {
-            DripBase::create($data);
+            $dripBase = DripBase::create($data);
             Flux::toast(variant: 'success', text: __('Drip base created.'));
         }
+
+        app(InventoryStockService::class)->adjust(
+            $dripBase,
+            StockLocation::BackStorage,
+            (int) $validated['dripBaseStockQuantity'],
+            null,
+            auth()->user(),
+        );
+    }
+
+    /**
+     * Persist supply data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveSupply(array $validated): void
+    {
+        $data = [
+            'name' => $validated['supplyName'],
+            'short_form' => filled($validated['supplyShortForm'] ?? null) ? $validated['supplyShortForm'] : null,
+            'category' => $validated['supplyCategory'],
+            'unit' => filled($validated['supplyUnit'] ?? null) ? $validated['supplyUnit'] : null,
+            'default_par' => filled($validated['supplyDefaultPar'] ?? null) ? (int) $validated['supplyDefaultPar'] : null,
+            'is_active' => $validated['supplyIsActive'],
+        ];
+
+        if ($this->editingId) {
+            $supply = Supply::findOrFail($this->editingId);
+            $supply->update($data);
+            Flux::toast(variant: 'success', text: __('Supply updated.'));
+        } else {
+            $supply = Supply::create($data);
+            Flux::toast(variant: 'success', text: __('Supply created.'));
+        }
+
+        app(InventoryStockService::class)->adjust(
+            $supply,
+            StockLocation::BackStorage,
+            (int) $validated['supplyBackStockQuantity'],
+            null,
+            auth()->user(),
+        );
     }
 
     /**
@@ -1076,6 +1230,28 @@ new #[Title('Management')] class extends Component
         } else {
             Room::create($data);
             Flux::toast(variant: 'success', text: __('Room created.'));
+        }
+    }
+
+    /**
+     * Persist duty location data.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function saveDutyLocation(array $validated): void
+    {
+        $data = [
+            'name' => $validated['dutyLocationName'],
+            'sort_order' => (int) $validated['dutyLocationSortOrder'],
+            'is_active' => $validated['dutyLocationIsActive'],
+        ];
+
+        if ($this->editingId) {
+            DutyLocation::findOrFail($this->editingId)->update($data);
+            Flux::toast(variant: 'success', text: __('Duty location updated.'));
+        } else {
+            DutyLocation::create($data);
+            Flux::toast(variant: 'success', text: __('Duty location created.'));
         }
     }
 
@@ -1452,8 +1628,10 @@ new #[Title('Management')] class extends Component
             'medicines' => Medicine::findOrFail($id)->delete(),
             'injections' => Injection::findOrFail($id)->delete(),
             'dripBases' => DripBase::findOrFail($id)->delete(),
+            'supplies' => Supply::findOrFail($id)->delete(),
             'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
             'rooms' => Room::findOrFail($id)->delete(),
+            'dutyLocations' => DutyLocation::findOrFail($id)->delete(),
             'symptoms' => Symptom::findOrFail($id)->delete(),
         };
 
@@ -1596,6 +1774,17 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Get the list of supplies.
+     *
+     * @return Collection<int, Supply>
+     */
+    #[Computed]
+    public function supplies(): Collection
+    {
+        return Supply::orderBy('name')->get();
+    }
+
+    /**
      * Get the list of procedure types.
      *
      * @return Collection<int, ProcedureType>
@@ -1631,6 +1820,17 @@ new #[Title('Management')] class extends Component
     public function rooms(): Collection
     {
         return Room::orderBy('number')->get();
+    }
+
+    /**
+     * Get the list of duty locations.
+     *
+     * @return Collection<int, DutyLocation>
+     */
+    #[Computed]
+    public function dutyLocations(): Collection
+    {
+        return DutyLocation::query()->orderBy('sort_order')->orderBy('name')->get();
     }
 
     /**
@@ -1733,6 +1933,13 @@ new #[Title('Management')] class extends Component
                         </button>
                         <button
                             type="button"
+                            wire:click="switchTab('supplies')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'supplies' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Supplies') }}
+                        </button>
+                        <button
+                            type="button"
                             wire:click="switchTab('procedureTypes')"
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'procedureTypes' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
@@ -1744,6 +1951,13 @@ new #[Title('Management')] class extends Component
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'rooms' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
                             {{ __('Rooms') }}
+                        </button>
+                        <button
+                            type="button"
+                            wire:click="switchTab('dutyLocations')"
+                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'dutyLocations' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                        >
+                            {{ __('Duty Locations') }}
                         </button>
                         <button
                             type="button"
@@ -1782,6 +1996,39 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row>
                                     <flux:table.cell colspan="3" class="text-center text-zinc-500">
                                         {{ __('No rooms found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'dutyLocations')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Sort Order') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->dutyLocations as $location)
+                                <flux:table.row wire:key="duty-location-{{ $location->id }}">
+                                    <flux:table.cell>{{ $location->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $location->sort_order }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $location->is_active ? 'green' : 'zinc' }}">
+                                            {{ $location->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $location->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this duty location?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
+                                        {{ __('No duty locations found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
@@ -2053,7 +2300,9 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Unit') }}</flux:table.column>
                             <flux:table.column>{{ __('Default dose') }}</flux:table.column>
                             <flux:table.column>{{ __('Default days') }}</flux:table.column>
-                            <flux:table.column>{{ __('Stock') }}</flux:table.column>
+                            <flux:table.column>{{ __('Back') }}</flux:table.column>
+                            <flux:table.column>{{ __('Front') }}</flux:table.column>
+                            <flux:table.column>{{ __('Total') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -2066,7 +2315,9 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>{{ $medicine->unit ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->default_dose->label() }}</flux:table.cell>
                                     <flux:table.cell>{{ $medicine->default_days }}</flux:table.cell>
-                                    <flux:table.cell>{{ $medicine->stock_quantity }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->stockBalance(\App\Enums\StockLocation::BackStorage) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->stockBalance(\App\Enums\StockLocation::FrontWorking) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $medicine->totalStock() }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $medicine->is_active ? 'green' : 'zinc' }}">
                                             {{ $medicine->is_active ? __('Active') : __('Inactive') }}
@@ -2079,7 +2330,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="10" class="text-center text-zinc-500">
                                         {{ __('No medicines found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2131,7 +2382,9 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Short form') }}</flux:table.column>
                             <flux:table.column>{{ __('Default route') }}</flux:table.column>
-                            <flux:table.column>{{ __('Stock') }}</flux:table.column>
+                            <flux:table.column>{{ __('Back') }}</flux:table.column>
+                            <flux:table.column>{{ __('Front') }}</flux:table.column>
+                            <flux:table.column>{{ __('Total') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -2142,7 +2395,9 @@ new #[Title('Management')] class extends Component
                                     <flux:table.cell>{{ $injection->name }}</flux:table.cell>
                                     <flux:table.cell>{{ $injection->short_form ?: '—' }}</flux:table.cell>
                                     <flux:table.cell>{{ $injection->default_administration_type->label() }}</flux:table.cell>
-                                    <flux:table.cell>{{ $injection->stock_quantity }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->stockBalance(\App\Enums\StockLocation::BackStorage) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->stockBalance(\App\Enums\StockLocation::FrontWorking) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $injection->totalStock() }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $injection->is_active ? 'green' : 'zinc' }}">
                                             {{ $injection->is_active ? __('Active') : __('Inactive') }}
@@ -2155,7 +2410,7 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="8" class="text-center text-zinc-500">
                                         {{ __('No injections found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -2168,7 +2423,9 @@ new #[Title('Management')] class extends Component
                             <flux:table.column>{{ __('Name') }}</flux:table.column>
                             <flux:table.column>{{ __('Default Volume (ml)') }}</flux:table.column>
                             <flux:table.column>{{ __('Show on ER') }}</flux:table.column>
-                            <flux:table.column>{{ __('Stock') }}</flux:table.column>
+                            <flux:table.column>{{ __('Back') }}</flux:table.column>
+                            <flux:table.column>{{ __('Front') }}</flux:table.column>
+                            <flux:table.column>{{ __('Total') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                         </flux:table.columns>
@@ -2183,7 +2440,9 @@ new #[Title('Management')] class extends Component
                                             {{ $dripBase->show_on_er ? __('Yes') : __('No') }}
                                         </flux:badge>
                                     </flux:table.cell>
-                                    <flux:table.cell>{{ $dripBase->stock_quantity }}</flux:table.cell>
+                                    <flux:table.cell>{{ $dripBase->stockBalance(\App\Enums\StockLocation::BackStorage) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $dripBase->stockBalance(\App\Enums\StockLocation::FrontWorking) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $dripBase->totalStock() }}</flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge size="sm" color="{{ $dripBase->is_active ? 'green' : 'zinc' }}">
                                             {{ $dripBase->is_active ? __('Active') : __('Inactive') }}
@@ -2196,8 +2455,53 @@ new #[Title('Management')] class extends Component
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="6" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="9" class="text-center text-zinc-500">
                                         {{ __('No drip bases found.') }}
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforelse
+                        </flux:table.rows>
+                    </flux:table>
+                @elseif ($activeTab === 'supplies')
+                    <flux:table>
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Name') }}</flux:table.column>
+                            <flux:table.column>{{ __('Short form') }}</flux:table.column>
+                            <flux:table.column>{{ __('Category') }}</flux:table.column>
+                            <flux:table.column>{{ __('Unit') }}</flux:table.column>
+                            <flux:table.column>{{ __('Par') }}</flux:table.column>
+                            <flux:table.column>{{ __('Back') }}</flux:table.column>
+                            <flux:table.column>{{ __('Front') }}</flux:table.column>
+                            <flux:table.column>{{ __('Total') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                        </flux:table.columns>
+
+                        <flux:table.rows>
+                            @forelse ($this->supplies as $supply)
+                                <flux:table.row wire:key="supply-{{ $supply->id }}">
+                                    <flux:table.cell>{{ $supply->name }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->short_form ?: '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->category }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->unit ?: '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->default_par ?? '—' }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->stockBalance(\App\Enums\StockLocation::BackStorage) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->stockBalance(\App\Enums\StockLocation::FrontWorking) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $supply->totalStock() }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" color="{{ $supply->is_active ? 'green' : 'zinc' }}">
+                                            {{ $supply->is_active ? __('Active') : __('Inactive') }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell class="text-right">
+                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $supply->id }})" />
+                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $supply->id }})" wire:confirm="{{ __('Are you sure you want to delete this supply?') }}" />
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @empty
+                                <flux:table.row>
+                                    <flux:table.cell colspan="11" class="text-center text-zinc-500">
+                                        {{ __('No supplies found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
@@ -2275,13 +2579,13 @@ new #[Title('Management')] class extends Component
     <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : ($activeTab === 'symptoms' ? 'max-w-2xl' : 'max-w-lg') }}">
         <flux:heading level="2">
             @if ($editingId)
-                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'symptoms' => __('Symptom'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'symptoms' => __('Symptom'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), 'dutyLocations' => __('Duty Location'), default => __('Service Price') }]) }}
             @elseif ($activeTab === 'medicines')
                 {{ __('Bulk add medicines') }}
             @elseif ($activeTab === 'injections')
                 {{ __('Bulk add injections') }}
             @else
-                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'symptoms' => __('Symptom'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
+                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'symptoms' => __('Symptom'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), 'dutyLocations' => __('Duty Location'), default => __('Service Price') }]) }}
             @endif
         </flux:heading>
 
@@ -2478,6 +2782,23 @@ new #[Title('Management')] class extends Component
                     <flux:switch wire:model="roomIsActive" :label="__('Active')" />
                     <flux:error name="roomIsActive" />
                 </flux:field>
+            @elseif ($activeTab === 'dutyLocations')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="dutyLocationName" type="text" required />
+                    <flux:error name="dutyLocationName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Sort Order') }}</flux:label>
+                    <flux:input wire:model="dutyLocationSortOrder" type="number" min="0" step="1" required />
+                    <flux:error name="dutyLocationSortOrder" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="dutyLocationIsActive" :label="__('Active')" />
+                    <flux:error name="dutyLocationIsActive" />
+                </flux:field>
             @elseif ($activeTab === 'medicines')
                 @if ($editingId)
                     <flux:field>
@@ -2515,8 +2836,8 @@ new #[Title('Management')] class extends Component
                     </flux:field>
 
                     <flux:field>
-                        <flux:label>{{ __('Stock') }}</flux:label>
-                        <flux:input wire:model="medicineStockQuantity" type="number" required />
+                        <flux:label>{{ __('Back stock') }}</flux:label>
+                        <flux:input wire:model="medicineStockQuantity" type="number" min="0" required />
                         <flux:error name="medicineStockQuantity" />
                     </flux:field>
 
@@ -2553,7 +2874,7 @@ new #[Title('Management')] class extends Component
                                     <flux:error name="medicineBulkRows.{{ $index }}.default_days" />
                                 </div>
                                 <div class="sm:col-span-1">
-                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.stock_quantity" type="number" placeholder="{{ __('Stock') }}" />
+                                    <flux:input wire:model="medicineBulkRows.{{ $index }}.stock_quantity" type="number" min="0" placeholder="{{ __('Back stock') }}" />
                                     <flux:error name="medicineBulkRows.{{ $index }}.stock_quantity" />
                                 </div>
                                 <div class="flex items-center sm:col-span-2">
@@ -2595,8 +2916,8 @@ new #[Title('Management')] class extends Component
                     </flux:field>
 
                     <flux:field>
-                        <flux:label>{{ __('Stock') }}</flux:label>
-                        <flux:input wire:model="injectionStockQuantity" type="number" required />
+                        <flux:label>{{ __('Back stock') }}</flux:label>
+                        <flux:input wire:model="injectionStockQuantity" type="number" min="0" required />
                         <flux:error name="injectionStockQuantity" />
                     </flux:field>
 
@@ -2625,7 +2946,7 @@ new #[Title('Management')] class extends Component
                                     <flux:error name="injectionBulkRows.{{ $index }}.default_administration_type" />
                                 </div>
                                 <div class="sm:col-span-2">
-                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.stock_quantity" type="number" placeholder="{{ __('Stock') }}" />
+                                    <flux:input wire:model="injectionBulkRows.{{ $index }}.stock_quantity" type="number" min="0" placeholder="{{ __('Back stock') }}" />
                                     <flux:error name="injectionBulkRows.{{ $index }}.stock_quantity" />
                                 </div>
                                 <div class="flex items-center sm:col-span-2">
@@ -2656,8 +2977,8 @@ new #[Title('Management')] class extends Component
                 </flux:field>
 
                 <flux:field>
-                    <flux:label>{{ __('Stock') }}</flux:label>
-                    <flux:input wire:model="dripBaseStockQuantity" type="number" required />
+                    <flux:label>{{ __('Back stock') }}</flux:label>
+                    <flux:input wire:model="dripBaseStockQuantity" type="number" min="0" required />
                     <flux:error name="dripBaseStockQuantity" />
                 </flux:field>
 
@@ -2669,6 +2990,47 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="dripBaseIsActive" :label="__('Active')" />
                     <flux:error name="dripBaseIsActive" />
+                </flux:field>
+            @elseif ($activeTab === 'supplies')
+                <flux:field>
+                    <flux:label>{{ __('Name') }}</flux:label>
+                    <flux:input wire:model="supplyName" type="text" required />
+                    <flux:error name="supplyName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Short form') }}</flux:label>
+                    <flux:input wire:model="supplyShortForm" type="text" />
+                    <flux:error name="supplyShortForm" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Category') }}</flux:label>
+                    <flux:input wire:model="supplyCategory" type="text" required />
+                    <flux:error name="supplyCategory" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Unit') }}</flux:label>
+                    <flux:input wire:model="supplyUnit" type="text" />
+                    <flux:error name="supplyUnit" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Default par level') }}</flux:label>
+                    <flux:input wire:model="supplyDefaultPar" type="number" min="0" />
+                    <flux:error name="supplyDefaultPar" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Back stock') }}</flux:label>
+                    <flux:input wire:model="supplyBackStockQuantity" type="number" min="0" required />
+                    <flux:error name="supplyBackStockQuantity" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="supplyIsActive" :label="__('Active')" />
+                    <flux:error name="supplyIsActive" />
                 </flux:field>
             @elseif ($activeTab === 'symptoms')
                 <flux:field>
