@@ -147,40 +147,107 @@ new #[Title('Dashboard')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         @if (auth()->user()->isAdmin())
+            @php
+                $adminHubCards = [
+                    [
+                        'label' => __('HQ'),
+                        'icon' => 'building-office-2',
+                        'href' => route('hq'),
+                        'icon_bg' => 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300',
+                        'card' => 'border-sky-200/80 bg-gradient-to-br from-sky-50 to-white hover:border-sky-300 hover:shadow-sky-100 dark:border-sky-800/60 dark:from-sky-950/40 dark:to-zinc-900 dark:hover:border-sky-600 dark:hover:shadow-sky-950/40',
+                        'accent' => 'bg-sky-500',
+                    ],
+                    [
+                        'label' => __('Reception'),
+                        'icon' => 'user-plus',
+                        'href' => null,
+                        'icon_bg' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
+                        'card' => 'border-teal-200/80 bg-gradient-to-br from-teal-50 to-white hover:border-teal-300 hover:shadow-teal-100 dark:border-teal-800/60 dark:from-teal-950/40 dark:to-zinc-900 dark:hover:border-teal-600 dark:hover:shadow-teal-950/40',
+                        'accent' => 'bg-teal-500',
+                    ],
+                    [
+                        'label' => __('Gyne'),
+                        'icon' => 'heart',
+                        'href' => null,
+                        'icon_bg' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300',
+                        'card' => 'border-rose-200/80 bg-gradient-to-br from-rose-50 to-white hover:border-rose-300 hover:shadow-rose-100 dark:border-rose-800/60 dark:from-rose-950/40 dark:to-zinc-900 dark:hover:border-rose-600 dark:hover:shadow-rose-950/40',
+                        'accent' => 'bg-rose-500',
+                    ],
+                    [
+                        'label' => __('Lab'),
+                        'icon' => 'beaker',
+                        'href' => null,
+                        'icon_bg' => 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300',
+                        'card' => 'border-cyan-200/80 bg-gradient-to-br from-cyan-50 to-white hover:border-cyan-300 hover:shadow-cyan-100 dark:border-cyan-800/60 dark:from-cyan-950/40 dark:to-zinc-900 dark:hover:border-cyan-600 dark:hover:shadow-cyan-950/40',
+                        'accent' => 'bg-cyan-500',
+                    ],
+                    [
+                        'label' => __('Finance'),
+                        'icon' => 'banknotes',
+                        'href' => null,
+                        'icon_bg' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+                        'card' => 'border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white hover:border-emerald-300 hover:shadow-emerald-100 dark:border-emerald-800/60 dark:from-emerald-950/40 dark:to-zinc-900 dark:hover:border-emerald-600 dark:hover:shadow-emerald-950/40',
+                        'accent' => 'bg-emerald-500',
+                    ],
+                    [
+                        'label' => __('GPD n Er'),
+                        'icon' => 'shield-check',
+                        'href' => null,
+                        'icon_bg' => 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300',
+                        'card' => 'border-orange-200/80 bg-gradient-to-br from-orange-50 to-white hover:border-orange-300 hover:shadow-orange-100 dark:border-orange-800/60 dark:from-orange-950/40 dark:to-zinc-900 dark:hover:border-orange-600 dark:hover:shadow-orange-950/40',
+                        'accent' => 'bg-orange-500',
+                    ],
+                    [
+                        'label' => __('Stock n Maintainance'),
+                        'icon' => 'wrench-screwdriver',
+                        'href' => null,
+                        'icon_bg' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+                        'card' => 'border-amber-200/80 bg-gradient-to-br from-amber-50 to-white hover:border-amber-300 hover:shadow-amber-100 dark:border-amber-800/60 dark:from-amber-950/40 dark:to-zinc-900 dark:hover:border-amber-600 dark:hover:shadow-amber-950/40',
+                        'accent' => 'bg-amber-500',
+                    ],
+                    [
+                        'label' => __('HR'),
+                        'icon' => 'identification',
+                        'href' => null,
+                        'icon_bg' => 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300',
+                        'card' => 'border-indigo-200/80 bg-gradient-to-br from-indigo-50 to-white hover:border-indigo-300 hover:shadow-indigo-100 dark:border-indigo-800/60 dark:from-indigo-950/40 dark:to-zinc-900 dark:hover:border-indigo-600 dark:hover:shadow-indigo-950/40',
+                        'accent' => 'bg-indigo-500',
+                    ],
+                ];
+            @endphp
+
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <a href="{{ route('hq') }}" wire:navigate class="block">
-                    <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                        <flux:heading level="2">{{ __('HQ') }}</flux:heading>
-                    </flux:card>
-                </a>
+                @foreach ($adminHubCards as $card)
+                    @php
+                        $cardClasses = 'group relative flex min-h-36 flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg '.$card['card'];
+                    @endphp
 
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('Reception') }}</flux:heading>
-                </flux:card>
+                    @if ($card['href'])
+                        <a href="{{ $card['href'] }}" wire:navigate wire:key="admin-hub-{{ $loop->index }}" class="{{ $cardClasses }}">
+                    @else
+                        <div wire:key="admin-hub-{{ $loop->index }}" class="{{ $cardClasses }}">
+                    @endif
+                        <span class="absolute inset-x-0 top-0 h-1 {{ $card['accent'] }}"></span>
 
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('Gyne') }}</flux:heading>
-                </flux:card>
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl {{ $card['icon_bg'] }} transition duration-200 group-hover:scale-110">
+                                <flux:icon :name="$card['icon']" class="size-6" />
+                            </div>
 
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('Lab') }}</flux:heading>
-                </flux:card>
+                            @if ($card['href'])
+                                <flux:icon name="arrow-right" class="size-5 text-zinc-400 transition duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-600 dark:group-hover:text-zinc-200" />
+                            @endif
+                        </div>
 
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('Finance') }}</flux:heading>
-                </flux:card>
-
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('GPD n Er') }}</flux:heading>
-                </flux:card>
-
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('Stock n Maintainance') }}</flux:heading>
-                </flux:card>
-
-                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
-                    <flux:heading level="2">{{ __('HR') }}</flux:heading>
-                </flux:card>
+                        <div>
+                            <flux:heading level="2" class="text-lg">{{ $card['label'] }}</flux:heading>
+                        </div>
+                    @if ($card['href'])
+                        </a>
+                    @else
+                        </div>
+                    @endif
+                @endforeach
             </div>
         @else
             @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())
