@@ -189,6 +189,28 @@ test('non-admins cannot visit the HQ page', function () {
         ->assertForbidden();
 });
 
+test('admin reception hub shows reception page cards', function () {
+    $user = User::factory()->admin()->create();
+
+    $response = $this->actingAs($user)->get(route('reception.hub'));
+
+    $response->assertOk()
+        ->assertSee('Reception')
+        ->assertSee('Shift')
+        ->assertSee('Reservations')
+        ->assertSee('Walk-in')
+        ->assertSee('Procedures')
+        ->assertSee('Lab Entry');
+});
+
+test('non-admins cannot visit the reception hub', function () {
+    $user = User::factory()->receptionist()->create();
+
+    $this->actingAs($user)
+        ->get(route('reception.hub'))
+        ->assertForbidden();
+});
+
 test('admin HQ page shows moved widgets', function () {
     $user = User::factory()->admin()->create();
 

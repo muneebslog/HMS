@@ -76,6 +76,7 @@ return [
         // Shared Platform
         'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Platform'],
         'hq' => ['label' => 'HQ', 'group' => 'Platform', 'admin_only' => true],
+        'reception.hub' => ['label' => 'Reception Hub', 'group' => 'Platform', 'admin_only' => true],
 
         // Reception
         'reception.walkin' => ['label' => 'Walk-in', 'group' => 'Reception'],

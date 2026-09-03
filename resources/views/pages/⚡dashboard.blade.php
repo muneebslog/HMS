@@ -168,7 +168,7 @@ new #[Title('Dashboard')] class extends Component
                         'label' => __('Reception'),
                         'description' => __('Front desk and patient intake'),
                         'icon' => 'user-plus',
-                        'href' => null,
+                        'href' => route('reception.hub'),
                         'icon_bg' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
                     ],
                     [
