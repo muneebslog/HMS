@@ -148,51 +148,67 @@ new #[Title('Dashboard')] class extends Component
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
         @if (auth()->user()->isAdmin())
             @php
+                $adminUser = auth()->user();
+                $adminFirstName = str($adminUser->name)->before(' ')->toString() ?: $adminUser->name;
+                $adminGreeting = match (true) {
+                    now()->hour < 12 => __('Good morning'),
+                    now()->hour < 17 => __('Good afternoon'),
+                    default => __('Good evening'),
+                };
+
                 $adminHubCards = [
                     [
                         'label' => __('HQ'),
+                        'description' => __('Operations overview and alerts'),
                         'icon' => 'building-office-2',
                         'href' => route('hq'),
                         'icon_bg' => 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
                     ],
                     [
                         'label' => __('Reception'),
+                        'description' => __('Front desk and patient intake'),
                         'icon' => 'user-plus',
                         'href' => null,
                         'icon_bg' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
                     ],
                     [
                         'label' => __('Gyne'),
+                        'description' => __('Gynecology department tools'),
                         'icon' => 'heart',
                         'href' => null,
                         'icon_bg' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
                     ],
                     [
                         'label' => __('Lab'),
+                        'description' => __('Laboratory workflows'),
                         'icon' => 'beaker',
                         'href' => null,
                         'icon_bg' => 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
                     ],
                     [
                         'label' => __('Finance'),
+                        'description' => __('Billing and financial controls'),
                         'icon' => 'banknotes',
                         'href' => null,
                         'icon_bg' => 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
                     ],
                     [
                         'label' => __('GPD n Er'),
+                        'description' => __('General and emergency care'),
                         'icon' => 'shield-check',
                         'href' => null,
                         'icon_bg' => 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
                     ],
                     [
                         'label' => __('Stock n Maintainance'),
+                        'description' => __('Inventory and facility upkeep'),
                         'icon' => 'wrench-screwdriver',
                         'href' => null,
                         'icon_bg' => 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
                     ],
                     [
                         'label' => __('HR'),
+                        'description' => __('Staff and people management'),
                         'icon' => 'identification',
                         'href' => null,
                         'icon_bg' => 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
@@ -200,31 +216,54 @@ new #[Title('Dashboard')] class extends Component
                 ];
             @endphp
 
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                @foreach ($adminHubCards as $card)
-                    @if ($card['href'])
-                        <a href="{{ $card['href'] }}" wire:navigate wire:key="admin-hub-{{ $loop->index }}" class="block">
-                            <flux:card class="group flex min-h-28 items-center gap-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-md">
-                                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $card['icon_bg'] }} transition duration-150 group-hover:scale-105">
-                                    <flux:icon :name="$card['icon']" class="size-5" />
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <flux:heading level="2" class="text-base">{{ $card['label'] }}</flux:heading>
-                                </div>
-                                <flux:icon name="chevron-right" class="size-4 shrink-0 text-zinc-400 transition duration-150 group-hover:translate-x-0.5" />
-                            </flux:card>
-                        </a>
-                    @else
-                        <flux:card wire:key="admin-hub-{{ $loop->index }}" class="group flex min-h-28 items-center gap-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-md">
-                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $card['icon_bg'] }} transition duration-150 group-hover:scale-105">
-                                <flux:icon :name="$card['icon']" class="size-5" />
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <flux:heading level="2" class="text-base">{{ $card['label'] }}</flux:heading>
-                            </div>
-                        </flux:card>
-                    @endif
-                @endforeach
+            <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <flux:heading level="1">{{ $adminGreeting }}, {{ $adminFirstName }}</flux:heading>
+                        <flux:text class="mt-1 text-zinc-500">
+                            {{ __('Welcome back. Choose a department to continue.') }}
+                        </flux:text>
+                    </div>
+
+                    <flux:text class="text-sm text-zinc-500">
+                        {{ now()->format('l, F j, Y') }}
+                    </flux:text>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <flux:heading level="2" class="text-sm font-medium uppercase tracking-wide text-zinc-500">
+                        {{ __('Departments') }}
+                    </flux:heading>
+
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        @foreach ($adminHubCards as $card)
+                            @if ($card['href'])
+                                <a href="{{ $card['href'] }}" wire:navigate wire:key="admin-hub-{{ $loop->index }}" class="block">
+                                    <flux:card class="group flex h-full min-h-28 items-center gap-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-md">
+                                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $card['icon_bg'] }} transition duration-150 group-hover:scale-105">
+                                            <flux:icon :name="$card['icon']" class="size-5" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <flux:heading level="3" class="text-base">{{ $card['label'] }}</flux:heading>
+                                            <flux:text class="mt-0.5 text-sm text-zinc-500">{{ $card['description'] }}</flux:text>
+                                        </div>
+                                        <flux:icon name="chevron-right" class="size-4 shrink-0 text-zinc-400 transition duration-150 group-hover:translate-x-0.5" />
+                                    </flux:card>
+                                </a>
+                            @else
+                                <flux:card wire:key="admin-hub-{{ $loop->index }}" class="group flex h-full min-h-28 items-center gap-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-md">
+                                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $card['icon_bg'] }} transition duration-150 group-hover:scale-105">
+                                        <flux:icon :name="$card['icon']" class="size-5" />
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <flux:heading level="3" class="text-base">{{ $card['label'] }}</flux:heading>
+                                        <flux:text class="mt-0.5 text-sm text-zinc-500">{{ $card['description'] }}</flux:text>
+                                    </div>
+                                </flux:card>
+                            @endif
+                        @endforeach
+                    </div>
+                </div>
             </div>
         @else
             @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())

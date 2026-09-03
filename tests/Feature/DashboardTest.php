@@ -158,11 +158,16 @@ test('receptionist dashboard shows memo board and report to admin widgets', func
 });
 
 test('admin dashboard shows category cards', function () {
-    $user = User::factory()->admin()->create();
+    $user = User::factory()->admin()->create([
+        'name' => 'Sara Admin',
+    ]);
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
     $response->assertOk()
+        ->assertSee('Sara')
+        ->assertSee('Welcome back. Choose a department to continue.')
+        ->assertSee('Departments')
         ->assertSee('HQ')
         ->assertSee('Reception')
         ->assertSee('Gyne')
