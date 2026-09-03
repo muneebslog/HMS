@@ -10,7 +10,7 @@
 
             $platformRoutes = [
                 'doctor.portal', 'doctor.medication', 'doctor.procedures',
-                'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
+                'incharge.questionnaires', 'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
                 'indoor.ward', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
