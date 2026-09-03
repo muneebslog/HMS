@@ -10,7 +10,7 @@
 
             $platformRoutes = [
                 'doctor.portal', 'doctor.medication', 'doctor.procedures',
-                'incharge.questionnaires', 'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
+                'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
                 'indoor.ward', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
@@ -105,9 +105,9 @@
                         </flux:sidebar.item>
                     @endpageAccess
 
-                    <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
+                    {{-- <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
                         {{ __('Lab') }}
-                    </flux:sidebar.item>
+                    </flux:sidebar.item> --}}
 
                     @pageAccess('reception.mr-lookup')
                         <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
@@ -422,7 +422,7 @@
 
             <flux:spacer />
 
-           
+
 
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
