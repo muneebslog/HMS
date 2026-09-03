@@ -34,7 +34,7 @@ class ProcedureFinanceReportService
                 'doctor:id,name',
                 'procedureType:id,name',
             ])
-            ->withSum('payments as paid_amount', 'amount')
+            ->withSum('activePayments as paid_amount', 'amount')
             ->whereBetween('created_at', [$rangeStart, $rangeEnd])
             ->latest()
             ->get();

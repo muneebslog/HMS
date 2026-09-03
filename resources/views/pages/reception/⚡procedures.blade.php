@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\DiscardProcedurePayment;
 use App\Enums\PaymentMode;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
@@ -23,7 +24,11 @@ use Livewire\WithPagination;
 
 new #[Title('Procedures')] class extends Component
 {
-    use InteractsWithPatientIntake;
+    use InteractsWithPatientIntake {
+        selectMatchedPatient as selectMatchedPatientFromIntake;
+        addNewFamilyMember as addNewFamilyMemberFromIntake;
+        clearSelectedPatient as clearSelectedPatientFromIntake;
+    }
     use WithPagination;
 
     public string $search = '';
@@ -422,7 +427,7 @@ new #[Title('Procedures')] class extends Component
         }
 
         return Procedure::with(['patient.family', 'doctor', 'payments.creator', 'payments.shift', 'shift', 'procedureType.documents'])
-            ->withSum('payments as payments_sum_amount', 'amount')
+            ->withSum('activePayments as payments_sum_amount', 'amount')
             ->find($this->viewingProcedureId);
     }
 
@@ -440,6 +445,52 @@ new #[Title('Procedures')] class extends Component
             ->latest('closed_at')
             ->limit(20)
             ->get();
+    }
+
+    /**
+     * Select an existing patient, blocking reassignment while editing a procedure.
+     */
+    public function selectMatchedPatient(int $patientId): void
+    {
+        if ($this->editingProcedureId !== null) {
+            $linkedPatientId = Procedure::query()->whereKey($this->editingProcedureId)->value('patient_id');
+
+            if ($linkedPatientId !== null && $patientId !== (int) $linkedPatientId) {
+                $this->rejectPatientChange();
+
+                return;
+            }
+        }
+
+        $this->selectMatchedPatientFromIntake($patientId);
+    }
+
+    /**
+     * Block creating a different patient while editing a procedure.
+     */
+    public function addNewFamilyMember(): void
+    {
+        if ($this->editingProcedureId !== null) {
+            $this->rejectPatientChange();
+
+            return;
+        }
+
+        $this->addNewFamilyMemberFromIntake();
+    }
+
+    /**
+     * Keep the linked patient selected while editing a procedure.
+     */
+    public function clearSelectedPatient(): void
+    {
+        if ($this->editingProcedureId !== null) {
+            $this->rejectPatientChange();
+
+            return;
+        }
+
+        $this->clearSelectedPatientFromIntake();
     }
 
     /**
@@ -477,7 +528,9 @@ new #[Title('Procedures')] class extends Component
         }
 
         if ($this->editingProcedureId !== null) {
-            $this->updateProcedure($validated);
+            if (! $this->updateProcedure($validated)) {
+                return;
+            }
         } else {
             $this->storeProcedure($validated, $shift);
         }
@@ -540,14 +593,22 @@ new #[Title('Procedures')] class extends Component
      *
      * @param  array<string, mixed>  $validated
      */
-    private function updateProcedure(array $validated): void
+    private function updateProcedure(array $validated): bool
     {
         $procedure = Procedure::with('payments')->findOrFail($this->editingProcedureId);
 
-        if ((float) $validated['fullAmount'] < $procedure->totalPaid()) {
-            Flux::toast(variant: 'danger', text: __('Full amount cannot be less than the total paid.'));
+        if ($this->selectedPatientId !== null && $this->selectedPatientId !== $procedure->patient_id) {
+            $this->rejectPatientChange();
 
-            return;
+            return false;
+        }
+
+        if ((float) $validated['fullAmount'] < $procedure->totalPaid()) {
+            $message = __('Full amount cannot be less than the total paid.');
+            $this->addError('fullAmount', $message);
+            Flux::toast(variant: 'danger', text: $message);
+
+            return false;
         }
 
         DB::transaction(function () use ($procedure, $validated) {
@@ -574,6 +635,19 @@ new #[Title('Procedures')] class extends Component
         });
 
         Flux::toast(variant: 'success', text: __('Procedure updated.'));
+
+        return true;
+    }
+
+    /**
+     * Tell the user why the procedure patient cannot be changed.
+     */
+    private function rejectPatientChange(): void
+    {
+        $message = __('The patient on an existing procedure cannot be changed. Update this patient\'s details, or create a new procedure for a different patient.');
+
+        $this->addError('selectedPatientId', $message);
+        Flux::toast(variant: 'danger', text: $message);
     }
 
     /**
@@ -691,6 +765,33 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Discard a procedure payment so it no longer counts as collected.
+     */
+    public function discardPayment(int $paymentId): void
+    {
+        $user = auth()->user();
+
+        if ($user === null || ! $user->isAdmin()) {
+            abort(403);
+        }
+
+        $payment = ProcedurePayment::query()->findOrFail($paymentId);
+
+        try {
+            app(DiscardProcedurePayment::class)->handle($user, $payment);
+        } catch (\InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        $this->showPaymentLedger = true;
+        unset($this->viewedProcedure, $this->procedures);
+
+        Flux::toast(variant: 'success', text: __('Payment discarded.'));
+    }
+
+    /**
      * Get the currently open shift for the user.
      */
     #[Computed]
@@ -710,7 +811,7 @@ new #[Title('Procedures')] class extends Component
 
         return Procedure::query()
             ->with(['patient', 'doctor'])
-            ->withSum('payments as payments_sum_amount', 'amount')
+            ->withSum('activePayments as payments_sum_amount', 'amount')
             ->when($search !== '', function (Builder $query) use ($search) {
                 $term = '%'.$search.'%';
 
@@ -1088,6 +1189,7 @@ new #[Title('Procedures')] class extends Component
                             </flux:table>
 
                             <flux:error name="selectedPreviousShiftId" />
+
                         </div>
                     @endif
                 </div>
@@ -1109,6 +1211,7 @@ new #[Title('Procedures')] class extends Component
             @php
                 $viewedPaid = (float) ($this->viewedProcedure->payments_sum_amount ?? $this->viewedProcedure->totalPaid());
                 $viewedBalance = $this->viewedProcedure->full_amount - $viewedPaid;
+                $canDiscardPayments = auth()->user()?->isAdmin() === true;
             @endphp
 
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1306,20 +1409,45 @@ new #[Title('Procedures')] class extends Component
                             <flux:table.column>{{ __('Mode') }}</flux:table.column>
                             <flux:table.column>{{ __('Recorded By') }}</flux:table.column>
                             <flux:table.column>{{ __('Shift') }}</flux:table.column>
+                            @if ($canDiscardPayments)
+                                <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                            @endif
                         </flux:table.columns>
 
                         <flux:table.rows>
                             @forelse ($this->viewedProcedure->payments as $payment)
                                 <flux:table.row wire:key="procedure-ledger-payment-{{ $payment->id }}">
                                     <flux:table.cell>{{ $payment->created_at->format('Y-m-d H:i') }}</flux:table.cell>
-                                    <flux:table.cell>{{ number_format($payment->amount, 2) }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <span @class(['line-through text-zinc-400' => $payment->isDiscarded()])>
+                                            {{ number_format($payment->amount, 2) }}
+                                        </span>
+                                        @if ($payment->isDiscarded())
+                                            <flux:badge size="sm" color="red" class="ml-2">{{ __('Discarded') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>{{ $payment->mode?->label() ?? '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ $payment->creator?->name ?? '-' }}</flux:table.cell>
                                     <flux:table.cell>{{ $payment->shift?->opened_at->format('Y-m-d H:i') ?? '-' }}</flux:table.cell>
+                                    @if ($canDiscardPayments)
+                                        <flux:table.cell class="text-right">
+                                            @if (! $payment->isDiscarded())
+                                                <flux:button
+                                                    size="sm"
+                                                    variant="danger"
+                                                    icon="arrow-uturn-left"
+                                                    wire:click="discardPayment({{ $payment->id }})"
+                                                    wire:confirm="{{ __('Discard this payment of :amount? It will no longer count as paid or toward shift sales.', ['amount' => number_format($payment->amount, 2)]) }}"
+                                                >
+                                                    {{ __('Discard') }}
+                                                </flux:button>
+                                            @endif
+                                        </flux:table.cell>
+                                    @endif
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-500">
+                                    <flux:table.cell colspan="{{ $canDiscardPayments ? 6 : 5 }}" class="text-center text-zinc-500">
                                         {{ __('No payments recorded.') }}
                                     </flux:table.cell>
                                 </flux:table.row>

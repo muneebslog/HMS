@@ -39,4 +39,15 @@ class ProcedurePaymentFactory extends Factory
             'shift_id' => null,
         ]);
     }
+
+    /**
+     * Indicate that the payment has been discarded by an admin.
+     */
+    public function discarded(?User $user = null): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'discarded_at' => now(),
+            'discarded_by' => $user?->id ?? User::factory(),
+        ]);
+    }
 }

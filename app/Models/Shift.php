@@ -149,7 +149,7 @@ class Shift extends Model
      */
     public function totalProcedureSales(): float
     {
-        return (float) ($this->procedurePayments()->sum('amount') ?: 0.0);
+        return (float) ($this->procedurePayments()->active()->sum('amount') ?: 0.0);
     }
 
     /**

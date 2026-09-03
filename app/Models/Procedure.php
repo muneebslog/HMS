@@ -157,6 +157,16 @@ class Procedure extends Model
     }
 
     /**
+     * Payments that still count toward collected totals.
+     *
+     * @return HasMany<ProcedurePayment, $this>
+     */
+    public function activePayments(): HasMany
+    {
+        return $this->hasMany(ProcedurePayment::class)->active();
+    }
+
+    /**
      * @return HasMany<ProcedureAttachment, $this>
      */
     public function attachments(): HasMany
@@ -249,7 +259,7 @@ class Procedure extends Model
      */
     public function totalPaid(): float
     {
-        return (float) $this->payments()->sum('amount');
+        return (float) $this->activePayments()->sum('amount');
     }
 
     /**

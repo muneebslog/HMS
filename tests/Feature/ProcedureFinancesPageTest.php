@@ -61,6 +61,13 @@ test('procedure finance report totals billed collected and outstanding per proce
         'created_at' => Carbon::parse('2026-08-11 11:00:00'),
     ]);
 
+    ProcedurePayment::factory()->discarded($admin)->create([
+        'procedure_id' => $lscsCase->id,
+        'created_by' => $admin->id,
+        'amount' => 15000,
+        'created_at' => Carbon::parse('2026-08-11 12:00:00'),
+    ]);
+
     Procedure::factory()->for($patient)->for($nvd, 'procedureType')->create([
         'name' => 'NVD',
         'full_amount' => 25000,

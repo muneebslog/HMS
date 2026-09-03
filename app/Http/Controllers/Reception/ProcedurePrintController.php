@@ -21,7 +21,7 @@ class ProcedurePrintController extends Controller
             'procedureType',
             'room',
             'creator',
-            'payments' => fn ($query) => $query->orderBy('created_at')->orderBy('id'),
+            'payments' => fn ($query) => $query->active()->orderBy('created_at')->orderBy('id'),
             'payments.creator',
             'payments.shift',
         ]);

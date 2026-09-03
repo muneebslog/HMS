@@ -105,6 +105,30 @@ test('monthly report aggregates income expenses and hospital net for the selecte
         ->and($report['hospital_net'])->toBe(1200.0);
 });
 
+test('monthly report excludes discarded procedure payments', function () {
+    $admin = User::factory()->admin()->create();
+    $shift = Shift::factory()->for($admin)->closed()->create();
+
+    ProcedurePayment::factory()->create([
+        'created_by' => $admin->id,
+        'shift_id' => $shift->id,
+        'amount' => 200,
+        'created_at' => Carbon::parse('2026-07-13 10:00:00'),
+    ]);
+
+    ProcedurePayment::factory()->discarded($admin)->create([
+        'created_by' => $admin->id,
+        'shift_id' => $shift->id,
+        'amount' => 500,
+        'created_at' => Carbon::parse('2026-07-13 11:00:00'),
+    ]);
+
+    $report = app(MonthlyReportService::class)->forMonth(Carbon::parse('2026-07-01'));
+
+    expect($report['procedure_total'])->toBe(200.0)
+        ->and($report['procedure_payments'])->toHaveCount(1);
+});
+
 test('admins can add monthly expenses that do not affect shift expected cash', function () {
     $admin = User::factory()->admin()->create();
     $shift = Shift::factory()->for($admin)->open()->create([

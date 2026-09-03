@@ -78,4 +78,6 @@
             </flux:button>
         </div>
     @endif
+
+    <flux:error name="selectedPatientId" />
 </div>

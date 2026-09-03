@@ -62,6 +62,7 @@ class MonthlyReportService
 
         $procedurePayments = ProcedurePayment::query()
             ->with(['procedure.patient', 'procedure.doctor'])
+            ->active()
             ->whereBetween('created_at', [$start, $end])
             ->latest()
             ->get();

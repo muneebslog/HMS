@@ -369,10 +369,71 @@ test('full amount cannot be reduced below total paid', function () {
         ->call('edit', $procedure->id)
         ->set('fullAmount', '3000')
         ->call('saveProcedure')
-        ->assertHasNoErrors();
+        ->assertHasErrors(['fullAmount'])
+        ->assertSet('showProcedureModal', true);
 
     $procedure->refresh();
     expect($procedure->full_amount)->toBe(5000.0);
+});
+
+test('editing a procedure cannot reassign it to a different patient', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $linkedPatient = Patient::factory()->withPhone('03001112222')->create([
+        'name' => 'Linked Patient',
+        'husband_name' => 'Husband A',
+        'age' => 28,
+    ]);
+    $otherPatient = Patient::factory()->withPhone('03003334444')->create([
+        'name' => 'Other Patient',
+        'husband_name' => 'Husband B',
+        'age' => 32,
+    ]);
+    $procedure = Procedure::factory()->for($shift)->for($linkedPatient)->create([
+        'full_amount' => 5000,
+        'expected_delivery_date' => '2026-12-01',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('edit', $procedure->id)
+        ->call('selectMatchedPatient', $otherPatient->id)
+        ->assertHasErrors(['selectedPatientId'])
+        ->assertSet('selectedPatientId', $linkedPatient->id)
+        ->set('patientName', $otherPatient->name)
+        ->set('selectedPatientId', $otherPatient->id)
+        ->call('saveProcedure')
+        ->assertHasErrors(['selectedPatientId'])
+        ->assertSet('showProcedureModal', true);
+
+    $procedure->refresh();
+    expect($procedure->patient_id)->toBe($linkedPatient->id)
+        ->and($linkedPatient->fresh()->name)->toBe('Linked Patient')
+        ->and($otherPatient->fresh()->name)->toBe('Other Patient');
+});
+
+test('clearing or replacing the patient while editing a procedure shows an error', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->withPhone('03005556666')->create([
+        'name' => 'Ada Patient',
+        'husband_name' => 'Husband',
+        'age' => 30,
+    ]);
+    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+        'full_amount' => 4000,
+        'expected_delivery_date' => '2026-11-01',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('edit', $procedure->id)
+        ->call('clearSelectedPatient')
+        ->assertHasErrors(['selectedPatientId'])
+        ->assertSet('selectedPatientId', $patient->id)
+        ->call('addNewFamilyMember')
+        ->assertHasErrors(['selectedPatientId'])
+        ->assertSet('patientName', 'Ada Patient');
 });
 
 test('payment amount cannot exceed the remaining balance', function () {
@@ -873,4 +934,75 @@ test('procedure sales are attributed to the payment shift not the procedure shif
 
     expect($paymentShift->fresh()->totalProcedureSales())->toBe(2000.0)
         ->and($procedureShift->fresh()->totalProcedureSales())->toBe(0.0);
+});
+
+test('admin can discard a procedure payment from the ledger', function () {
+    $admin = User::factory()->admin()->create();
+    $shift = Shift::factory()->for($admin)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['full_amount' => 5000]);
+    $payment = ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 2000,
+        'shift_id' => $shift->id,
+        'created_by' => $admin->id,
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->call('togglePaymentLedger')
+        ->assertSeeHtml('wire:click="discardPayment('.$payment->id.')"')
+        ->call('discardPayment', $payment->id)
+        ->assertHasNoErrors()
+        ->assertSee(__('Discarded'))
+        ->assertDontSeeHtml('wire:click="discardPayment('.$payment->id.')"');
+
+    $payment->refresh();
+
+    expect($payment->isDiscarded())->toBeTrue()
+        ->and($payment->discarded_by)->toBe($admin->id)
+        ->and($procedure->fresh()->totalPaid())->toBe(0.0)
+        ->and($procedure->fresh()->balance())->toBe(5000.0)
+        ->and($procedure->fresh()->isPaid())->toBeFalse()
+        ->and($shift->fresh()->totalProcedureSales())->toBe(0.0);
+});
+
+test('admin cannot discard a procedure payment twice', function () {
+    $admin = User::factory()->admin()->create();
+    Shift::factory()->for($admin)->open()->create();
+    $procedure = Procedure::factory()->create(['full_amount' => 5000]);
+    $payment = ProcedurePayment::factory()->for($procedure)->discarded($admin)->create([
+        'amount' => 2000,
+        'created_by' => $admin->id,
+    ]);
+    $discardedAt = $payment->discarded_at;
+
+    Livewire::actingAs($admin)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->call('discardPayment', $payment->id)
+        ->assertHasNoErrors();
+
+    expect($payment->fresh()->discarded_at?->equalTo($discardedAt))->toBeTrue();
+});
+
+test('non-admins cannot discard a procedure payment', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['full_amount' => 5000]);
+    $payment = ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 2000,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->call('togglePaymentLedger')
+        ->assertDontSeeHtml('wire:click="discardPayment('.$payment->id.')"')
+        ->call('discardPayment', $payment->id)
+        ->assertForbidden();
+
+    expect($payment->fresh()->isDiscarded())->toBeFalse()
+        ->and($procedure->fresh()->totalPaid())->toBe(2000.0);
 });

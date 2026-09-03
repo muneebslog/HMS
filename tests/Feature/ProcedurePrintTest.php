@@ -122,6 +122,36 @@ test('the procedure bill print page reflects newly added payments', function () 
         ->assertSee('10,000.00');
 });
 
+test('discarded procedure payments are excluded from the bill print totals', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $admin = User::factory()->admin()->create();
+
+    $procedure = Procedure::factory()->create([
+        'full_amount' => 20000,
+        'created_by' => $user->id,
+    ]);
+
+    ProcedurePayment::factory()->create([
+        'procedure_id' => $procedure->id,
+        'amount' => 4000,
+        'created_by' => $user->id,
+    ]);
+
+    ProcedurePayment::factory()->discarded($admin)->create([
+        'procedure_id' => $procedure->id,
+        'amount' => 6000,
+        'created_by' => $user->id,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('reception.procedures.print', $procedure))
+        ->assertOk()
+        ->assertSee('4,000.00')
+        ->assertSee('16,000.00')
+        ->assertDontSee('6,000.00');
+});
+
 test('the procedure view modal includes a print button next to the balance', function () {
     $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
