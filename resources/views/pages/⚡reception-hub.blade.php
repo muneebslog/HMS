@@ -71,21 +71,11 @@ new #[Title('Reception')] class extends Component
             </flux:button>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            @foreach ($receptionCards as $card)
-                <a href="{{ $card['href'] }}" wire:navigate wire:key="reception-hub-{{ $loop->index }}" class="block">
-                    <flux:card class="group flex h-full min-h-28 items-center gap-4 transition duration-150 hover:-translate-y-0.5 hover:shadow-md">
-                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full {{ $card['icon_bg'] }} transition duration-150 group-hover:scale-105">
-                            <flux:icon :name="$card['icon']" class="size-5" />
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <flux:heading level="3" class="text-base">{{ $card['label'] }}</flux:heading>
-                            <flux:text class="mt-0.5 text-sm text-zinc-500">{{ $card['description'] }}</flux:text>
-                        </div>
-                        <flux:icon name="chevron-right" class="size-4 shrink-0 text-zinc-400 transition duration-150 group-hover:translate-x-0.5" />
-                    </flux:card>
-                </a>
-            @endforeach
-        </div>
+        <x-mind-map
+            :center-title="__('Reception')"
+            :center-subtitle="__('Front desk')"
+            center-icon="user-plus"
+            :nodes="$receptionCards"
+        />
     </div>
 </div>

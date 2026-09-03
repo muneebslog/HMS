@@ -167,7 +167,7 @@ test('admin dashboard shows category cards', function () {
     $response->assertOk()
         ->assertSee('Sara')
         ->assertSee('Welcome back. Choose a department to continue.')
-        ->assertSee('Departments')
+        ->assertSee('Admin Hub')
         ->assertSee('HQ')
         ->assertSee('Reception')
         ->assertSee('Gyne')
