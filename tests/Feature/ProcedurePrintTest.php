@@ -8,9 +8,14 @@ use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests cannot view the procedure bill print page', function () {
     $procedure = Procedure::factory()->create();
@@ -140,7 +145,7 @@ test('discarded procedure payments are excluded from the bill print totals', fun
 
     ProcedurePayment::factory()->discarded($admin)->create([
         'procedure_id' => $procedure->id,
-        'amount' => 6000,
+        'amount' => 7777,
         'created_by' => $user->id,
     ]);
 
@@ -149,7 +154,7 @@ test('discarded procedure payments are excluded from the bill print totals', fun
         ->assertOk()
         ->assertSee('4,000.00')
         ->assertSee('16,000.00')
-        ->assertDontSee('6,000.00');
+        ->assertDontSee('7,777.00');
 });
 
 test('the procedure view modal includes a print button next to the balance', function () {

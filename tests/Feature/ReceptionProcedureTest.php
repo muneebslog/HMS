@@ -9,11 +9,16 @@ use App\Models\ProcedureTypeDocument;
 use App\Models\Room;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('reception.procedures'));
