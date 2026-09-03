@@ -319,7 +319,7 @@ test('dashboard shows pending employee todos to admin', function () {
     ]);
 
     Livewire::actingAs($admin)
-        ->test('pages::dashboard')
+        ->test('pages::hq')
         ->assertSet('pendingEmployeeTodoCount', 1)
         ->assertSee('License renewal')
         ->assertSee($todo->employee->name);
@@ -330,7 +330,7 @@ test('dashboard todo card hides completed todos', function () {
     EmployeeTodo::factory()->completed()->create();
 
     Livewire::actingAs($admin)
-        ->test('pages::dashboard')
+        ->test('pages::hq')
         ->assertSet('pendingEmployeeTodoCount', 0);
 });
 

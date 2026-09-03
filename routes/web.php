@@ -82,6 +82,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
     Route::middleware('page.access')->group(function () {
         Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
+        Route::livewire('hq', 'pages::hq')->name('hq');
 
         Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
 

@@ -146,22 +146,60 @@ new #[Title('Dashboard')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())
-            @if ($this->overdueProcedureReadingCount > 0)
-                <flux:callout variant="danger" icon="clock">
-                    <flux:callout.heading>{{ __('Overdue ward readings') }}</flux:callout.heading>
-                    <flux:callout.text>
-                        {{ __(':count admitted procedure(s) are missing hourly vitals or fetal heart readings.', ['count' => $this->overdueProcedureReadingCount]) }}
-                    </flux:callout.text>
-                    <x-slot:actions>
-                        <flux:button size="sm" variant="primary" :href="route('indoor.ward')" wire:navigate>
-                            {{ __('Open Indoor Ward') }}
-                        </flux:button>
-                    </x-slot:actions>
-                </flux:callout>
+        @if (auth()->user()->isAdmin())
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <a href="{{ route('hq') }}" wire:navigate class="block">
+                    <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                        <flux:heading level="2">{{ __('HQ') }}</flux:heading>
+                    </flux:card>
+                </a>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('Reception') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('Gyne') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('Lab') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('Finance') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('GPD n Er') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('Stock n Maintainance') }}</flux:heading>
+                </flux:card>
+
+                <flux:card class="flex min-h-32 flex-col justify-center gap-2 p-6">
+                    <flux:heading level="2">{{ __('HR') }}</flux:heading>
+                </flux:card>
+            </div>
+        @else
+            @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())
+                @if ($this->overdueProcedureReadingCount > 0)
+                    <flux:callout variant="danger" icon="clock">
+                        <flux:callout.heading>{{ __('Overdue ward readings') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __(':count admitted procedure(s) are missing hourly vitals or fetal heart readings.', ['count' => $this->overdueProcedureReadingCount]) }}
+                        </flux:callout.text>
+                        <x-slot:actions>
+                            <flux:button size="sm" variant="primary" :href="route('indoor.ward')" wire:navigate>
+                                {{ __('Open Indoor Ward') }}
+                            </flux:button>
+                        </x-slot:actions>
+                    </flux:callout>
+                @endif
             @endif
-        @endif
-        @if (auth()->user()->isManagement())
+
+            @if (auth()->user()->isManagement())
             <div class="grid auto-rows-min gap-4 md:grid-cols-2" wire:poll.5s>
                 <flux:card>
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -259,9 +297,9 @@ new #[Title('Dashboard')] class extends Component
                     </div>
                 </div>
             @endif
-        @endif
+            @endif
 
-        @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+            @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
             <flux:card wire:poll.10s>
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center gap-3">
@@ -314,9 +352,9 @@ new #[Title('Dashboard')] class extends Component
                     @endforelse
                 </div>
             </flux:card>
-        @endif
+            @endif
 
-        @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
+            @if (auth()->user()->isAdmin() || auth()->user()->isManagement())
             <flux:card wire:poll.10s>
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex items-center gap-3">
@@ -377,10 +415,11 @@ new #[Title('Dashboard')] class extends Component
                     @endforelse
                 </div>
             </flux:card>
-        @endif
+            @endif
 
-        <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-        </div>
+            <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
+                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
+            </div>
+        @endif
     </div>
 </div>

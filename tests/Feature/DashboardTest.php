@@ -157,12 +157,41 @@ test('receptionist dashboard shows memo board and report to admin widgets', func
         ->assertDontSee('Notifications');
 });
 
-test('admin dashboard shows memo board and report to admin widgets', function () {
+test('admin dashboard shows category cards', function () {
     $user = User::factory()->admin()->create();
 
     $response = $this->actingAs($user)->get(route('dashboard'));
 
     $response->assertOk()
+        ->assertSee('HQ')
+        ->assertSee('Reception')
+        ->assertSee('Gyne')
+        ->assertSee('Lab')
+        ->assertSee('Finance')
+        ->assertSee('GPD n Er')
+        ->assertSee('Stock n Maintainance')
+        ->assertSee('HR')
+        ->assertDontSee('Memo Board')
+        ->assertDontSee('Report to Admin')
+        ->assertDontSee('Staff Todos');
+});
+
+test('non-admins cannot visit the HQ page', function () {
+    $user = User::factory()->receptionist()->create();
+
+    $this->actingAs($user)
+        ->get(route('hq'))
+        ->assertForbidden();
+});
+
+test('admin HQ page shows moved widgets', function () {
+    $user = User::factory()->admin()->create();
+
+    $response = $this->actingAs($user)->get(route('hq'));
+
+    $response->assertOk()
         ->assertSee('Memo Board')
-        ->assertSee('Report to Admin');
+        ->assertSee('Report to Admin')
+        ->assertSee('Staff Todos')
+        ->assertSee('Notifications');
 });
