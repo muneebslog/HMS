@@ -41,6 +41,11 @@
                 flex: 1 0 auto;
             }
 
+            .sheet-footer {
+                margin-top: auto;
+                padding-top: 24px;
+            }
+
             .header {
                 display: flex;
                 justify-content: space-between;
@@ -152,7 +157,7 @@
             }
 
             .witness {
-                margin-top: 28px;
+                margin-top: 0;
                 font-size: 10.5pt;
                 line-height: 1.55;
             }
@@ -165,12 +170,12 @@
                 display: grid;
                 grid-template-columns: 1fr 1fr 1fr;
                 gap: 16px;
-                margin-top: 36px;
+                margin-top: 28px;
             }
 
             .signature-line {
                 border-top: 1px solid #333;
-                margin-top: 36px;
+                margin-top: 40px;
                 padding-top: 6px;
                 text-align: center;
                 font-size: 9pt;
@@ -178,7 +183,7 @@
             }
 
             .contact {
-                margin-top: auto;
+                margin-top: 28px;
                 border-top: 1px solid #ccc;
                 padding-top: 12px;
                 font-size: 9.5pt;
@@ -344,7 +349,9 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
+            <div class="sheet-footer">
                 <div class="witness">
                     <p>
                         {{ __('IN WITNESS WHEREOF; the said hospital has caused this certificate to sign by its duty authorized officers hereto affixed.') }}
@@ -356,12 +363,12 @@
                     <div class="signature-line">{{ __('Doctor') }}</div>
                     <div class="signature-line">{{ __('Administrator') }}</div>
                 </div>
-            </div>
 
-            <div class="contact">
-                <p><strong>{{ __('Address') }}:</strong> {{ config('hospital.address') }}</p>
-                <p><strong>{{ __('Tel. No.') }}:</strong> {{ config('hospital.phone') }}</p>
-                <p><strong>{{ __('Email address') }}:</strong> {{ config('hospital.email') }}</p>
+                <div class="contact">
+                    <p><strong>{{ __('Address') }}:</strong> {{ config('hospital.address') }}</p>
+                    <p><strong>{{ __('Tel. No.') }}:</strong> {{ config('hospital.phone') }}</p>
+                    <p><strong>{{ __('Email address') }}:</strong> {{ config('hospital.email') }}</p>
+                </div>
             </div>
         </div>
 
