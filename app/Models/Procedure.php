@@ -169,6 +169,16 @@ class Procedure extends Model
     }
 
     /**
+     * Recorded changes to procedure type and package amount.
+     *
+     * @return HasMany<ProcedureChange, $this>
+     */
+    public function changes(): HasMany
+    {
+        return $this->hasMany(ProcedureChange::class)->latest('id');
+    }
+
+    /**
      * Payments that still count toward collected totals.
      *
      * @return HasMany<ProcedurePayment, $this>

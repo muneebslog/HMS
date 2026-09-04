@@ -287,39 +287,7 @@ test('a final payment marks the procedure as paid', function () {
         ->and($procedure->isPaid())->toBeTrue();
 });
 
-test('the full amount can be edited when a discount is given', function () {
-    $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
-    $patient = Patient::factory()->withPhone('03001234567')->create([
-        'name' => 'John Doe',
-        'husband_name' => 'James Doe',
-        'age' => 30,
-        'gender' => 'female',
-    ]);
-    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
-        'full_amount' => 5000,
-        'expected_delivery_date' => '2026-12-15',
-    ]);
-    ProcedurePayment::factory()->for($procedure)->create([
-        'amount' => 3000,
-        'shift_id' => $shift->id,
-        'created_by' => $user->id,
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::reception.procedures')
-        ->call('edit', $procedure->id)
-        ->set('fullAmount', '3500')
-        ->call('saveProcedure')
-        ->assertHasNoErrors();
-
-    $procedure->refresh();
-    expect($procedure->full_amount)->toBe(3500.0)
-        ->and($procedure->balance())->toBe(500.0)
-        ->and($procedure->isPaid())->toBeFalse();
-});
-
-test('procedure maternity fields can be updated', function () {
+test('procedure maternity fields can be updated without changing type or package', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $patient = Patient::factory()->withPhone('03009876543')->create([
@@ -339,48 +307,21 @@ test('procedure maternity fields can be updated', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('edit', $procedure->id)
+        ->assertDontSee(__('Procedure name'))
+        ->assertDontSee(__('Total package'))
         ->set('husbandName', 'Robert Doe')
         ->set('expectedDeliveryDate', '2026-11-20')
         ->set('procedureTypeId', $updatedType->id)
+        ->set('fullAmount', '12000')
         ->call('saveProcedure')
         ->assertHasNoErrors();
 
     $procedure->refresh();
-    expect($procedure->name)->toBe('C-Section Package')
-        ->and($procedure->procedure_type_id)->toBe($updatedType->id)
+    expect($procedure->name)->toBe('Normal Delivery')
+        ->and($procedure->procedure_type_id)->toBe($originalType->id)
+        ->and($procedure->full_amount)->toBe(8000.0)
         ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-11-20')
         ->and($procedure->patient->fresh()->husband_name)->toBe('Robert Doe');
-});
-
-test('full amount cannot be reduced below total paid', function () {
-    $user = User::factory()->create();
-    $shift = Shift::factory()->for($user)->open()->create();
-    $patient = Patient::factory()->withPhone('03009876543')->create([
-        'name' => 'Jane Doe',
-        'husband_name' => 'John Doe',
-        'age' => 25,
-        'gender' => 'female',
-    ]);
-    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
-        'full_amount' => 5000,
-        'expected_delivery_date' => '2026-12-01',
-    ]);
-    ProcedurePayment::factory()->for($procedure)->create([
-        'amount' => 4000,
-        'shift_id' => $shift->id,
-        'created_by' => $user->id,
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::reception.procedures')
-        ->call('edit', $procedure->id)
-        ->set('fullAmount', '3000')
-        ->call('saveProcedure')
-        ->assertHasErrors(['fullAmount'])
-        ->assertSet('showProcedureModal', true);
-
-    $procedure->refresh();
-    expect($procedure->full_amount)->toBe(5000.0);
 });
 
 test('editing a procedure does not show phone intake and cannot reassign the patient', function () {

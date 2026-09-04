@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ChangeProcedure;
 use App\Actions\DiscardProcedurePayment;
 use App\Enums\PaymentMode;
 use App\Enums\ProcedureStatus;
@@ -48,6 +49,8 @@ new #[Title('Procedures')] class extends Component
 
     public bool $showAdmissionModal = false;
 
+    public bool $showChangeProcedureModal = false;
+
     public bool $showPaymentLedger = false;
 
     public ?int $editingProcedureId = null;
@@ -59,6 +62,19 @@ new #[Title('Procedures')] class extends Component
     public ?int $viewingProcedureId = null;
 
     public ?int $admittingProcedureId = null;
+
+    public ?int $changingProcedureId = null;
+
+    #[Validate]
+    public ?int $changeProcedureTypeId = null;
+
+    #[Validate]
+    public string $changePackagePrice = '';
+
+    public bool $changeHasDiscount = false;
+
+    #[Validate]
+    public string $changeDiscountAmount = '';
 
     #[Validate]
     public string $admissionCnic = '';
@@ -252,15 +268,106 @@ new #[Title('Procedures')] class extends Component
         $this->matchedPatients = [];
         $this->husbandName = $procedure->patient->husband_name ?? '';
         $this->patientAge = $procedure->patient->age;
-        $this->procedureTypeId = $procedure->procedure_type_id
-            ?? ProcedureType::query()->where('name', $procedure->name)->value('id');
         $this->expectedDeliveryDate = $procedure->expected_delivery_date?->format('Y-m-d');
-        $this->fullAmount = (string) $procedure->full_amount;
         $this->doctorId = $procedure->doctor_id;
         $this->hasAdvancePayment = false;
         $this->advancePayment = '';
 
         $this->showProcedureModal = true;
+    }
+
+    /**
+     * Open the change-procedure modal for type and package updates.
+     */
+    public function openChangeProcedure(int $id): void
+    {
+        $procedure = Procedure::query()->findOrFail($id);
+
+        $this->resetChangeProcedureForm();
+        $this->changingProcedureId = $id;
+        $this->changeProcedureTypeId = $procedure->procedure_type_id
+            ?? ProcedureType::query()->where('name', $procedure->name)->value('id');
+        $this->changePackagePrice = (string) $procedure->full_amount;
+        $this->showViewModal = false;
+        $this->showChangeProcedureModal = true;
+    }
+
+    /**
+     * Reset the change-procedure form fields.
+     */
+    private function resetChangeProcedureForm(): void
+    {
+        $this->reset([
+            'changeProcedureTypeId',
+            'changePackagePrice',
+            'changeHasDiscount',
+            'changeDiscountAmount',
+        ]);
+        $this->resetErrorBag([
+            'changeProcedureTypeId',
+            'changePackagePrice',
+            'changeDiscountAmount',
+            'changeHasDiscount',
+        ]);
+    }
+
+    /**
+     * Close the change-procedure modal.
+     */
+    public function closeChangeProcedureModal(): void
+    {
+        $this->showChangeProcedureModal = false;
+        $this->changingProcedureId = null;
+        $this->resetChangeProcedureForm();
+    }
+
+    /**
+     * Persist a procedure type / package change with optional discount.
+     */
+    public function saveChangeProcedure(): void
+    {
+        $validated = $this->validate([
+            'changeProcedureTypeId' => ['required', 'integer', 'exists:procedure_types,id'],
+            'changePackagePrice' => ['required', 'numeric', 'min:0'],
+            'changeHasDiscount' => ['boolean'],
+            'changeDiscountAmount' => [
+                'exclude_unless:changeHasDiscount,true',
+                'required',
+                'numeric',
+                'min:0.01',
+            ],
+        ]);
+
+        $procedure = Procedure::query()->findOrFail($this->changingProcedureId);
+        $user = auth()->user();
+
+        if ($user === null) {
+            return;
+        }
+
+        $discountAmount = $this->changeHasDiscount
+            ? (float) ($validated['changeDiscountAmount'] ?? 0)
+            : 0;
+
+        try {
+            app(ChangeProcedure::class)->handle($user, $procedure, [
+                'procedure_type_id' => (int) $validated['changeProcedureTypeId'],
+                'package_price' => $validated['changePackagePrice'],
+                'discount_amount' => $discountAmount,
+            ]);
+        } catch (\InvalidArgumentException $exception) {
+            $this->addError('changePackagePrice', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        $this->viewingProcedureId = $procedure->id;
+        $this->closeChangeProcedureModal();
+        unset($this->viewedProcedure, $this->changingProcedure, $this->changeFinalAmount);
+        $this->showViewModal = true;
+
+        Flux::toast(variant: 'success', text: __('Procedure changed.'));
     }
 
     /**
@@ -463,9 +570,44 @@ new #[Title('Procedures')] class extends Component
             return null;
         }
 
-        return Procedure::with(['patient.family', 'doctor', 'payments.creator', 'payments.shift', 'shift', 'procedureType.documents'])
+        return Procedure::with([
+            'patient.family',
+            'doctor',
+            'payments.creator',
+            'payments.shift',
+            'shift',
+            'procedureType.documents',
+            'changes.changer',
+        ])
             ->withSum('activePayments as payments_sum_amount', 'amount')
             ->find($this->viewingProcedureId);
+    }
+
+    /**
+     * Get the procedure currently being changed.
+     */
+    #[Computed]
+    public function changingProcedure(): ?Procedure
+    {
+        if ($this->changingProcedureId === null) {
+            return null;
+        }
+
+        return Procedure::with('procedureType')
+            ->withSum('activePayments as payments_sum_amount', 'amount')
+            ->find($this->changingProcedureId);
+    }
+
+    /**
+     * Final package amount after optional discount on the change form.
+     */
+    #[Computed]
+    public function changeFinalAmount(): float
+    {
+        $packagePrice = max(0, (float) $this->changePackagePrice);
+        $discount = $this->changeHasDiscount ? max(0, (float) $this->changeDiscountAmount) : 0;
+
+        return round(max(0, $packagePrice - $discount), 2);
     }
 
     /**
@@ -539,13 +681,13 @@ new #[Title('Procedures')] class extends Component
             'patientName' => $this->rules()['patientName'],
             'husbandName' => $this->rules()['husbandName'],
             'patientAge' => $this->rules()['patientAge'],
-            'procedureTypeId' => $this->rules()['procedureTypeId'],
             'expectedDeliveryDate' => $this->rules()['expectedDeliveryDate'],
-            'fullAmount' => $this->rules()['fullAmount'],
             'doctorId' => $this->rules()['doctorId'],
         ];
 
         if ($this->editingProcedureId === null) {
+            $rules['procedureTypeId'] = $this->rules()['procedureTypeId'];
+            $rules['fullAmount'] = $this->rules()['fullAmount'];
             $rules['patientPhone'] = $this->rules()['patientPhone'];
             $rules['hasNoPhone'] = $this->rules()['hasNoPhone'];
             $rules['selectedPatientId'] = $this->rules()['selectedPatientId'];
@@ -641,17 +783,7 @@ new #[Title('Procedures')] class extends Component
             return false;
         }
 
-        if ((float) $validated['fullAmount'] < $procedure->totalPaid()) {
-            $message = __('Full amount cannot be less than the total paid.');
-            $this->addError('fullAmount', $message);
-            Flux::toast(variant: 'danger', text: $message);
-
-            return false;
-        }
-
         DB::transaction(function () use ($procedure, $validated) {
-            $procedureType = ProcedureType::findOrFail($validated['procedureTypeId']);
-
             $procedure->patient->update([
                 'name' => $validated['patientName'],
                 'husband_name' => $validated['husbandName'],
@@ -659,10 +791,7 @@ new #[Title('Procedures')] class extends Component
             ]);
 
             $procedure->update([
-                'procedure_type_id' => $procedureType->id,
-                'name' => $procedureType->name,
                 'expected_delivery_date' => $validated['expectedDeliveryDate'],
-                'full_amount' => $validated['fullAmount'],
                 'doctor_id' => $validated['doctorId'] ?: null,
             ]);
         });
@@ -1140,16 +1269,18 @@ new #[Title('Procedures')] class extends Component
                     <flux:error name="patientAge" />
                 </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Procedure name') }}</flux:label>
-                    <flux:select wire:model="procedureTypeId" required>
-                        <option value="">{{ __('Select') }}</option>
-                        @foreach ($this->procedureTypes as $procedureType)
-                            <option value="{{ $procedureType->id }}">{{ $procedureType->name }}</option>
-                        @endforeach
-                    </flux:select>
-                    <flux:error name="procedureTypeId" />
-                </flux:field>
+                @if ($editingProcedureId === null)
+                    <flux:field>
+                        <flux:label>{{ __('Procedure name') }}</flux:label>
+                        <flux:select wire:model="procedureTypeId" required>
+                            <option value="">{{ __('Select') }}</option>
+                            @foreach ($this->procedureTypes as $procedureType)
+                                <option value="{{ $procedureType->id }}">{{ $procedureType->name }}</option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="procedureTypeId" />
+                    </flux:field>
+                @endif
 
                 <flux:field>
                     <flux:label>{{ __('Doctor') }}</flux:label>
@@ -1168,11 +1299,13 @@ new #[Title('Procedures')] class extends Component
                     <flux:error name="expectedDeliveryDate" />
                 </flux:field>
 
-                <flux:field>
-                    <flux:label>{{ __('Total package') }}</flux:label>
-                    <flux:input wire:model="fullAmount" type="number" step="0.01" min="0" required />
-                    <flux:error name="fullAmount" />
-                </flux:field>
+                @if ($editingProcedureId === null)
+                    <flux:field>
+                        <flux:label>{{ __('Total package') }}</flux:label>
+                        <flux:input wire:model="fullAmount" type="number" step="0.01" min="0" required />
+                        <flux:error name="fullAmount" />
+                    </flux:field>
+                @endif
             </div>
 
             @if ($editingProcedureId === null)
@@ -1327,6 +1460,14 @@ new #[Title('Procedures')] class extends Component
                             {{ __('Mark Paid') }}
                         </flux:button>
                     @endif
+                    <flux:button
+                        size="sm"
+                        variant="filled"
+                        icon="arrows-right-left"
+                        wire:click="openChangeProcedure({{ $this->viewedProcedure->id }})"
+                    >
+                        {{ __('Change procedure') }}
+                    </flux:button>
                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $this->viewedProcedure->id }})">
                         {{ __('Edit') }}
                     </flux:button>
@@ -1385,6 +1526,37 @@ new #[Title('Procedures')] class extends Component
                     </div>
                 </div>
             </div>
+
+            @if ($this->viewedProcedure->changes->isNotEmpty())
+                <div class="mt-6 border-t pt-6">
+                    <flux:heading level="3" class="mb-4">{{ __('Change history') }}</flux:heading>
+                    <div class="space-y-3">
+                        @foreach ($this->viewedProcedure->changes as $change)
+                            <div
+                                wire:key="procedure-change-{{ $change->id }}"
+                                class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <flux:text class="font-medium">
+                                    {{ $change->from_name }} → {{ $change->to_name }}
+                                </flux:text>
+                                <flux:text class="text-zinc-500 dark:text-zinc-400">
+                                    {{ number_format($change->from_amount, 2) }}
+                                    →
+                                    {{ number_format($change->to_amount, 2) }}
+                                    @if ($change->discount_amount > 0)
+                                        · {{ __('Discount') }}: {{ number_format($change->discount_amount, 2) }}
+                                    @endif
+                                </flux:text>
+                                <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ $change->changer?->name ?? __('Unknown') }}
+                                    ·
+                                    {{ $change->created_at?->format('M j, Y g:i A') }}
+                                </flux:text>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <div class="mt-6 border-t pt-6">
                 <flux:heading level="3" class="mb-4">{{ __('Steps') }}</flux:heading>
@@ -1570,6 +1742,64 @@ new #[Title('Procedures')] class extends Component
                 {{ __('Close') }}
             </flux:button>
         </div>
+    </flux:modal>
+
+    <flux:modal wire:model="showChangeProcedureModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('Change procedure') }}</flux:heading>
+
+        @if ($this->changingProcedure)
+            <div class="mt-4 space-y-1 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:text class="font-medium">{{ $this->changingProcedure->name }}</flux:text>
+                <flux:text class="text-zinc-500 dark:text-zinc-400">
+                    {{ __('Current package') }}: {{ number_format($this->changingProcedure->full_amount, 2) }}
+                </flux:text>
+            </div>
+        @endif
+
+        <form wire:submit="saveChangeProcedure" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('Procedure') }}</flux:label>
+                <flux:select wire:model="changeProcedureTypeId" required>
+                    <option value="">{{ __('Select') }}</option>
+                    @foreach ($this->procedureTypes as $procedureType)
+                        <option value="{{ $procedureType->id }}">{{ $procedureType->name }}</option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="changeProcedureTypeId" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Package price') }}</flux:label>
+                <flux:input wire:model.live="changePackagePrice" type="number" step="0.01" min="0" required />
+                <flux:error name="changePackagePrice" />
+            </flux:field>
+
+            <div class="space-y-4">
+                <flux:checkbox wire:model.live="changeHasDiscount" label="{{ __('Apply discount') }}" />
+
+                @if ($changeHasDiscount)
+                    <flux:field>
+                        <flux:label>{{ __('Discount amount') }}</flux:label>
+                        <flux:input wire:model.live="changeDiscountAmount" type="number" step="0.01" min="0" required />
+                        <flux:error name="changeDiscountAmount" />
+                    </flux:field>
+                @endif
+            </div>
+
+            <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:text class="text-zinc-500 dark:text-zinc-400">{{ __('Final package') }}</flux:text>
+                <flux:text class="text-lg font-semibold">{{ number_format($this->changeFinalAmount, 2) }}</flux:text>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeChangeProcedureModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Save') }}
+                </flux:button>
+            </div>
+        </form>
     </flux:modal>
 
     <flux:modal wire:model="showAdmissionModal" class="w-full max-w-sm">
