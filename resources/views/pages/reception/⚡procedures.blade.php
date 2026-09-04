@@ -439,9 +439,25 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Open the birth certificate details modal for the selected procedure.
+     * Open the birth certificate — form on first use, printable certificate afterward.
      */
     public function openBirthCertificate(int $id): void
+    {
+        $procedure = Procedure::with('birthCertificateDetail')->findOrFail($id);
+
+        if ($procedure->birthCertificateDetail !== null) {
+            $this->js('window.open('.Js::from(route('indoor.procedures.birth-certificate', $procedure)).', "_blank")');
+
+            return;
+        }
+
+        $this->editBirthCertificate($id);
+    }
+
+    /**
+     * Open the birth certificate details form for creating or editing.
+     */
+    public function editBirthCertificate(int $id): void
     {
         $procedure = Procedure::with(['patient', 'birthCertificateDetail'])->findOrFail($id);
         $detail = $procedure->birthCertificateDetail;
@@ -459,7 +475,7 @@ new #[Title('Procedures')] class extends Component
             $this->bcFatherCnic = $detail->father_cnic ?? '';
             $this->bcMotherCnic = $detail->mother_cnic ?? '';
             $this->bcHomeAddress = $detail->home_address ?? '';
-            $this->bcBornAt = $detail->born_at?->format('Y-m-d\TH:i') ?? '';
+            $this->bcBornAt = $detail->born_at?->format('Y-m-d') ?? '';
             $this->bcSex = $detail->sex;
             $this->bcStatus = $detail->status->value;
             $this->bcBabyName = $detail->baby_name ?? '';
@@ -470,7 +486,7 @@ new #[Title('Procedures')] class extends Component
             $this->bcMotherName = $procedure->patient->name;
             $this->bcMotherAge = $procedure->patient->age;
             $this->bcMotherCnic = $procedure->patient->cnic ?? '';
-            $this->bcBornAt = now()->format('Y-m-d\TH:i');
+            $this->bcBornAt = now()->format('Y-m-d');
             $this->bcStatus = LivingStatus::Living->value;
             $this->bcMultiplicity = BirthMultiplicity::Single->value;
         }
@@ -1823,9 +1839,15 @@ new #[Title('Procedures')] class extends Component
                             {{ __('4. Birth Certificate') }}
                         </flux:button>
                         @if ($hasBirthCertificate)
-                            <flux:text class="text-center text-xs text-zinc-500">
-                                {{ __('Saved — click to edit / print') }}
-                            </flux:text>
+                            <flux:button
+                                size="sm"
+                                variant="ghost"
+                                icon="pencil-square"
+                                wire:click="editBirthCertificate({{ $this->viewedProcedure->id }})"
+                                class="w-full"
+                            >
+                                {{ __('Edit details') }}
+                            </flux:button>
                         @endif
                     </div>
                 </div>
@@ -2088,7 +2110,7 @@ new #[Title('Procedures')] class extends Component
 
                 <flux:field>
                     <flux:label>{{ __('Day and Date of Birth') }}</flux:label>
-                    <flux:input type="datetime-local" wire:model="bcBornAt" required />
+                    <flux:input type="date" wire:model="bcBornAt" required />
                     <flux:error name="bcBornAt" />
                 </flux:field>
 

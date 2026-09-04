@@ -50,6 +50,32 @@ test('birth certificate button opens the details form from a procedure card', fu
         ->assertSee('This Birth');
 });
 
+test('saved birth certificate opens print view while edit opens the form', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create();
+    ProcedureBirthCertificateDetail::factory()->create([
+        'procedure_id' => $procedure->id,
+        'father_name' => 'Ali Raza',
+        'mother_name' => 'Sara Ali',
+        'born_at' => '2026-09-04',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSee('Edit details')
+        ->call('openBirthCertificate', $procedure->id)
+        ->assertSet('showBirthCertificateModal', false)
+        ->assertSet('showViewModal', true)
+        ->call('editBirthCertificate', $procedure->id)
+        ->assertSet('showViewModal', false)
+        ->assertSet('showBirthCertificateModal', true)
+        ->assertSet('bcFatherName', 'Ali Raza')
+        ->assertSet('bcMotherName', 'Sara Ali')
+        ->assertSet('bcBornAt', '2026-09-04');
+});
+
 test('birth certificate details can be saved and printed from reception', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
@@ -67,7 +93,7 @@ test('birth certificate details can be saved and printed from reception', functi
         ->set('bcFatherCnic', '35202-2222222-2')
         ->set('bcMotherCnic', '35202-3333333-3')
         ->set('bcHomeAddress', 'House 12, Lahore')
-        ->set('bcBornAt', '2026-09-04T10:30')
+        ->set('bcBornAt', '2026-09-04')
         ->set('bcSex', 'female')
         ->set('bcStatus', LivingStatus::Living->value)
         ->set('bcBabyName', 'Fatima')
@@ -110,6 +136,8 @@ test('birth certificate details can be saved and printed from reception', functi
         ->assertSee('Imran Ali')
         ->assertSee('Fatima')
         ->assertSee('House 12, Lahore')
+        ->assertSee('Friday, 04 Sep 2026')
+        ->assertDontSee('10:30')
         ->assertSee('IN WITNESS WHEREOF')
         ->assertSee('Staff Nurse / Midwife')
         ->assertSee('Peer Colony, St. # 1, Walton Road, Lahore.')
@@ -143,7 +171,7 @@ test('twin birth certificate requires which child was born', function () {
         ->set('bcFatherCnic', '35202-2222222-2')
         ->set('bcMotherCnic', '35202-3333333-3')
         ->set('bcHomeAddress', 'House 12, Lahore')
-        ->set('bcBornAt', '2026-09-04T10:30')
+        ->set('bcBornAt', '2026-09-04')
         ->set('bcSex', 'male')
         ->set('bcStatus', LivingStatus::Living->value)
         ->set('bcMultiplicity', BirthMultiplicity::Twin->value)

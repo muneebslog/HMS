@@ -254,7 +254,7 @@
                     </div>
                     <div class="row">
                         <span class="label">{{ __('Day and Date of Birth') }}</span>
-                        <span class="value">{{ $birthAt?->format('l, d M Y, g:i A') ?? '-' }}</span>
+                        <span class="value">{{ $birthAt?->format('l, d M Y') ?? '-' }}</span>
                     </div>
                     <div class="row">
                         <span class="label">{{ __('Status') }}</span>
