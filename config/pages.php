@@ -19,6 +19,7 @@ return [
         'profile.edit',
         'security.edit',
         'appearance.edit',
+        'indoor.procedures.birth-certificate',
     ],
 
     /*
@@ -189,6 +190,7 @@ return [
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
             'lab-entries', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
+            'indoor.procedures.birth-certificate',
         ],
 
         UserRole::Doctor->value => [
@@ -210,11 +212,13 @@ return [
             'incharge.ward-maintenance', 'incharge.ward-maintenance.form',
             'incharge.equipment-inspections', 'incharge.equipment-inspections.area', 'incharge.equipment-inspections.form',
             'incharge.emergency-department-log', 'incharge.emergency-department-log.form',
+            'indoor.procedures.birth-certificate',
         ],
 
         UserRole::LabTechnician->value => [
             'lab-entries',
             'reception.mr-lookup',
+            'indoor.procedures.birth-certificate',
         ],
 
         UserRole::Admin->value => 'all',

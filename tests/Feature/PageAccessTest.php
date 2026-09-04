@@ -124,6 +124,28 @@ test('reset to defaults restores role permissions', function () {
     expect($service->canAccess(User::factory()->doctor()->create(), 'doctor.portal'))->toBeTrue();
 });
 
+test('birth certificate is accessible to every assigned logged in role', function (string $roleFactory) {
+    $user = User::factory()->{$roleFactory}()->create();
+    $procedure = \App\Models\Procedure::factory()->create();
+    \App\Models\ProcedureBirthCertificateDetail::factory()->create([
+        'procedure_id' => $procedure->id,
+    ]);
+
+    expect(app(PageAccessService::class)->canAccess($user, 'indoor.procedures.birth-certificate'))->toBeTrue();
+
+    $this->actingAs($user)
+        ->get(route('indoor.procedures.birth-certificate', $procedure))
+        ->assertSuccessful();
+})->with([
+    'admin' => 'admin',
+    'receptionist' => 'receptionist',
+    'management' => 'management',
+    'doctor' => 'doctor',
+    'indoor' => 'indoor',
+    'incharge nurse' => 'inchargeNurse',
+    'lab technician' => 'labTechnician',
+]);
+
 test('sidebar hides admin pages from receptionists', function () {
     $user = User::factory()->receptionist()->create();
 
