@@ -563,6 +563,32 @@ test('reserving without a phone number logs an admin notification', function () 
     expect($notification->message)->toContain((string) $user->name);
 });
 
+test('reservation page shows patient phone on reserved tokens', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    $queue = app(QueueService::class)->queueFor($service, $doctor->id, $shift);
+    $patient = Patient::factory()->withPhone(validPhone())->create(['name' => 'Phone Visible Patient']);
+
+    QueueToken::create([
+        'service_queue_id' => $queue->id,
+        'invoice_item_id' => null,
+        'patient_id' => $patient->id,
+        'token_number' => 3,
+        'status' => 'reserved',
+        'origin' => 'reservation',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->assertSee('Phone Visible Patient')
+        ->assertSee(validPhone());
+});
+
 test('reservation page shows estimated token times when doctor has a duty start time', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();

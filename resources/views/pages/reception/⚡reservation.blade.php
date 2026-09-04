@@ -309,7 +309,7 @@ new #[Title('Reservations')] class extends Component
         $start = $this->tokenStartsFrom;
         $end = $start + $this->visibleCount - 1;
 
-        return QueueToken::with('patient')
+        return QueueToken::with('patient.family')
             ->where('service_queue_id', $queue->id)
             ->whereBetween('token_number', [$start, $end])
             ->get()
@@ -372,7 +372,7 @@ new #[Title('Reservations')] class extends Component
                         </flux:text>
                     </div>
 
-                    <div class="grid grid-cols-5 gap-3">
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
                         @php
                             $tokenStartsFrom = $this->tokenStartsFrom;
                             $tokenEndsAt = $tokenStartsFrom + $this->visibleCount - 1;
@@ -382,7 +382,9 @@ new #[Title('Reservations')] class extends Component
                                 $token = $this->tokensInRange->get($number);
                                 $isReserved = $token !== null && $token->status === 'reserved';
                                 $isUsed = $token !== null && ! $isReserved;
+                                $isOddToken = $number % 2 !== 0;
                                 $dutyStart = $this->selectedDoctor?->duty_start_time;
+                                $patientPhone = $token?->patient?->contactPhone();
                             @endphp
 
                             <button
@@ -390,10 +392,11 @@ new #[Title('Reservations')] class extends Component
                                 wire:click="selectToken({{ $number }})"
                                 wire:key="token-{{ $number }}"
                                 @disabled($isUsed)
-                                class="relative flex flex-col items-center justify-center rounded-lg border p-4 transition-colors
+                                class="relative flex min-w-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors sm:p-4
                                     @if ($isUsed) bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-500
                                     @elseif ($isReserved) bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800
-                                    @else bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 @endif"
+                                    @elseif ($isOddToken) bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800
+                                    @else bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800 @endif"
                             >
                                 <span class="text-lg font-semibold">{{ $number }}</span>
                                 @if ($dutyStart)
@@ -402,7 +405,10 @@ new #[Title('Reservations')] class extends Component
                                     </span>
                                 @endif
                                 @if ($token?->patient)
-                                    <span class="mt-1 dark:text-zinc-300 max-w-full truncate text-xs">{{ $token->patient->name }}</span>
+                                    <span class="mt-1 max-w-full truncate text-xs dark:text-zinc-300">{{ $token->patient->name }}</span>
+                                    @if (filled($patientPhone))
+                                        <span class="mt-0.5 max-w-full truncate text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{{ $patientPhone }}</span>
+                                    @endif
                                 @elseif ($isUsed)
                                     <span class="mt-1 text-xs">{{ __('Used') }}</span>
                                 @endif
@@ -449,7 +455,7 @@ new #[Title('Reservations')] class extends Component
 
     <flux:modal wire:model="showArrivalModal" class="w-full max-w-sm">
         @php
-            $arrivalToken = $viewingTokenId ? \App\Models\QueueToken::with('patient')->find($viewingTokenId) : null;
+            $arrivalToken = $viewingTokenId ? \App\Models\QueueToken::with('patient.family')->find($viewingTokenId) : null;
         @endphp
 
         <flux:heading level="2">
@@ -460,6 +466,9 @@ new #[Title('Reservations')] class extends Component
             <div class="mt-4 space-y-2 text-sm">
                 <flux:text>
                     <span class="text-zinc-500">{{ __('Patient') }}:</span> {{ $arrivalToken->patient?->name }}
+                </flux:text>
+                <flux:text>
+                    <span class="text-zinc-500">{{ __('Phone') }}:</span> {{ $arrivalToken->patient?->contactPhone() ?? __('None') }}
                 </flux:text>
                 <flux:text>
                     <span class="text-zinc-500">{{ __('Status') }}:</span> {{ __(ucfirst($arrivalToken->status)) }}
