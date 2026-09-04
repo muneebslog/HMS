@@ -365,11 +365,23 @@ new #[Title('Reservations')] class extends Component
 
             @if ($this->selectedDoctorId)
                 <flux:card>
-                    <div class="mb-4 flex items-center justify-between">
+                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <flux:heading level="2">{{ __('Tokens') }}</flux:heading>
-                        <flux:text class="text-zinc-500">
-                            {{ __('Showing :count tokens', ['count' => $this->visibleCount]) }}
-                        </flux:text>
+                        <div class="flex flex-col gap-1 sm:items-end">
+                            <flux:text class="text-zinc-500">
+                                {{ __('Showing :count tokens', ['count' => $this->visibleCount]) }}
+                            </flux:text>
+                            <div class="flex flex-wrap items-center gap-3 text-xs">
+                                <span class="inline-flex items-center gap-1.5 text-sky-700 dark:text-sky-300">
+                                    <span class="size-2.5 rounded-sm bg-sky-400 dark:bg-sky-500"></span>
+                                    {{ __('Blue for reservation') }}
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
+                                    <span class="size-2.5 rounded-sm bg-emerald-400 dark:bg-emerald-500"></span>
+                                    {{ __('Green for walk-in') }}
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
@@ -394,9 +406,9 @@ new #[Title('Reservations')] class extends Component
                                 @disabled($isUsed)
                                 class="relative flex min-w-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors sm:p-4
                                     @if ($isUsed) bg-zinc-100 text-zinc-400 cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-500
-                                    @elseif ($isReserved) bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800
-                                    @elseif ($isOddToken) bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800
-                                    @else bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800 @endif"
+                                    @elseif ($isReserved) bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800 dark:hover:bg-amber-800/50
+                                    @elseif ($isOddToken) bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-300 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800 dark:hover:bg-sky-700/50
+                                    @else bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-700/50 @endif"
                             >
                                 <span class="text-lg font-semibold">{{ $number }}</span>
                                 @if ($dutyStart)

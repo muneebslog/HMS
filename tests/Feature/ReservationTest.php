@@ -586,7 +586,9 @@ test('reservation page shows patient phone on reserved tokens', function () {
         ->test('pages::reception.reservation')
         ->set('selectedDoctorId', $doctor->id)
         ->assertSee('Phone Visible Patient')
-        ->assertSee(validPhone());
+        ->assertSee(validPhone())
+        ->assertSee(__('Blue for reservation'))
+        ->assertSee(__('Green for walk-in'));
 });
 
 test('reservation page shows estimated token times when doctor has a duty start time', function () {
