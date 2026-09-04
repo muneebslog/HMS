@@ -2,11 +2,14 @@
 
 use App\Actions\ChangeProcedure;
 use App\Actions\DiscardProcedurePayment;
+use App\Enums\BirthMultiplicity;
+use App\Enums\LivingStatus;
 use App\Enums\PaymentMode;
 use App\Enums\ProcedureStatus;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\Procedure;
+use App\Models\ProcedureBirthCertificateDetail;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
 use App\Models\Room;
@@ -17,6 +20,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Js;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -53,6 +57,8 @@ new #[Title('Procedures')] class extends Component
 
     public bool $showPaymentLedger = false;
 
+    public bool $showBirthCertificateModal = false;
+
     public ?int $editingProcedureId = null;
 
     public ?string $editingPatientMrn = null;
@@ -76,6 +82,38 @@ new #[Title('Procedures')] class extends Component
 
     #[Validate]
     public ?int $admissionRoomId = null;
+
+    public ?int $birthCertificateProcedureId = null;
+
+    public string $bcFatherName = '';
+
+    public string $bcMotherName = '';
+
+    public string $bcGrandfatherName = '';
+
+    public string $bcMaternalGrandfatherName = '';
+
+    public ?int $bcFatherAge = null;
+
+    public ?int $bcMotherAge = null;
+
+    public string $bcFatherCnic = '';
+
+    public string $bcMotherCnic = '';
+
+    public string $bcHomeAddress = '';
+
+    public string $bcBornAt = '';
+
+    public string $bcSex = '';
+
+    public string $bcStatus = 'living';
+
+    public string $bcBabyName = '';
+
+    public string $bcMultiplicity = 'single';
+
+    public ?int $bcChildOrder = null;
 
     #[Validate]
     public string $patientName = '';
@@ -177,6 +215,27 @@ new #[Title('Procedures')] class extends Component
                         $fail(__('This room is already occupied.'));
                     }
                 },
+            ],
+            'bcFatherName' => ['required', 'string', 'max:255'],
+            'bcMotherName' => ['required', 'string', 'max:255'],
+            'bcGrandfatherName' => ['required', 'string', 'max:255'],
+            'bcMaternalGrandfatherName' => ['required', 'string', 'max:255'],
+            'bcFatherAge' => ['required', 'integer', 'min:1', 'max:150'],
+            'bcMotherAge' => ['required', 'integer', 'min:1', 'max:150'],
+            'bcFatherCnic' => ['required', 'string', 'max:30'],
+            'bcMotherCnic' => ['required', 'string', 'max:30'],
+            'bcHomeAddress' => ['required', 'string', 'max:1000'],
+            'bcBornAt' => ['required', 'date'],
+            'bcSex' => ['required', 'string', Rule::in(['male', 'female'])],
+            'bcStatus' => ['required', 'string', Rule::in(LivingStatus::values())],
+            'bcBabyName' => ['nullable', 'string', 'max:255'],
+            'bcMultiplicity' => ['required', 'string', Rule::in(BirthMultiplicity::values())],
+            'bcChildOrder' => [
+                Rule::requiredIf(fn () => $this->bcMultiplicity !== BirthMultiplicity::Single->value),
+                'nullable',
+                'integer',
+                'min:1',
+                'max:3',
             ],
         ];
     }
@@ -380,6 +439,153 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Open the birth certificate details modal for the selected procedure.
+     */
+    public function openBirthCertificate(int $id): void
+    {
+        $procedure = Procedure::with(['patient', 'birthCertificateDetail'])->findOrFail($id);
+        $detail = $procedure->birthCertificateDetail;
+
+        $this->resetBirthCertificateForm();
+        $this->birthCertificateProcedureId = $id;
+
+        if ($detail !== null) {
+            $this->bcFatherName = $detail->father_name;
+            $this->bcMotherName = $detail->mother_name;
+            $this->bcGrandfatherName = $detail->grandfather_name ?? '';
+            $this->bcMaternalGrandfatherName = $detail->maternal_grandfather_name ?? '';
+            $this->bcFatherAge = $detail->father_age;
+            $this->bcMotherAge = $detail->mother_age;
+            $this->bcFatherCnic = $detail->father_cnic ?? '';
+            $this->bcMotherCnic = $detail->mother_cnic ?? '';
+            $this->bcHomeAddress = $detail->home_address ?? '';
+            $this->bcBornAt = $detail->born_at?->format('Y-m-d\TH:i') ?? '';
+            $this->bcSex = $detail->sex;
+            $this->bcStatus = $detail->status->value;
+            $this->bcBabyName = $detail->baby_name ?? '';
+            $this->bcMultiplicity = $detail->multiplicity->value;
+            $this->bcChildOrder = $detail->child_order;
+        } else {
+            $this->bcFatherName = $procedure->patient->husband_name ?? '';
+            $this->bcMotherName = $procedure->patient->name;
+            $this->bcMotherAge = $procedure->patient->age;
+            $this->bcMotherCnic = $procedure->patient->cnic ?? '';
+            $this->bcBornAt = now()->format('Y-m-d\TH:i');
+            $this->bcStatus = LivingStatus::Living->value;
+            $this->bcMultiplicity = BirthMultiplicity::Single->value;
+        }
+
+        $this->showViewModal = false;
+        $this->showBirthCertificateModal = true;
+    }
+
+    /**
+     * Reset birth certificate form fields.
+     */
+    private function resetBirthCertificateForm(): void
+    {
+        $this->reset([
+            'bcFatherName',
+            'bcMotherName',
+            'bcGrandfatherName',
+            'bcMaternalGrandfatherName',
+            'bcFatherAge',
+            'bcMotherAge',
+            'bcFatherCnic',
+            'bcMotherCnic',
+            'bcHomeAddress',
+            'bcBornAt',
+            'bcSex',
+            'bcBabyName',
+            'bcChildOrder',
+        ]);
+        $this->bcStatus = LivingStatus::Living->value;
+        $this->bcMultiplicity = BirthMultiplicity::Single->value;
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Close the birth certificate modal.
+     */
+    public function closeBirthCertificateModal(): void
+    {
+        $this->showBirthCertificateModal = false;
+        $this->birthCertificateProcedureId = null;
+        $this->resetBirthCertificateForm();
+    }
+
+    /**
+     * Clear child order when birth multiplicity is single.
+     */
+    public function updatedBcMultiplicity(string $value): void
+    {
+        if ($value === BirthMultiplicity::Single->value) {
+            $this->bcChildOrder = null;
+            $this->resetErrorBag('bcChildOrder');
+        }
+    }
+
+    /**
+     * Save birth certificate details and open the printable certificate.
+     */
+    public function saveBirthCertificate(bool $openCertificate = true): void
+    {
+        $validated = $this->validate([
+            'bcFatherName' => $this->rules()['bcFatherName'],
+            'bcMotherName' => $this->rules()['bcMotherName'],
+            'bcGrandfatherName' => $this->rules()['bcGrandfatherName'],
+            'bcMaternalGrandfatherName' => $this->rules()['bcMaternalGrandfatherName'],
+            'bcFatherAge' => $this->rules()['bcFatherAge'],
+            'bcMotherAge' => $this->rules()['bcMotherAge'],
+            'bcFatherCnic' => $this->rules()['bcFatherCnic'],
+            'bcMotherCnic' => $this->rules()['bcMotherCnic'],
+            'bcHomeAddress' => $this->rules()['bcHomeAddress'],
+            'bcBornAt' => $this->rules()['bcBornAt'],
+            'bcSex' => $this->rules()['bcSex'],
+            'bcStatus' => $this->rules()['bcStatus'],
+            'bcBabyName' => $this->rules()['bcBabyName'],
+            'bcMultiplicity' => $this->rules()['bcMultiplicity'],
+            'bcChildOrder' => $this->rules()['bcChildOrder'],
+        ]);
+
+        $procedure = Procedure::query()->findOrFail($this->birthCertificateProcedureId);
+
+        ProcedureBirthCertificateDetail::query()->updateOrCreate(
+            ['procedure_id' => $procedure->id],
+            [
+                'father_name' => $validated['bcFatherName'],
+                'mother_name' => $validated['bcMotherName'],
+                'grandfather_name' => $validated['bcGrandfatherName'],
+                'maternal_grandfather_name' => $validated['bcMaternalGrandfatherName'],
+                'father_age' => $validated['bcFatherAge'],
+                'mother_age' => $validated['bcMotherAge'],
+                'father_cnic' => $validated['bcFatherCnic'],
+                'mother_cnic' => $validated['bcMotherCnic'],
+                'home_address' => $validated['bcHomeAddress'],
+                'born_at' => $validated['bcBornAt'],
+                'sex' => $validated['bcSex'],
+                'status' => $validated['bcStatus'],
+                'baby_name' => $validated['bcBabyName'] ?: null,
+                'multiplicity' => $validated['bcMultiplicity'],
+                'child_order' => $validated['bcMultiplicity'] === BirthMultiplicity::Single->value
+                    ? null
+                    : $validated['bcChildOrder'],
+                'recorded_by' => auth()->id(),
+            ]
+        );
+
+        $certificateUrl = route('indoor.procedures.birth-certificate', $procedure);
+
+        $this->closeBirthCertificateModal();
+
+        Flux::toast(variant: 'success', text: __('Birth certificate details saved.'));
+
+        if ($openCertificate) {
+            $this->js('window.open('.Js::from($certificateUrl).', "_blank")');
+        }
+    }
+
+    /**
      * Open the admission modal for the selected procedure.
      */
     public function addAdmission(int $id): void
@@ -557,6 +763,7 @@ new #[Title('Procedures')] class extends Component
             'payments.shift',
             'shift',
             'procedureType.documents',
+            'birthCertificateDetail',
         ];
 
         if (auth()->user()?->isAdmin() === true) {
@@ -1531,7 +1738,7 @@ new #[Title('Procedures')] class extends Component
             <div class="mt-6 border-t pt-6">
                 <flux:heading level="3" class="mb-4">{{ __('Steps') }}</flux:heading>
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     @if ($this->viewedProcedure->isAdmitted())
                         <div class="space-y-1">
                             <flux:button
@@ -1560,6 +1767,7 @@ new #[Title('Procedures')] class extends Component
                     @php
                         $hasPrintDocuments = ($this->viewedProcedure->procedureType?->documents?->isNotEmpty()) ?? false;
                         $isFilePrinted = $this->viewedProcedure->isFilePrinted();
+                        $hasBirthCertificate = $this->viewedProcedure->birthCertificateDetail !== null;
                     @endphp
 
                     @if ($hasPrintDocuments)
@@ -1604,6 +1812,22 @@ new #[Title('Procedures')] class extends Component
                     >
                         {{ __('3. Payment Ledger') }}
                     </flux:button>
+
+                    <div class="space-y-1">
+                        <flux:button
+                            variant="{{ $hasBirthCertificate ? 'filled' : 'primary' }}"
+                            icon="document-text"
+                            wire:click="openBirthCertificate({{ $this->viewedProcedure->id }})"
+                            class="w-full"
+                        >
+                            {{ __('4. Birth Certificate') }}
+                        </flux:button>
+                        @if ($hasBirthCertificate)
+                            <flux:text class="text-center text-xs text-zinc-500">
+                                {{ __('Saved — click to edit / print') }}
+                            </flux:text>
+                        @endif
+                    </div>
                 </div>
 
                 @if ($this->viewedProcedure->isAdmitted())
@@ -1795,6 +2019,138 @@ new #[Title('Procedures')] class extends Component
                 </flux:button>
                 <flux:button type="submit" variant="primary">
                     {{ __('Admit') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showBirthCertificateModal" class="w-full max-w-3xl">
+        <form wire:submit="saveBirthCertificate" class="space-y-4">
+            <flux:heading level="2">{{ __('Birth Certificate Details') }}</flux:heading>
+            <flux:text class="text-zinc-500">
+                {{ __('Enter the details below, then save to print the birth certificate.') }}
+            </flux:text>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <flux:field>
+                    <flux:label>{{ __('Father Name') }}</flux:label>
+                    <flux:input wire:model="bcFatherName" required />
+                    <flux:error name="bcFatherName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Mother Name') }}</flux:label>
+                    <flux:input wire:model="bcMotherName" required />
+                    <flux:error name="bcMotherName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Grand Father Name') }}</flux:label>
+                    <flux:input wire:model="bcGrandfatherName" required />
+                    <flux:error name="bcGrandfatherName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Mother\'s Father Name') }}</flux:label>
+                    <flux:input wire:model="bcMaternalGrandfatherName" required />
+                    <flux:error name="bcMaternalGrandfatherName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Father Age') }}</flux:label>
+                    <flux:input type="number" wire:model="bcFatherAge" min="1" max="150" required />
+                    <flux:error name="bcFatherAge" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Mother Age') }}</flux:label>
+                    <flux:input type="number" wire:model="bcMotherAge" min="1" max="150" required />
+                    <flux:error name="bcMotherAge" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Father CNIC') }}</flux:label>
+                    <flux:input wire:model="bcFatherCnic" placeholder="{{ __('e.g. 35202-1234567-1') }}" required />
+                    <flux:error name="bcFatherCnic" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Mother CNIC') }}</flux:label>
+                    <flux:input wire:model="bcMotherCnic" placeholder="{{ __('e.g. 35202-1234567-1') }}" required />
+                    <flux:error name="bcMotherCnic" />
+                </flux:field>
+
+                <flux:field class="sm:col-span-2">
+                    <flux:label>{{ __('Home Address') }}</flux:label>
+                    <flux:textarea wire:model="bcHomeAddress" rows="2" required />
+                    <flux:error name="bcHomeAddress" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Day and Date of Birth') }}</flux:label>
+                    <flux:input type="datetime-local" wire:model="bcBornAt" required />
+                    <flux:error name="bcBornAt" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Sex') }}</flux:label>
+                    <flux:select wire:model="bcSex" required>
+                        <option value="">{{ __('Select') }}</option>
+                        <option value="male">{{ __('Male') }}</option>
+                        <option value="female">{{ __('Female') }}</option>
+                    </flux:select>
+                    <flux:error name="bcSex" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Status') }}</flux:label>
+                    <flux:select wire:model="bcStatus" required>
+                        @foreach (LivingStatus::cases() as $status)
+                            <option value="{{ $status->value }}">{{ $status->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="bcStatus" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Name (if given)') }}</flux:label>
+                    <flux:input wire:model="bcBabyName" placeholder="{{ __('Optional') }}" />
+                    <flux:error name="bcBabyName" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('This Birth') }}</flux:label>
+                    <flux:select wire:model.live="bcMultiplicity" required>
+                        @foreach (BirthMultiplicity::cases() as $multiplicity)
+                            <option value="{{ $multiplicity->value }}">{{ $multiplicity->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="bcMultiplicity" />
+                </flux:field>
+
+                @if ($bcMultiplicity !== BirthMultiplicity::Single->value)
+                    <flux:field>
+                        <flux:label>{{ __('This Child Born') }}</flux:label>
+                        <flux:select wire:model="bcChildOrder" required>
+                            <option value="">{{ __('Select') }}</option>
+                            <option value="1">{{ __('1st') }}</option>
+                            <option value="2">{{ __('2nd') }}</option>
+                            <option value="3">{{ __('3rd') }}</option>
+                        </flux:select>
+                        <flux:error name="bcChildOrder" />
+                    </flux:field>
+                @endif
+            </div>
+
+            <div class="flex flex-wrap justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeBirthCertificateModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="button" variant="filled" wire:click="saveBirthCertificate(false)">
+                    {{ __('Save') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary" icon="printer">
+                    {{ __('Save & Print') }}
                 </flux:button>
             </div>
         </form>

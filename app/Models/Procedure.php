@@ -277,6 +277,14 @@ class Procedure extends Model
     }
 
     /**
+     * @return HasOne<ProcedureBirthCertificateDetail, $this>
+     */
+    public function birthCertificateDetail(): HasOne
+    {
+        return $this->hasOne(ProcedureBirthCertificateDetail::class);
+    }
+
+    /**
      * Get the total amount paid for this procedure.
      */
     public function totalPaid(): float

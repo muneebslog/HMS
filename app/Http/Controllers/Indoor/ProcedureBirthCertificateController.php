@@ -21,9 +21,12 @@ class ProcedureBirthCertificateController extends Controller
             'procedureType',
             'dischargeDetail',
             'deliveryNote',
+            'birthCertificateDetail',
         ]);
 
-        if (! $procedure->procedureType?->requires_birth_certificate) {
+        $hasCertificateDetails = $procedure->birthCertificateDetail !== null;
+
+        if (! $procedure->procedureType?->requires_birth_certificate && ! $hasCertificateDetails) {
             abort(404);
         }
 
@@ -56,6 +59,7 @@ class ProcedureBirthCertificateController extends Controller
 
         return view('procedures.birth-certificate', [
             'procedure' => $procedure,
+            'certificate' => $procedure->birthCertificateDetail,
             'dischargeDetail' => $procedure->dischargeDetail,
             'deliveryNote' => $procedure->deliveryNote,
         ]);
