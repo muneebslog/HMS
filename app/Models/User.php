@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
 use App\Services\PageAccessService;
+use App\Services\RoleActingService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -65,11 +66,43 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Get the role stored on the user record.
+     */
+    public function actualRole(): UserRole
+    {
+        return $this->role;
+    }
+
+    /**
+     * Get the effective role, including an admin "act as" overlay.
+     */
+    public function effectiveRole(): UserRole
+    {
+        if ($this->isActuallyAdmin()) {
+            $actingAs = app(RoleActingService::class)->current();
+
+            if ($actingAs !== null) {
+                return $actingAs;
+            }
+        }
+
+        return $this->actualRole();
+    }
+
+    /**
+     * Determine whether the user is a real admin (ignores act-as overlay).
+     */
+    public function isActuallyAdmin(): bool
+    {
+        return $this->actualRole() === UserRole::Admin;
+    }
+
+    /**
      * Determine whether the user is an admin.
      */
     public function isAdmin(): bool
     {
-        return $this->role === UserRole::Admin;
+        return $this->effectiveRole() === UserRole::Admin;
     }
 
     /**
@@ -77,7 +110,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isReceptionist(): bool
     {
-        return $this->role === UserRole::Receptionist;
+        return $this->effectiveRole() === UserRole::Receptionist;
     }
 
     /**
@@ -85,7 +118,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isManagement(): bool
     {
-        return $this->role === UserRole::Management;
+        return $this->effectiveRole() === UserRole::Management;
     }
 
     /**
@@ -93,7 +126,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isDoctor(): bool
     {
-        return $this->role === UserRole::Doctor;
+        return $this->effectiveRole() === UserRole::Doctor;
     }
 
     /**
@@ -101,7 +134,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isIndoor(): bool
     {
-        return $this->role === UserRole::Indoor;
+        return $this->effectiveRole() === UserRole::Indoor;
     }
 
     /**
@@ -109,7 +142,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isInchargeNurse(): bool
     {
-        return $this->role === UserRole::InchargeNurse;
+        return $this->effectiveRole() === UserRole::InchargeNurse;
     }
 
     /**
@@ -117,7 +150,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function isUser(): bool
     {
-        return $this->role === UserRole::User;
+        return $this->effectiveRole() === UserRole::User;
     }
 
     /**
@@ -145,7 +178,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function hasRole(UserRole $role): bool
     {
-        return $this->role === $role;
+        return $this->effectiveRole() === $role;
     }
 
     /**
@@ -161,7 +194,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function roleLabel(): string
     {
-        return $this->role->label();
+        return $this->effectiveRole()->label();
     }
 
     /**

@@ -684,6 +684,12 @@ new #[Title('Procedures')] class extends Component
      */
     public function deleteProcedure(int $id): void
     {
+        $user = auth()->user();
+
+        if ($user === null || ! $user->isAdmin()) {
+            abort(403);
+        }
+
         $procedure = Procedure::findOrFail($id);
         $procedure->delete();
 
@@ -1211,7 +1217,8 @@ new #[Title('Procedures')] class extends Component
             @php
                 $viewedPaid = (float) ($this->viewedProcedure->payments_sum_amount ?? $this->viewedProcedure->totalPaid());
                 $viewedBalance = $this->viewedProcedure->full_amount - $viewedPaid;
-                $canDiscardPayments = auth()->user()?->isAdmin() === true;
+                $isAdmin = auth()->user()?->isAdmin() === true;
+                $canDiscardPayments = $isAdmin;
             @endphp
 
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -1236,15 +1243,17 @@ new #[Title('Procedures')] class extends Component
                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $this->viewedProcedure->id }})">
                         {{ __('Edit') }}
                     </flux:button>
-                    <flux:button
-                        size="sm"
-                        variant="danger"
-                        icon="trash"
-                        wire:click="deleteProcedure({{ $this->viewedProcedure->id }})"
-                        wire:confirm="{{ __('Delete this procedure and all its payments? This cannot be undone.') }}"
-                    >
-                        {{ __('Delete') }}
-                    </flux:button>
+                    @if ($isAdmin)
+                        <flux:button
+                            size="sm"
+                            variant="danger"
+                            icon="trash"
+                            wire:click="deleteProcedure({{ $this->viewedProcedure->id }})"
+                            wire:confirm="{{ __('Delete this procedure and all its payments? This cannot be undone.') }}"
+                        >
+                            {{ __('Delete') }}
+                        </flux:button>
+                    @endif
                 </div>
             </div>
 

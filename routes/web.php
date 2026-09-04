@@ -78,6 +78,7 @@ Route::get('display/shift-orders/export', function (Request $request, ShiftOrder
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {
         Route::livewire('admin/page-access', 'pages::admin.page-access')->name('admin.page-access');
+        Route::livewire('admin/act-as-role', 'pages::admin.act-as-role')->name('admin.act-as-role');
     });
 
     Route::middleware('page.access')->group(function () {

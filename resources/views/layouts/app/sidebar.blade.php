@@ -29,7 +29,7 @@
                 'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow', 'admin.supervisor-questions',
                 'admin.supervisor-checklist', 'admin.nurse-questionnaires', 'admin.nurse-questionnaire-submissions',
                 'admin.ward-maintenance-submissions', 'admin.equipment-inspection-submissions', 'admin.emergency-department-log-submissions',
-                'admin.page-access',
+                'admin.page-access', 'admin.act-as-role',
             ];
             $systemRoutes = [
                 'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders', 'reception.shift',
@@ -376,6 +376,11 @@
                         <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>
                             {{ __('Page Access') }}
                         </flux:sidebar.item>
+                        @if ($user->isActuallyAdmin())
+                            <flux:sidebar.item icon="eye" :href="route('admin.act-as-role')" :current="request()->routeIs('admin.act-as-role')" wire:navigate>
+                                {{ __('Act as Role') }}
+                            </flux:sidebar.item>
+                        @endif
                     </flux:sidebar.group>
                 @endif
 

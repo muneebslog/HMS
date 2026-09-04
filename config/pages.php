@@ -122,6 +122,7 @@ return [
         'management.crud' => ['label' => 'Management CRUD', 'group' => 'Administration'],
         'management.procedure-type-documents.preview' => ['label' => 'Procedure Type Document Preview', 'group' => 'Administration', 'parent' => 'management.crud'],
         'admin.users' => ['label' => 'Users', 'group' => 'Administration', 'admin_only' => true],
+        'admin.act-as-role' => ['label' => 'Act as Role', 'group' => 'Administration', 'admin_only' => true],
         'admin.employees' => ['label' => 'Staff Profiles', 'group' => 'Administration'],
         'admin.employees.profile' => ['label' => 'Staff Profile', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'employee-documents.download' => ['label' => 'Employee Document Download', 'group' => 'Administration', 'parent' => 'admin.employees'],

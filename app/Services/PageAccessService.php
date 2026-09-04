@@ -35,7 +35,7 @@ class PageAccessService
             return false;
         }
 
-        return in_array($resolvedRoute, $this->routeNamesForRole($user->role), true);
+        return in_array($resolvedRoute, $this->routeNamesForRole($user->effectiveRole()), true);
     }
 
     /**
@@ -69,7 +69,7 @@ class PageAccessService
             return ['pending-role'];
         }
 
-        return $this->routeNamesForRole($user->role);
+        return $this->routeNamesForRole($user->effectiveRole());
     }
 
     /**

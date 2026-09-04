@@ -12,7 +12,7 @@ class EnsureUserRole
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(Request): (Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
@@ -22,7 +22,7 @@ class EnsureUserRole
             return redirect()->route('login');
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isActuallyAdmin()) {
             return $next($request);
         }
 

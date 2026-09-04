@@ -56,8 +56,28 @@ test('mark paid does nothing when the procedure is already fully paid', function
     expect($procedure->fresh()->payments)->toHaveCount(1);
 });
 
-test('a procedure and its payments can be deleted', function () {
-    $user = User::factory()->create();
+test('admin can delete a procedure and its payments', function () {
+    $admin = User::factory()->admin()->create();
+    $procedure = Procedure::factory()->create(['full_amount' => 5000]);
+
+    ProcedurePayment::factory()->for($procedure)->count(2)->create([
+        'created_by' => $admin->id,
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSeeHtml('wire:click="deleteProcedure('.$procedure->id.')"')
+        ->call('deleteProcedure', $procedure->id)
+        ->assertHasNoErrors()
+        ->assertSet('showViewModal', false);
+
+    expect(Procedure::find($procedure->id))->toBeNull()
+        ->and(ProcedurePayment::where('procedure_id', $procedure->id)->count())->toBe(0);
+});
+
+test('non-admins cannot delete a procedure', function () {
+    $user = User::factory()->receptionist()->create();
     $procedure = Procedure::factory()->create(['full_amount' => 5000]);
 
     ProcedurePayment::factory()->for($procedure)->count(2)->create([
@@ -67,10 +87,10 @@ test('a procedure and its payments can be deleted', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('viewProcedure', $procedure->id)
+        ->assertDontSeeHtml('wire:click="deleteProcedure('.$procedure->id.')"')
         ->call('deleteProcedure', $procedure->id)
-        ->assertHasNoErrors()
-        ->assertSet('showViewModal', false);
+        ->assertForbidden();
 
-    expect(Procedure::find($procedure->id))->toBeNull()
-        ->and(ProcedurePayment::where('procedure_id', $procedure->id)->count())->toBe(0);
+    expect(Procedure::find($procedure->id))->not->toBeNull()
+        ->and(ProcedurePayment::where('procedure_id', $procedure->id)->count())->toBe(2);
 });
