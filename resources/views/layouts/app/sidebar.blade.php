@@ -16,7 +16,7 @@
             $receptionRoutes = [
                 'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry',
                 'lab-entries', 'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
-                'reception.token-flow', 'payout.daily', 'supervisor.checklist',
+                'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
                 'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
@@ -176,11 +176,6 @@
                         @pageAccess('payout.daily')
                             <flux:sidebar.item icon="banknotes" :href="route('payout.daily')" :current="request()->routeIs('payout.daily')" wire:navigate>
                                 {{ __('Daily Payout') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('supervisor.checklist')
-                            <flux:sidebar.item icon="clipboard-document-check" :href="route('supervisor.checklist')" :current="request()->routeIs('supervisor.checklist')" wire:navigate>
-                                {{ __('Checklist') }}
                             </flux:sidebar.item>
                         @endpageAccess
                     </flux:sidebar.group>

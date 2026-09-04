@@ -131,5 +131,7 @@ test('sidebar hides admin pages from receptionists', function () {
         ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertDontSee(__('SQL Runner'))
-        ->assertDontSee(__('Users'));
+        ->assertDontSee(__('Users'))
+        ->assertDontSee(__('Checklist'))
+        ->assertDontSee(__('Questionnaires'));
 });
