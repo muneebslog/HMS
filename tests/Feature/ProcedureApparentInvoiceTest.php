@@ -118,7 +118,7 @@ test('saving an apparent invoice again replaces previous fee lines', function ()
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('openApparentInvoice', $procedure->id)
-        ->assertSee('Old Fee')
+        ->assertSet('apparentInvoiceItems.0.name', 'Old Fee')
         ->set('apparentInvoiceItems', [
             ['name' => 'Surgeon Fee', 'amount' => '50000'],
             ['name' => 'Anesthesia Fee', 'amount' => '6000'],
