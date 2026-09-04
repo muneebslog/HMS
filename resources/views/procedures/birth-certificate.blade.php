@@ -14,6 +14,11 @@
                 margin: 12mm;
             }
 
+            html,
+            body {
+                height: 100%;
+            }
+
             body {
                 margin: 0;
                 padding: 24px;
@@ -25,9 +30,15 @@
 
             .sheet {
                 max-width: 210mm;
+                min-height: calc(297mm - 24mm);
                 margin: 0 auto;
-                border: 3px double #111;
-                padding: 28px 32px;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .sheet-body {
+                flex: 1 0 auto;
             }
 
             .header {
@@ -167,7 +178,7 @@
             }
 
             .contact {
-                margin-top: 28px;
+                margin-top: auto;
                 border-top: 1px solid #ccc;
                 padding-top: 12px;
                 font-size: 9.5pt;
@@ -192,8 +203,18 @@
             }
 
             @media print {
+                html,
+                body {
+                    height: auto;
+                    min-height: 100%;
+                }
+
                 body {
                     padding: 0;
+                }
+
+                .sheet {
+                    min-height: calc(297mm - 24mm);
                 }
 
                 .no-print {
@@ -223,116 +244,118 @@
         @endphp
 
         <div class="sheet">
-            <div class="header">
-                <div class="header-left">
-                    <h1 class="facility-name">{{ config('hospital.name') }}</h1>
-                    @if (filled(config('hospital.tagline')))
-                        <p class="tagline">{{ config('hospital.tagline') }}</p>
-                    @endif
-                </div>
-                <div class="header-right">
-                    <p class="issued">{{ __('Issued') }} {{ now()->format('d M Y') }}</p>
-                    <div class="barcode">
-                        {!! \App\Support\Code39Barcode::svg($docNumber, 36, 1.2) !!}
-                        <p class="barcode-label">{{ $docNumber }}</p>
+            <div class="sheet-body">
+                <div class="header">
+                    <div class="header-left">
+                        <h1 class="facility-name">{{ config('hospital.name') }}</h1>
+                        @if (filled(config('hospital.tagline')))
+                            <p class="tagline">{{ config('hospital.tagline') }}</p>
+                        @endif
+                    </div>
+                    <div class="header-right">
+                        <p class="issued">{{ __('Issued') }} {{ now()->format('d M Y') }}</p>
+                        <div class="barcode">
+                            {!! \App\Support\Code39Barcode::svg($docNumber, 36, 1.2) !!}
+                            <p class="barcode-label">{{ $docNumber }}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <p class="doc-title">{{ __('Birth Certificate') }}</p>
+                <p class="doc-title">{{ __('Birth Certificate') }}</p>
 
-            <div class="section">
-                <h2 class="section-title">{{ __('Child Details') }}</h2>
-                <div class="grid">
-                    <div class="row">
-                        <span class="label">{{ __('Name (if given)') }}</span>
-                        <span class="value">{{ $certificate?->baby_name ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Sex') }}</span>
-                        <span class="value">{{ $sexLabel }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Day and Date of Birth') }}</span>
-                        <span class="value">{{ $birthAt?->format('l, d M Y') ?? '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Status') }}</span>
-                        <span class="value">{{ $certificate?->status?->label() ?? __('Living') }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('This Birth') }}</span>
-                        <span class="value">{{ $certificate?->multiplicity?->label() ?? __('Single') }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('This Child Born') }}</span>
-                        <span class="value">{{ $certificate?->childOrderLabel() ?? '-' }}</span>
-                    </div>
-                    @unless ($certificate)
+                <div class="section">
+                    <h2 class="section-title">{{ __('Child Details') }}</h2>
+                    <div class="grid">
                         <div class="row">
-                            <span class="label">{{ __('Weight') }}</span>
-                            <span class="value">{{ $dischargeDetail?->baby_weight ?? $deliveryNote?->baby_weight ?? '-' }}</span>
+                            <span class="label">{{ __('Name (if given)') }}</span>
+                            <span class="value">{{ $certificate?->baby_name ?: '-' }}</span>
                         </div>
                         <div class="row">
-                            <span class="label">{{ __('Mode of Delivery') }}</span>
-                            <span class="value">{{ $deliveryNote?->labour_type ?? $procedure->procedureType?->name ?? '-' }}</span>
+                            <span class="label">{{ __('Sex') }}</span>
+                            <span class="value">{{ $sexLabel }}</span>
                         </div>
-                    @endunless
-                </div>
-            </div>
-
-            <div class="section">
-                <h2 class="section-title">{{ __('Parents & Family') }}</h2>
-                <div class="grid">
-                    <div class="row">
-                        <span class="label">{{ __('Father Name') }}</span>
-                        <span class="value">{{ $fatherName ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Mother Name') }}</span>
-                        <span class="value">{{ $motherName ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Grand Father Name') }}</span>
-                        <span class="value">{{ $certificate?->grandfather_name ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Mother\'s Father Name') }}</span>
-                        <span class="value">{{ $certificate?->maternal_grandfather_name ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Father Age') }}</span>
-                        <span class="value">{{ $certificate?->father_age ?? '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Mother Age') }}</span>
-                        <span class="value">{{ $motherAge ?? '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Father CNIC') }}</span>
-                        <span class="value">{{ $certificate?->father_cnic ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Mother CNIC') }}</span>
-                        <span class="value">{{ $motherCnic ?: '-' }}</span>
-                    </div>
-                    <div class="row grid-full">
-                        <span class="label">{{ __('Home Address') }}</span>
-                        <span class="value">{{ $certificate?->home_address ?: '-' }}</span>
+                        <div class="row">
+                            <span class="label">{{ __('Day and Date of Birth') }}</span>
+                            <span class="value">{{ $birthAt?->format('l, d M Y') ?? '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Status') }}</span>
+                            <span class="value">{{ $certificate?->status?->label() ?? __('Living') }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('This Birth') }}</span>
+                            <span class="value">{{ $certificate?->multiplicity?->label() ?? __('Single') }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('This Child Born') }}</span>
+                            <span class="value">{{ $certificate?->childOrderLabel() ?? '-' }}</span>
+                        </div>
+                        @unless ($certificate)
+                            <div class="row">
+                                <span class="label">{{ __('Weight') }}</span>
+                                <span class="value">{{ $dischargeDetail?->baby_weight ?? $deliveryNote?->baby_weight ?? '-' }}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">{{ __('Mode of Delivery') }}</span>
+                                <span class="value">{{ $deliveryNote?->labour_type ?? $procedure->procedureType?->name ?? '-' }}</span>
+                            </div>
+                        @endunless
                     </div>
                 </div>
-            </div>
 
-            <div class="witness">
-                <p>
-                    {{ __('IN WITNESS WHEREOF; the said hospital has caused this certificate to sign by its duty authorized officers hereto affixed.') }}
-                </p>
-            </div>
+                <div class="section">
+                    <h2 class="section-title">{{ __('Parents & Family') }}</h2>
+                    <div class="grid">
+                        <div class="row">
+                            <span class="label">{{ __('Father Name') }}</span>
+                            <span class="value">{{ $fatherName ?: '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Mother Name') }}</span>
+                            <span class="value">{{ $motherName ?: '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Grand Father Name') }}</span>
+                            <span class="value">{{ $certificate?->grandfather_name ?: '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Mother\'s Father Name') }}</span>
+                            <span class="value">{{ $certificate?->maternal_grandfather_name ?: '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Father Age') }}</span>
+                            <span class="value">{{ $certificate?->father_age ?? '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Mother Age') }}</span>
+                            <span class="value">{{ $motherAge ?? '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Father CNIC') }}</span>
+                            <span class="value">{{ $certificate?->father_cnic ?: '-' }}</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">{{ __('Mother CNIC') }}</span>
+                            <span class="value">{{ $motherCnic ?: '-' }}</span>
+                        </div>
+                        <div class="row grid-full">
+                            <span class="label">{{ __('Home Address') }}</span>
+                            <span class="value">{{ $certificate?->home_address ?: '-' }}</span>
+                        </div>
+                    </div>
+                </div>
 
-            <div class="sign-row">
-                <div class="signature-line">{{ __('Staff Nurse / Midwife') }}</div>
-                <div class="signature-line">{{ __('Doctor') }}</div>
-                <div class="signature-line">{{ __('Administrator') }}</div>
+                <div class="witness">
+                    <p>
+                        {{ __('IN WITNESS WHEREOF; the said hospital has caused this certificate to sign by its duty authorized officers hereto affixed.') }}
+                    </p>
+                </div>
+
+                <div class="sign-row">
+                    <div class="signature-line">{{ __('Staff Nurse / Midwife') }}</div>
+                    <div class="signature-line">{{ __('Doctor') }}</div>
+                    <div class="signature-line">{{ __('Administrator') }}</div>
+                </div>
             </div>
 
             <div class="contact">
