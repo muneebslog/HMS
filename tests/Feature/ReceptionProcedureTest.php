@@ -383,7 +383,7 @@ test('full amount cannot be reduced below total paid', function () {
     expect($procedure->full_amount)->toBe(5000.0);
 });
 
-test('editing a procedure cannot reassign it to a different patient', function () {
+test('editing a procedure does not show phone intake and cannot reassign the patient', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $linkedPatient = Patient::factory()->withPhone('03001112222')->create([
@@ -404,18 +404,23 @@ test('editing a procedure cannot reassign it to a different patient', function (
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('edit', $procedure->id)
+        ->assertDontSee(__('Phone number'))
+        ->assertDontSee(__('Have no number'))
+        ->assertDontSee(__('Matching patients'))
+        ->assertSee(__('Linked patient'))
+        ->assertSee('03001112222')
+        ->assertSee($linkedPatient->mrn)
         ->call('selectMatchedPatient', $otherPatient->id)
         ->assertHasErrors(['selectedPatientId'])
         ->assertSet('selectedPatientId', $linkedPatient->id)
-        ->set('patientName', $otherPatient->name)
-        ->set('selectedPatientId', $otherPatient->id)
+        ->set('patientName', 'Updated Linked Name')
         ->call('saveProcedure')
-        ->assertHasErrors(['selectedPatientId'])
-        ->assertSet('showProcedureModal', true);
+        ->assertHasNoErrors();
 
     $procedure->refresh();
     expect($procedure->patient_id)->toBe($linkedPatient->id)
-        ->and($linkedPatient->fresh()->name)->toBe('Linked Patient')
+        ->and($linkedPatient->fresh()->name)->toBe('Updated Linked Name')
+        ->and($linkedPatient->fresh()->contactPhone())->toBe('03001112222')
         ->and($otherPatient->fresh()->name)->toBe('Other Patient');
 });
 
@@ -435,6 +440,7 @@ test('clearing or replacing the patient while editing a procedure shows an error
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->call('edit', $procedure->id)
+        ->assertDontSee(__('Phone number'))
         ->call('clearSelectedPatient')
         ->assertHasErrors(['selectedPatientId'])
         ->assertSet('selectedPatientId', $patient->id)
@@ -627,6 +633,70 @@ test('search finds procedures outside the day window', function () {
         ->assertDontSee('Archived Delivery')
         ->set('search', 'Older Patient')
         ->assertSee('Archived Delivery');
+});
+
+test('procedures can be filtered by status', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    Procedure::factory()->for($shift)->create([
+        'name' => 'Booking Case',
+        'status' => ProcedureStatus::Booking,
+    ]);
+    Procedure::factory()->for($shift)->admitted()->create([
+        'name' => 'Admitted Case',
+    ]);
+    Procedure::factory()->for($shift)->discharged()->create([
+        'name' => 'Discharged Case',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('setDays', 0)
+        ->assertSee('Booking Case')
+        ->assertSee('Admitted Case')
+        ->assertSee('Discharged Case')
+        ->call('setStatusFilter', ProcedureStatus::Booking->value)
+        ->assertSet('statusFilter', ProcedureStatus::Booking->value)
+        ->assertSee('Booking Case')
+        ->assertDontSee('Admitted Case')
+        ->assertDontSee('Discharged Case')
+        ->call('setStatusFilter', ProcedureStatus::Admitted->value)
+        ->assertSee('Admitted Case')
+        ->assertDontSee('Booking Case')
+        ->assertDontSee('Discharged Case')
+        ->call('setStatusFilter', ProcedureStatus::Discharged->value)
+        ->assertSee('Discharged Case')
+        ->assertDontSee('Booking Case')
+        ->assertDontSee('Admitted Case')
+        ->call('setStatusFilter', '')
+        ->assertSee('Booking Case')
+        ->assertSee('Admitted Case')
+        ->assertSee('Discharged Case');
+});
+
+test('search finds procedures regardless of status filter', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->create(['name' => 'Status Ignored Patient']);
+
+    Procedure::factory()->for($shift)->for($patient)->discharged()->create([
+        'name' => 'Discharged Search Case',
+    ]);
+    Procedure::factory()->for($shift)->admitted()->create([
+        'name' => 'Other Admitted Case',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('setDays', 0)
+        ->call('setStatusFilter', ProcedureStatus::Booking->value)
+        ->assertDontSee('Discharged Search Case')
+        ->assertDontSee('Other Admitted Case')
+        ->set('search', 'Status Ignored')
+        ->assertSee('Discharged Search Case')
+        ->assertDontSee('Other Admitted Case')
+        ->assertSee(__('Searching all procedures. Day and status filters are ignored while searching.'));
 });
 
 test('procedure payment ledger can be viewed from a card', function () {

@@ -37,6 +37,9 @@ new #[Title('Procedures')] class extends Component
     /** @var int Number of days to include; 0 means all procedures. */
     public int $days = 3;
 
+    /** Empty string means all statuses. */
+    public string $statusFilter = '';
+
     public bool $showProcedureModal = false;
 
     public bool $showPaymentModal = false;
@@ -48,6 +51,10 @@ new #[Title('Procedures')] class extends Component
     public bool $showPaymentLedger = false;
 
     public ?int $editingProcedureId = null;
+
+    public ?string $editingPatientMrn = null;
+
+    public ?string $editingPatientPhone = null;
 
     public ?int $viewingProcedureId = null;
 
@@ -180,6 +187,14 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Reset pagination when the status filter changes.
+     */
+    public function updatingStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
      * Set how many recent days of procedures to show (0 = all).
      */
     public function setDays(int $days): void
@@ -193,12 +208,27 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Filter procedures by status (empty string = all).
+     */
+    public function setStatusFilter(string $status): void
+    {
+        if ($status !== '' && ProcedureStatus::tryFrom($status) === null) {
+            return;
+        }
+
+        $this->statusFilter = $status;
+        $this->resetPage();
+    }
+
+    /**
      * Open the modal to create a new procedure.
      */
     public function create(): void
     {
         $this->resetProcedureForm();
         $this->editingProcedureId = null;
+        $this->editingPatientMrn = null;
+        $this->editingPatientPhone = null;
         $this->showProcedureModal = true;
     }
 
@@ -215,8 +245,11 @@ new #[Title('Procedures')] class extends Component
 
         $this->selectedPatientId = $procedure->patient->id;
         $this->patientName = $procedure->patient->name;
-        $this->patientPhone = $procedure->patient->contactPhone() ?? '';
-        $this->hasNoPhone = blank($this->patientPhone);
+        $this->editingPatientMrn = $procedure->patient->mrn;
+        $this->editingPatientPhone = $procedure->patient->contactPhone();
+        $this->patientPhone = '';
+        $this->hasNoPhone = false;
+        $this->matchedPatients = [];
         $this->husbandName = $procedure->patient->husband_name ?? '';
         $this->patientAge = $procedure->patient->age;
         $this->procedureTypeId = $procedure->procedure_type_id
@@ -405,6 +438,8 @@ new #[Title('Procedures')] class extends Component
     {
         $this->showProcedureModal = false;
         $this->editingProcedureId = null;
+        $this->editingPatientMrn = null;
+        $this->editingPatientPhone = null;
         $this->resetProcedureForm();
     }
 
@@ -502,9 +537,6 @@ new #[Title('Procedures')] class extends Component
     {
         $rules = [
             'patientName' => $this->rules()['patientName'],
-            'patientPhone' => $this->rules()['patientPhone'],
-            'hasNoPhone' => $this->rules()['hasNoPhone'],
-            'selectedPatientId' => $this->rules()['selectedPatientId'],
             'husbandName' => $this->rules()['husbandName'],
             'patientAge' => $this->rules()['patientAge'],
             'procedureTypeId' => $this->rules()['procedureTypeId'],
@@ -514,6 +546,9 @@ new #[Title('Procedures')] class extends Component
         ];
 
         if ($this->editingProcedureId === null) {
+            $rules['patientPhone'] = $this->rules()['patientPhone'];
+            $rules['hasNoPhone'] = $this->rules()['hasNoPhone'];
+            $rules['selectedPatientId'] = $this->rules()['selectedPatientId'];
             $rules['hasAdvancePayment'] = $this->rules()['hasAdvancePayment'];
             $rules['advancePayment'] = $this->rules()['advancePayment'];
             $rules['advancePaymentMode'] = $this->rules()['advancePaymentMode'];
@@ -622,11 +657,6 @@ new #[Title('Procedures')] class extends Component
                 'husband_name' => $validated['husbandName'],
                 'age' => $validated['patientAge'],
             ]);
-
-            app(PatientIntakeService::class)->updateContactPhone(
-                $procedure->patient,
-                $this->hasNoPhone ? null : $validated['patientPhone'],
-            );
 
             $procedure->update([
                 'procedure_type_id' => $procedureType->id,
@@ -810,18 +840,20 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Get the list of procedures filtered by day window and patient name or MRN.
-     * Admitted (on-ward) patients always appear first and remain visible regardless of the day window.
+     * Get the list of procedures filtered by day window, status, and patient name or MRN.
+     * Search ignores the day and status filters. Without search, admitted (on-ward)
+     * patients always appear first and remain visible regardless of the day window.
      */
     #[Computed]
     public function procedures(): LengthAwarePaginator
     {
         $search = trim($this->search);
+        $isSearching = $search !== '';
 
         return Procedure::query()
             ->with(['patient', 'doctor'])
             ->withSum('activePayments as payments_sum_amount', 'amount')
-            ->when($search !== '', function (Builder $query) use ($search) {
+            ->when($isSearching, function (Builder $query) use ($search) {
                 $term = '%'.$search.'%';
 
                 $query->whereHas('patient', function (Builder $patientQuery) use ($term) {
@@ -829,7 +861,7 @@ new #[Title('Procedures')] class extends Component
                         ->orWhere('mrn', 'like', $term);
                 });
             })
-            ->when($search === '' && $this->days > 0, function (Builder $query) {
+            ->when(! $isSearching && $this->days > 0, function (Builder $query) {
                 $since = now()->subDays($this->days)->startOfDay();
 
                 $query->where(function (Builder $window) use ($since) {
@@ -839,9 +871,12 @@ new #[Title('Procedures')] class extends Component
                         });
                 });
             })
+            ->when(! $isSearching && $this->statusFilter !== '', function (Builder $query) {
+                $query->where('status', $this->statusFilter);
+            })
             ->orderByRaw('case when admitted_at is not null and discharged_at is null then 0 else 1 end')
             ->latest()
-            ->paginate($this->days > 0 && $search === '' ? 100 : 24);
+            ->paginate(! $isSearching && $this->days > 0 ? 100 : 24);
     }
 
     /**
@@ -912,25 +947,55 @@ new #[Title('Procedures')] class extends Component
                 </flux:field>
 
                 @if (trim($search) === '')
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <flux:text class="text-sm text-zinc-500">
-                            {{ $days > 0
-                                ? __('Showing procedures from the last :days days (admitted patients always included).', ['days' => $days])
-                                : __('Showing all procedures.') }}
-                        </flux:text>
-                        <div class="flex flex-wrap gap-2">
-                            @foreach ([3 => __('3 days'), 7 => __('7 days'), 14 => __('14 days'), 30 => __('30 days'), 0 => __('All')] as $value => $label)
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <flux:text class="text-sm text-zinc-500">
+                                {{ $days > 0
+                                    ? __('Showing procedures from the last :days days (admitted patients always included).', ['days' => $days])
+                                    : __('Showing all procedures.') }}
+                            </flux:text>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ([3 => __('3 days'), 7 => __('7 days'), 14 => __('14 days'), 30 => __('30 days'), 0 => __('All')] as $value => $label)
+                                    <flux:button
+                                        type="button"
+                                        size="sm"
+                                        variant="{{ $days === $value ? 'primary' : 'ghost' }}"
+                                        wire:click="setDays({{ $value }})"
+                                    >
+                                        {{ $label }}
+                                    </flux:button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <flux:text class="text-sm text-zinc-500">{{ __('Status') }}</flux:text>
+                            <div class="flex flex-wrap gap-2">
                                 <flux:button
                                     type="button"
                                     size="sm"
-                                    variant="{{ $days === $value ? 'primary' : 'ghost' }}"
-                                    wire:click="setDays({{ $value }})"
+                                    variant="{{ $statusFilter === '' ? 'primary' : 'ghost' }}"
+                                    wire:click="setStatusFilter('')"
                                 >
-                                    {{ $label }}
+                                    {{ __('All') }}
                                 </flux:button>
-                            @endforeach
+                                @foreach (ProcedureStatus::cases() as $status)
+                                    <flux:button
+                                        type="button"
+                                        size="sm"
+                                        variant="{{ $statusFilter === $status->value ? 'primary' : 'ghost' }}"
+                                        wire:click="setStatusFilter('{{ $status->value }}')"
+                                    >
+                                        {{ $status->label() }}
+                                    </flux:button>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
+                @else
+                    <flux:text class="text-sm text-zinc-500">
+                        {{ __('Searching all procedures. Day and status filters are ignored while searching.') }}
+                    </flux:text>
                 @endif
             </div>
         </flux:card>
@@ -1030,11 +1095,32 @@ new #[Title('Procedures')] class extends Component
 
         <form wire:submit="saveProcedure" class="mt-6 space-y-6">
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                    @include('partials.reception.patient-intake')
-                </div>
+                @if ($editingProcedureId === null)
+                    <div class="sm:col-span-2">
+                        @include('partials.reception.patient-intake')
+                    </div>
 
-                @if ($this->shouldShowPatientNameField())
+                    @if ($this->shouldShowPatientNameField())
+                        <flux:field class="sm:col-span-2">
+                            <flux:label>{{ __('Name') }}</flux:label>
+                            <flux:input wire:model="patientName" type="text" required />
+                            <flux:error name="patientName" />
+                        </flux:field>
+                    @endif
+                @else
+                    <div class="sm:col-span-2 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                        <flux:text class="font-medium">{{ __('Linked patient') }}</flux:text>
+                        <flux:text class="text-zinc-500 dark:text-zinc-400">
+                            {{ __('MRN') }}: {{ $editingPatientMrn ?? __('No MRN') }}
+                            ·
+                            {{ __('Phone') }}: {{ $editingPatientPhone ?? __('No phone') }}
+                        </flux:text>
+                        <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ __('The patient on an existing procedure cannot be changed. Create a new procedure for a different patient.') }}
+                        </flux:text>
+                        <flux:error name="selectedPatientId" />
+                    </div>
+
                     <flux:field class="sm:col-span-2">
                         <flux:label>{{ __('Name') }}</flux:label>
                         <flux:input wire:model="patientName" type="text" required />
