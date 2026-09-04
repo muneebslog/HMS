@@ -115,6 +115,8 @@ test('birth certificate details can be saved and printed from reception', functi
         ->assertSee('Peer Colony, St. # 1, Walton Road, Lahore.')
         ->assertSee('0320-8489685 , 042-3662345')
         ->assertSee('mmcwalton@gmail.com')
+        ->assertSee('BC-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT))
+        ->assertSee('aria-label="BC-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT).'"', false)
         ->assertDontSee('>'.__('MRN').'<', false)
         ->assertDontSee(__('Place of Birth'));
 
