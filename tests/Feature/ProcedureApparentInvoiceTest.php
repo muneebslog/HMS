@@ -86,7 +86,9 @@ test('a receptionist can save and print an apparent invoice with custom fees', f
     $this->actingAs($user)
         ->get(route('reception.procedures.apparent-invoice', $procedure))
         ->assertOk()
+        ->assertSee(config('hospital.name'))
         ->assertSee(__('Payment Receipt'))
+        ->assertSee('APP-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT))
         ->assertSee('Saba Amir')
         ->assertSee('Amir Sohail')
         ->assertSee('Dr. Sadia Sohail')
@@ -94,6 +96,8 @@ test('a receptionist can save and print an apparent invoice with custom fees', f
         ->assertSee('Surgeon Fee')
         ->assertSee('Misc Charges')
         ->assertSee('138,763')
+        ->assertSee(config('hospital.address'))
+        ->assertSee(config('hospital.phone'))
         ->assertSee('window.print()', false);
 });
 
@@ -140,4 +144,20 @@ test('the procedure view modal includes an apparent invoice button', function ()
         ->test('pages::reception.procedures')
         ->call('viewProcedure', $procedure->id)
         ->assertSee(__('Apparent Invoice'));
+});
+
+test('the apparent invoice modal shows a live total as fee amounts change', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->create(['created_by' => $user->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('openApparentInvoice', $procedure->id)
+        ->assertSet('apparentInvoiceLiveTotal', 0.0)
+        ->set('apparentInvoiceItems.0.amount', '75000')
+        ->set('apparentInvoiceItems.1.amount', '25000')
+        ->assertSet('apparentInvoiceLiveTotal', 100000.0)
+        ->assertSee(__('Live total'))
+        ->assertSee('100,000.00');
 });

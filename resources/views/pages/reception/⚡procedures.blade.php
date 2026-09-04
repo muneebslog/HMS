@@ -727,6 +727,18 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
+     * Running total of apparent invoice fee amounts for the editor UI.
+     */
+    #[Computed]
+    public function apparentInvoiceLiveTotal(): float
+    {
+        return round(
+            collect($this->apparentInvoiceItems)->sum(fn (array $item): float => (float) ($item['amount'] ?? 0)),
+            2,
+        );
+    }
+
+    /**
      * Reset apparent invoice form fields.
      */
     private function resetApparentInvoiceForm(): void
@@ -735,6 +747,7 @@ new #[Title('Procedures')] class extends Component
         $this->newApparentFeeName = '';
         $this->newApparentFeeAmount = '';
         $this->resetErrorBag();
+        unset($this->apparentInvoiceLiveTotal);
     }
 
     /**
@@ -758,6 +771,7 @@ new #[Title('Procedures')] class extends Component
             'newApparentFeeName',
             'newApparentFeeAmount',
         ]);
+        unset($this->apparentInvoiceLiveTotal);
     }
 
     /**
@@ -771,6 +785,7 @@ new #[Title('Procedures')] class extends Component
 
         unset($this->apparentInvoiceItems[$index]);
         $this->apparentInvoiceItems = array_values($this->apparentInvoiceItems);
+        unset($this->apparentInvoiceLiveTotal);
     }
 
     /**
@@ -2361,7 +2376,7 @@ new #[Title('Procedures')] class extends Component
                             @if ($index === 0)
                                 <flux:label>{{ __('Amount') }}</flux:label>
                             @endif
-                            <flux:input type="number" step="0.01" min="0" wire:model="apparentInvoiceItems.{{ $index }}.amount" />
+                            <flux:input type="number" step="0.01" min="0" wire:model.live="apparentInvoiceItems.{{ $index }}.amount" />
                             <flux:error name="apparentInvoiceItems.{{ $index }}.amount" />
                         </flux:field>
                         <div class="{{ $index === 0 ? 'pt-7' : 'pt-1' }}">
@@ -2378,6 +2393,15 @@ new #[Title('Procedures')] class extends Component
                 <flux:error name="apparentInvoiceItems" />
             </div>
 
+            <div class="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between gap-3">
+                    <flux:text class="text-zinc-500">{{ __('Live total') }}</flux:text>
+                    <flux:heading level="3">
+                        {{ __('Rs.') }} {{ number_format($this->apparentInvoiceLiveTotal, 2) }}
+                    </flux:heading>
+                </div>
+            </div>
+
             <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                 <flux:heading level="3" class="mb-3">{{ __('Add fee') }}</flux:heading>
                 <div class="grid grid-cols-[1fr_8rem_auto] items-start gap-2">
@@ -2386,7 +2410,7 @@ new #[Title('Procedures')] class extends Component
                         <flux:error name="newApparentFeeName" />
                     </flux:field>
                     <flux:field>
-                        <flux:input type="number" step="0.01" min="0" wire:model="newApparentFeeAmount" placeholder="0" />
+                        <flux:input type="number" step="0.01" min="0" wire:model.live="newApparentFeeAmount" placeholder="0" />
                         <flux:error name="newApparentFeeAmount" />
                     </flux:field>
                     <flux:button type="button" size="sm" variant="filled" icon="plus" wire:click="addApparentInvoiceItem">
@@ -2398,7 +2422,7 @@ new #[Title('Procedures')] class extends Component
             <div class="flex items-center justify-between gap-3 border-t pt-4">
                 <flux:text class="font-medium">
                     {{ __('Total') }}:
-                    {{ number_format(collect($apparentInvoiceItems)->sum(fn ($item) => (float) ($item['amount'] ?? 0)), 2) }}
+                    {{ __('Rs.') }} {{ number_format($this->apparentInvoiceLiveTotal, 2) }}
                 </flux:text>
                 <div class="flex flex-wrap justify-end gap-3">
                     <flux:button type="button" variant="ghost" wire:click="closeApparentInvoiceModal">

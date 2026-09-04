@@ -28,11 +28,70 @@
                 margin: 0 auto;
             }
 
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 24px;
+                border-bottom: 2px solid #111;
+                padding-bottom: 14px;
+                margin-bottom: 16px;
+            }
+
+            .header-left {
+                flex: 1;
+                min-width: 0;
+                text-align: left;
+            }
+
+            .header-left .facility-name {
+                margin: 0;
+                font-size: 17pt;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                line-height: 1.2;
+            }
+
+            .header-left .tagline {
+                margin: 4px 0 0;
+                font-size: 9.5pt;
+                color: #444;
+                font-style: italic;
+            }
+
+            .header-right {
+                text-align: right;
+                flex-shrink: 0;
+            }
+
+            .header-right .issued {
+                margin: 0 0 6px;
+                font-size: 8.5pt;
+                color: #555;
+            }
+
+            .header-right .barcode {
+                display: inline-block;
+            }
+
+            .header-right .barcode svg {
+                display: block;
+                margin-left: auto;
+            }
+
+            .header-right .barcode-label {
+                margin: 2px 0 0;
+                font-size: 8pt;
+                font-family: Consolas, "Courier New", monospace;
+                letter-spacing: 0.08em;
+            }
+
             .top-meta {
                 display: flex;
                 justify-content: space-between;
                 gap: 16px;
-                margin-bottom: 10px;
+                margin-bottom: 14px;
                 font-size: 10pt;
             }
 
@@ -107,7 +166,7 @@
             }
 
             .witness {
-                margin-top: 28px;
+                margin-top: 56px;
                 font-size: 10pt;
                 color: #333;
             }
@@ -132,7 +191,8 @@
                 border-top: 1px solid #ccc;
                 font-size: 9pt;
                 color: #444;
-                line-height: 1.5;
+                line-height: 1.6;
+                text-align: center;
             }
 
             .no-print {
@@ -161,7 +221,24 @@
         <div class="receipt">
             @php
                 $regNumber = $procedure->patient->mrn ?? ('R-'.str_pad((string) $procedure->id, 5, '0', STR_PAD_LEFT));
+                $docNumber = 'APP-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT);
             @endphp
+
+            <div class="header">
+                <div class="header-left">
+                    <h1 class="facility-name">{{ config('hospital.name') }}</h1>
+                    @if (filled(config('hospital.tagline')))
+                        <p class="tagline">{{ config('hospital.tagline') }}</p>
+                    @endif
+                </div>
+                <div class="header-right">
+                    <p class="issued">{{ __('Issued') }} {{ now()->format('d M Y') }}</p>
+                    <div class="barcode">
+                        {!! \App\Support\Code39Barcode::svg($docNumber, 36, 1.2) !!}
+                        <p class="barcode-label">{{ $docNumber }}</p>
+                    </div>
+                </div>
+            </div>
 
             <div class="top-meta">
                 <div>{{ __('PHC REG #') }} {{ $regNumber }}</div>
@@ -238,9 +315,6 @@
                 @endif
                 @if (filled(config('hospital.phone')))
                     <div>{{ __('Tel. No.') }} : {{ config('hospital.phone') }}</div>
-                @endif
-                @if (filled(config('hospital.email')))
-                    <div>{{ __('Email address') }}: {{ config('hospital.email') }}</div>
                 @endif
             </div>
         </div>
