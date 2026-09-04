@@ -32,7 +32,7 @@
                 max-width: 210mm;
                 min-height: calc(297mm - 24mm);
                 margin: 0 auto;
-                padding: 0;
+                padding: 20px 0 0;
                 display: flex;
                 flex-direction: column;
             }
@@ -53,7 +53,7 @@
                 gap: 24px;
                 border-bottom: 2px solid #111;
                 padding-bottom: 14px;
-                margin-bottom: 12px;
+                margin-bottom: 28px;
             }
 
             .header-left {
@@ -106,7 +106,7 @@
             }
 
             .doc-title {
-                margin: 0 0 18px;
+                margin: 0 0 28px;
                 text-align: center;
                 font-size: 15pt;
                 font-weight: 700;
@@ -116,23 +116,23 @@
             }
 
             .section {
-                margin-bottom: 16px;
+                margin-bottom: 28px;
             }
 
             .section-title {
-                margin: 0 0 8px;
+                margin: 0 0 14px;
                 font-size: 11pt;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.04em;
                 border-bottom: 1px solid #ccc;
-                padding-bottom: 4px;
+                padding-bottom: 6px;
             }
 
             .grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 8px 24px;
+                gap: 14px 24px;
             }
 
             .grid-full {
@@ -143,7 +143,7 @@
                 display: flex;
                 justify-content: space-between;
                 gap: 12px;
-                padding: 3px 0;
+                padding: 8px 0;
                 border-bottom: 1px dotted #ccc;
             }
 
