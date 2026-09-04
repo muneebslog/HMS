@@ -98,6 +98,7 @@ test('discharging a patient marks the room free on the rooms page', function () 
         ->assertHasNoErrors();
 
     expect($procedure->fresh()->isDischarged())->toBeTrue()
+        ->and($procedure->fresh()->status->value)->toBe('discharged')
         ->and($room->fresh()->isOccupied())->toBeFalse()
         ->and($room->fresh()->isFree())->toBeTrue();
 

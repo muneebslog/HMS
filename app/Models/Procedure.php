@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProcedureStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ProcedureFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,6 +16,15 @@ class Procedure extends Model
 {
     /** @use HasFactory<ProcedureFactory> */
     use HasFactory;
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => ProcedureStatus::Booking->value,
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -45,6 +55,7 @@ class Procedure extends Model
         'doctor_id',
         'created_by',
         'shift_id',
+        'status',
     ];
 
     /**
@@ -65,6 +76,7 @@ class Procedure extends Model
             'operation_completed_at' => 'datetime',
             'post_op_completed_at' => 'datetime',
             'discharged_at' => 'datetime',
+            'status' => ProcedureStatus::class,
         ];
     }
 

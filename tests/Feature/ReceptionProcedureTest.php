@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ProcedureStatus;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Procedure;
@@ -69,6 +70,7 @@ test('a procedure with patient details and advance payment can be created', func
         ->procedure_type_id->toBe($procedureType->id)
         ->full_amount->toBe(5000.0)
         ->doctor_id->toBe($doctor->id)
+        ->status->value->toBe('booking')
         ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-12-15');
 
     expect($procedure->payments)->toHaveCount(1)
@@ -687,6 +689,7 @@ test('a patient can be admitted with cnic and room number', function () {
         ->and($procedure->room_id)->toBe($room->id)
         ->and($procedure->admitted_at)->not->toBeNull()
         ->and($procedure->isAdmitted())->toBeTrue()
+        ->and($procedure->status->value)->toBe('admitted')
         ->and($procedure->patient->fresh()->cnic)->toBe('35202-1234567-1');
 });
 
@@ -717,6 +720,7 @@ test('an existing admission can be edited without changing the admission time', 
         'room_id' => $room->id,
         'room_number' => 'Room 1',
         'admitted_at' => $admittedAt,
+        'status' => ProcedureStatus::Admitted,
     ]);
 
     Livewire::actingAs($user)
@@ -738,9 +742,8 @@ test('admission details are shown in the procedure detail modal', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $patient = Patient::factory()->create(['cnic' => '35202-7654321-9']);
-    $procedure = Procedure::factory()->for($shift)->for($patient)->create([
+    $procedure = Procedure::factory()->for($shift)->for($patient)->admitted()->create([
         'room_number' => 'Room 7',
-        'admitted_at' => now(),
     ]);
 
     Livewire::actingAs($user)

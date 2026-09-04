@@ -203,8 +203,7 @@ test('doctor portal lists their assigned ward procedures', function () {
 test('discharge and birth certificates are tracked when opened', function () {
     $user = User::factory()->indoor()->create();
     $type = ProcedureType::factory()->delivery()->create();
-    $procedure = Procedure::factory()->admitted()->for($type)->create([
-        'discharged_at' => now(),
+    $procedure = Procedure::factory()->admitted()->for($type)->discharged()->create([
         'discharged_by' => $user->id,
     ]);
 

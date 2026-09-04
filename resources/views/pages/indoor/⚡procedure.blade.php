@@ -4,6 +4,7 @@ use App\Enums\ProcedureAttachmentType;
 use App\Enums\ProcedureMedicationDoseStatus;
 use App\Enums\ProcedureMedicationForm;
 use App\Enums\ProcedureNoteStyle;
+use App\Enums\ProcedureStatus;
 use App\Models\DripBase;
 use App\Models\Injection;
 use App\Models\Medicine;
@@ -1070,6 +1071,7 @@ new #[Title('Procedure Chart')] class extends Component
         $this->procedure->update([
             'discharged_at' => now(),
             'discharged_by' => auth()->id(),
+            'status' => ProcedureStatus::Discharged,
         ]);
 
         unset($this->procedure);

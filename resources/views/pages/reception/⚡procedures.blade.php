@@ -2,6 +2,7 @@
 
 use App\Actions\DiscardProcedurePayment;
 use App\Enums\PaymentMode;
+use App\Enums\ProcedureStatus;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\Procedure;
@@ -315,6 +316,7 @@ new #[Title('Procedures')] class extends Component
                 'room_id' => $room->id,
                 'room_number' => $room->number,
                 'admitted_at' => $procedure->admitted_at ?? now(),
+                'status' => ProcedureStatus::Admitted,
             ]);
         });
 
@@ -572,6 +574,7 @@ new #[Title('Procedures')] class extends Component
                 'doctor_id' => $validated['doctorId'] ?: null,
                 'created_by' => auth()->id(),
                 'shift_id' => $shift->id,
+                'status' => ProcedureStatus::Booking,
             ]);
 
             if ($this->hasAdvancePayment && (float) ($validated['advancePayment'] ?? 0) > 0) {
@@ -968,11 +971,9 @@ new #[Title('Procedures')] class extends Component
                             @else
                                 <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
                             @endif
-                            @if ($procedure->isDischarged())
-                                <flux:badge size="sm" color="green">{{ __('Discharged') }}</flux:badge>
-                            @elseif ($procedure->isAdmitted())
-                                <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
-                            @endif
+                            <flux:badge size="sm" color="{{ $procedure->status->badgeColor() }}">
+                                {{ $procedure->status->label() }}
+                            </flux:badge>
                         </div>
                     </div>
 
@@ -1380,11 +1381,9 @@ new #[Title('Procedures')] class extends Component
                 @if ($this->viewedProcedure->isAdmitted())
                     <div class="mt-4 space-y-1 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">
                         <div class="flex items-center gap-2">
-                            @if ($this->viewedProcedure->isDischarged())
-                                <flux:badge size="sm" color="green">{{ __('Discharged') }}</flux:badge>
-                            @else
-                                <flux:badge size="sm" color="blue">{{ __('Admitted') }}</flux:badge>
-                            @endif
+                            <flux:badge size="sm" color="{{ $this->viewedProcedure->status->badgeColor() }}">
+                                {{ $this->viewedProcedure->status->label() }}
+                            </flux:badge>
                         </div>
                         <flux:text class="text-zinc-500 dark:text-zinc-400">
                             {{ __('Room') }}: {{ $this->viewedProcedure->room_number ?? '-' }} ·
@@ -1398,6 +1397,12 @@ new #[Title('Procedures')] class extends Component
                                 {{ __('Discharged on :date', ['date' => $this->viewedProcedure->discharged_at->format('M j, Y g:i A')]) }}
                             </flux:text>
                         @endif
+                    </div>
+                @else
+                    <div class="mt-4 flex items-center gap-2">
+                        <flux:badge size="sm" color="{{ $this->viewedProcedure->status->badgeColor() }}">
+                            {{ $this->viewedProcedure->status->label() }}
+                        </flux:badge>
                     </div>
                 @endif
             </div>

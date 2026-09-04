@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProcedureStatus;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Procedure;
@@ -33,6 +34,7 @@ class ProcedureFactory extends Factory
             'doctor_id' => null,
             'created_by' => User::factory(),
             'shift_id' => Shift::factory(),
+            'status' => ProcedureStatus::Booking,
         ];
     }
 
@@ -43,6 +45,7 @@ class ProcedureFactory extends Factory
     {
         return $this->state(fn () => [
             'admitted_at' => now(),
+            'status' => ProcedureStatus::Admitted,
         ]);
     }
 
@@ -54,6 +57,7 @@ class ProcedureFactory extends Factory
         return $this->state(fn () => [
             'admitted_at' => now()->subDay(),
             'discharged_at' => now(),
+            'status' => ProcedureStatus::Discharged,
         ]);
     }
 
