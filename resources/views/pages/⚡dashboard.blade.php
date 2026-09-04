@@ -27,6 +27,10 @@ new #[Title('Dashboard')] class extends Component
         if (auth()->user()?->isInchargeNurse()) {
             $this->redirect(route('incharge.questionnaires'), navigate: true);
         }
+
+        if (auth()->user()?->isLabTechnician()) {
+            $this->redirect(route('lab-entries'), navigate: true);
+        }
     }
 
     /**

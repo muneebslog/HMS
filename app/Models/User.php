@@ -146,6 +146,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is a lab technician.
+     */
+    public function isLabTechnician(): bool
+    {
+        return $this->effectiveRole() === UserRole::LabTechnician;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool

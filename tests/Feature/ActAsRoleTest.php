@@ -129,3 +129,17 @@ test('cannot act as admin or unassigned user role', function () {
         ->and(fn () => $service->start($admin, UserRole::User))
         ->toThrow(InvalidArgumentException::class);
 });
+
+test('admin can act as lab technician', function () {
+    $admin = User::factory()->admin()->create();
+    $service = app(RoleActingService::class);
+
+    $service->start($admin, UserRole::LabTechnician);
+
+    expect($service->current())->toBe(UserRole::LabTechnician)
+        ->and($admin->isLabTechnician())->toBeTrue();
+
+    $this->actingAs($admin)
+        ->get(route('lab-entries'))
+        ->assertSuccessful();
+});

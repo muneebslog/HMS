@@ -11,16 +11,16 @@
             $platformRoutes = [
                 'doctor.portal', 'doctor.medication', 'doctor.procedures',
                 'incharge.questionnaires', 'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
-                'indoor.ward', 'reception.mr-lookup',
+                'indoor.ward', 'lab-entries', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
                 'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry',
-                'lab-entries', 'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
+                'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
                 'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
                 'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
-                'admin.attendance', 'lab-entries', 'admin.drive', 'admin.pdf-print', 'admin.notifications',
+                'admin.attendance', 'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
             $administrationRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
@@ -105,9 +105,11 @@
                         </flux:sidebar.item>
                     @endpageAccess
 
-                    {{-- <flux:sidebar.item icon="arrow-top-right-on-square" href="https://lab.mohsinmedicalcomplex.com" target="_blank" rel="noopener noreferrer">
-                        {{ __('Lab') }}
-                    </flux:sidebar.item> --}}
+                    @pageAccess('lab-entries')
+                        <flux:sidebar.item icon="beaker" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                            {{ __('Lab Entries') }}
+                        </flux:sidebar.item>
+                    @endpageAccess
 
                     @pageAccess('reception.mr-lookup')
                         <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
@@ -141,11 +143,6 @@
                         @pageAccess('reception.lab-entry')
                             <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                                 {{ __('Lab Entry') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('lab-entries')
-                            <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                                {{ __('Lab Entries Listings') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('reception.vitals')
@@ -216,11 +213,6 @@
                         @pageAccess('admin.attendance')
                             <flux:sidebar.item icon="clock" :href="route('admin.attendance')" :current="request()->routeIs('admin.attendance*')" wire:navigate>
                                 {{ __('Attendance') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('lab-entries')
-                            <flux:sidebar.item icon="link" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                                {{ __('Lab Entries Listings') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('admin.drive')

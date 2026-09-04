@@ -212,6 +212,11 @@ return [
             'incharge.emergency-department-log', 'incharge.emergency-department-log.form',
         ],
 
+        UserRole::LabTechnician->value => [
+            'lab-entries',
+            'reception.mr-lookup',
+        ],
+
         UserRole::Admin->value => 'all',
     ],
 

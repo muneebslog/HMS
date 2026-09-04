@@ -33,6 +33,10 @@ class LoginResponse implements LoginResponseContract
             return redirect()->to(route('incharge.questionnaires'));
         }
 
+        if ($user !== null && $user->role === UserRole::LabTechnician) {
+            return redirect()->to(route('lab-entries'));
+        }
+
         return redirect()->intended(config('fortify.home', '/dashboard'));
     }
 }

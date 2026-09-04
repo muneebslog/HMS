@@ -49,6 +49,14 @@ test('receptionists can visit the lab entries page', function () {
     $response->assertOk();
 });
 
+test('lab technicians can visit the lab entries page', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+
+    $response = $this->actingAs($labTechnician)->get(route('lab-entries'));
+
+    $response->assertOk();
+});
+
 test('doctors cannot visit the lab entries page', function () {
     $doctor = User::factory()->doctor()->create();
 

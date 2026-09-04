@@ -39,6 +39,10 @@ $routeMap = [
     'incharge_nurse' => [
         'incharge.questionnaires',
     ],
+    'lab_technician' => [
+        'lab-entries',
+        'reception.mr-lookup',
+    ],
     'shared' => [
         'reception.shift',
         'dashboard',
@@ -60,7 +64,7 @@ test('admins can access all protected routes', function () use ($routeMap) {
     ];
     Shift::factory()->for($user)->open()->create();
 
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['lab_technician'], $routeMap['shared']) as $route) {
         $this->actingAs($user)
             ->get(route($route))
             ->assertSuccessful();
@@ -155,6 +159,34 @@ test('incharge nurses are blocked from admin, management and receptionist routes
     }
 });
 
+test('lab technicians can access their own routes', function () use ($routeMap) {
+    $user = User::factory()->labTechnician()->create();
+
+    foreach ($routeMap['lab_technician'] as $route) {
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertSuccessful();
+    }
+});
+
+test('lab technicians are redirected from dashboard to lab entries', function () {
+    $user = User::factory()->labTechnician()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('lab-entries'));
+});
+
+test('lab technicians are blocked from admin, management and receptionist routes', function () use ($routeMap) {
+    $user = User::factory()->labTechnician()->create();
+
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse']) as $route) {
+        $this->actingAs($user)
+            ->get(route($route))
+            ->assertForbidden();
+    }
+});
+
 test('doctors are blocked from admin, management and receptionist routes', function () use ($routeMap) {
     $user = User::factory()->doctor()->create();
 
@@ -166,7 +198,7 @@ test('doctors are blocked from admin, management and receptionist routes', funct
 });
 
 test('unauthenticated users are redirected to login', function () use ($routeMap) {
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['lab_technician'], $routeMap['shared']) as $route) {
         $this->get(route($route))
             ->assertRedirect(route('login'));
     }
@@ -175,7 +207,7 @@ test('unauthenticated users are redirected to login', function () use ($routeMap
 test('users with the default user role are redirected to the pending role page', function () use ($routeMap) {
     $user = User::factory()->user()->create();
 
-    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['shared']) as $route) {
+    foreach (array_merge($routeMap['admin'], $routeMap['management'], $routeMap['receptionist'], $routeMap['doctor'], $routeMap['incharge_nurse'], $routeMap['lab_technician'], $routeMap['shared']) as $route) {
         $this->actingAs($user)
             ->get(route($route))
             ->assertRedirect(route('pending-role'));
@@ -203,6 +235,7 @@ test('assigned users are redirected away from the pending role page', function (
     'doctor' => ['doctor'],
     'indoor' => ['indoor'],
     'incharge nurse' => ['inchargeNurse'],
+    'lab technician' => ['labTechnician'],
 ]);
 
 test('incharge nurse role is requestable and identifiable', function () {
@@ -216,6 +249,21 @@ test('incharge nurse role is requestable and identifiable', function () {
         ->test('pages::pending-role')
         ->call('requestRole')
         ->set('requestedRole', UserRole::InchargeNurse->value)
+        ->call('submitRequest')
+        ->assertHasNoErrors();
+});
+
+test('lab technician role is requestable and identifiable', function () {
+    expect(UserRole::LabTechnician->label())->toBe(__('Lab Technician'))
+        ->and(UserRole::LabTechnician->value)->toBe('lab_technician')
+        ->and(User::factory()->labTechnician()->create()->isLabTechnician())->toBeTrue();
+
+    $user = User::factory()->user()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::pending-role')
+        ->call('requestRole')
+        ->set('requestedRole', UserRole::LabTechnician->value)
         ->call('submitRequest')
         ->assertHasNoErrors();
 });
