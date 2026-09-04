@@ -392,9 +392,10 @@ new #[Title('Shift')] class extends Component
                 <button
                     type="button"
                     wire:click="setActiveTab('expenses')"
-                    class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors {{ $activeTab === 'expenses' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
+                    class="inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-1 pb-3 text-sm font-semibold whitespace-nowrap transition-colors {{ $activeTab === 'expenses' ? 'border-amber-500 text-amber-700 dark:border-amber-400 dark:text-amber-300' : 'border-transparent text-amber-600 hover:border-amber-300 hover:text-amber-700 dark:text-amber-400 dark:hover:border-amber-500 dark:hover:text-amber-300' }}"
                 >
                     {{ __('Expenses') }}
+                    <flux:badge size="sm" color="amber">{{ __('New') }}</flux:badge>
                 </button>
             </div>
 
