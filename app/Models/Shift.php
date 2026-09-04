@@ -132,7 +132,7 @@ class Shift extends Model
     public function totalWalkInSales(): float
     {
         return $this->invoices()
-            ->where('status', '!=', 'cancelled')
+            ->whereNotIn('status', ['cancelled', 'returned'])
             ->sum('total') ?: 0.0;
     }
 
@@ -141,7 +141,9 @@ class Shift extends Model
      */
     public function totalLabSales(): float
     {
-        return $this->labInvoices()->sum('total') ?: 0.0;
+        return $this->labInvoices()
+            ->whereNotIn('status', ['cancelled', 'returned'])
+            ->sum('total') ?: 0.0;
     }
 
     /**
@@ -165,7 +167,7 @@ class Shift extends Model
      */
     public function totalExpenses(): float
     {
-        return $this->expenses()->sum('amount') ?: 0.0;
+        return $this->expenses()->countingTowardCash()->sum('amount') ?: 0.0;
     }
 
     /**

@@ -50,4 +50,16 @@ class ProcedurePaymentFactory extends Factory
             'discarded_by' => $user?->id ?? User::factory(),
         ]);
     }
+
+    /**
+     * Indicate that the payment has been returned and is pending approval.
+     */
+    public function returned(?User $user = null): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'returned_at' => now(),
+            'return_requested_by' => $user?->id ?? User::factory(),
+            'return_approval_status' => \App\Enums\ApprovalStatus::Pending,
+        ]);
+    }
 }

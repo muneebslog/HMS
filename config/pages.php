@@ -104,6 +104,7 @@ return [
         'reception.queue.tv' => ['label' => 'Queue TV', 'group' => 'Management', 'parent' => 'reception.queue'],
         'payout.doctor' => ['label' => 'Doctor Payout', 'group' => 'Management'],
         'management.shift-history' => ['label' => 'Shift History', 'group' => 'Management'],
+        'management.approvals' => ['label' => 'Approvals', 'group' => 'Management'],
         'admin.attendance' => ['label' => 'Attendance', 'group' => 'Management'],
         'admin.attendance.roster' => ['label' => 'Attendance Roster', 'group' => 'Management', 'parent' => 'admin.attendance'],
         'admin.attendance.leaves' => ['label' => 'Attendance Leaves', 'group' => 'Management', 'parent' => 'admin.attendance'],
@@ -182,7 +183,7 @@ return [
         UserRole::Management->value => [
             'reception.mr-lookup',
             'reception.invoices', 'invoices.print', 'reception.queue', 'reception.queue.tv',
-            'payout.doctor', 'management.shift-history',
+            'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.attendance', 'admin.attendance.roster', 'admin.attendance.leaves', 'admin.attendance.punches', 'admin.attendance.daily', 'admin.attendance.payroll', 'admin.attendance.device',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
             'lab-entries', 'reception.shift', 'reception.print-jobs',

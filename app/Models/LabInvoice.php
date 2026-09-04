@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\PaymentMode;
 use Database\Factories\LabInvoiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -42,6 +43,11 @@ class LabInvoice extends Model
         'shift_id',
         'referred_by_doctor_id',
         'doctor_share',
+        'return_approval_status',
+        'return_requested_by',
+        'return_reviewed_by',
+        'return_reviewed_at',
+        'return_note',
     ];
 
     /**
@@ -58,6 +64,8 @@ class LabInvoice extends Model
             'total' => 'float',
             'doctor_share' => 'float',
             'payment_mode' => PaymentMode::class,
+            'return_approval_status' => ApprovalStatus::class,
+            'return_reviewed_at' => 'datetime',
         ];
     }
 
@@ -101,6 +109,42 @@ class LabInvoice extends Model
     public function referredByDoctor(): BelongsTo
     {
         return $this->belongsTo(Doctor::class, 'referred_by_doctor_id');
+    }
+
+    /**
+     * Get the user who requested the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_requested_by');
+    }
+
+    /**
+     * Get the user who reviewed the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_reviewed_by');
+    }
+
+    /**
+     * Determine whether this lab invoice has been returned.
+     */
+    public function isReturned(): bool
+    {
+        return $this->status === 'returned';
+    }
+
+    /**
+     * Determine whether this return is awaiting management approval.
+     */
+    public function isReturnPending(): bool
+    {
+        return $this->isReturned() && $this->return_approval_status === ApprovalStatus::Pending;
     }
 
     /**

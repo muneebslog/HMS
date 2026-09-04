@@ -59,4 +59,16 @@ class LabInvoiceFactory extends Factory
             'status' => 'pending',
         ]);
     }
+
+    /**
+     * Mark the lab invoice as returned and pending approval.
+     */
+    public function returned(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'returned',
+            'return_approval_status' => \App\Enums\ApprovalStatus::Pending,
+            'return_requested_by' => User::factory(),
+        ]);
+    }
 }

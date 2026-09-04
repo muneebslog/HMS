@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\PaymentMode;
 use Database\Factories\ProcedurePaymentFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,12 @@ class ProcedurePayment extends Model
         'shift_id',
         'discarded_at',
         'discarded_by',
+        'returned_at',
+        'return_requested_by',
+        'return_approval_status',
+        'return_reviewed_by',
+        'return_reviewed_at',
+        'return_note',
     ];
 
     /**
@@ -40,6 +47,9 @@ class ProcedurePayment extends Model
             'amount' => 'float',
             'mode' => PaymentMode::class,
             'discarded_at' => 'datetime',
+            'returned_at' => 'datetime',
+            'return_approval_status' => ApprovalStatus::class,
+            'return_reviewed_at' => 'datetime',
         ];
     }
 
@@ -84,11 +94,47 @@ class ProcedurePayment extends Model
     }
 
     /**
+     * Get the user who requested the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_requested_by');
+    }
+
+    /**
+     * Get the user who reviewed the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_reviewed_by');
+    }
+
+    /**
      * Determine whether this payment has been discarded.
      */
     public function isDiscarded(): bool
     {
         return $this->discarded_at !== null;
+    }
+
+    /**
+     * Determine whether this payment has been returned.
+     */
+    public function isReturned(): bool
+    {
+        return $this->returned_at !== null;
+    }
+
+    /**
+     * Determine whether this return is awaiting management approval.
+     */
+    public function isReturnPending(): bool
+    {
+        return $this->isReturned() && $this->return_approval_status === ApprovalStatus::Pending;
     }
 
     /**
@@ -99,6 +145,8 @@ class ProcedurePayment extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->whereNull('discarded_at');
+        return $query
+            ->whereNull('discarded_at')
+            ->whereNull('returned_at');
     }
 }

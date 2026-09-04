@@ -137,6 +137,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/queue', 'pages::reception.queue')->middleware(['open.shift', RedirectLegacyDisplayDevices::class])->name('reception.queue');
         Route::get('reception/queue/tv', QueueTvController::class)->middleware('open.shift')->name('reception.queue.tv');
         Route::livewire('management/shift-history', 'pages::management.shift-history')->name('management.shift-history');
+        Route::livewire('management/approvals', 'pages::management.approvals')->name('management.approvals');
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
 
         Route::livewire('reception/mr-lookup', 'pages::reception.mr-lookup')->name('reception.mr-lookup');

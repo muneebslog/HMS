@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\PaymentMode;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,6 +38,11 @@ class Invoice extends Model
         'payment_mode',
         'created_by',
         'shift_id',
+        'return_approval_status',
+        'return_requested_by',
+        'return_reviewed_by',
+        'return_reviewed_at',
+        'return_note',
     ];
 
     /**
@@ -49,6 +55,8 @@ class Invoice extends Model
         return [
             'total' => 'float',
             'payment_mode' => PaymentMode::class,
+            'return_approval_status' => ApprovalStatus::class,
+            'return_reviewed_at' => 'datetime',
         ];
     }
 
@@ -82,6 +90,42 @@ class Invoice extends Model
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    /**
+     * Get the user who requested the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_requested_by');
+    }
+
+    /**
+     * Get the user who reviewed the return.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function returnReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_reviewed_by');
+    }
+
+    /**
+     * Determine whether this invoice has been returned.
+     */
+    public function isReturned(): bool
+    {
+        return $this->status === 'returned';
+    }
+
+    /**
+     * Determine whether this return is awaiting management approval.
+     */
+    public function isReturnPending(): bool
+    {
+        return $this->isReturned() && $this->return_approval_status === ApprovalStatus::Pending;
     }
 
     /**
