@@ -18,7 +18,7 @@
             />
             <flux:error name="patientPhone" />
         </flux:field>
-
+<br />
         <flux:checkbox wire:model.live="hasNoPhone" label="{{ __('Have no number') }}" class="mt-3" />
     </div>
 
