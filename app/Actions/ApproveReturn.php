@@ -34,7 +34,6 @@ class ApproveReturn
                 'return_approval_status' => ApprovalStatus::Approved,
                 'return_reviewed_by' => $reviewer->id,
                 'return_reviewed_at' => now(),
-                'return_note' => null,
             ]);
 
             return $locked->refresh();

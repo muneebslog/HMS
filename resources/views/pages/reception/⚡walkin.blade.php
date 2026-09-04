@@ -52,9 +52,15 @@ new #[Title('Walk-in')] class extends Component
 
     public bool $showDripPayModal = false;
 
+    public bool $showDripPriceModal = false;
+
     public ?int $payingDripChargeId = null;
 
+    public ?int $editingDripChargeId = null;
+
     public string $dripPayPrice = '';
+
+    public string $editingDripPrice = '';
 
     #[Validate]
     public string $paymentMode = 'cash';
@@ -390,6 +396,67 @@ new #[Title('Walk-in')] class extends Component
     }
 
     /**
+     * Open the editor for a doctor-suggested (or reception-set) pending drip price.
+     */
+    public function editDripPrice(int $chargeId): void
+    {
+        $charge = DripCharge::query()
+            ->where('status', DripChargeStatus::Pending)
+            ->find($chargeId);
+
+        if ($charge === null) {
+            Flux::toast(variant: 'danger', text: __('Drip charge not found or already handled.'));
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        $this->editingDripChargeId = $charge->id;
+        $this->editingDripPrice = $charge->suggested_price !== null
+            ? (string) $charge->suggested_price
+            : '';
+        $this->showDripPriceModal = true;
+        $this->resetValidation(['editingDripPrice']);
+    }
+
+    /**
+     * Persist an updated price on a pending drip charge without collecting payment.
+     */
+    public function updateDripPrice(): void
+    {
+        $validated = $this->validate([
+            'editingDripPrice' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        if ($this->editingDripChargeId === null) {
+            $this->resetDripPriceModal();
+
+            return;
+        }
+
+        $charge = DripCharge::query()
+            ->where('status', DripChargeStatus::Pending)
+            ->find($this->editingDripChargeId);
+
+        if ($charge === null) {
+            Flux::toast(variant: 'danger', text: __('Drip charge not found or already handled.'));
+            $this->resetDripPriceModal();
+            unset($this->pendingDripCharges);
+
+            return;
+        }
+
+        $charge->update([
+            'suggested_price' => (float) $validated['editingDripPrice'],
+        ]);
+
+        $this->resetDripPriceModal();
+        unset($this->pendingDripCharges);
+
+        Flux::toast(variant: 'success', text: __('Drip price updated.'));
+    }
+
+    /**
      * Close the drip payment modal.
      */
     public function resetDripPayModal(): void
@@ -398,6 +465,17 @@ new #[Title('Walk-in')] class extends Component
         $this->payingDripChargeId = null;
         $this->dripPayPrice = '';
         $this->resetValidation(['dripPayPrice']);
+    }
+
+    /**
+     * Close the drip price editor modal.
+     */
+    public function resetDripPriceModal(): void
+    {
+        $this->showDripPriceModal = false;
+        $this->editingDripChargeId = null;
+        $this->editingDripPrice = '';
+        $this->resetValidation(['editingDripPrice']);
     }
 
     /**
@@ -493,6 +571,10 @@ new #[Title('Walk-in')] class extends Component
 
         if ($this->payingDripChargeId === $chargeId) {
             $this->resetDripPayModal();
+        }
+
+        if ($this->editingDripChargeId === $chargeId) {
+            $this->resetDripPriceModal();
         }
 
         unset($this->pendingDripCharges);
@@ -708,11 +790,20 @@ new #[Title('Walk-in')] class extends Component
                                 <flux:table.cell>{{ $charge->service?->name }}</flux:table.cell>
                                 <flux:table.cell>{{ $charge->doctor?->name ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>
-                                    @if ($charge->suggested_price !== null)
-                                        {{ number_format($charge->suggested_price, 2) }}
-                                    @else
-                                        <span class="text-amber-600 dark:text-amber-400">{{ __('Needs price') }}</span>
-                                    @endif
+                                    <div class="flex items-center gap-2">
+                                        @if ($charge->suggested_price !== null)
+                                            <span>{{ number_format($charge->suggested_price, 2) }}</span>
+                                            <flux:button
+                                                size="sm"
+                                                variant="ghost"
+                                                icon="pencil-square"
+                                                wire:click="editDripPrice({{ $charge->id }})"
+                                                aria-label="{{ __('Edit drip price') }}"
+                                            />
+                                        @else
+                                            <span class="text-amber-600 dark:text-amber-400">{{ __('Needs price') }}</span>
+                                        @endif
+                                    </div>
                                 </flux:table.cell>
                                 <flux:table.cell class="text-right">
                                     <div class="flex flex-wrap items-center justify-end gap-2">
@@ -751,7 +842,7 @@ new #[Title('Walk-in')] class extends Component
 
     <flux:modal wire:model="showDripPayModal" class="w-full max-w-sm">
         <flux:heading level="2">{{ __('Collect drip payment') }}</flux:heading>
-        <flux:text class="mt-1">{{ __('Enter the price, then mark as paid and print the slip.') }}</flux:text>
+        <flux:text class="mt-1">{{ __('You can adjust the doctor\'s suggested price, then mark as paid and print the slip.') }}</flux:text>
 
         <form wire:submit="confirmDripPaid" class="mt-6 space-y-6">
             <flux:field>
@@ -783,6 +874,35 @@ new #[Title('Walk-in')] class extends Component
                 </flux:button>
                 <flux:button type="submit" variant="primary" icon="banknotes">
                     {{ __('Mark paid') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showDripPriceModal" class="w-full max-w-sm">
+        <flux:heading level="2">{{ __('Edit drip price') }}</flux:heading>
+        <flux:text class="mt-1">{{ __('Update the doctor-suggested drip price before collecting payment.') }}</flux:text>
+
+        <form wire:submit="updateDripPrice" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('Price') }}</flux:label>
+                <flux:input
+                    wire:model="editingDripPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    autofocus
+                />
+                <flux:error name="editingDripPrice" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="resetDripPriceModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('OK') }}
                 </flux:button>
             </div>
         </form>

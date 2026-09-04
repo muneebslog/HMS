@@ -18,26 +18,32 @@ class MarkInvoiceReturn
      *
      * Cash impact is immediate; management approval is audited afterward.
      */
-    public function handle(User $user, Invoice|LabInvoice|ProcedurePayment $document): Model
+    public function handle(User $user, Invoice|LabInvoice|ProcedurePayment $document, string $reason): Model
     {
-        return DB::transaction(function () use ($user, $document): Model {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new InvalidArgumentException(__('A return reason is required.'));
+        }
+
+        return DB::transaction(function () use ($user, $document, $reason): Model {
             $locked = $document::query()
                 ->whereKey($document->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
             if ($locked instanceof ProcedurePayment) {
-                return $this->markProcedurePaymentReturn($user, $locked);
+                return $this->markProcedurePaymentReturn($user, $locked, $reason);
             }
 
-            return $this->markInvoiceReturn($user, $locked);
+            return $this->markInvoiceReturn($user, $locked, $reason);
         });
     }
 
     /**
      * Mark a walk-in or lab invoice as returned.
      */
-    private function markInvoiceReturn(User $user, Invoice|LabInvoice $invoice): Invoice|LabInvoice
+    private function markInvoiceReturn(User $user, Invoice|LabInvoice $invoice, string $reason): Invoice|LabInvoice
     {
         if ($invoice->status === 'cancelled') {
             throw new InvalidArgumentException(__('Cancelled invoices cannot be returned.'));
@@ -57,7 +63,7 @@ class MarkInvoiceReturn
             'return_requested_by' => $user->id,
             'return_reviewed_by' => null,
             'return_reviewed_at' => null,
-            'return_note' => null,
+            'return_note' => $reason,
         ]);
 
         return $invoice->refresh();
@@ -66,7 +72,7 @@ class MarkInvoiceReturn
     /**
      * Mark a procedure payment as returned.
      */
-    private function markProcedurePaymentReturn(User $user, ProcedurePayment $payment): ProcedurePayment
+    private function markProcedurePaymentReturn(User $user, ProcedurePayment $payment, string $reason): ProcedurePayment
     {
         if ($payment->isDiscarded()) {
             throw new InvalidArgumentException(__('Discarded payments cannot be returned.'));
@@ -82,7 +88,7 @@ class MarkInvoiceReturn
             'return_approval_status' => ApprovalStatus::Pending,
             'return_reviewed_by' => null,
             'return_reviewed_at' => null,
-            'return_note' => null,
+            'return_note' => $reason,
         ]);
 
         return $payment->refresh();

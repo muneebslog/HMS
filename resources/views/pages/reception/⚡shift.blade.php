@@ -38,6 +38,15 @@ new #[Title('Shift')] class extends Component
 
     public bool $showViewModal = false;
 
+    public bool $showReturnModal = false;
+
+    public ?int $returningId = null;
+
+    public ?string $returningType = null;
+
+    #[Validate]
+    public string $returnReason = '';
+
     /**
      * Get the validation rules for the shift form.
      *
@@ -50,6 +59,7 @@ new #[Title('Shift')] class extends Component
             'closingBalance' => ['required', 'numeric', 'min:0'],
             'expenseName' => ['required', 'string', 'max:255'],
             'expenseAmount' => ['required', 'numeric', 'min:0'],
+            'returnReason' => ['required', 'string', 'max:255'],
         ];
     }
 
@@ -171,19 +181,58 @@ new #[Title('Shift')] class extends Component
     }
 
     /**
-     * Mark a walk-in invoice, lab invoice, or procedure payment as returned.
+     * Open the return confirmation modal for the selected document.
      */
-    public function markReturn(int $id, string $type): void
+    public function openReturnModal(int $id, string $type): void
     {
-        $document = match ($type) {
-            'walkin' => Invoice::find($id),
-            'lab' => LabInvoice::find($id),
-            'procedure' => ProcedurePayment::find($id),
+        if (! in_array($type, ['walkin', 'lab', 'procedure'], true)) {
+            return;
+        }
+
+        $this->returningId = $id;
+        $this->returningType = $type;
+        $this->returnReason = '';
+        $this->resetValidation('returnReason');
+        $this->showReturnModal = true;
+    }
+
+    /**
+     * Close the return confirmation modal and reset its state.
+     */
+    public function closeReturnModal(): void
+    {
+        $this->showReturnModal = false;
+        $this->returningId = null;
+        $this->returningType = null;
+        $this->returnReason = '';
+        $this->resetValidation('returnReason');
+    }
+
+    /**
+     * Confirm and mark a walk-in invoice, lab invoice, or procedure payment as returned.
+     */
+    public function confirmReturn(): void
+    {
+        $validated = $this->validate([
+            'returnReason' => $this->rules()['returnReason'],
+        ]);
+
+        if ($this->returningId === null || $this->returningType === null) {
+            Flux::toast(variant: 'danger', text: __('Document not found.'));
+
+            return;
+        }
+
+        $document = match ($this->returningType) {
+            'walkin' => Invoice::find($this->returningId),
+            'lab' => LabInvoice::find($this->returningId),
+            'procedure' => ProcedurePayment::find($this->returningId),
             default => null,
         };
 
         if ($document === null) {
             Flux::toast(variant: 'danger', text: __('Document not found.'));
+            $this->closeReturnModal();
 
             return;
         }
@@ -192,17 +241,20 @@ new #[Title('Shift')] class extends Component
 
         if ($shift === null || (int) $document->shift_id !== (int) $shift->id) {
             Flux::toast(variant: 'danger', text: __('Returns can only be marked for the current open shift.'));
+            $this->closeReturnModal();
 
             return;
         }
 
         try {
-            app(MarkInvoiceReturn::class)->handle(auth()->user(), $document);
+            app(MarkInvoiceReturn::class)->handle(auth()->user(), $document, $validated['returnReason']);
         } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
+
+        $this->closeReturnModal();
 
         unset($this->invoices);
         unset($this->labInvoices);
@@ -237,6 +289,12 @@ new #[Title('Shift')] class extends Component
      */
     public function printInvoice(int $id, string $type): void
     {
+        if (auth()->user()?->isReceptionist()) {
+            Flux::toast(variant: 'danger', text: __('Receptionists cannot reprint invoices.'));
+
+            return;
+        }
+
         $invoice = match ($type) {
             'walkin' => Invoice::find($id),
             'lab' => LabInvoice::find($id),
@@ -491,14 +549,15 @@ new #[Title('Shift')] class extends Component
                                     <flux:table.cell>{{ $invoice->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="eye" wire:click="viewInvoice({{ $invoice->id }}, 'walkin')" />
-                                        <flux:button size="sm" variant="ghost" icon="printer" wire:click="printInvoice({{ $invoice->id }}, 'walkin')" />
+                                        @unless (auth()->user()?->isReceptionist())
+                                            <flux:button size="sm" variant="ghost" icon="printer" wire:click="printInvoice({{ $invoice->id }}, 'walkin')" />
+                                        @endunless
                                         @if ($invoice->status === 'paid')
                                             <flux:button
                                                 size="sm"
                                                 variant="ghost"
                                                 icon="arrow-uturn-left"
-                                                wire:click="markReturn({{ $invoice->id }}, 'walkin')"
-                                                wire:confirm="{{ __('Mark this invoice as a return? Cash will update immediately.') }}"
+                                                wire:click="openReturnModal({{ $invoice->id }}, 'walkin')"
                                             />
                                         @endif
                                     </flux:table.cell>
@@ -564,14 +623,15 @@ new #[Title('Shift')] class extends Component
                                     <flux:table.cell>{{ $invoice->created_at->format('Y-m-d H:i') }}</flux:table.cell>
                                     <flux:table.cell class="text-right">
                                         <flux:button size="sm" variant="ghost" icon="eye" wire:click="viewInvoice({{ $invoice->id }}, 'lab')" />
-                                        <flux:button size="sm" variant="ghost" icon="printer" wire:click="printInvoice({{ $invoice->id }}, 'lab')" />
+                                        @unless (auth()->user()?->isReceptionist())
+                                            <flux:button size="sm" variant="ghost" icon="printer" wire:click="printInvoice({{ $invoice->id }}, 'lab')" />
+                                        @endunless
                                         @if ($invoice->status === 'paid')
                                             <flux:button
                                                 size="sm"
                                                 variant="ghost"
                                                 icon="arrow-uturn-left"
-                                                wire:click="markReturn({{ $invoice->id }}, 'lab')"
-                                                wire:confirm="{{ __('Mark this invoice as a return? Cash will update immediately.') }}"
+                                                wire:click="openReturnModal({{ $invoice->id }}, 'lab')"
                                             />
                                         @endif
                                     </flux:table.cell>
@@ -641,8 +701,7 @@ new #[Title('Shift')] class extends Component
                                                 size="sm"
                                                 variant="ghost"
                                                 icon="arrow-uturn-left"
-                                                wire:click="markReturn({{ $payment->id }}, 'procedure')"
-                                                wire:confirm="{{ __('Mark this payment as a return? Cash will update immediately.') }}"
+                                                wire:click="openReturnModal({{ $payment->id }}, 'procedure')"
                                             />
                                         @endif
                                     </flux:table.cell>
@@ -885,7 +944,7 @@ new #[Title('Shift')] class extends Component
         @endif
 
         <div class="mt-6 flex justify-end gap-3 print:hidden">
-            @if ($this->viewingInvoiceId && $this->viewingType && $this->viewingType !== 'procedure')
+            @if ($this->viewingInvoiceId && $this->viewingType && $this->viewingType !== 'procedure' && ! auth()->user()?->isReceptionist())
                 <flux:button type="button" variant="outline" icon="printer" wire:click="printInvoice({{ $this->viewingInvoiceId }}, '{{ $this->viewingType }}')">
                     {{ __('Print') }}
                 </flux:button>
@@ -894,5 +953,36 @@ new #[Title('Shift')] class extends Component
                 {{ __('Close') }}
             </flux:button>
         </div>
+    </flux:modal>
+
+    <flux:modal wire:model="showReturnModal" class="w-full max-w-md">
+        <form wire:submit="confirmReturn" class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Confirm return') }}</flux:heading>
+                <flux:text class="mt-2">
+                    {{ __('Do you want to return this? Cash will update immediately.') }}
+                </flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('Reason') }}</flux:label>
+                <flux:textarea
+                    wire:model="returnReason"
+                    rows="3"
+                    required
+                    placeholder="{{ __('Why is this being returned?') }}"
+                />
+                <flux:error name="returnReason" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeReturnModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="danger" icon="arrow-uturn-left">
+                    {{ __('Return') }}
+                </flux:button>
+            </div>
+        </form>
     </flux:modal>
 </div>

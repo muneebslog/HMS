@@ -112,6 +112,7 @@ test('doctor medication can suggest a drip price using logged-in doctor share', 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Dehydration')
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', MedicineDose::OneZeroZero->value)
         ->set('dripLines', [[
@@ -181,6 +182,7 @@ test('doctor medication falls back to mo doctor when logged-in doctor has no sha
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Fatigue')
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', MedicineDose::OneZeroZero->value)
         ->set('dripLines', [[
@@ -271,6 +273,7 @@ test('ordering a drip without suggested price still sends a charge to reception'
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'IV fluids')
         ->set('dripLines', [[
             'drip_base_id' => $dripBase->id,
             'additives' => [['injection_id' => null]],
@@ -287,6 +290,91 @@ test('ordering a drip without suggested price still sends a charge to reception'
         'suggested_price' => null,
         'status' => DripChargeStatus::Pending->value,
     ]);
+});
+
+test('reception can edit a doctor-suggested drip price before payment', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    Shift::factory()->for($receptionist)->open()->create();
+    $dripService = Service::factory()->drip()->create([
+        'name' => 'IV Drip',
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $patient = Patient::factory()->create(['name' => 'Editable Drip Patient']);
+    $suggester = User::factory()->doctor()->create();
+
+    $charge = DripCharge::factory()->create([
+        'patient_id' => $patient->id,
+        'service_id' => $dripService->id,
+        'doctor_id' => null,
+        'suggested_price' => 850,
+        'doctor_share' => null,
+        'status' => DripChargeStatus::Pending,
+        'suggested_by' => $suggester->id,
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('pages::reception.walkin')
+        ->assertSee('850.00')
+        ->call('editDripPrice', $charge->id)
+        ->assertSet('showDripPriceModal', true)
+        ->assertSet('editingDripPrice', '850')
+        ->set('editingDripPrice', '950')
+        ->call('updateDripPrice')
+        ->assertHasNoErrors()
+        ->assertSee('950.00');
+
+    expect($charge->fresh()->suggested_price)->toBe(950.0)
+        ->and($charge->fresh()->status)->toBe(DripChargeStatus::Pending);
+});
+
+test('reception can override a doctor-suggested drip price when marking paid', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($receptionist)->open()->create();
+    $dripService = Service::factory()->drip()->create([
+        'name' => 'IV Drip',
+        'is_standalone' => true,
+        'token_reset_type' => TokenResetType::Shift,
+    ]);
+    $doctor = Doctor::factory()->create(['name' => 'mo']);
+    $patient = Patient::factory()->create(['name' => 'Override Drip Patient']);
+    $suggester = User::factory()->doctor()->create();
+
+    ServicePrice::factory()->create([
+        'service_id' => $dripService->id,
+        'doctor_id' => $doctor->id,
+        'price' => 500,
+        'doctor_share' => 25,
+    ]);
+
+    $charge = DripCharge::factory()->create([
+        'patient_id' => $patient->id,
+        'service_id' => $dripService->id,
+        'doctor_id' => $doctor->id,
+        'suggested_price' => 850,
+        'doctor_share' => 25,
+        'status' => DripChargeStatus::Pending,
+        'suggested_by' => $suggester->id,
+    ]);
+
+    Livewire::actingAs($receptionist)
+        ->test('pages::reception.walkin')
+        ->call('openDripPay', $charge->id)
+        ->assertSet('dripPayPrice', '850')
+        ->set('dripPayPrice', '700')
+        ->set('dripPaymentMode', PaymentMode::Cash->value)
+        ->call('confirmDripPaid')
+        ->assertHasNoErrors()
+        ->assertDontSee('Override Drip Patient');
+
+    expect($charge->fresh()->status)->toBe(DripChargeStatus::Paid)
+        ->and($charge->fresh()->suggested_price)->toBe(700.0);
+
+    $invoice = Invoice::find($charge->fresh()->invoice_id);
+
+    expect($invoice)->not->toBeNull()
+        ->and($invoice->total)->toBe(700.0)
+        ->and($invoice->shift_id)->toBe($shift->id);
 });
 
 test('reception can set price for an unpriced drip and mark it paid', function () {
@@ -372,6 +460,7 @@ test('suggested drip price without drip lines does not create a charge', functio
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
+        ->set('complaintOrDiagnosis', 'Fever')
         ->set('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->set('medicationLines.0.dose', MedicineDose::OneZeroZero->value)
         ->set('dripServiceId', $dripService->id)

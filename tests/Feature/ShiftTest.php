@@ -528,14 +528,17 @@ test('marking a walk-in invoice as return updates cash immediately', function ()
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
         ->call('setActiveTab', 'invoices')
-        ->call('markReturn', $invoice->id, 'walkin')
+        ->call('openReturnModal', $invoice->id, 'walkin')
+        ->set('returnReason', 'Patient cancelled')
+        ->call('confirmReturn')
         ->assertHasNoErrors();
 
     $invoice->refresh();
     expect($invoice)
         ->status->toBe('returned')
         ->return_approval_status->value->toBe('pending')
-        ->return_requested_by->toBe($user->id);
+        ->return_requested_by->toBe($user->id)
+        ->return_note->toBe('Patient cancelled');
 
     expect($shift->fresh()->totalWalkInSales())->toBe(0.0)
         ->and($shift->fresh()->expectedCash())->toBe(100.00);
@@ -554,10 +557,14 @@ test('marking a lab invoice as return updates cash immediately', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
-        ->call('markReturn', $invoice->id, 'lab')
+        ->call('openReturnModal', $invoice->id, 'lab')
+        ->set('returnReason', 'Wrong test ordered')
+        ->call('confirmReturn')
         ->assertHasNoErrors();
 
-    expect($invoice->fresh()->status)->toBe('returned');
+    expect($invoice->fresh())
+        ->status->toBe('returned')
+        ->return_note->toBe('Wrong test ordered');
     expect($shift->fresh()->totalLabSales())->toBe(0.0);
 });
 
@@ -576,11 +583,51 @@ test('marking a procedure payment as return updates cash immediately', function 
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
-        ->call('markReturn', $payment->id, 'procedure')
+        ->call('openReturnModal', $payment->id, 'procedure')
+        ->set('returnReason', 'Procedure postponed')
+        ->call('confirmReturn')
         ->assertHasNoErrors();
 
-    expect($payment->fresh()->isReturned())->toBeTrue();
+    expect($payment->fresh())
+        ->isReturned()->toBeTrue()
+        ->return_note->toBe('Procedure postponed');
     expect($shift->fresh()->totalProcedureSales())->toBe(0.0);
+});
+
+test('return confirmation requires a reason', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = Invoice::factory()->paid()->create([
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->call('openReturnModal', $invoice->id, 'walkin')
+        ->set('returnReason', '')
+        ->call('confirmReturn')
+        ->assertHasErrors(['returnReason']);
+
+    expect($invoice->fresh()->status)->toBe('paid');
+});
+
+test('receptionists cannot reprint invoices from the shift page', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $invoice = Invoice::factory()->paid()->create([
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->call('setActiveTab', 'invoices')
+        ->assertDontSeeHtml('wire:click="printInvoice('.$invoice->id.', \'walkin\')"')
+        ->call('printInvoice', $invoice->id, 'walkin')
+        ->assertHasNoErrors();
+
+    expect(PrintJob::count())->toBe(0);
 });
 
 test('rejected expenses are excluded from shift cash totals', function () {
