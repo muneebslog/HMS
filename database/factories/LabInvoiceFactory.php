@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\PaymentMode;
 use App\Models\LabInvoice;
 use App\Models\Patient;
@@ -67,7 +68,7 @@ class LabInvoiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => 'returned',
-            'return_approval_status' => \App\Enums\ApprovalStatus::Pending,
+            'return_approval_status' => ApprovalStatus::Pending,
             'return_requested_by' => User::factory(),
         ]);
     }

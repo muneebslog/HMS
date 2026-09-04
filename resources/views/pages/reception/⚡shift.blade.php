@@ -11,7 +11,6 @@ use App\Models\Shift;
 use App\Services\NotificationService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
-use InvalidArgumentException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -199,7 +198,7 @@ new #[Title('Shift')] class extends Component
 
         try {
             app(MarkInvoiceReturn::class)->handle(auth()->user(), $document);
-        } catch (InvalidArgumentException $exception) {
+        } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;

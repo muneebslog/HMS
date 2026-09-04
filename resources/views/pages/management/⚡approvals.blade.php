@@ -11,7 +11,6 @@ use App\Models\LabInvoice;
 use App\Models\ProcedurePayment;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
-use InvalidArgumentException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -50,7 +49,7 @@ new #[Title('Approvals')] class extends Component
 
         try {
             app(ApproveReturn::class)->handle(auth()->user(), $document);
-        } catch (InvalidArgumentException $exception) {
+        } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
@@ -76,7 +75,7 @@ new #[Title('Approvals')] class extends Component
 
         try {
             app(RejectReturn::class)->handle(auth()->user(), $document, $this->rejectNote !== '' ? $this->rejectNote : null);
-        } catch (InvalidArgumentException $exception) {
+        } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
@@ -103,7 +102,7 @@ new #[Title('Approvals')] class extends Component
 
         try {
             app(ApproveExpense::class)->handle(auth()->user(), $expense);
-        } catch (InvalidArgumentException $exception) {
+        } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
@@ -129,7 +128,7 @@ new #[Title('Approvals')] class extends Component
 
         try {
             app(RejectExpense::class)->handle(auth()->user(), $expense, $this->rejectNote !== '' ? $this->rejectNote : null);
-        } catch (InvalidArgumentException $exception) {
+        } catch (\InvalidArgumentException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;

@@ -8,14 +8,20 @@ use App\Models\Invoice;
 use App\Models\LabInvoice;
 use App\Models\LabTest;
 use App\Models\PrintJob;
+use App\Models\ProcedurePayment;
 use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('reception.shift'));
@@ -285,6 +291,7 @@ test('user can add an expense to an open shift', function () {
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
+        ->call('setActiveTab', 'expenses')
         ->set('expenseName', 'Stationery')
         ->set('expenseAmount', '50.00')
         ->call('addExpense')
@@ -294,7 +301,8 @@ test('user can add an expense to an open shift', function () {
     expect($expense)->not->toBeNull()
         ->name->toBe('Stationery')
         ->amount->toBe(50.00)
-        ->user_id->toBe($user->id);
+        ->user_id->toBe($user->id)
+        ->approval_status->value->toBe('pending');
 
     expect($expense->shift)->not->toBeNull();
 });
@@ -305,6 +313,7 @@ test('expense amount and name are validated', function (string $field, mixed $va
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
+        ->call('setActiveTab', 'expenses')
         ->set($field, $value)
         ->call('addExpense')
         ->assertHasErrors($errors);
@@ -332,6 +341,7 @@ test('user can see logged expenses and their total on the shift page', function 
 
     Livewire::actingAs($user)
         ->test('pages::reception.shift')
+        ->call('setActiveTab', 'expenses')
         ->assertSee('Coffee')
         ->assertSee('25.00')
         ->assertSee('Taxi')
@@ -483,4 +493,111 @@ test('shift page shows cash to receive reconciliation breakdown', function () {
         ->assertSee(number_format(1750.00, 2));
 
     expect($shift->fresh()->expectedCash())->toBe(1750.00);
+});
+
+test('open shift page shows overview invoices and expenses tabs', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->assertSee(__('Overview'))
+        ->assertSee(__('Invoices'))
+        ->assertSee(__('Expenses'))
+        ->call('setActiveTab', 'invoices')
+        ->assertSet('activeTab', 'invoices')
+        ->assertSee(__('Walk-in Invoices'))
+        ->call('setActiveTab', 'expenses')
+        ->assertSet('activeTab', 'expenses')
+        ->assertSee(__('Add Expense'));
+});
+
+test('marking a walk-in invoice as return updates cash immediately', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 100.00,
+    ]);
+    $invoice = Invoice::factory()->paid()->create([
+        'shift_id' => $shift->id,
+        'total' => 150.00,
+        'created_by' => $user->id,
+    ]);
+
+    expect($shift->fresh()->totalWalkInSales())->toBe(150.00);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->call('setActiveTab', 'invoices')
+        ->call('markReturn', $invoice->id, 'walkin')
+        ->assertHasNoErrors();
+
+    $invoice->refresh();
+    expect($invoice)
+        ->status->toBe('returned')
+        ->return_approval_status->value->toBe('pending')
+        ->return_requested_by->toBe($user->id);
+
+    expect($shift->fresh()->totalWalkInSales())->toBe(0.0)
+        ->and($shift->fresh()->expectedCash())->toBe(100.00);
+});
+
+test('marking a lab invoice as return updates cash immediately', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 100.00,
+    ]);
+    $invoice = LabInvoice::factory()->paid()->create([
+        'shift_id' => $shift->id,
+        'total' => 250.00,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->call('markReturn', $invoice->id, 'lab')
+        ->assertHasNoErrors();
+
+    expect($invoice->fresh()->status)->toBe('returned');
+    expect($shift->fresh()->totalLabSales())->toBe(0.0);
+});
+
+test('marking a procedure payment as return updates cash immediately', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 100.00,
+    ]);
+    $payment = ProcedurePayment::factory()->create([
+        'shift_id' => $shift->id,
+        'amount' => 200.00,
+        'created_by' => $user->id,
+    ]);
+
+    expect($shift->fresh()->totalProcedureSales())->toBe(200.00);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->call('markReturn', $payment->id, 'procedure')
+        ->assertHasNoErrors();
+
+    expect($payment->fresh()->isReturned())->toBeTrue();
+    expect($shift->fresh()->totalProcedureSales())->toBe(0.0);
+});
+
+test('rejected expenses are excluded from shift cash totals', function () {
+    $user = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->for($user)->open()->create([
+        'opening_balance' => 100.00,
+    ]);
+
+    Expense::factory()->for($shift)->for($user)->create([
+        'name' => 'Approved supplies',
+        'amount' => 40.00,
+    ]);
+    Expense::factory()->for($shift)->for($user)->rejected()->create([
+        'name' => 'Rejected taxi',
+        'amount' => 60.00,
+    ]);
+
+    expect($shift->fresh()->totalExpenses())->toBe(40.00)
+        ->and($shift->fresh()->expectedCash())->toBe(60.00);
 });

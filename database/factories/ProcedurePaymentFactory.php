@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ApprovalStatus;
 use App\Enums\PaymentMode;
 use App\Models\Procedure;
 use App\Models\ProcedurePayment;
@@ -59,7 +60,7 @@ class ProcedurePaymentFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'returned_at' => now(),
             'return_requested_by' => $user?->id ?? User::factory(),
-            'return_approval_status' => \App\Enums\ApprovalStatus::Pending,
+            'return_approval_status' => ApprovalStatus::Pending,
         ]);
     }
 }

@@ -19,7 +19,7 @@
                 'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             ];
             $managementRoutes = [
-                'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history',
+                'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
                 'admin.attendance', 'lab-entries', 'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
             $administrationRoutes = [
@@ -211,6 +211,11 @@
                         @pageAccess('management.shift-history')
                             <flux:sidebar.item icon="archive-box" :href="route('management.shift-history')" :current="request()->routeIs('management.shift-history')" wire:navigate>
                                 {{ __('Shift History') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('management.approvals')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('management.approvals')" :current="request()->routeIs('management.approvals')" wire:navigate>
+                                {{ __('Approvals') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('admin.attendance')
