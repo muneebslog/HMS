@@ -15,9 +15,9 @@ return [
 
     'tagline' => env('HOSPITAL_TAGLINE', 'Maternity, Gynaecology & Surgical Care'),
 
-    'address' => env('HOSPITAL_ADDRESS', 'E-433/12-A, Street No.1, Peer Colony, Walton Road, Lahore Cantt.'),
+    'address' => env('HOSPITAL_ADDRESS', 'Peer Colony, St. # 1, Walton Road, Lahore.'),
 
-    'phone' => env('HOSPITAL_PHONE', '042-36662345'),
+    'phone' => env('HOSPITAL_PHONE', '0320-8489685 , 042-3662345'),
 
     'email' => env('HOSPITAL_EMAIL', 'mmcwalton@gmail.com'),
 

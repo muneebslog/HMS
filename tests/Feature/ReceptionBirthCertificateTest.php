@@ -95,6 +95,12 @@ test('birth certificate details can be saved and printed from reception', functi
         ->and($detail->child_order)->toBeNull()
         ->and($detail->recorded_by)->toBe($user->id);
 
+    config([
+        'hospital.address' => 'Peer Colony, St. # 1, Walton Road, Lahore.',
+        'hospital.phone' => '0320-8489685 , 042-3662345',
+        'hospital.email' => 'mmcwalton@gmail.com',
+    ]);
+
     $this->actingAs($user)
         ->get(route('indoor.procedures.birth-certificate', $procedure))
         ->assertOk()
@@ -106,9 +112,11 @@ test('birth certificate details can be saved and printed from reception', functi
         ->assertSee('House 12, Lahore')
         ->assertSee('IN WITNESS WHEREOF')
         ->assertSee('Staff Nurse / Midwife')
-        ->assertSee('E-433/12-A, Street No.1, Peer Colony, Walton Road, Lahore Cantt.')
-        ->assertSee('042-36662345')
-        ->assertSee('mmcwalton@gmail.com');
+        ->assertSee('Peer Colony, St. # 1, Walton Road, Lahore.')
+        ->assertSee('0320-8489685 , 042-3662345')
+        ->assertSee('mmcwalton@gmail.com')
+        ->assertDontSee('>'.__('MRN').'<', false)
+        ->assertDontSee(__('Place of Birth'));
 
     expect(ProcedureDocument::query()
         ->where('procedure_id', $procedure->id)

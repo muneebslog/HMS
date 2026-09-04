@@ -142,6 +142,7 @@
                 font-size: 9.5pt;
                 color: #333;
                 line-height: 1.5;
+                text-align: center;
             }
 
             .contact p {
@@ -279,14 +280,6 @@
                     <div class="row grid-full">
                         <span class="label">{{ __('Home Address') }}</span>
                         <span class="value">{{ $certificate?->home_address ?: '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('MRN') }}</span>
-                        <span class="value">{{ $procedure->patient->mrn ?? '-' }}</span>
-                    </div>
-                    <div class="row">
-                        <span class="label">{{ __('Place of Birth') }}</span>
-                        <span class="value">{{ config('hospital.name') }}</span>
                     </div>
                 </div>
             </div>
