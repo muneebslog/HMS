@@ -11,6 +11,7 @@ use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
+use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\ProcedurePrintController;
 use App\Http\Controllers\Reception\QueueTvController;
@@ -185,6 +186,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             Route::livewire('reception/rooms', 'pages::reception.rooms')->name('reception.rooms');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');
             Route::get('reception/procedures/{procedure}/print', ProcedurePrintController::class)->name('reception.procedures.print');
+            Route::get('reception/procedures/{procedure}/apparent-invoice', ProcedureApparentInvoicePrintController::class)->name('reception.procedures.apparent-invoice');
             Route::get('reception/ultrasound/{report}/print', fn (UltrasoundReport $report) => view('ultrasound.print', compact('report')))->name('reception.ultrasound.print');
         });
 

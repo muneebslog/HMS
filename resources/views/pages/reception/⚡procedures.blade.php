@@ -9,6 +9,7 @@ use App\Enums\ProcedureStatus;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
 use App\Models\Procedure;
+use App\Models\ProcedureApparentInvoice;
 use App\Models\ProcedureBirthCertificateDetail;
 use App\Models\ProcedurePayment;
 use App\Models\ProcedureType;
@@ -58,6 +59,8 @@ new #[Title('Procedures')] class extends Component
     public bool $showPaymentLedger = false;
 
     public bool $showBirthCertificateModal = false;
+
+    public bool $showApparentInvoiceModal = false;
 
     public ?int $editingProcedureId = null;
 
@@ -114,6 +117,15 @@ new #[Title('Procedures')] class extends Component
     public string $bcMultiplicity = 'single';
 
     public ?int $bcChildOrder = null;
+
+    public ?int $apparentInvoiceProcedureId = null;
+
+    /** @var list<array{name: string, amount: string}> */
+    public array $apparentInvoiceItems = [];
+
+    public string $newApparentFeeName = '';
+
+    public string $newApparentFeeAmount = '';
 
     #[Validate]
     public string $patientName = '';
@@ -675,6 +687,145 @@ new #[Title('Procedures')] class extends Component
         $this->showViewModal = false;
         $this->viewingProcedureId = null;
         $this->showPaymentLedger = false;
+    }
+
+    /**
+     * Open the apparent (company) invoice editor for a procedure.
+     */
+    public function openApparentInvoice(int $id): void
+    {
+        $procedure = Procedure::with('apparentInvoice.items')->findOrFail($id);
+        $invoice = $procedure->apparentInvoice;
+
+        $this->resetApparentInvoiceForm();
+        $this->apparentInvoiceProcedureId = $id;
+
+        if ($invoice !== null) {
+            $this->apparentInvoiceItems = $invoice->items
+                ->map(fn ($item): array => [
+                    'name' => $item->name,
+                    'amount' => (string) $item->amount,
+                ])
+                ->values()
+                ->all();
+        } else {
+            $this->apparentInvoiceItems = ProcedureApparentInvoice::defaultFeeRows();
+        }
+
+        $this->showViewModal = false;
+        $this->showApparentInvoiceModal = true;
+    }
+
+    /**
+     * Close the apparent invoice modal.
+     */
+    public function closeApparentInvoiceModal(): void
+    {
+        $this->showApparentInvoiceModal = false;
+        $this->apparentInvoiceProcedureId = null;
+        $this->resetApparentInvoiceForm();
+    }
+
+    /**
+     * Reset apparent invoice form fields.
+     */
+    private function resetApparentInvoiceForm(): void
+    {
+        $this->apparentInvoiceItems = [];
+        $this->newApparentFeeName = '';
+        $this->newApparentFeeAmount = '';
+        $this->resetErrorBag();
+    }
+
+    /**
+     * Append a custom fee line to the apparent invoice editor.
+     */
+    public function addApparentInvoiceItem(): void
+    {
+        $validated = $this->validate([
+            'newApparentFeeName' => ['required', 'string', 'max:255'],
+            'newApparentFeeAmount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $this->apparentInvoiceItems[] = [
+            'name' => trim($validated['newApparentFeeName']),
+            'amount' => (string) $validated['newApparentFeeAmount'],
+        ];
+
+        $this->newApparentFeeName = '';
+        $this->newApparentFeeAmount = '';
+        $this->resetErrorBag([
+            'newApparentFeeName',
+            'newApparentFeeAmount',
+        ]);
+    }
+
+    /**
+     * Remove a fee line from the apparent invoice editor.
+     */
+    public function removeApparentInvoiceItem(int $index): void
+    {
+        if (! isset($this->apparentInvoiceItems[$index])) {
+            return;
+        }
+
+        unset($this->apparentInvoiceItems[$index]);
+        $this->apparentInvoiceItems = array_values($this->apparentInvoiceItems);
+    }
+
+    /**
+     * Persist the apparent invoice and optionally open the printable receipt.
+     */
+    public function saveApparentInvoice(bool $openPrint = true): void
+    {
+        if ($this->apparentInvoiceProcedureId === null) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'apparentInvoiceItems' => ['required', 'array', 'min:1'],
+            'apparentInvoiceItems.*.name' => ['required', 'string', 'max:255'],
+            'apparentInvoiceItems.*.amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $procedure = Procedure::with('apparentInvoice.items')->findOrFail($this->apparentInvoiceProcedureId);
+        $total = collect($validated['apparentInvoiceItems'])->sum(fn (array $item): float => (float) $item['amount']);
+
+        DB::transaction(function () use ($procedure, $validated, $total): void {
+            $invoice = $procedure->apparentInvoice;
+
+            if ($invoice === null) {
+                $invoice = ProcedureApparentInvoice::query()->create([
+                    'procedure_id' => $procedure->id,
+                    'total' => $total,
+                    'created_by' => auth()->id(),
+                    'updated_by' => auth()->id(),
+                ]);
+            } else {
+                $invoice->update([
+                    'total' => $total,
+                    'updated_by' => auth()->id(),
+                ]);
+                $invoice->items()->delete();
+            }
+
+            foreach ($validated['apparentInvoiceItems'] as $index => $item) {
+                $invoice->items()->create([
+                    'name' => trim($item['name']),
+                    'amount' => $item['amount'],
+                    'sort_order' => $index,
+                ]);
+            }
+        });
+
+        $printUrl = route('reception.procedures.apparent-invoice', $procedure);
+        $this->closeApparentInvoiceModal();
+
+        Flux::toast(variant: 'success', text: __('Apparent invoice saved.'));
+
+        if ($openPrint) {
+            $this->js('window.open('.Js::from($printUrl).', "_blank")');
+        }
     }
 
     /**
@@ -1719,6 +1870,14 @@ new #[Title('Procedures')] class extends Component
                         >
                             {{ __('Print') }}
                         </flux:button>
+                        <flux:button
+                            size="sm"
+                            variant="ghost"
+                            icon="document-text"
+                            wire:click="openApparentInvoice({{ $this->viewedProcedure->id }})"
+                        >
+                            {{ __('Apparent Invoice') }}
+                        </flux:button>
                     </div>
                 </div>
             </div>
@@ -2174,6 +2333,84 @@ new #[Title('Procedures')] class extends Component
                 <flux:button type="submit" variant="primary" icon="printer">
                     {{ __('Save & Print') }}
                 </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showApparentInvoiceModal" class="w-full max-w-2xl">
+        <form wire:submit="saveApparentInvoice" class="space-y-4">
+            <flux:heading level="2">{{ __('Apparent Invoice') }}</flux:heading>
+            <flux:text class="text-zinc-500">
+                {{ __('Enter fee amounts for the company receipt. This does not change the actual package bill.') }}
+            </flux:text>
+
+            <div class="space-y-3">
+                @foreach ($apparentInvoiceItems as $index => $item)
+                    <div
+                        wire:key="apparent-fee-{{ $index }}"
+                        class="grid grid-cols-[1fr_8rem_auto] items-start gap-2"
+                    >
+                        <flux:field>
+                            @if ($index === 0)
+                                <flux:label>{{ __('Fee name') }}</flux:label>
+                            @endif
+                            <flux:input wire:model="apparentInvoiceItems.{{ $index }}.name" />
+                            <flux:error name="apparentInvoiceItems.{{ $index }}.name" />
+                        </flux:field>
+                        <flux:field>
+                            @if ($index === 0)
+                                <flux:label>{{ __('Amount') }}</flux:label>
+                            @endif
+                            <flux:input type="number" step="0.01" min="0" wire:model="apparentInvoiceItems.{{ $index }}.amount" />
+                            <flux:error name="apparentInvoiceItems.{{ $index }}.amount" />
+                        </flux:field>
+                        <div class="{{ $index === 0 ? 'pt-7' : 'pt-1' }}">
+                            <flux:button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                icon="trash"
+                                wire:click="removeApparentInvoiceItem({{ $index }})"
+                            />
+                        </div>
+                    </div>
+                @endforeach
+                <flux:error name="apparentInvoiceItems" />
+            </div>
+
+            <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                <flux:heading level="3" class="mb-3">{{ __('Add fee') }}</flux:heading>
+                <div class="grid grid-cols-[1fr_8rem_auto] items-start gap-2">
+                    <flux:field>
+                        <flux:input wire:model="newApparentFeeName" placeholder="{{ __('Fee name') }}" />
+                        <flux:error name="newApparentFeeName" />
+                    </flux:field>
+                    <flux:field>
+                        <flux:input type="number" step="0.01" min="0" wire:model="newApparentFeeAmount" placeholder="0" />
+                        <flux:error name="newApparentFeeAmount" />
+                    </flux:field>
+                    <flux:button type="button" size="sm" variant="filled" icon="plus" wire:click="addApparentInvoiceItem">
+                        {{ __('Add') }}
+                    </flux:button>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 border-t pt-4">
+                <flux:text class="font-medium">
+                    {{ __('Total') }}:
+                    {{ number_format(collect($apparentInvoiceItems)->sum(fn ($item) => (float) ($item['amount'] ?? 0)), 2) }}
+                </flux:text>
+                <div class="flex flex-wrap justify-end gap-3">
+                    <flux:button type="button" variant="ghost" wire:click="closeApparentInvoiceModal">
+                        {{ __('Cancel') }}
+                    </flux:button>
+                    <flux:button type="button" variant="filled" wire:click="saveApparentInvoice(false)">
+                        {{ __('Save') }}
+                    </flux:button>
+                    <flux:button type="submit" variant="primary" icon="printer">
+                        {{ __('Save & Print') }}
+                    </flux:button>
+                </div>
             </div>
         </form>
     </flux:modal>

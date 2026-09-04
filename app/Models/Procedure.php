@@ -285,6 +285,16 @@ class Procedure extends Model
     }
 
     /**
+     * Company / reimbursement bill with editable fee lines (not the actual package bill).
+     *
+     * @return HasOne<ProcedureApparentInvoice, $this>
+     */
+    public function apparentInvoice(): HasOne
+    {
+        return $this->hasOne(ProcedureApparentInvoice::class);
+    }
+
+    /**
      * Get the total amount paid for this procedure.
      */
     public function totalPaid(): float
