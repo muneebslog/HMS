@@ -1179,6 +1179,12 @@ new #[Title('Procedures')] class extends Component
      */
     public function markPaid(int $id): void
     {
+        $user = auth()->user();
+
+        if ($user === null || ! $user->isAdmin()) {
+            abort(403);
+        }
+
         $procedure = Procedure::with('payments')->findOrFail($id);
         $balance = $procedure->balance();
 
@@ -1192,7 +1198,7 @@ new #[Title('Procedures')] class extends Component
             'procedure_id' => $procedure->id,
             'amount' => $balance,
             'mode' => PaymentMode::Cash,
-            'created_by' => auth()->id(),
+            'created_by' => $user->id,
             'shift_id' => null,
         ]);
 
@@ -1811,7 +1817,7 @@ new #[Title('Procedures')] class extends Component
                     </flux:text>
                 </div>
                 <div class="flex flex-wrap justify-end gap-2">
-                    @if ($viewedBalance > 0)
+                    @if ($isAdmin && $viewedBalance > 0)
                         <flux:button
                             size="sm"
                             variant="primary"

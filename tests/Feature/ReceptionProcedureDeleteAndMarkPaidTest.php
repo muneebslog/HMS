@@ -9,19 +9,21 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-test('a procedure can be marked paid with the remaining balance and no shift', function () {
-    $user = User::factory()->create();
-    $openShift = Shift::factory()->for($user)->open()->create();
+test('admin can mark a procedure paid with the remaining balance and no shift', function () {
+    $admin = User::factory()->admin()->create();
+    $openShift = Shift::factory()->for($admin)->open()->create();
     $procedure = Procedure::factory()->create(['full_amount' => 5000]);
 
     ProcedurePayment::factory()->for($procedure)->create([
         'amount' => 2000,
         'shift_id' => $openShift->id,
-        'created_by' => $user->id,
+        'created_by' => $admin->id,
     ]);
 
-    Livewire::actingAs($user)
+    Livewire::actingAs($admin)
         ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertSeeHtml('wire:click="markPaid('.$procedure->id.')"')
         ->call('markPaid', $procedure->id)
         ->assertHasNoErrors();
 
@@ -40,20 +42,40 @@ test('a procedure can be marked paid with the remaining balance and no shift', f
 });
 
 test('mark paid does nothing when the procedure is already fully paid', function () {
-    $user = User::factory()->create();
+    $admin = User::factory()->admin()->create();
     $procedure = Procedure::factory()->create(['full_amount' => 1000]);
 
     ProcedurePayment::factory()->for($procedure)->create([
         'amount' => 1000,
-        'created_by' => $user->id,
+        'created_by' => $admin->id,
     ]);
 
-    Livewire::actingAs($user)
+    Livewire::actingAs($admin)
         ->test('pages::reception.procedures')
         ->call('markPaid', $procedure->id)
         ->assertHasNoErrors();
 
     expect($procedure->fresh()->payments)->toHaveCount(1);
+});
+
+test('non-admins cannot mark a procedure paid', function () {
+    $user = User::factory()->receptionist()->create();
+    $procedure = Procedure::factory()->create(['full_amount' => 5000]);
+
+    ProcedurePayment::factory()->for($procedure)->create([
+        'amount' => 2000,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('viewProcedure', $procedure->id)
+        ->assertDontSeeHtml('wire:click="markPaid('.$procedure->id.')"')
+        ->call('markPaid', $procedure->id)
+        ->assertForbidden();
+
+    expect($procedure->fresh()->payments)->toHaveCount(1)
+        ->and($procedure->fresh()->isPaid())->toBeFalse();
 });
 
 test('admin can delete a procedure and its payments', function () {
