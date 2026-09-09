@@ -41,6 +41,18 @@ if (currentUserId && window.Echo) {
             `report-${event.report_id}`,
         );
     });
+
+    window.Echo.private(`App.Models.User.${currentUserId}`).listen('.chat.message', (event) => {
+        if (Number(event.sender_id) === currentUserId) {
+            return;
+        }
+
+        notifyBrowser(
+            'New Chat Message',
+            `${event.sender_name}: ${event.body}`,
+            `chat-${event.conversation_id}`,
+        );
+    });
 }
 
 /**

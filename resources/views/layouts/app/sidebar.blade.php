@@ -481,6 +481,10 @@
 
         {{ $slot }}
 
+        @if (auth()->check() && ! auth()->user()->isUser())
+            <livewire:staff-chat />
+        @endif
+
         @persist('toast')
             <flux:toast.group>
                 <flux:toast />
