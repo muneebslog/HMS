@@ -137,6 +137,9 @@ test('chat contacts exclude pending users and self', function () {
 
     $component = Livewire::actingAs($doctor)
         ->test('staff-chat')
+        ->call('toggle')
+        ->assertSee('Reception Bob')
+        ->assertDontSee('Pending Pat')
         ->set('contactSearch', 'Bob');
 
     $names = $component->instance()->contacts->pluck('name')->all();
