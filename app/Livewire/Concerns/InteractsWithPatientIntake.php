@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Models\AppSetting;
 use App\Models\Patient;
 use App\Services\PatientIntakeService;
 
@@ -32,6 +33,12 @@ trait InteractsWithPatientIntake
      */
     public function updatedHasNoPhone(bool $value): void
     {
+        if ($value && ! AppSetting::allowsHaveNoNumber()) {
+            $this->hasNoPhone = false;
+
+            return;
+        }
+
         if ($value) {
             $this->patientPhone = '';
             $this->matchedPatients = [];
@@ -135,8 +142,10 @@ trait InteractsWithPatientIntake
      */
     protected function patientIntakePhoneRules(): array
     {
+        $canSkipPhone = $this->hasNoPhone && AppSetting::allowsHaveNoNumber();
+
         return [
-            'patientPhone' => [$this->hasNoPhone ? 'nullable' : 'required', 'digits:11'],
+            'patientPhone' => [$canSkipPhone ? 'nullable' : 'required', 'digits:11'],
             'selectedPatientId' => ['nullable', 'integer', 'exists:patients,id'],
             'hasNoPhone' => ['boolean'],
         ];
@@ -149,9 +158,11 @@ trait InteractsWithPatientIntake
      */
     protected function resolveIntakePatient(array $attributes): Patient
     {
+        $skipPhone = $this->hasNoPhone && AppSetting::allowsHaveNoNumber();
+
         return app(PatientIntakeService::class)->resolvePatient(
             $this->selectedPatientId,
-            $this->hasNoPhone ? null : $this->patientPhone,
+            $skipPhone ? null : $this->patientPhone,
             $attributes,
         );
     }

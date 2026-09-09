@@ -49,6 +49,15 @@ test('user sees open shift form when no shift is active', function () {
         ->assertDontSee('Close Shift');
 });
 
+test('shift page shows a back button to the dashboard', function () {
+    $user = User::factory()->receptionist()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.shift')
+        ->assertSee(__('Back'))
+        ->assertSeeHtml(route('dashboard'));
+});
+
 test('user can open a shift with an opening balance', function () {
     $user = User::factory()->receptionist()->create();
 

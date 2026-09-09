@@ -18,8 +18,10 @@
             />
             <flux:error name="patientPhone" />
         </flux:field>
-<br />
-        <flux:checkbox wire:model.live="hasNoPhone" label="{{ __('Have no number') }}" class="mt-3" />
+        @if (\App\Models\AppSetting::allowsHaveNoNumber())
+            <br />
+            <flux:checkbox wire:model.live="hasNoPhone" label="{{ __('Have no number') }}" class="mt-3" />
+        @endif
     </div>
 
     @if (count($matchedPatients) > 0)

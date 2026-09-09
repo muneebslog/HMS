@@ -2,6 +2,7 @@
 
 use App\Enums\TokenResetType;
 use App\Models\AdminNotification;
+use App\Models\AppSetting;
 use App\Models\Doctor;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
@@ -69,6 +70,32 @@ test('walk-in without phone notifies admin', function () {
         ->assertHasNoErrors();
 
     expect(AdminNotification::where('type', 'patient_without_phone')->count())->toBe(1);
+});
+
+test('walk-in hides have no number and requires phone when the setting is disabled', function () {
+    AppSetting::set(AppSetting::AllowHaveNoNumber, '0');
+
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 75,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->assertDontSee(__('Have no number'))
+        ->set('patientName', 'Blocked No Phone')
+        ->set('hasNoPhone', true)
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->assertSet('hasNoPhone', false)
+        ->call('saveInvoice')
+        ->assertHasErrors(['patientPhone']);
+
+    expect(Invoice::count())->toBe(0);
 });
 
 test('reservation can reuse an existing patient under the same family phone', function () {

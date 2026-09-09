@@ -429,6 +429,10 @@ new #[Title('Shift')] class extends Component
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <flux:heading level="1">{{ __('Shift') }}</flux:heading>
+
+            <flux:button size="sm" variant="ghost" icon="arrow-left" :href="route('dashboard')" wire:navigate>
+                {{ __('Back') }}
+            </flux:button>
         </div>
 
         @if ($this->activeShift)

@@ -11,6 +11,8 @@ class AppSetting extends Model
 
     public const NtfyReceptionTopic = 'ntfy.reception_topic';
 
+    public const AllowHaveNoNumber = 'reception.allow_have_no_number';
+
     protected $fillable = [
         'key',
         'value',
@@ -39,6 +41,14 @@ class AppSetting extends Model
         );
 
         Cache::forget(self::cacheKey($key));
+    }
+
+    /**
+     * Whether reception may register patients without a phone number.
+     */
+    public static function allowsHaveNoNumber(): bool
+    {
+        return self::get(self::AllowHaveNoNumber, '1') === '1';
     }
 
     /**

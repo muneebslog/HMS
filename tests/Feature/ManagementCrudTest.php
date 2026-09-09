@@ -866,6 +866,32 @@ test('authenticated users can save ntfy channel names from management', function
         ->and(AppSetting::get(AppSetting::NtfyReceptionTopic))->toBe('custom-reception');
 });
 
+test('authenticated users can toggle allow have no number from management', function () {
+    $user = User::factory()->admin()->create();
+
+    expect(AppSetting::allowsHaveNoNumber())->toBeTrue();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('switchTab', 'notifications')
+        ->set('allowHaveNoNumber', false)
+        ->call('saveNotificationSettings')
+        ->assertHasNoErrors();
+
+    expect(AppSetting::get(AppSetting::AllowHaveNoNumber))->toBe('0')
+        ->and(AppSetting::allowsHaveNoNumber())->toBeFalse();
+
+    Livewire::actingAs($user)
+        ->test('pages::management.crud')
+        ->call('switchTab', 'notifications')
+        ->assertSet('allowHaveNoNumber', false)
+        ->set('allowHaveNoNumber', true)
+        ->call('saveNotificationSettings')
+        ->assertHasNoErrors();
+
+    expect(AppSetting::allowsHaveNoNumber())->toBeTrue();
+});
+
 test('ntfy channel names reject invalid characters', function () {
     $user = User::factory()->admin()->create();
 

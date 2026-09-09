@@ -274,6 +274,9 @@ new #[Title('Management')] class extends Component
     #[Validate]
     public string $ntfyReceptionTopic = '';
 
+    #[Validate]
+    public bool $allowHaveNoNumber = true;
+
     /**
      * @var list<\Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
      */
@@ -426,6 +429,7 @@ new #[Title('Management')] class extends Component
             'notifications' => [
                 'ntfyAdminTopic' => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z0-9_-]+$/'],
                 'ntfyReceptionTopic' => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z0-9_-]+$/'],
+                'allowHaveNoNumber' => ['boolean'],
             ],
             default => [],
         };
@@ -816,6 +820,7 @@ new #[Title('Management')] class extends Component
             'symptomMedicineIds',
             'ntfyAdminTopic',
             'ntfyReceptionTopic',
+            'allowHaveNoNumber',
             'medicineBulkRows',
             'injectionBulkRows',
         ]);
@@ -1655,7 +1660,7 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * Load the current ntfy channel settings into the form.
+     * Load the current ntfy channel and reception settings into the form.
      */
     public function loadNotificationSettings(): void
     {
@@ -1668,10 +1673,12 @@ new #[Title('Management')] class extends Component
             AppSetting::NtfyReceptionTopic,
             (string) config('services.ntfy.reception_topic', 'mmc-hms-reception'),
         ) ?? '';
+
+        $this->allowHaveNoNumber = AppSetting::allowsHaveNoNumber();
     }
 
     /**
-     * Persist ntfy channel settings.
+     * Persist ntfy channel and reception settings.
      */
     public function saveNotificationSettings(): void
     {
@@ -1681,6 +1688,10 @@ new #[Title('Management')] class extends Component
 
         AppSetting::set(AppSetting::NtfyAdminTopic, $validated['ntfyAdminTopic']);
         AppSetting::set(AppSetting::NtfyReceptionTopic, $validated['ntfyReceptionTopic']);
+        AppSetting::set(
+            AppSetting::AllowHaveNoNumber,
+            ($validated['allowHaveNoNumber'] ?? false) ? '1' : '0',
+        );
 
         Flux::toast(variant: 'success', text: __('Notification settings saved.'));
     }
@@ -2529,6 +2540,19 @@ new #[Title('Management')] class extends Component
                             <flux:description>{{ __('Used for reception memo and reception-facing alerts.') }}</flux:description>
                             <flux:error name="ntfyReceptionTopic" />
                         </flux:field>
+
+                        <div class="space-y-1 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                            <flux:heading level="3">{{ __('Patient intake') }}</flux:heading>
+                            <flux:text class="text-zinc-500">
+                                {{ __('Control whether reception can register patients without a phone number.') }}
+                            </flux:text>
+                        </div>
+
+                        <flux:switch
+                            wire:model="allowHaveNoNumber"
+                            :label="__('Allow have no number')"
+                            :description="__('When enabled, reception can check “Have no number” and skip the phone field.')"
+                        />
 
                         <div class="flex justify-end">
                             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
