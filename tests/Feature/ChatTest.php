@@ -164,6 +164,36 @@ test('floating chat can be closed', function () {
         ->assertSet('open', false);
 });
 
+test('open chat list renders online indicator bindings', function () {
+    $doctor = User::factory()->doctor()->create();
+    $receptionist = User::factory()->receptionist()->create(['name' => 'Desk Sara']);
+
+    Livewire::actingAs($doctor)
+        ->test('staff-chat')
+        ->call('toggle')
+        ->assertSee('Desk Sara')
+        ->assertSeeHtml('isOnline('.$receptionist->id.')')
+        ->assertSeeHtml('@hms-staff-online.document');
+});
+
+test('open conversation renders active now and offline status bindings', function () {
+    $doctor = User::factory()->doctor()->create();
+    $receptionist = User::factory()->receptionist()->create(['name' => 'Desk Sara']);
+
+    $conversation = ChatConversation::factory()->between($doctor, $receptionist)->create([
+        'last_message_at' => now(),
+    ]);
+
+    Livewire::actingAs($doctor)
+        ->test('staff-chat')
+        ->call('toggle')
+        ->call('selectConversation', $conversation->id)
+        ->assertSee('Desk Sara')
+        ->assertSeeHtml('isOnline('.$receptionist->id.')')
+        ->assertSee(__('Active now'))
+        ->assertSee(__('Offline'));
+});
+
 test('floating chat is available for staff roles', function (UserRole $role) {
     $user = User::factory()->{$role === UserRole::InchargeNurse ? 'inchargeNurse' : ($role === UserRole::LabTechnician ? 'labTechnician' : $role->value)}()->create();
 

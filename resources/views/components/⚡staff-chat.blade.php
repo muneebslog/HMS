@@ -335,7 +335,16 @@ new class extends Component
     @if ($userId > 0)
         <div class="fixed end-4 bottom-4 z-50 flex flex-col items-end gap-3 sm:end-6 sm:bottom-6">
             @if ($open)
-                <div class="flex h-[min(36rem,calc(100vh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+                <div
+                    class="flex h-[min(36rem,calc(100vh-7rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                    x-data="{
+                        online: { ...(window.hmsStaffOnline || {}) },
+                        isOnline(id) {
+                            return Boolean(this.online[String(id)]);
+                        },
+                    }"
+                    @hms-staff-online.document="online = { ...($event.detail?.online || {}) }"
+                >
                     <div class="flex items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800">
                         <div class="flex min-w-0 items-center gap-2">
                             @if ($selectedConversationId)
@@ -346,9 +355,20 @@ new class extends Component
 
                             @if ($selectedConversationId && $this->selectedConversation)
                                 @php($other = $this->selectedConversation->otherParticipant(auth()->user()))
+                                <div class="relative shrink-0">
+                                    <flux:avatar size="sm">{{ $other->initials() }}</flux:avatar>
+                                    <span
+                                        class="absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-white dark:ring-zinc-800"
+                                        :class="isOnline({{ $other->id }}) ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'"
+                                    ></span>
+                                </div>
                                 <div class="min-w-0">
                                     <div class="truncate text-sm font-semibold">{{ $other->name }}</div>
-                                    <div class="truncate text-xs text-zinc-500">{{ $other->roleLabel() }}</div>
+                                    <div class="truncate text-xs text-zinc-500">
+                                        <span x-text="isOnline({{ $other->id }}) ? @js(__('Active now')) : @js(__('Offline'))"></span>
+                                        &middot;
+                                        {{ $other->roleLabel() }}
+                                    </div>
                                 </div>
                             @else
                                 <flux:heading level="3" class="text-sm">{{ __('Chat') }}</flux:heading>
@@ -408,7 +428,13 @@ new class extends Component
                                             wire:loading.attr="disabled"
                                             class="flex w-full cursor-pointer items-start gap-2 rounded-xl px-2 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800"
                                         >
-                                            <flux:avatar size="sm">{{ $other->initials() }}</flux:avatar>
+                                            <div class="relative shrink-0">
+                                                <flux:avatar size="sm">{{ $other->initials() }}</flux:avatar>
+                                                <span
+                                                    class="absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-white dark:ring-zinc-900"
+                                                    :class="isOnline({{ $other->id }}) ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'"
+                                                ></span>
+                                            </div>
                                             <div class="min-w-0 flex-1">
                                                 <div class="flex items-center justify-between gap-2">
                                                     <span class="truncate text-sm font-medium">{{ $other->name }}</span>
@@ -438,7 +464,13 @@ new class extends Component
                                             wire:loading.attr="disabled"
                                             class="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800"
                                         >
-                                            <flux:avatar size="sm">{{ $contact->initials() }}</flux:avatar>
+                                            <div class="relative shrink-0">
+                                                <flux:avatar size="sm">{{ $contact->initials() }}</flux:avatar>
+                                                <span
+                                                    class="absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-white dark:ring-zinc-900"
+                                                    :class="isOnline({{ $contact->id }}) ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'"
+                                                ></span>
+                                            </div>
                                             <div class="min-w-0">
                                                 <div class="truncate text-sm font-medium">{{ $contact->name }}</div>
                                                 <div class="truncate text-xs text-zinc-500">{{ $contact->roleLabel() }}</div>
