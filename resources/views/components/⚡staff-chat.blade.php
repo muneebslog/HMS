@@ -396,6 +396,38 @@ new class extends Component
 
                         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2">
                             <div>
+                                <div class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{{ __('Chats') }}</div>
+                                <div class="space-y-1">
+                                    @forelse ($this->conversations as $conversation)
+                                        @php($other = $conversation->otherParticipant(auth()->user()))
+                                        @php($latest = $conversation->messages->first())
+                                        <button
+                                            type="button"
+                                            wire:key="thread-{{ $conversation->id }}"
+                                            wire:click="selectConversation({{ $conversation->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="flex w-full cursor-pointer items-start gap-2 rounded-xl px-2 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                        >
+                                            <flux:avatar size="sm">{{ $other->initials() }}</flux:avatar>
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <span class="truncate text-sm font-medium">{{ $other->name }}</span>
+                                                    @if ($conversation->unread_count > 0)
+                                                        <span class="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">{{ $conversation->unread_count }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="mt-0.5 truncate text-xs text-zinc-500">
+                                                    {{ $latest?->body ?? __('No messages yet') }}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    @empty
+                                        <flux:text class="block px-2 py-3 text-xs text-zinc-500">{{ __('No chats yet.') }}</flux:text>
+                                    @endforelse
+                                </div>
+                            </div>
+
+                            <div>
                                 <div class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{{ __('Staff') }}</div>
                                 <div class="space-y-1">
                                     @forelse ($this->contacts as $contact)
@@ -417,38 +449,6 @@ new class extends Component
                                     @endforelse
                                 </div>
                             </div>
-
-                            @if ($this->conversations->isNotEmpty())
-                                <div>
-                                    <div class="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{{ __('Chats') }}</div>
-                                    <div class="space-y-1">
-                                        @foreach ($this->conversations as $conversation)
-                                            @php($other = $conversation->otherParticipant(auth()->user()))
-                                            @php($latest = $conversation->messages->first())
-                                            <button
-                                                type="button"
-                                                wire:key="thread-{{ $conversation->id }}"
-                                                wire:click="selectConversation({{ $conversation->id }})"
-                                                wire:loading.attr="disabled"
-                                                class="flex w-full cursor-pointer items-start gap-2 rounded-xl px-2 py-2 text-start hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                            >
-                                                <flux:avatar size="sm">{{ $other->initials() }}</flux:avatar>
-                                                <div class="min-w-0 flex-1">
-                                                    <div class="flex items-center justify-between gap-2">
-                                                        <span class="truncate text-sm font-medium">{{ $other->name }}</span>
-                                                        @if ($conversation->unread_count > 0)
-                                                            <span class="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">{{ $conversation->unread_count }}</span>
-                                                        @endif
-                                                    </div>
-                                                    <div class="mt-0.5 truncate text-xs text-zinc-500">
-                                                        {{ $latest?->body ?? __('No messages yet') }}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     @endif
                 </div>
