@@ -42,6 +42,7 @@ test('doctor can start a conversation and message a receptionist', function () {
         ->call('startConversation', $receptionist->id)
         ->assertSet('selectedConversationId', fn ($id) => $id !== null)
         ->assertSee('Desk Sara')
+        ->assertSee(__('Type a message...'))
         ->set('body', 'Patient is ready in room 2')
         ->call('sendMessage')
         ->assertHasNoErrors()

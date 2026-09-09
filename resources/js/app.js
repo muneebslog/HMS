@@ -45,33 +45,37 @@ if (currentUserId && window.Echo) {
             console.warn('Unable to join staff presence channel.', error);
         });
 
-    const channel = window.Echo.private('hms.reception');
+    const canListenReception = document.querySelector('meta[name="hms-reception-broadcast"]')?.content === '1';
 
-    channel.listen('.memo.posted', (event) => {
-        if (Number(event.actor_id) === currentUserId) {
-            return;
-        }
+    if (canListenReception) {
+        const channel = window.Echo.private('hms.reception');
 
-        notifyBrowser(
-            'New Reception Memo',
-            `${event.actor_name}: ${event.title}`,
-            `memo-${event.memo_id}`,
-        );
-    });
+        channel.listen('.memo.posted', (event) => {
+            if (Number(event.actor_id) === currentUserId) {
+                return;
+            }
 
-    channel.listen('.report.posted', (event) => {
-        if (Number(event.actor_id) === currentUserId) {
-            return;
-        }
+            notifyBrowser(
+                'New Reception Memo',
+                `${event.actor_name}: ${event.title}`,
+                `memo-${event.memo_id}`,
+            );
+        });
 
-        const title = event.is_new_thread ? 'New Report to Admin' : 'Report Reply';
+        channel.listen('.report.posted', (event) => {
+            if (Number(event.actor_id) === currentUserId) {
+                return;
+            }
 
-        notifyBrowser(
-            title,
-            `${event.actor_name}: ${event.subject}`,
-            `report-${event.report_id}`,
-        );
-    });
+            const title = event.is_new_thread ? 'New Report to Admin' : 'Report Reply';
+
+            notifyBrowser(
+                title,
+                `${event.actor_name}: ${event.subject}`,
+                `report-${event.report_id}`,
+            );
+        });
+    }
 
     window.Echo.private(`App.Models.User.${currentUserId}`).listen('.chat.message', (event) => {
         if (Number(event.sender_id) === currentUserId) {

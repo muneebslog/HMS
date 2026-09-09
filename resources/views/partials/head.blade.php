@@ -3,6 +3,9 @@
 
 @auth
     <meta name="hms-user-id" content="{{ auth()->id() }}">
+    @if (auth()->user()->isAdmin() || auth()->user()->isReceptionist())
+        <meta name="hms-reception-broadcast" content="1">
+    @endif
 @endauth
 
 <title>

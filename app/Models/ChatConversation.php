@@ -34,6 +34,8 @@ class ChatConversation extends Model
     protected function casts(): array
     {
         return [
+            'user_one_id' => 'integer',
+            'user_two_id' => 'integer',
             'last_message_at' => 'datetime',
         ];
     }
@@ -87,7 +89,8 @@ class ChatConversation extends Model
      */
     public function hasParticipant(User $user): bool
     {
-        return $this->user_one_id === $user->id || $this->user_two_id === $user->id;
+        return (int) $this->user_one_id === (int) $user->id
+            || (int) $this->user_two_id === (int) $user->id;
     }
 
     /**
@@ -95,7 +98,7 @@ class ChatConversation extends Model
      */
     public function otherParticipant(User $user): User
     {
-        if ($this->user_one_id === $user->id) {
+        if ((int) $this->user_one_id === (int) $user->id) {
             return $this->relationLoaded('userTwo')
                 ? $this->userTwo
                 : $this->userTwo()->firstOrFail();
