@@ -9,10 +9,41 @@ import './echo';
 const userIdMeta = document.querySelector('meta[name="hms-user-id"]');
 const currentUserId = userIdMeta ? Number(userIdMeta.content) : null;
 
+window.hmsStaffOnline = window.hmsStaffOnline || {};
+
+/**
+ * Replace the staff online map and notify listeners (chat UI).
+ */
+function setStaffOnline(usersById) {
+    window.hmsStaffOnline = usersById;
+    document.dispatchEvent(new CustomEvent('hms-staff-online', {
+        detail: { online: { ...window.hmsStaffOnline } },
+    }));
+}
+
 if (currentUserId && window.Echo) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
     }
+
+    window.Echo.join('hms.staff')
+        .here((users) => {
+            setStaffOnline(Object.fromEntries(users.map((user) => [String(user.id), user])));
+        })
+        .joining((user) => {
+            setStaffOnline({
+                ...window.hmsStaffOnline,
+                [String(user.id)]: user,
+            });
+        })
+        .leaving((user) => {
+            const next = { ...window.hmsStaffOnline };
+            delete next[String(user.id)];
+            setStaffOnline(next);
+        })
+        .error((error) => {
+            console.warn('Unable to join staff presence channel.', error);
+        });
 
     const channel = window.Echo.private('hms.reception');
 

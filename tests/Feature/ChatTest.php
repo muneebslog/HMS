@@ -33,12 +33,15 @@ test('doctor can start a conversation and message a receptionist', function () {
     Event::fake([ChatMessageSent::class]);
 
     $doctor = User::factory()->doctor()->create();
-    $receptionist = User::factory()->receptionist()->create();
+    $receptionist = User::factory()->receptionist()->create(['name' => 'Desk Sara']);
 
     Livewire::actingAs($doctor)
         ->test('staff-chat')
         ->call('toggle')
+        ->assertSee('Desk Sara')
         ->call('startConversation', $receptionist->id)
+        ->assertSet('selectedConversationId', fn ($id) => $id !== null)
+        ->assertSee('Desk Sara')
         ->set('body', 'Patient is ready in room 2')
         ->call('sendMessage')
         ->assertHasNoErrors()
