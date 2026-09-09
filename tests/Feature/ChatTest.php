@@ -149,6 +149,17 @@ test('chat contacts exclude pending users and self', function () {
         ->and($names)->not->toContain('Dr Alice');
 });
 
+test('floating chat can be closed', function () {
+    $user = User::factory()->doctor()->create();
+
+    Livewire::actingAs($user)
+        ->test('staff-chat')
+        ->call('toggle')
+        ->assertSet('open', true)
+        ->call('closeChat')
+        ->assertSet('open', false);
+});
+
 test('floating chat is available for staff roles', function (UserRole $role) {
     $user = User::factory()->{$role === UserRole::InchargeNurse ? 'inchargeNurse' : ($role === UserRole::LabTechnician ? 'labTechnician' : $role->value)}()->create();
 
