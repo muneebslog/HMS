@@ -2851,7 +2851,7 @@ new #[Title('Medication')] class extends Component
     @endif
 
     @if ($selectedTokenId === null)
-        <div class="fixed bottom-6 right-6 z-20">
+        <div class="fixed end-6 bottom-24 z-20">
             <flux:tooltip :content="__('Recall medication order')" position="left">
                 <flux:button
                     type="button"

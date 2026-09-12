@@ -269,6 +269,7 @@ test('doctor can recall a pending medication order and edit the same order', fun
         ->test('pages::doctor.medication')
         ->assertDontSee($patient->name)
         ->assertSeeHtml('aria-label="'.__('Recall medication order').'"')
+        ->assertSeeHtml('fixed end-6 bottom-24 z-20')
         ->call('openRecall')
         ->assertSet('showRecallModal', true)
         ->assertSee($patient->name)
