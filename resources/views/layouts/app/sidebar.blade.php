@@ -14,7 +14,7 @@
                 'indoor.ward', 'lab-entries', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
-                'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry',
+                'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry', 'reception.lab-tracking',
                 'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
                 'reception.token-flow', 'payout.daily',
             ];
@@ -143,6 +143,11 @@
                         @pageAccess('reception.lab-entry')
                             <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                                 {{ __('Lab Entry') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.lab-tracking')
+                            <flux:sidebar.item icon="queue-list" :href="route('reception.lab-tracking')" :current="request()->routeIs('reception.lab-tracking*')" wire:navigate>
+                                {{ __('Lab Tracking') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('reception.vitals')

@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Enums\OutgoingSampleStatus;
 use App\Enums\PaymentMode;
 use App\Jobs\SendLabCaseToLab;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
@@ -236,6 +237,7 @@ new #[Title('Lab Entry')] class extends Component
                     'sample' => $item['sample'],
                     'time_required' => $item['time_required'],
                     'is_in_house' => $item['is_in_house'],
+                    'outgoing_status' => $item['is_in_house'] ? null : OutgoingSampleStatus::Pending,
                     'price' => $item['test_price'],
                 ]);
             }

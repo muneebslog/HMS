@@ -11,6 +11,7 @@ use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
+use App\Http\Controllers\Reception\LabOutgoingReportController;
 use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\ProcedurePrintController;
@@ -148,6 +149,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
 
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
+        Route::livewire('reception/lab-tracking', 'pages::reception.lab-tracking')->name('reception.lab-tracking');
+        Route::get('reception/lab-tracking/items/{item}/report', LabOutgoingReportController::class)->name('reception.lab-tracking.report');
 
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');

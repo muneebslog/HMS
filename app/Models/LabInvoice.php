@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ApprovalStatus;
+use App\Enums\LabResultsStatus;
 use App\Enums\PaymentMode;
 use Database\Factories\LabInvoiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +24,7 @@ class LabInvoice extends Model
      */
     protected $attributes = [
         'payment_mode' => 'cash',
+        'lab_results_status' => 'unknown',
     ];
 
     /**
@@ -38,6 +40,8 @@ class LabInvoice extends Model
         'discount_amount',
         'total',
         'status',
+        'lab_results_status',
+        'lab_results_synced_at',
         'payment_mode',
         'created_by',
         'shift_id',
@@ -64,9 +68,47 @@ class LabInvoice extends Model
             'total' => 'float',
             'doctor_share' => 'float',
             'payment_mode' => PaymentMode::class,
+            'lab_results_status' => LabResultsStatus::class,
+            'lab_results_synced_at' => 'datetime',
             'return_approval_status' => ApprovalStatus::class,
             'return_reviewed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Determine whether this invoice has any outgoing items.
+     */
+    public function hasOutgoingItems(): bool
+    {
+        return $this->items->contains(fn (LabInvoiceItem $item) => ! $item->is_in_house);
+    }
+
+    /**
+     * Determine whether this invoice has any in-house items.
+     */
+    public function hasInHouseItems(): bool
+    {
+        return $this->items->contains(fn (LabInvoiceItem $item) => $item->is_in_house);
+    }
+
+    /**
+     * Resolve the public lab visit URL for in-house reports.
+     */
+    public function publicReportsUrl(): ?string
+    {
+        $fromLog = $this->labApiLog?->lab_case_url;
+
+        if (filled($fromLog)) {
+            return $fromLog;
+        }
+
+        $base = config('services.lab.url');
+
+        if (! filled($base)) {
+            return null;
+        }
+
+        return rtrim((string) $base, '/').'/my-visit/'.$this->invoice_number;
     }
 
     /**

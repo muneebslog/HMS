@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LabApiStatus;
+use App\Enums\LabResultsStatus;
 use App\Models\LabApiLog;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
@@ -94,9 +95,155 @@ class LabApiService
     }
 
     /**
+     * Fetch machine-readable status for a lab case from the lab application.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function fetchLabCaseStatus(string $invoiceNumber): ?array
+    {
+        if (! $this->enabled()) {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout(15)
+                ->withToken(config('services.lab.token'))
+                ->get(rtrim(config('services.lab.url'), '/').'/api/hms/lab-cases/'.$invoiceNumber);
+
+            if ($response->status() === 404) {
+                return null;
+            }
+
+            if (! $response->successful()) {
+                Log::warning('Lab status API returned non-successful response.', [
+                    'invoice_number' => $invoiceNumber,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return null;
+            }
+
+            /** @var array<string, mixed> $payload */
+            $payload = $response->json();
+
+            return $payload;
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch lab case status.', [
+                'invoice_number' => $invoiceNumber,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Sync in-house result readiness for a single lab invoice from the lab API.
+     */
+    public function syncInvoiceStatuses(LabInvoice $invoice): bool
+    {
+        $invoice->loadMissing(['items', 'labApiLog']);
+
+        $inHouseItems = $invoice->items->filter(fn (LabInvoiceItem $item) => $item->is_in_house);
+
+        if ($inHouseItems->isEmpty()) {
+            $invoice->update([
+                'lab_results_status' => LabResultsStatus::Unknown,
+                'lab_results_synced_at' => now(),
+            ]);
+
+            return true;
+        }
+
+        $payload = $this->fetchLabCaseStatus($invoice->invoice_number);
+
+        if ($payload === null) {
+            return false;
+        }
+
+        /** @var Collection<string, bool> $readyByCode */
+        $readyByCode = collect($payload['tests'] ?? [])
+            ->filter(fn ($test) => filled($test['test_code'] ?? null))
+            ->mapWithKeys(fn ($test) => [
+                (string) $test['test_code'] => (bool) ($test['is_result_added'] ?? false),
+            ]);
+
+        foreach ($inHouseItems as $item) {
+            $code = (string) $item->test_code;
+            $ready = $readyByCode->has($code) ? $readyByCode->get($code) : null;
+
+            $item->update([
+                'lab_result_ready' => $ready,
+            ]);
+        }
+
+        $invoice->refresh()->load('items');
+
+        $inHouseItems = $invoice->items->filter(fn (LabInvoiceItem $item) => $item->is_in_house);
+        $known = $inHouseItems->filter(fn (LabInvoiceItem $item) => $item->lab_result_ready !== null);
+        $readyCount = $known->where('lab_result_ready', true)->count();
+        $knownCount = $known->count();
+
+        $status = match (true) {
+            $knownCount === 0 => LabResultsStatus::Unknown,
+            $readyCount === 0 => LabResultsStatus::Pending,
+            $readyCount < $inHouseItems->count() => LabResultsStatus::Partial,
+            default => LabResultsStatus::Ready,
+        };
+
+        $invoiceUrl = $payload['invoice_url'] ?? $this->labCaseUrl($invoice);
+
+        $invoice->update([
+            'lab_results_status' => $status,
+            'lab_results_synced_at' => now(),
+        ]);
+
+        if ($invoice->labApiLog !== null && filled($invoiceUrl)) {
+            $invoice->labApiLog->update([
+                'lab_case_url' => $invoiceUrl,
+            ]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Sync statuses for invoices that still need in-house result updates.
+     */
+    public function syncPendingInvoices(int $limit = 50): int
+    {
+        if (! $this->enabled()) {
+            return 0;
+        }
+
+        $invoices = LabInvoice::query()
+            ->with(['items', 'labApiLog'])
+            ->whereHas('items', fn ($query) => $query->where('is_in_house', true))
+            ->whereHas('labApiLog', fn ($query) => $query->where('status', LabApiStatus::Sent))
+            ->where(function ($query) {
+                $query->whereNull('lab_results_status')
+                    ->orWhere('lab_results_status', '!=', LabResultsStatus::Ready->value);
+            })
+            ->latest('id')
+            ->limit($limit)
+            ->get();
+
+        $synced = 0;
+
+        foreach ($invoices as $invoice) {
+            if ($this->syncInvoiceStatuses($invoice)) {
+                $synced++;
+            }
+        }
+
+        return $synced;
+    }
+
+    /**
      * Build the external lab case URL for the given invoice.
      */
-    private function labCaseUrl(LabInvoice $invoice): string
+    public function labCaseUrl(LabInvoice $invoice): string
     {
         return rtrim((string) config('services.lab.url'), '/').'/my-visit/'.$invoice->invoice_number;
     }

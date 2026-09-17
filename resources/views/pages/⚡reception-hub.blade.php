@@ -55,6 +55,13 @@ new #[Title('Reception')] class extends Component
                     'href' => route('reception.lab-entry'),
                     'icon_bg' => 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
                 ],
+                [
+                    'label' => __('Lab Tracking'),
+                    'description' => __('Outgoing samples and report status'),
+                    'icon' => 'queue-list',
+                    'href' => route('reception.lab-tracking'),
+                    'icon_bg' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
+                ],
             ];
         @endphp
 

@@ -84,6 +84,8 @@ return [
         'reception.reservation' => ['label' => 'Reservations', 'group' => 'Reception'],
         'reception.patient-calling' => ['label' => 'Patient Calling', 'group' => 'Reception'],
         'reception.lab-entry' => ['label' => 'Lab Entry', 'group' => 'Reception'],
+        'reception.lab-tracking' => ['label' => 'Lab Tracking', 'group' => 'Reception'],
+        'reception.lab-tracking.report' => ['label' => 'Lab Outgoing Report', 'group' => 'Reception', 'parent' => 'reception.lab-tracking'],
         'reception.vitals' => ['label' => 'Vitals', 'group' => 'Reception'],
         'reception.ultrasound' => ['label' => 'Ultrasound', 'group' => 'Reception'],
         'reception.procedures' => ['label' => 'Procedures', 'group' => 'Reception'],
@@ -176,7 +178,7 @@ return [
         UserRole::Receptionist->value => [
             'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'reception.mr-lookup',
-            'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry',
+            'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry', 'reception.lab-tracking',
             'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice', 'reception.ultrasound.print',
             'reception.rooms', 'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             'lab-entries', 'reception.shift', 'reception.print-jobs',
@@ -189,7 +191,7 @@ return [
             'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.attendance', 'admin.attendance.roster', 'admin.attendance.leaves', 'admin.attendance.punches', 'admin.attendance.daily', 'admin.attendance.payroll', 'admin.attendance.device',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
-            'lab-entries', 'reception.shift', 'reception.print-jobs',
+            'lab-entries', 'reception.lab-tracking', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',
         ],
@@ -218,6 +220,7 @@ return [
 
         UserRole::LabTechnician->value => [
             'lab-entries',
+            'reception.lab-tracking',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
         ],
