@@ -73,13 +73,54 @@
     @endif
 
     @if ($selectedPatientId)
-        <div class="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800">
-            <span>{{ __('Using existing patient record') }}@if (filled($patientName)): {{ $patientName }}@endif</span>
-            <flux:button type="button" size="sm" variant="ghost" wire:click="clearSelectedPatient">
-                {{ __('Clear') }}
-            </flux:button>
+        <div class="flex items-center justify-between gap-3 rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800">
+            <span class="min-w-0 truncate">{{ __('Using existing patient record') }}@if (filled($patientName)): {{ $patientName }}@endif</span>
+            <div class="flex shrink-0 items-center gap-2">
+                <flux:button type="button" size="sm" variant="ghost" icon="pencil-square" wire:click="openEditPatientModal">
+                    {{ __('Edit') }}
+                </flux:button>
+                <flux:button type="button" size="sm" variant="ghost" wire:click="clearSelectedPatient">
+                    {{ __('Clear') }}
+                </flux:button>
+            </div>
         </div>
     @endif
 
     <flux:error name="selectedPatientId" />
+
+    <flux:modal name="intake-edit-patient" wire:model="showEditPatientModal" class="md:w-96">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Edit Patient') }}</flux:heading>
+                <flux:text class="mt-2">{{ __('Update the patient name and phone number.') }}</flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('Name') }}</flux:label>
+                <flux:input wire:model="editPatientName" type="text" required autofocus />
+                <flux:error name="editPatientName" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Phone') }}</flux:label>
+                <flux:input
+                    wire:model="editPatientPhone"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="11"
+                    placeholder="03001234567"
+                />
+                <flux:error name="editPatientPhone" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="closeEditPatientModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="button" variant="primary" wire:click="saveSelectedPatientDetails">
+                    {{ __('Save') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>

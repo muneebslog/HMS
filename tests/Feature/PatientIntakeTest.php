@@ -50,6 +50,53 @@ test('walk-in can select an existing patient by phone so invoices share the same
     expect(Invoice::first()->patient->mrn)->toBe($existing->fresh()->mrn);
 });
 
+test('walk-in can edit a selected patient name and phone from the modal', function () {
+    $user = User::factory()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create([
+        'name' => 'Original Name',
+        'age' => 28,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientPhone', intakePhone())
+        ->call('selectMatchedPatient', $existing->id)
+        ->assertSee(__('Edit'))
+        ->call('openEditPatientModal')
+        ->assertSet('showEditPatientModal', true)
+        ->assertSet('editPatientName', 'ORIGINAL NAME')
+        ->assertSet('editPatientPhone', intakePhone())
+        ->set('editPatientName', 'Corrected Name')
+        ->set('editPatientPhone', '03009876543')
+        ->call('saveSelectedPatientDetails')
+        ->assertSet('showEditPatientModal', false)
+        ->assertSet('patientName', 'CORRECTED NAME')
+        ->assertSet('patientPhone', '03009876543')
+        ->assertHasNoErrors();
+
+    expect($existing->fresh())
+        ->name->toBe('CORRECTED NAME')
+        ->age->toBe(28)
+        ->and($existing->fresh()->contactPhone())->toBe('03009876543');
+});
+
+test('walk-in edit patient modal requires a name', function () {
+    $user = User::factory()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Original Name']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientPhone', intakePhone())
+        ->call('selectMatchedPatient', $existing->id)
+        ->call('openEditPatientModal')
+        ->set('editPatientName', '')
+        ->call('saveSelectedPatientDetails')
+        ->assertHasErrors(['editPatientName' => 'required'])
+        ->assertSet('showEditPatientModal', true);
+
+    expect($existing->fresh()->name)->toBe('ORIGINAL NAME');
+});
+
 test('clearing a selected patient also clears the patient name', function () {
     $user = User::factory()->create();
     $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Returning Patient']);

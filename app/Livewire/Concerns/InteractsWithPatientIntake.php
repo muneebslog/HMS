@@ -5,6 +5,8 @@ namespace App\Livewire\Concerns;
 use App\Models\AppSetting;
 use App\Models\Patient;
 use App\Services\PatientIntakeService;
+use Flux\Flux;
+use Illuminate\Validation\ValidationException;
 
 trait InteractsWithPatientIntake
 {
@@ -13,6 +15,12 @@ trait InteractsWithPatientIntake
     public bool $hasNoPhone = false;
 
     public ?int $selectedPatientId = null;
+
+    public bool $showEditPatientModal = false;
+
+    public string $editPatientName = '';
+
+    public string $editPatientPhone = '';
 
     /**
      * @var list<array{id: int, name: string, mrn: ?string, age: ?int, gender: ?string, phone: ?string}>
@@ -111,6 +119,7 @@ trait InteractsWithPatientIntake
      */
     public function clearSelectedPatient(): void
     {
+        $this->closeEditPatientModal();
         $this->selectedPatientId = null;
         $this->patientName = '';
 
@@ -133,6 +142,96 @@ trait InteractsWithPatientIntake
     public function addNewFamilyMember(): void
     {
         $this->clearSelectedPatient();
+    }
+
+    /**
+     * Open the modal to edit the selected patient's name and phone.
+     */
+    public function openEditPatientModal(): void
+    {
+        if ($this->selectedPatientId === null) {
+            return;
+        }
+
+        $patient = Patient::query()->with('family')->find($this->selectedPatientId);
+
+        if ($patient === null) {
+            Flux::toast(variant: 'danger', text: __('Patient could not be found.'));
+
+            return;
+        }
+
+        $this->editPatientName = $patient->name ?? '';
+        $this->editPatientPhone = $patient->contactPhone() ?? '';
+        $this->showEditPatientModal = true;
+        $this->resetValidation(['editPatientName', 'editPatientPhone']);
+    }
+
+    /**
+     * Close the edit patient modal and reset its fields.
+     */
+    public function closeEditPatientModal(): void
+    {
+        $this->showEditPatientModal = false;
+        $this->editPatientName = '';
+        $this->editPatientPhone = '';
+        $this->resetValidation(['editPatientName', 'editPatientPhone']);
+    }
+
+    /**
+     * Persist edits to the selected patient's name and phone.
+     */
+    public function saveSelectedPatientDetails(): void
+    {
+        $validated = $this->validate([
+            'editPatientName' => ['required', 'string', 'max:255'],
+            'editPatientPhone' => ['nullable', 'digits:11'],
+        ]);
+
+        if ($this->selectedPatientId === null) {
+            $this->closeEditPatientModal();
+
+            return;
+        }
+
+        $patient = Patient::query()->find($this->selectedPatientId);
+
+        if ($patient === null) {
+            Flux::toast(variant: 'danger', text: __('Patient could not be found.'));
+            $this->closeEditPatientModal();
+
+            return;
+        }
+
+        $intake = app(PatientIntakeService::class);
+
+        try {
+            $intake->updatePatientDemographics(
+                $patient,
+                $validated['editPatientName'],
+                $patient->age,
+            );
+
+            $intake->updateContactPhone(
+                $patient->fresh(['family']),
+                filled($validated['editPatientPhone']) ? $validated['editPatientPhone'] : null,
+            );
+        } catch (ValidationException $exception) {
+            $phoneError = $exception->errors()['phone'][0] ?? null;
+
+            if ($phoneError !== null) {
+                $this->addError('editPatientPhone', $phoneError);
+
+                return;
+            }
+
+            throw $exception;
+        }
+
+        $this->selectMatchedPatient($this->selectedPatientId);
+        $this->closeEditPatientModal();
+
+        Flux::toast(variant: 'success', text: __('Patient details updated.'));
     }
 
     /**
@@ -179,6 +278,9 @@ trait InteractsWithPatientIntake
             'hasNoPhone',
             'selectedPatientId',
             'matchedPatients',
+            'showEditPatientModal',
+            'editPatientName',
+            'editPatientPhone',
         ];
     }
 
