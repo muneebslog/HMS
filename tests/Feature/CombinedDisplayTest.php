@@ -1,9 +1,14 @@
 <?php
 
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('combined display shows er and drip stations side by side', function () {
     $this->get(route('display.er_drips'))
@@ -27,7 +32,7 @@ test('indoor staff see system pages in the sidebar', function () {
     $user = User::factory()->indoor()->create();
 
     $this->actingAs($user)
-        ->get(route('indoor.ward'))
+        ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertSee(__('System'))
         ->assertSee(__('Token Display'))

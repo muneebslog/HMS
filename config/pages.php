@@ -33,6 +33,7 @@ return [
         'Reception',
         'Management',
         'Administration',
+        'Dev Side',
         'System',
     ],
 
@@ -53,15 +54,10 @@ return [
         'doctor.procedures' => ['label' => 'My Procedures', 'group' => 'Platform'],
 
         // Indoor (Platform)
-        'indoor.ward' => ['label' => 'Indoor Ward', 'group' => 'Platform'],
-        'indoor.procedure' => ['label' => 'Indoor Procedure', 'group' => 'Platform', 'parent' => 'indoor.ward'],
-        'indoor.attachments.show' => ['label' => 'Indoor Attachment', 'group' => 'Platform', 'parent' => 'indoor.ward'],
-        'indoor.procedures.discharge-certificate' => ['label' => 'Discharge Certificate', 'group' => 'Platform', 'parent' => 'indoor.ward'],
-        'indoor.procedures.birth-certificate' => ['label' => 'Birth Certificate', 'group' => 'Platform', 'parent' => 'indoor.ward'],
-        'indoor.procedures.print' => ['label' => 'Indoor Bill Print', 'group' => 'Platform', 'parent' => 'indoor.ward'],
-
-        // Shared Platform
-        'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Platform'],
+        'indoor.attachments.show' => ['label' => 'Indoor Attachment', 'group' => 'Platform'],
+        'indoor.procedures.discharge-certificate' => ['label' => 'Discharge Certificate', 'group' => 'Platform'],
+        'indoor.procedures.birth-certificate' => ['label' => 'Birth Certificate', 'group' => 'Platform'],
+        'indoor.procedures.print' => ['label' => 'Indoor Bill Print', 'group' => 'Platform'],
 
         // Reception
         'reception.walkin' => ['label' => 'Walk-in', 'group' => 'Reception'],
@@ -75,11 +71,12 @@ return [
         'reception.token-flow' => ['label' => 'Token Flow', 'group' => 'Reception'],
         'payout.daily' => ['label' => 'Daily Payout', 'group' => 'Reception'],
         'supervisor.checklist' => ['label' => 'Checklist', 'group' => 'Reception'],
-        'lab-entries' => ['label' => 'Lab Entries Listings', 'group' => 'Reception'],
         'reception.shift' => ['label' => 'Shift', 'group' => 'Reception'],
         'reception.print-jobs' => ['label' => 'Print Jobs', 'group' => 'Reception'],
 
         // Management
+        'lab-entries' => ['label' => 'Lab Entries Listings', 'group' => 'Management'],
+        'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Management'],
         'reception.invoices' => ['label' => 'Invoices', 'group' => 'Management'],
         'invoices.print' => ['label' => 'Invoice Print', 'group' => 'Management', 'parent' => 'reception.invoices'],
         'reception.queue' => ['label' => 'Queue', 'group' => 'Management'],
@@ -105,10 +102,6 @@ return [
         'employee-qualifications.download' => ['label' => 'Employee Qualification Download', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'admin.health-aides' => ['label' => 'Health Aides', 'group' => 'Administration'],
         'admin.leave-calendar' => ['label' => 'Leave Calendar', 'group' => 'Administration'],
-        'admin.sms-logs' => ['label' => 'SMS Logs', 'group' => 'Administration'],
-        'admin.merge-duplicates' => ['label' => 'Merge Duplicates', 'group' => 'Administration', 'admin_only' => true],
-        'admin.sql-runner' => ['label' => 'SQL Runner', 'group' => 'Administration', 'admin_only' => true],
-        'admin.kanban' => ['label' => 'Kanban', 'group' => 'Administration'],
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],
         'admin.policy-journals.download' => ['label' => 'Policy Journal Download', 'group' => 'Administration', 'parent' => 'admin.policy-journal'],
         'admin.reports' => ['label' => 'Reports to Admin', 'group' => 'Administration'],
@@ -118,6 +111,12 @@ return [
         'admin.medication-deliveries' => ['label' => 'Medication Deliveries', 'group' => 'Administration'],
         'admin.rechecks' => ['label' => 'Recheck Timers', 'group' => 'Administration'],
         'admin.patient-flow' => ['label' => 'Patient Flow', 'group' => 'Administration'],
+
+        // Dev Side
+        'admin.sms-logs' => ['label' => 'SMS Logs', 'group' => 'Dev Side'],
+        'admin.merge-duplicates' => ['label' => 'Merge Duplicates', 'group' => 'Dev Side', 'admin_only' => true],
+        'admin.sql-runner' => ['label' => 'SQL Runner', 'group' => 'Dev Side', 'admin_only' => true],
+        'admin.kanban' => ['label' => 'Kanban', 'group' => 'Dev Side'],
 
         // System (sidebar links; display routes are public but visibility is role-controlled)
         'display.tokens' => ['label' => 'Token Display', 'group' => 'System'],
@@ -140,7 +139,7 @@ return [
 
     'defaults' => [
         UserRole::Receptionist->value => [
-            'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
+            'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'reception.mr-lookup',
             'reception.walkin', 'reception.reservation', 'reception.lab-entry',
             'reception.vitals', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice',
@@ -161,12 +160,12 @@ return [
 
         UserRole::Doctor->value => [
             'doctor.portal', 'doctor.medication', 'doctor.procedures',
-            'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
+            'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'reception.mr-lookup',
         ],
 
         UserRole::Indoor->value => [
-            'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
+            'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
         ],
 

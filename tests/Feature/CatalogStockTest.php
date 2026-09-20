@@ -22,6 +22,7 @@ use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\InventoryStockService;
 use App\Services\ProcedureMedicationScheduler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -176,31 +177,30 @@ test('marking a procedure dose given decrements front stock but skipped does not
     $medicine = Medicine::factory()->withFrontStock(12)->create();
     $injection = Injection::factory()->withFrontStock(6)->create();
 
-    Livewire::actingAs($user)
-        ->test('pages::indoor.procedure', ['procedure' => $procedure])
-        ->set('medForm', ProcedureMedicationForm::Tab->value)
-        ->set('medMedicineId', $medicine->id)
-        ->set('medDose', '500mg')
-        ->set('medRoute', 'oral')
-        ->set('medScheduleType', ProcedureMedicationScheduleType::OnceNow->value)
-        ->call('prescribeMedication')
-        ->assertHasNoErrors();
+    $scheduler = app(ProcedureMedicationScheduler::class);
+    $stock = app(InventoryStockService::class);
 
-    $tabMedication = ProcedureMedication::query()
-        ->where('procedure_id', $procedure->id)
-        ->where('form', ProcedureMedicationForm::Tab)
-        ->firstOrFail();
+    $tabMedication = ProcedureMedication::factory()->create([
+        'procedure_id' => $procedure->id,
+        'form' => ProcedureMedicationForm::Tab,
+        'medicine_id' => $medicine->id,
+        'injection_id' => null,
+        'schedule_type' => ProcedureMedicationScheduleType::OnceNow,
+        'prescribed_by' => $user->id,
+    ]);
+    $scheduler->materialize($tabMedication, now());
     $givenDose = $tabMedication->doses()->firstOrFail();
 
-    Livewire::actingAs($user)
-        ->test('pages::indoor.procedure', ['procedure' => $procedure])
-        ->call('markDoseGiven', $givenDose->id)
-        ->assertHasNoErrors();
+    $givenDose->update([
+        'status' => ProcedureMedicationDoseStatus::Given,
+        'given_at' => now(),
+        'given_by' => $user->id,
+    ]);
+    $stock->decrementMedicine($medicine->id, 1, $givenDose);
 
     expect($medicine->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(11)
         ->and($givenDose->fresh()->status)->toBe(ProcedureMedicationDoseStatus::Given);
 
-    $scheduler = app(ProcedureMedicationScheduler::class);
     $injMedication = ProcedureMedication::factory()->create([
         'procedure_id' => $procedure->id,
         'form' => ProcedureMedicationForm::Inj,
@@ -213,10 +213,11 @@ test('marking a procedure dose given decrements front stock but skipped does not
     $scheduler->materialize($injMedication, now()->setTime(10, 0));
     $skippedDose = $injMedication->doses()->firstOrFail();
 
-    Livewire::actingAs($user)
-        ->test('pages::indoor.procedure', ['procedure' => $procedure])
-        ->call('markDoseSkipped', $skippedDose->id)
-        ->assertHasNoErrors();
+    $skippedDose->update([
+        'status' => ProcedureMedicationDoseStatus::Skipped,
+        'given_at' => now(),
+        'given_by' => $user->id,
+    ]);
 
     expect($injection->fresh()->stockBalance(StockLocation::FrontWorking))->toBe(6)
         ->and($skippedDose->fresh()->status)->toBe(ProcedureMedicationDoseStatus::Skipped);

@@ -735,7 +735,7 @@ class NotificationService
             'procedure_vitals_missing',
             $title,
             $message,
-            route('indoor.procedure', $procedure),
+            route('dashboard'),
             [
                 'procedure_id' => $procedure->id,
                 'missing_vitals' => $missingVitals,

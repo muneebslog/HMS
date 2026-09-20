@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\Procedure;
+use App\Models\ProcedureBirthCertificateDetail;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\PageAccessService;
@@ -86,9 +88,9 @@ test('cannot assign admin only routes to non admin roles via sync', function () 
 });
 
 test('child routes inherit parent page access', function () {
-    $user = User::factory()->doctor()->create();
+    $user = User::factory()->receptionist()->create();
 
-    expect(app(PageAccessService::class)->canAccess($user, 'indoor.procedure'))->toBeTrue();
+    expect(app(PageAccessService::class)->canAccess($user, 'reception.procedures.file'))->toBeTrue();
 });
 
 test('admin can manage page access via livewire', function () {
@@ -126,8 +128,8 @@ test('reset to defaults restores role permissions', function () {
 
 test('birth certificate is accessible to every assigned logged in role', function (string $roleFactory) {
     $user = User::factory()->{$roleFactory}()->create();
-    $procedure = \App\Models\Procedure::factory()->create();
-    \App\Models\ProcedureBirthCertificateDetail::factory()->create([
+    $procedure = Procedure::factory()->create();
+    ProcedureBirthCertificateDetail::factory()->create([
         'procedure_id' => $procedure->id,
     ]);
 
@@ -168,4 +170,58 @@ test('sidebar hides doctor pages from admins', function () {
         ->assertDontSee(__('My Procedures'))
         ->assertDontSee('href="'.route('doctor.medication', absolute: false).'"', false)
         ->assertDontSee('href="'.route('doctor.portal', absolute: false).'"', false);
+});
+
+test('lab entries and mr lookup appear under management in the sidebar', function () {
+    $user = User::factory()->management()->create();
+
+    $html = $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Lab Entries'))
+        ->assertSee(__('MR Lookup'))
+        ->getContent();
+
+    $managementPos = strpos($html, __('Management'));
+    $labEntriesPos = strpos($html, __('Lab Entries'));
+    $mrLookupPos = strpos($html, __('MR Lookup'));
+    $administrationPos = strpos($html, __('Administration'));
+
+    expect($managementPos)->not->toBeFalse()
+        ->and($labEntriesPos)->toBeGreaterThan($managementPos)
+        ->and($mrLookupPos)->toBeGreaterThan($managementPos);
+
+    if ($administrationPos !== false) {
+        expect($labEntriesPos)->toBeLessThan($administrationPos)
+            ->and($mrLookupPos)->toBeLessThan($administrationPos);
+    }
+});
+
+test('dev tools appear under expandable Dev Side in the sidebar', function () {
+    $user = User::factory()->admin()->create();
+
+    $html = $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Dev Side'))
+        ->assertSee(__('SMS Logs'))
+        ->assertSee(__('Merge Duplicates'))
+        ->assertSee(__('SQL Runner'))
+        ->assertSee(__('Kanban'))
+        ->getContent();
+
+    $devSidePos = strpos($html, __('Dev Side'));
+    $smsLogsPos = strpos($html, __('SMS Logs'));
+    $mergeDuplicatesPos = strpos($html, __('Merge Duplicates'));
+    $sqlRunnerPos = strpos($html, __('SQL Runner'));
+    $kanbanPos = strpos($html, __('Kanban'));
+    $administrationPos = strpos($html, __('Administration'));
+
+    expect($devSidePos)->not->toBeFalse()
+        ->and($administrationPos)->not->toBeFalse()
+        ->and($devSidePos)->toBeGreaterThan($administrationPos)
+        ->and($smsLogsPos)->toBeGreaterThan($devSidePos)
+        ->and($mergeDuplicatesPos)->toBeGreaterThan($devSidePos)
+        ->and($sqlRunnerPos)->toBeGreaterThan($devSidePos)
+        ->and($kanbanPos)->toBeGreaterThan($devSidePos);
 });

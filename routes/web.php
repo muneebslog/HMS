@@ -117,8 +117,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('doctor/medication', 'pages::doctor.medication')->name('doctor.medication');
         Route::livewire('doctor/procedures', 'pages::doctor.procedures')->name('doctor.procedures');
 
-        Route::livewire('indoor/ward', 'pages::indoor.ward')->name('indoor.ward');
-        Route::livewire('indoor/procedures/{procedure}', 'pages::indoor.procedure')->name('indoor.procedure');
         Route::get('indoor/attachments/{attachment}', ProcedureAttachmentController::class)->name('indoor.attachments.show');
         Route::get('indoor/procedures/{procedure}/discharge-certificate', ProcedureDischargeCertificateController::class)->name('indoor.procedures.discharge-certificate');
         Route::get('indoor/procedures/{procedure}/birth-certificate', ProcedureBirthCertificateController::class)->name('indoor.procedures.birth-certificate');

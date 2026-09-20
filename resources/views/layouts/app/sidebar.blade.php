@@ -8,25 +8,25 @@
             $pageAccess = app(\App\Services\PageAccessService::class);
             $user = auth()->user();
 
-            $platformRoutes = [
-                'doctor.portal', 'doctor.medication', 'doctor.procedures',
-                'indoor.ward', 'lab-entries', 'reception.mr-lookup',
-            ];
             $receptionRoutes = [
                 'reception.walkin', 'reception.reservation', 'reception.lab-entry',
                 'reception.vitals', 'reception.procedures',
                 'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
+                'lab-entries', 'reception.mr-lookup',
                 'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
                 'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
             $administrationRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
-                'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban', 'admin.policy-journal',
+                'admin.policy-journal',
                 'admin.notifications', 'admin.reports', 'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
                 'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow',
                 'admin.page-access', 'admin.act-as-role',
+            ];
+            $devSideRoutes = [
+                'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
             ];
             $systemRoutes = [
                 'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders', 'reception.shift',
@@ -66,24 +66,6 @@
                             </flux:sidebar.item>
                         @endpageAccess
                     @endunless
-
-                    @pageAccess('indoor.ward')
-                        <flux:sidebar.item icon="building-office-2" :href="route('indoor.ward')" :current="request()->routeIs('indoor.*')" wire:navigate>
-                            {{ __('Indoor Ward') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-
-                    @pageAccess('lab-entries')
-                        <flux:sidebar.item icon="beaker" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                            {{ __('Lab Entries') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-
-                    @pageAccess('reception.mr-lookup')
-                        <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
-                            {{ __('MR Lookup') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
                 </flux:sidebar.group>
 
                 @if ($pageAccess->canAccessAny($user, $receptionRoutes))
@@ -138,6 +120,16 @@
                             {{ __('Management') }}
                         </div>
 
+                        @pageAccess('lab-entries')
+                            <flux:sidebar.item icon="beaker" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
+                                {{ __('Lab Entries') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.mr-lookup')
+                            <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
+                                {{ __('MR Lookup') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
                         @pageAccess('reception.invoices')
                             <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                                 {{ __('Invoices') }}
@@ -208,26 +200,36 @@
                                 {{ __('Leave Calendar') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('admin.sms-logs')
-                            <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
-                                {{ __('SMS Logs') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.merge-duplicates')
-                            <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
-                                {{ __('Merge Duplicates') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.sql-runner')
-                            <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
-                                {{ __('SQL Runner') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.kanban')
-                            <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
-                                {{ __('Kanban') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
+                        @if ($pageAccess->canAccessAny($user, $devSideRoutes))
+                            <flux:sidebar.group
+                                icon="code-bracket"
+                                expandable
+                                :expanded="request()->routeIs(...$devSideRoutes)"
+                                :heading="__('Dev Side')"
+                                class="grid"
+                            >
+                                @pageAccess('admin.sms-logs')
+                                    <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
+                                        {{ __('SMS Logs') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.merge-duplicates')
+                                    <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
+                                        {{ __('Merge Duplicates') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.sql-runner')
+                                    <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
+                                        {{ __('SQL Runner') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.kanban')
+                                    <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
+                                        {{ __('Kanban') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                            </flux:sidebar.group>
+                        @endif
                         @pageAccess('admin.policy-journal')
                             <flux:sidebar.item icon="book-open" :href="route('admin.policy-journal')" :current="request()->routeIs('admin.policy-journal')" wire:navigate>
                                 {{ __('Policy Journal') }}

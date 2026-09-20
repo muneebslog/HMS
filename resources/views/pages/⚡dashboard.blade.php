@@ -20,10 +20,6 @@ new #[Title('Dashboard')] class extends Component
             $this->redirect(route('doctor.portal'), navigate: true);
         }
 
-        if (auth()->user()?->isIndoor()) {
-            $this->redirect(route('indoor.ward'), navigate: true);
-        }
-
         if (auth()->user()?->isLabTechnician()) {
             $this->redirect(route('lab-entries'), navigate: true);
         }
@@ -238,11 +234,6 @@ new #[Title('Dashboard')] class extends Component
                         <flux:callout.text>
                             {{ __(':count admitted procedure(s) are missing hourly vitals or fetal heart readings.', ['count' => $this->overdueProcedureReadingCount]) }}
                         </flux:callout.text>
-                        <x-slot:actions>
-                            <flux:button size="sm" variant="primary" :href="route('indoor.ward')" wire:navigate>
-                                {{ __('Open Indoor Ward') }}
-                            </flux:button>
-                        </x-slot:actions>
                     </flux:callout>
                 @endif
             @endif

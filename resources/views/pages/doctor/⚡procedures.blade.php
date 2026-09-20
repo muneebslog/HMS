@@ -104,7 +104,6 @@ new #[Title('Doctor Procedures')] class extends Component
                         <flux:table.column>{{ __('Doctor') }}</flux:table.column>
                         <flux:table.column>{{ __('Admitted') }}</flux:table.column>
                         <flux:table.column>{{ __('Alerts') }}</flux:table.column>
-                        <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
                     </flux:table.columns>
 
                     <flux:table.rows>
@@ -137,21 +136,10 @@ new #[Title('Doctor Procedures')] class extends Component
                                         @endif
                                     </div>
                                 </flux:table.cell>
-                                <flux:table.cell class="text-right">
-                                    <flux:button
-                                        size="sm"
-                                        variant="primary"
-                                        icon="clipboard-document-list"
-                                        :href="route('indoor.procedure', $procedure)"
-                                        wire:navigate
-                                    >
-                                        {{ __('Open Chart') }}
-                                    </flux:button>
-                                </flux:table.cell>
                             </flux:table.row>
                         @empty
                             <flux:table.row>
-                                <flux:table.cell colspan="7" class="text-center text-zinc-500">
+                                <flux:table.cell colspan="6" class="text-center text-zinc-500">
                                     {{ filled($search) ? __('No admitted patients match your search.') : __('No admitted patients found.') }}
                                 </flux:table.cell>
                             </flux:table.row>
