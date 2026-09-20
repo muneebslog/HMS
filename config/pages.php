@@ -101,7 +101,6 @@ return [
         'employee-photos.show' => ['label' => 'Employee Photo', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'employee-qualifications.download' => ['label' => 'Employee Qualification Download', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'admin.health-aides' => ['label' => 'Health Aides', 'group' => 'Administration'],
-        'admin.leave-calendar' => ['label' => 'Leave Calendar', 'group' => 'Administration'],
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],
         'admin.policy-journals.download' => ['label' => 'Policy Journal Download', 'group' => 'Administration', 'parent' => 'admin.policy-journal'],
         'admin.reports' => ['label' => 'Reports to Admin', 'group' => 'Administration'],

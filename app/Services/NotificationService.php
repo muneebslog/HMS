@@ -9,7 +9,6 @@ use App\Models\AdminNotification;
 use App\Models\AdminReport;
 use App\Models\AdminReportMessage;
 use App\Models\AppSetting;
-use App\Models\EmployeeLeave;
 use App\Models\EmployeeTodo;
 use App\Models\KanbanItem;
 use App\Models\LabInvoice;
@@ -534,34 +533,6 @@ class NotificationService
             [
                 'role_request_id' => $request->id,
                 'requested_role' => $request->requested_role->value,
-            ]
-        );
-    }
-
-    /**
-     * Notify admins that a new employee leave has been recorded.
-     */
-    public function notifyEmployeeLeaveCreated(EmployeeLeave $leave, User $user): AdminNotification
-    {
-        $title = __('📅 New Leave Recorded');
-        $message = __(':name is on leave on :date.', [
-            'name' => $leave->employee_name,
-            'date' => $leave->leave_date->format('F j, Y'),
-        ]);
-
-        if ($leave->replacement_name !== null) {
-            $message .= ' '.__('Replaced by :replacement.', ['replacement' => $leave->replacement_name]);
-        }
-
-        return $this->createAdminNotification(
-            $user,
-            'employee_leave_created',
-            $title,
-            $message,
-            route('admin.leave-calendar'),
-            [
-                'employee_leave_id' => $leave->id,
-                'leave_date' => $leave->leave_date->toDateString(),
             ]
         );
     }

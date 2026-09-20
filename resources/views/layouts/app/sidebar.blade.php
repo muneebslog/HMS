@@ -19,7 +19,7 @@
                 'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
             $administrationRoutes = [
-                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
+                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides',
                 'admin.policy-journal',
                 'admin.notifications', 'admin.reports', 'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
                 'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow',
@@ -193,11 +193,6 @@
                         @pageAccess('admin.health-aides')
                             <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
                                 {{ __('Health Aides') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.leave-calendar')
-                            <flux:sidebar.item icon="calendar-days" :href="route('admin.leave-calendar')" :current="request()->routeIs('admin.leave-calendar')" wire:navigate>
-                                {{ __('Leave Calendar') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @if ($pageAccess->canAccessAny($user, $devSideRoutes))

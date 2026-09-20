@@ -1408,22 +1408,6 @@ Gyne Ward & Private Rooms daily maintenance form. One submission per calendar da
 | timestamps | | |
 | | | IDX `(due_date, completed_at)` |
 
-### `employee_leaves`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | bigint | PK |
-| employee_name | string | |
-| leave_date | date | |
-| replacement_name | string | nullable |
-| duty_start_time | time | nullable |
-| duty_end_time | time | nullable |
-| is_informed | boolean | default false |
-| informed_by | string | nullable |
-| notes | text | nullable |
-| created_by | FK → users | |
-| timestamps | | |
-| | | UQ `(employee_name, leave_date)` |
-
 ---
 
 ## Framework (Laravel)
