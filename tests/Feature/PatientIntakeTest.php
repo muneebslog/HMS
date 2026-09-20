@@ -50,6 +50,21 @@ test('walk-in can select an existing patient by phone so invoices share the same
     expect(Invoice::first()->patient->mrn)->toBe($existing->fresh()->mrn);
 });
 
+test('clearing a selected patient also clears the patient name', function () {
+    $user = User::factory()->create();
+    $existing = Patient::factory()->withPhone(intakePhone())->create(['name' => 'Returning Patient']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientPhone', intakePhone())
+        ->call('selectMatchedPatient', $existing->id)
+        ->assertSet('selectedPatientId', $existing->id)
+        ->assertSet('patientName', 'Returning Patient')
+        ->call('clearSelectedPatient')
+        ->assertSet('selectedPatientId', null)
+        ->assertSet('patientName', '');
+});
+
 test('walk-in without phone notifies admin', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();

@@ -112,14 +112,6 @@ trait InteractsWithPatientIntake
     public function clearSelectedPatient(): void
     {
         $this->selectedPatientId = null;
-    }
-
-    /**
-     * Start adding a new family member under the current phone.
-     */
-    public function addNewFamilyMember(): void
-    {
-        $this->selectedPatientId = null;
         $this->patientName = '';
 
         if (property_exists($this, 'husbandName')) {
@@ -133,6 +125,14 @@ trait InteractsWithPatientIntake
         if (property_exists($this, 'patientGender')) {
             $this->patientGender = '';
         }
+    }
+
+    /**
+     * Start adding a new family member under the current phone.
+     */
+    public function addNewFamilyMember(): void
+    {
+        $this->clearSelectedPatient();
     }
 
     /**
