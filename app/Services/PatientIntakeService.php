@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Family;
 use App\Models\Patient;
 use App\Models\QueueToken;
+use App\Models\Shift;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -81,6 +82,55 @@ class PatientIntakeService
                     ->orWhereHas('procedures');
             })
             ->orderByDesc('last_reception_at')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Paginate patients with reception activity on the given shift.
+     *
+     * @return LengthAwarePaginator<int, Patient>
+     */
+    public function paginateCurrentShiftPatients(Shift $shift, ?string $search = null, int $perPage = 15): LengthAwarePaginator
+    {
+        $shiftId = $shift->id;
+
+        $lastActivitySubquery = sprintf(
+            '(SELECT MAX(activity_at) FROM (
+                SELECT created_at AS activity_at FROM invoices WHERE patient_id = patients.id AND shift_id = %d
+                UNION ALL
+                SELECT created_at AS activity_at FROM lab_invoices WHERE patient_id = patients.id AND shift_id = %d
+                UNION ALL
+                SELECT created_at AS activity_at FROM procedures WHERE patient_id = patients.id AND shift_id = %d
+            ) AS activities)',
+            $shiftId,
+            $shiftId,
+            $shiftId,
+        );
+
+        $query = Patient::query()
+            ->with('family')
+            ->select('patients.*')
+            ->selectRaw("{$lastActivitySubquery} as last_shift_activity_at")
+            ->where(function ($builder) use ($shiftId): void {
+                $builder->whereHas('invoices', fn ($invoiceQuery) => $invoiceQuery->where('shift_id', $shiftId))
+                    ->orWhereHas('labInvoices', fn ($labInvoiceQuery) => $labInvoiceQuery->where('shift_id', $shiftId))
+                    ->orWhereHas('procedures', fn ($procedureQuery) => $procedureQuery->where('shift_id', $shiftId));
+            });
+
+        $term = trim((string) $search);
+
+        if ($term !== '') {
+            $query->where(function ($builder) use ($term): void {
+                $builder->where('mrn', 'like', '%'.$term.'%')
+                    ->orWhere('name', 'like', '%'.$term.'%')
+                    ->orWhereHas('family', function ($familyQuery) use ($term): void {
+                        $familyQuery->where('phone', 'like', '%'.$term.'%');
+                    });
+            });
+        }
+
+        return $query
+            ->orderByDesc('last_shift_activity_at')
             ->paginate($perPage);
     }
 

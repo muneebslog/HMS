@@ -7,10 +7,15 @@ use App\Models\Service;
 use App\Models\ServicePrice;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('reception.walkin'));
@@ -330,4 +335,114 @@ test('inactive doctors are not available for non-standalone services', function 
             return $doctors->contains('id', $activeDoctor->id)
                 && ! $doctors->contains('id', $inactiveDoctor->id);
         });
+});
+
+test('walk-in shows the recent patients button', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->assertSee(__('Recent Patients'));
+});
+
+test('recent patients modal lists only patients from the current shift', function () {
+    $user = User::factory()->create();
+    $currentShift = Shift::factory()->for($user)->open()->create();
+    $otherShift = Shift::factory()->for($user)->closed()->create([
+        'opened_at' => now()->subDay(),
+        'closed_at' => now()->subHours(12),
+    ]);
+
+    $currentPatient = Patient::factory()->withPhone('03001112233')->create([
+        'name' => 'Current Shift Patient',
+        'age' => 32,
+    ]);
+    $otherPatient = Patient::factory()->withPhone('03004445566')->create([
+        'name' => 'Other Shift Patient',
+        'age' => 40,
+    ]);
+
+    Invoice::factory()->create([
+        'patient_id' => $currentPatient->id,
+        'shift_id' => $currentShift->id,
+        'created_by' => $user->id,
+    ]);
+    Invoice::factory()->create([
+        'patient_id' => $otherPatient->id,
+        'shift_id' => $otherShift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->call('openRecentPatientsModal')
+        ->assertSet('showRecentPatientsModal', true)
+        ->assertSee('Current Shift Patient')
+        ->assertSee('32')
+        ->assertSee('03001112233')
+        ->assertDontSee('Other Shift Patient');
+});
+
+test('recent patients modal search filters by name or phone', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    $ali = Patient::factory()->withPhone('03001234567')->create(['name' => 'Ali Khan', 'age' => 25]);
+    $sara = Patient::factory()->withPhone('03007654321')->create(['name' => 'Sara Ahmed', 'age' => 28]);
+
+    Invoice::factory()->create([
+        'patient_id' => $ali->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+    Invoice::factory()->create([
+        'patient_id' => $sara->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->call('openRecentPatientsModal')
+        ->set('recentPatientsSearch', 'Sara')
+        ->assertSee('Sara Ahmed')
+        ->assertDontSee('Ali Khan')
+        ->set('recentPatientsSearch', '03001234567')
+        ->assertSee('Ali Khan')
+        ->assertDontSee('Sara Ahmed');
+});
+
+test('selecting a recent patient fills the walk-in intake form', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->withPhone('03009876543')->create([
+        'name' => 'Selected Patient',
+        'age' => 45,
+    ]);
+
+    Invoice::factory()->create([
+        'patient_id' => $patient->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->call('openRecentPatientsModal')
+        ->call('selectPatientFromRecentList', $patient->id)
+        ->assertSet('showRecentPatientsModal', false)
+        ->assertSet('selectedPatientId', $patient->id)
+        ->assertSet('patientName', 'Selected Patient')
+        ->assertSet('patientPhone', '03009876543')
+        ->assertSet('hasNoPhone', false);
+});
+
+test('opening recent patients without an open shift does not open the modal', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->call('openRecentPatientsModal')
+        ->assertSet('showRecentPatientsModal', false);
 });
