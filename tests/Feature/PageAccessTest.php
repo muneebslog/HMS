@@ -225,3 +225,29 @@ test('dev tools appear under expandable Dev Side in the sidebar', function () {
         ->and($sqlRunnerPos)->toBeGreaterThan($devSidePos)
         ->and($kanbanPos)->toBeGreaterThan($devSidePos);
 });
+
+test('admin tools appear under expandable Admin Side in the sidebar', function () {
+    $user = User::factory()->admin()->create();
+
+    $html = $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Admin Side'))
+        ->assertSee(__('Policy Journal'))
+        ->assertSee(__('Notifications'))
+        ->assertSee(__('Reports to Admin'))
+        ->getContent();
+
+    $adminSidePos = strpos($html, __('Admin Side'));
+    $policyJournalPos = strpos($html, __('Policy Journal'));
+    $notificationsPos = strpos($html, __('Notifications'));
+    $reportsPos = strpos($html, __('Reports to Admin'));
+    $administrationPos = strpos($html, __('Administration'));
+
+    expect($adminSidePos)->not->toBeFalse()
+        ->and($administrationPos)->not->toBeFalse()
+        ->and($adminSidePos)->toBeGreaterThan($administrationPos)
+        ->and($policyJournalPos)->toBeGreaterThan($adminSidePos)
+        ->and($notificationsPos)->toBeGreaterThan($adminSidePos)
+        ->and($reportsPos)->toBeGreaterThan($adminSidePos);
+});
