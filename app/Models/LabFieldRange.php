@@ -18,8 +18,6 @@ class LabFieldRange extends Model
         'category',
         'value_low',
         'value_high',
-        'age_low',
-        'age_high',
     ];
 
     /**
@@ -33,8 +31,6 @@ class LabFieldRange extends Model
             'category' => LabFieldRangeCategory::class,
             'value_low' => 'float',
             'value_high' => 'float',
-            'age_low' => 'integer',
-            'age_high' => 'integer',
         ];
     }
 

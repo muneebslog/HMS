@@ -26,7 +26,13 @@ new #[Title('Test Fields')] class extends Component
 
     public string $newFieldUnit = '';
 
-    /** @var array<int, array{category: string, value_low: ?string, value_high: ?string, age_low: ?string, age_high: ?string}> */
+    public bool $newFieldHasMultipleRanges = false;
+
+    public ?string $newFieldMinValue = null;
+
+    public ?string $newFieldMaxValue = null;
+
+    /** @var array<int, array{category: string, value_low: ?string, value_high: ?string}> */
     public array $newFieldRanges = [];
 
     public bool $showEditModal = false;
@@ -37,7 +43,13 @@ new #[Title('Test Fields')] class extends Component
 
     public string $editFieldUnit = '';
 
-    /** @var array<int, array{category: string, value_low: ?string, value_high: ?string, age_low: ?string, age_high: ?string}> */
+    public bool $editFieldHasMultipleRanges = false;
+
+    public ?string $editFieldMinValue = null;
+
+    public ?string $editFieldMaxValue = null;
+
+    /** @var array<int, array{category: string, value_low: ?string, value_high: ?string}> */
     public array $editFieldRanges = [];
 
     /**
@@ -117,6 +129,16 @@ new #[Title('Test Fields')] class extends Component
     }
 
     /**
+     * Seed a blank range row the first time "has different normal ranges" is checked.
+     */
+    public function updatedNewFieldHasMultipleRanges(bool $value): void
+    {
+        if ($value && $this->newFieldRanges === []) {
+            $this->addRangeRow();
+        }
+    }
+
+    /**
      * Add a blank range row to the new-field form.
      */
     public function addRangeRow(): void
@@ -125,8 +147,6 @@ new #[Title('Test Fields')] class extends Component
             'category' => LabFieldRangeCategory::Male->value,
             'value_low' => null,
             'value_high' => null,
-            'age_low' => null,
-            'age_high' => null,
         ];
     }
 
@@ -166,12 +186,13 @@ new #[Title('Test Fields')] class extends Component
         $validated = $this->validate([
             'newFieldName' => ['required', 'string', 'max:255', 'unique:lab_fields,name'],
             'newFieldUnit' => ['nullable', 'string', 'max:50'],
-            'newFieldRanges' => ['required', 'array', 'min:1'],
-            'newFieldRanges.*.category' => ['required', Rule::in(LabFieldRangeCategory::values())],
+            'newFieldHasMultipleRanges' => ['boolean'],
+            'newFieldMinValue' => ['nullable', 'numeric'],
+            'newFieldMaxValue' => ['nullable', 'numeric'],
+            'newFieldRanges' => ['required_if:newFieldHasMultipleRanges,true', 'array'],
+            'newFieldRanges.*.category' => ['required_if:newFieldHasMultipleRanges,true', Rule::in(LabFieldRangeCategory::values())],
             'newFieldRanges.*.value_low' => ['nullable', 'numeric'],
             'newFieldRanges.*.value_high' => ['nullable', 'numeric'],
-            'newFieldRanges.*.age_low' => ['nullable', 'integer', 'min:0'],
-            'newFieldRanges.*.age_high' => ['nullable', 'integer', 'min:0'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -180,9 +201,7 @@ new #[Title('Test Fields')] class extends Component
                 'unit' => $validated['newFieldUnit'] ?: null,
             ]);
 
-            foreach ($validated['newFieldRanges'] as $range) {
-                $field->ranges()->create($range);
-            }
+            $this->saveRanges($field, $validated['newFieldHasMultipleRanges'], $validated['newFieldRanges'] ?? [], $validated['newFieldMinValue'], $validated['newFieldMaxValue']);
 
             $nextOrder = ((int) $this->labTest->fields()->max('display_order')) + 1;
 
@@ -193,6 +212,31 @@ new #[Title('Test Fields')] class extends Component
         $this->showAttachModal = false;
 
         Flux::toast(variant: 'success', text: __('Field created and attached to test.'));
+    }
+
+    /**
+     * Persist a field's ranges: either the per-category rows, or a single
+     * general range built from the min/max fields.
+     *
+     * @param  array<int, array{category: string, value_low: ?string, value_high: ?string}>  $ranges
+     */
+    private function saveRanges(LabField $field, bool $hasMultipleRanges, array $ranges, ?string $minValue, ?string $maxValue): void
+    {
+        if ($hasMultipleRanges) {
+            foreach ($ranges as $range) {
+                $field->ranges()->create($range);
+            }
+
+            return;
+        }
+
+        if (filled($minValue) || filled($maxValue)) {
+            $field->ranges()->create([
+                'category' => LabFieldRangeCategory::General->value,
+                'value_low' => filled($minValue) ? $minValue : null,
+                'value_high' => filled($maxValue) ? $maxValue : null,
+            ]);
+        }
     }
 
     /**
@@ -258,20 +302,40 @@ new #[Title('Test Fields')] class extends Component
     public function openEditFieldModal(int $fieldId): void
     {
         $field = LabField::with('ranges')->findOrFail($fieldId);
+        $ranges = $field->ranges;
+        $isSimple = $ranges->count() <= 1 && $ranges->every(fn (LabFieldRange $range) => $range->category === LabFieldRangeCategory::General);
 
         $this->editingFieldId = $field->id;
         $this->editFieldName = $field->name;
         $this->editFieldUnit = $field->unit ?? '';
-        $this->editFieldRanges = $field->ranges->map(fn (LabFieldRange $range) => [
-            'category' => $range->category->value,
-            'value_low' => $range->value_low,
-            'value_high' => $range->value_high,
-            'age_low' => $range->age_low,
-            'age_high' => $range->age_high,
-        ])->all();
+        $this->editFieldHasMultipleRanges = ! $isSimple;
+
+        if ($isSimple) {
+            $this->editFieldMinValue = $ranges->first()?->value_low;
+            $this->editFieldMaxValue = $ranges->first()?->value_high;
+            $this->editFieldRanges = [];
+        } else {
+            $this->editFieldMinValue = null;
+            $this->editFieldMaxValue = null;
+            $this->editFieldRanges = $ranges->map(fn (LabFieldRange $range) => [
+                'category' => $range->category->value,
+                'value_low' => $range->value_low,
+                'value_high' => $range->value_high,
+            ])->all();
+        }
 
         $this->resetValidation();
         $this->showEditModal = true;
+    }
+
+    /**
+     * Seed a blank range row the first time "has different normal ranges" is checked.
+     */
+    public function updatedEditFieldHasMultipleRanges(bool $value): void
+    {
+        if ($value && $this->editFieldRanges === []) {
+            $this->addEditRangeRow();
+        }
     }
 
     /**
@@ -283,8 +347,6 @@ new #[Title('Test Fields')] class extends Component
             'category' => LabFieldRangeCategory::Male->value,
             'value_low' => null,
             'value_high' => null,
-            'age_low' => null,
-            'age_high' => null,
         ];
     }
 
@@ -306,12 +368,13 @@ new #[Title('Test Fields')] class extends Component
         $validated = $this->validate([
             'editFieldName' => ['required', 'string', 'max:255', Rule::unique('lab_fields', 'name')->ignore($this->editingFieldId)],
             'editFieldUnit' => ['nullable', 'string', 'max:50'],
-            'editFieldRanges' => ['required', 'array', 'min:1'],
-            'editFieldRanges.*.category' => ['required', Rule::in(LabFieldRangeCategory::values())],
+            'editFieldHasMultipleRanges' => ['boolean'],
+            'editFieldMinValue' => ['nullable', 'numeric'],
+            'editFieldMaxValue' => ['nullable', 'numeric'],
+            'editFieldRanges' => ['required_if:editFieldHasMultipleRanges,true', 'array'],
+            'editFieldRanges.*.category' => ['required_if:editFieldHasMultipleRanges,true', Rule::in(LabFieldRangeCategory::values())],
             'editFieldRanges.*.value_low' => ['nullable', 'numeric'],
             'editFieldRanges.*.value_high' => ['nullable', 'numeric'],
-            'editFieldRanges.*.age_low' => ['nullable', 'integer', 'min:0'],
-            'editFieldRanges.*.age_high' => ['nullable', 'integer', 'min:0'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -324,9 +387,7 @@ new #[Title('Test Fields')] class extends Component
 
             $field->ranges()->delete();
 
-            foreach ($validated['editFieldRanges'] as $range) {
-                $field->ranges()->create($range);
-            }
+            $this->saveRanges($field, $validated['editFieldHasMultipleRanges'], $validated['editFieldRanges'] ?? [], $validated['editFieldMinValue'], $validated['editFieldMaxValue']);
         });
 
         unset($this->fields);
@@ -342,15 +403,10 @@ new #[Title('Test Fields')] class extends Component
     {
         $this->newFieldName = '';
         $this->newFieldUnit = '';
-        $this->newFieldRanges = [
-            [
-                'category' => LabFieldRangeCategory::Male->value,
-                'value_low' => null,
-                'value_high' => null,
-                'age_low' => null,
-                'age_high' => null,
-            ],
-        ];
+        $this->newFieldHasMultipleRanges = false;
+        $this->newFieldMinValue = null;
+        $this->newFieldMaxValue = null;
+        $this->newFieldRanges = [];
     }
 
     /**
@@ -365,14 +421,11 @@ new #[Title('Test Fields')] class extends Component
             default => __('no range set'),
         };
 
-        $age = match (true) {
-            $range->age_low !== null && $range->age_high !== null => __(', age :low–:high', ['low' => $range->age_low, 'high' => $range->age_high]),
-            $range->age_low !== null => __(', age :low+', ['low' => $range->age_low]),
-            $range->age_high !== null => __(', up to age :high', ['high' => $range->age_high]),
-            default => '',
-        };
+        if ($range->category === LabFieldRangeCategory::General) {
+            return $bounds;
+        }
 
-        return $range->category->label().' '.$bounds.$age;
+        return $range->category->label().' '.$bounds;
     }
 }; ?>
 
@@ -508,42 +561,56 @@ new #[Title('Test Fields')] class extends Component
                     </flux:field>
                 </div>
 
-                <div>
-                    <flux:label>{{ __('Normal Ranges') }}</flux:label>
-                    <div class="mt-2 flex flex-col gap-2">
-                        @foreach ($newFieldRanges as $index => $range)
-                            <div wire:key="new-range-{{ $index }}" class="grid grid-cols-12 items-end gap-2">
-                                <div class="col-span-3">
-                                    <flux:select wire:model="newFieldRanges.{{ $index }}.category" size="sm">
-                                        @foreach ($this->categoryOptions as $option)
-                                            <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
-                                        @endforeach
-                                    </flux:select>
-                                </div>
-                                <div class="col-span-2">
-                                    <flux:input wire:model="newFieldRanges.{{ $index }}.value_low" size="sm" placeholder="{{ __('Low') }}" />
-                                </div>
-                                <div class="col-span-2">
-                                    <flux:input wire:model="newFieldRanges.{{ $index }}.value_high" size="sm" placeholder="{{ __('High') }}" />
-                                </div>
-                                <div class="col-span-2">
-                                    <flux:input wire:model="newFieldRanges.{{ $index }}.age_low" size="sm" placeholder="{{ __('Age low') }}" />
-                                </div>
-                                <div class="col-span-2">
-                                    <flux:input wire:model="newFieldRanges.{{ $index }}.age_high" size="sm" placeholder="{{ __('Age high') }}" />
-                                </div>
-                                <div class="col-span-1">
-                                    <flux:button size="sm" variant="ghost" icon="x-mark" type="button" wire:click="removeRangeRow({{ $index }})" />
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                    <flux:error name="newFieldRanges" />
+                @unless ($newFieldHasMultipleRanges)
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Min') }}</flux:label>
+                            <flux:input wire:model="newFieldMinValue" placeholder="{{ __('e.g. 12') }}" />
+                            <flux:error name="newFieldMinValue" />
+                        </flux:field>
 
-                    <flux:button size="sm" variant="ghost" icon="plus" type="button" wire:click="addRangeRow" class="mt-2">
-                        {{ __('Add Range') }}
-                    </flux:button>
-                </div>
+                        <flux:field>
+                            <flux:label>{{ __('Max') }}</flux:label>
+                            <flux:input wire:model="newFieldMaxValue" placeholder="{{ __('e.g. 16') }}" />
+                            <flux:error name="newFieldMaxValue" />
+                        </flux:field>
+                    </div>
+                @endunless
+
+                <flux:checkbox wire:model.live="newFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+
+                @if ($newFieldHasMultipleRanges)
+                    <div>
+                        <flux:label>{{ __('Normal Ranges') }}</flux:label>
+                        <div class="mt-2 flex flex-col gap-2">
+                            @foreach ($newFieldRanges as $index => $range)
+                                <div wire:key="new-range-{{ $index }}" class="grid grid-cols-12 items-end gap-2">
+                                    <div class="col-span-5">
+                                        <flux:select wire:model="newFieldRanges.{{ $index }}.category" size="sm">
+                                            @foreach ($this->categoryOptions as $option)
+                                                <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
+                                            @endforeach
+                                        </flux:select>
+                                    </div>
+                                    <div class="col-span-3">
+                                        <flux:input wire:model="newFieldRanges.{{ $index }}.value_low" size="sm" placeholder="{{ __('Low') }}" />
+                                    </div>
+                                    <div class="col-span-3">
+                                        <flux:input wire:model="newFieldRanges.{{ $index }}.value_high" size="sm" placeholder="{{ __('High') }}" />
+                                    </div>
+                                    <div class="col-span-1">
+                                        <flux:button size="sm" variant="ghost" icon="x-mark" type="button" wire:click="removeRangeRow({{ $index }})" />
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <flux:error name="newFieldRanges" />
+
+                        <flux:button size="sm" variant="ghost" icon="plus" type="button" wire:click="addRangeRow" class="mt-2">
+                            {{ __('Add Range') }}
+                        </flux:button>
+                    </div>
+                @endif
 
                 <div class="flex justify-end gap-3">
                     <flux:button type="button" variant="ghost" wire:click="$set('showAttachModal', false)">
@@ -578,42 +645,56 @@ new #[Title('Test Fields')] class extends Component
                 </flux:field>
             </div>
 
-            <div>
-                <flux:label>{{ __('Normal Ranges') }}</flux:label>
-                <div class="mt-2 flex flex-col gap-2">
-                    @foreach ($editFieldRanges as $index => $range)
-                        <div wire:key="edit-range-{{ $index }}" class="grid grid-cols-12 items-end gap-2">
-                            <div class="col-span-3">
-                                <flux:select wire:model="editFieldRanges.{{ $index }}.category" size="sm">
-                                    @foreach ($this->categoryOptions as $option)
-                                        <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
-                                    @endforeach
-                                </flux:select>
-                            </div>
-                            <div class="col-span-2">
-                                <flux:input wire:model="editFieldRanges.{{ $index }}.value_low" size="sm" placeholder="{{ __('Low') }}" />
-                            </div>
-                            <div class="col-span-2">
-                                <flux:input wire:model="editFieldRanges.{{ $index }}.value_high" size="sm" placeholder="{{ __('High') }}" />
-                            </div>
-                            <div class="col-span-2">
-                                <flux:input wire:model="editFieldRanges.{{ $index }}.age_low" size="sm" placeholder="{{ __('Age low') }}" />
-                            </div>
-                            <div class="col-span-2">
-                                <flux:input wire:model="editFieldRanges.{{ $index }}.age_high" size="sm" placeholder="{{ __('Age high') }}" />
-                            </div>
-                            <div class="col-span-1">
-                                <flux:button size="sm" variant="ghost" icon="x-mark" type="button" wire:click="removeEditRangeRow({{ $index }})" />
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-                <flux:error name="editFieldRanges" />
+            @unless ($editFieldHasMultipleRanges)
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <flux:field>
+                        <flux:label>{{ __('Min') }}</flux:label>
+                        <flux:input wire:model="editFieldMinValue" />
+                        <flux:error name="editFieldMinValue" />
+                    </flux:field>
 
-                <flux:button size="sm" variant="ghost" icon="plus" type="button" wire:click="addEditRangeRow" class="mt-2">
-                    {{ __('Add Range') }}
-                </flux:button>
-            </div>
+                    <flux:field>
+                        <flux:label>{{ __('Max') }}</flux:label>
+                        <flux:input wire:model="editFieldMaxValue" />
+                        <flux:error name="editFieldMaxValue" />
+                    </flux:field>
+                </div>
+            @endunless
+
+            <flux:checkbox wire:model.live="editFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+
+            @if ($editFieldHasMultipleRanges)
+                <div>
+                    <flux:label>{{ __('Normal Ranges') }}</flux:label>
+                    <div class="mt-2 flex flex-col gap-2">
+                        @foreach ($editFieldRanges as $index => $range)
+                            <div wire:key="edit-range-{{ $index }}" class="grid grid-cols-12 items-end gap-2">
+                                <div class="col-span-5">
+                                    <flux:select wire:model="editFieldRanges.{{ $index }}.category" size="sm">
+                                        @foreach ($this->categoryOptions as $option)
+                                            <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                </div>
+                                <div class="col-span-3">
+                                    <flux:input wire:model="editFieldRanges.{{ $index }}.value_low" size="sm" placeholder="{{ __('Low') }}" />
+                                </div>
+                                <div class="col-span-3">
+                                    <flux:input wire:model="editFieldRanges.{{ $index }}.value_high" size="sm" placeholder="{{ __('High') }}" />
+                                </div>
+                                <div class="col-span-1">
+                                    <flux:button size="sm" variant="ghost" icon="x-mark" type="button" wire:click="removeEditRangeRow({{ $index }})" />
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <flux:error name="editFieldRanges" />
+
+                    <flux:button size="sm" variant="ghost" icon="plus" type="button" wire:click="addEditRangeRow" class="mt-2">
+                        {{ __('Add Range') }}
+                    </flux:button>
+                </div>
+            @endif
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="$set('showEditModal', false)">

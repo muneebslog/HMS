@@ -55,7 +55,30 @@ test('an existing field can be attached to a test', function () {
     expect($labTest->fields()->where('lab_field_id', $field->id)->exists())->toBeTrue();
 });
 
-test('a new field can be created with ranges and attached to a test', function () {
+test('a new field can be created with a single general range and attached to a test', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->set('newFieldName', 'Platelet count')
+        ->set('newFieldUnit', 'x10^3/uL')
+        ->set('newFieldMinValue', 150)
+        ->set('newFieldMaxValue', 450)
+        ->call('createAndAttachField')
+        ->assertSee('Platelet count');
+
+    $field = LabField::where('name', 'Platelet count')->firstOrFail();
+
+    expect($labTest->fields()->where('lab_field_id', $field->id)->exists())->toBeTrue();
+    expect($field->ranges)->toHaveCount(1);
+    expect($field->ranges->first())
+        ->category->toBe(\App\Enums\LabFieldRangeCategory::General)
+        ->value_low->toBe(150.0)
+        ->value_high->toBe(450.0);
+});
+
+test('a new field can be created with per-category ranges and attached to a test', function () {
     $labTechnician = User::factory()->labTechnician()->create();
     $labTest = LabTest::factory()->create();
 
@@ -63,9 +86,10 @@ test('a new field can be created with ranges and attached to a test', function (
         ->test('pages::lab.test-fields', ['labTest' => $labTest])
         ->set('newFieldName', 'WBC count')
         ->set('newFieldUnit', 'x10^3/uL')
+        ->set('newFieldHasMultipleRanges', true)
         ->set('newFieldRanges', [
-            ['category' => 'male', 'value_low' => 4, 'value_high' => 11, 'age_low' => 18, 'age_high' => null],
-            ['category' => 'female', 'value_low' => 4, 'value_high' => 11, 'age_low' => 18, 'age_high' => null],
+            ['category' => 'male', 'value_low' => 4, 'value_high' => 11],
+            ['category' => 'female', 'value_low' => 4, 'value_high' => 11],
         ])
         ->call('createAndAttachField')
         ->assertSee('WBC count');
@@ -76,8 +100,7 @@ test('a new field can be created with ranges and attached to a test', function (
     expect($field->ranges)->toHaveCount(2);
     expect($field->ranges->firstWhere('category', 'male'))
         ->value_low->toBe(4.0)
-        ->value_high->toBe(11.0)
-        ->age_low->toBe(18);
+        ->value_high->toBe(11.0);
 });
 
 test('a field can be detached from a test', function () {

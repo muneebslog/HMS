@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum LabFieldRangeCategory: string
 {
+    case General = 'general';
     case Male = 'male';
     case Female = 'female';
     case Child = 'child';
@@ -14,6 +15,7 @@ enum LabFieldRangeCategory: string
     public function label(): string
     {
         return match ($this) {
+            self::General => __('General'),
             self::Male => __('Male'),
             self::Female => __('Female'),
             self::Child => __('Child'),
