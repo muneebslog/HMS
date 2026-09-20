@@ -49,21 +49,23 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
-                    @pageAccess('doctor.portal')
-                        <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
-                            {{ __('Doctor Portal') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-                    @pageAccess('doctor.medication')
-                        <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
-                            {{ __('Medication') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-                    @pageAccess('doctor.procedures')
-                        <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
-                            {{ __('My Procedures') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
+                    @unless ($user->isAdmin())
+                        @pageAccess('doctor.portal')
+                            <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
+                                {{ __('Doctor Portal') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('doctor.medication')
+                            <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
+                                {{ __('Medication') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('doctor.procedures')
+                            <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
+                                {{ __('My Procedures') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                    @endunless
 
                     @pageAccess('indoor.ward')
                         <flux:sidebar.item icon="building-office-2" :href="route('indoor.ward')" :current="request()->routeIs('indoor.*')" wire:navigate>

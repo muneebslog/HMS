@@ -157,3 +157,15 @@ test('sidebar hides admin pages from receptionists', function () {
         ->assertDontSee(__('Checklist'))
         ->assertDontSee(__('Questionnaires'));
 });
+
+test('sidebar hides doctor pages from admins', function () {
+    $user = User::factory()->admin()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertDontSee(__('Doctor Portal'))
+        ->assertDontSee(__('My Procedures'))
+        ->assertDontSee('href="'.route('doctor.medication', absolute: false).'"', false)
+        ->assertDontSee('href="'.route('doctor.portal', absolute: false).'"', false);
+});
