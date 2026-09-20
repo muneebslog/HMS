@@ -33,6 +33,20 @@ test('lab technicians can open a test fields page', function () {
     $response->assertSee($labTest->test_name);
 });
 
+test('the in-house filter on the lab tests list hides outgoing tests', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $inHouse = LabTest::factory()->create(['test_name' => 'In-house CBC', 'is_in_house' => true]);
+    $outgoing = LabTest::factory()->create(['test_name' => 'Outgoing MRI', 'is_in_house' => false]);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.tests')
+        ->assertSee('In-house CBC')
+        ->assertSee('Outgoing MRI')
+        ->set('inHouseOnly', true)
+        ->assertSee('In-house CBC')
+        ->assertDontSee('Outgoing MRI');
+});
+
 test('doctors cannot visit the lab tests pages', function () {
     $doctor = User::factory()->doctor()->create();
     $labTest = LabTest::factory()->create();

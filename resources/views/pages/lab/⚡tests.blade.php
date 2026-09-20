@@ -12,6 +12,8 @@ new #[Title('Lab Fields')] class extends Component
 
     public string $search = '';
 
+    public bool $inHouseOnly = false;
+
     /**
      * Get the paginated lab tests based on the search filter.
      *
@@ -28,6 +30,9 @@ new #[Title('Lab Fields')] class extends Component
                         ->orWhere('test_code', 'like', "%{$this->search}%");
                 });
             })
+            ->when($this->inHouseOnly, function ($query) {
+                $query->where('is_in_house', true);
+            })
             ->orderBy('test_name')
             ->paginate(15);
     }
@@ -39,6 +44,14 @@ new #[Title('Lab Fields')] class extends Component
     {
         $this->resetPage();
     }
+
+    /**
+     * Reset pagination when the in-house filter changes.
+     */
+    public function updatedInHouseOnly(): void
+    {
+        $this->resetPage();
+    }
 }; ?>
 
 <div>
@@ -47,12 +60,16 @@ new #[Title('Lab Fields')] class extends Component
             <flux:heading level="1">{{ __('Lab Fields') }}</flux:heading>
         </div>
 
-        <flux:input
-            wire:model.live.debounce.300ms="search"
-            placeholder="{{ __('Search by test name or code...') }}"
-            icon="magnifying-glass"
-            class="w-full sm:max-w-md"
-        />
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <flux:input
+                wire:model.live.debounce.300ms="search"
+                placeholder="{{ __('Search by test name or code...') }}"
+                icon="magnifying-glass"
+                class="w-full sm:max-w-md"
+            />
+
+            <flux:switch wire:model.live="inHouseOnly" :label="__('In-house only')" />
+        </div>
 
         <flux:card>
             <flux:table>
@@ -71,7 +88,9 @@ new #[Title('Lab Fields')] class extends Component
                             <flux:table.cell>{{ $labTest->test_code ?: '—' }}</flux:table.cell>
                             <flux:table.cell>{{ $labTest->sample ?: '—' }}</flux:table.cell>
                             <flux:table.cell>
-                                <flux:badge size="sm">{{ trans_choice(':count field|:count fields', $labTest->fields_count, ['count' => $labTest->fields_count]) }}</flux:badge>
+                                <flux:badge size="sm" color="{{ $labTest->fields_count > 1 ? 'green' : 'zinc' }}">
+                                    {{ trans_choice(':count field|:count fields', $labTest->fields_count, ['count' => $labTest->fields_count]) }}
+                                </flux:badge>
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
                                 <flux:button size="sm" variant="ghost" icon:trailing="chevron-right" :href="route('lab.tests.fields', $labTest)" wire:navigate>
