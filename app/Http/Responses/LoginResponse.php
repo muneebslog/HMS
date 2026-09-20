@@ -26,7 +26,7 @@ class LoginResponse implements LoginResponseContract
         }
 
         if ($user !== null && $user->role === UserRole::LabTechnician) {
-            return redirect()->to(route('lab-entries'));
+            return redirect()->to(route('lab-api-and-info'));
         }
 
         return redirect()->intended(config('fortify.home', '/dashboard'));

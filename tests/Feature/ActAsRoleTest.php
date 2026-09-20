@@ -140,6 +140,6 @@ test('admin can act as lab technician', function () {
         ->and($admin->isLabTechnician())->toBeTrue();
 
     $this->actingAs($admin)
-        ->get(route('lab-entries'))
+        ->get(route('lab-api-and-info'))
         ->assertSuccessful();
 });

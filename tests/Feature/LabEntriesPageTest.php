@@ -20,7 +20,7 @@ beforeEach(function () {
 });
 
 test('guests are redirected to the login page', function () {
-    $response = $this->get(route('lab-entries'));
+    $response = $this->get(route('lab-api-and-info'));
 
     $response->assertRedirect(route('login'));
 });
@@ -28,7 +28,7 @@ test('guests are redirected to the login page', function () {
 test('admins can visit the lab entries page', function () {
     $admin = User::factory()->admin()->create();
 
-    $response = $this->actingAs($admin)->get(route('lab-entries'));
+    $response = $this->actingAs($admin)->get(route('lab-api-and-info'));
 
     $response->assertOk();
 });
@@ -36,7 +36,7 @@ test('admins can visit the lab entries page', function () {
 test('management can visit the lab entries page', function () {
     $management = User::factory()->management()->create();
 
-    $response = $this->actingAs($management)->get(route('lab-entries'));
+    $response = $this->actingAs($management)->get(route('lab-api-and-info'));
 
     $response->assertOk();
 });
@@ -44,7 +44,7 @@ test('management can visit the lab entries page', function () {
 test('receptionists can visit the lab entries page', function () {
     $receptionist = User::factory()->receptionist()->create();
 
-    $response = $this->actingAs($receptionist)->get(route('lab-entries'));
+    $response = $this->actingAs($receptionist)->get(route('lab-api-and-info'));
 
     $response->assertOk();
 });
@@ -52,7 +52,7 @@ test('receptionists can visit the lab entries page', function () {
 test('lab technicians can visit the lab entries page', function () {
     $labTechnician = User::factory()->labTechnician()->create();
 
-    $response = $this->actingAs($labTechnician)->get(route('lab-entries'));
+    $response = $this->actingAs($labTechnician)->get(route('lab-api-and-info'));
 
     $response->assertOk();
 });
@@ -60,7 +60,7 @@ test('lab technicians can visit the lab entries page', function () {
 test('doctors cannot visit the lab entries page', function () {
     $doctor = User::factory()->doctor()->create();
 
-    $response = $this->actingAs($doctor)->get(route('lab-entries'));
+    $response = $this->actingAs($doctor)->get(route('lab-api-and-info'));
 
     $response->assertForbidden();
 });
@@ -68,7 +68,7 @@ test('doctors cannot visit the lab entries page', function () {
 test('users with the default user role are redirected to the pending role page', function () {
     $user = User::factory()->user()->create();
 
-    $response = $this->actingAs($user)->get(route('lab-entries'));
+    $response = $this->actingAs($user)->get(route('lab-api-and-info'));
 
     $response->assertRedirect(route('pending-role'));
 });

@@ -39,13 +39,13 @@ $routeMap = [
         // Checklist form pages removed; incharge nurses keep birth-certificate access only.
     ],
     'lab_technician' => [
-        'lab-entries',
+        'lab-api-and-info',
         'reception.mr-lookup',
     ],
     'shared' => [
         'reception.shift',
         'dashboard',
-        'lab-entries',
+        'lab-api-and-info',
     ],
 ];
 
@@ -172,7 +172,7 @@ test('lab technicians are redirected from dashboard to lab entries', function ()
 
     $this->actingAs($user)
         ->get(route('dashboard'))
-        ->assertRedirect(route('lab-entries'));
+        ->assertRedirect(route('lab-api-and-info'));
 });
 
 test('lab technicians are blocked from admin, management and receptionist routes', function () use ($routeMap) {

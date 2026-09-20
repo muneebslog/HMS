@@ -21,7 +21,7 @@ new #[Title('Dashboard')] class extends Component
         }
 
         if (auth()->user()?->isLabTechnician()) {
-            $this->redirect(route('lab-entries'), navigate: true);
+            $this->redirect(route('lab-api-and-info'), navigate: true);
         }
     }
 

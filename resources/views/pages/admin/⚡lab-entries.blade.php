@@ -9,7 +9,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Lab Entries Listings')] class extends Component
+new #[Title('Lab API and Info')] class extends Component
 {
     public string $statusFilter = 'all';
 
@@ -109,7 +109,7 @@ new #[Title('Lab Entries Listings')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Lab Entries Listings') }}</flux:heading>
+            <flux:heading level="1">{{ __('Lab API and Info') }}</flux:heading>
         </div>
 
         <flux:card>

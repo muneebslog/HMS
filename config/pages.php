@@ -16,6 +16,10 @@ return [
     'always_accessible' => [
         'dashboard',
         'pending-role',
+        'extras',
+        'extras.admin-side',
+        'extras.dev-side',
+        'extras.stats',
         'profile.edit',
         'security.edit',
         'appearance.edit',
@@ -76,7 +80,7 @@ return [
         'reception.print-jobs' => ['label' => 'Print Jobs', 'group' => 'Reception'],
 
         // Management
-        'lab-entries' => ['label' => 'Lab Entries Listings', 'group' => 'Management'],
+        'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Management'],
         'reception.invoices' => ['label' => 'Invoices', 'group' => 'Management'],
         'invoices.print' => ['label' => 'Invoice Print', 'group' => 'Management', 'parent' => 'reception.invoices'],
@@ -142,7 +146,7 @@ return [
             'reception.walkin', 'reception.reservation', 'reception.lab-entry',
             'reception.vitals', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice',
             'reception.token-flow', 'payout.daily', 'supervisor.checklist',
-            'lab-entries', 'reception.shift', 'reception.print-jobs',
+            'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
         ],
 
@@ -151,7 +155,7 @@ return [
             'reception.invoices', 'invoices.print', 'reception.queue', 'reception.queue.tv',
             'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
-            'lab-entries', 'reception.shift', 'reception.print-jobs',
+            'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',
         ],
@@ -172,7 +176,7 @@ return [
         ],
 
         UserRole::LabTechnician->value => [
-            'lab-entries',
+            'lab-api-and-info',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
         ],

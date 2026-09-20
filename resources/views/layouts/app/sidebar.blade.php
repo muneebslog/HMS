@@ -14,27 +14,23 @@
                 'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
-                'lab-entries', 'reception.mr-lookup',
-                'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
+                'reception.mr-lookup',
+                'reception.invoices', 'payout.doctor', 'management.shift-history', 'management.approvals',
                 'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
-            $administrationRoutes = [
+            $extrasRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides',
-                'admin.page-access', 'admin.act-as-role',
-            ];
-            $adminSideRoutes = [
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
-            ];
-            $statsRoutes = [
-                'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
-                'admin.medication-deliveries',
-            ];
-            $devSideRoutes = [
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
+                'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
+                'admin.medication-deliveries', 'reception.queue', 'lab-api-and-info',
             ];
             $systemRoutes = [
                 'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders', 'reception.shift',
             ];
+            $showExtras = $user->isAdmin()
+                || $user->isActuallyAdmin()
+                || $pageAccess->canAccessAny($user, $extrasRoutes);
         @endphp
         <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:sidebar.header>
@@ -124,11 +120,6 @@
                             {{ __('Management') }}
                         </div>
 
-                        @pageAccess('lab-entries')
-                            <flux:sidebar.item icon="beaker" :href="route('lab-entries')" :current="request()->routeIs('lab-entries')" wire:navigate>
-                                {{ __('Lab Entries') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
                         @pageAccess('reception.mr-lookup')
                             <flux:sidebar.item icon="magnifying-glass" :href="route('reception.mr-lookup')" :current="request()->routeIs('reception.mr-lookup')" wire:navigate>
                                 {{ __('MR Lookup') }}
@@ -137,11 +128,6 @@
                         @pageAccess('reception.invoices')
                             <flux:sidebar.item icon="document-text" :href="route('reception.invoices')" :current="request()->routeIs('reception.invoices')" wire:navigate>
                                 {{ __('Invoices') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('reception.queue')
-                            <flux:sidebar.item icon="queue-list" :href="route('reception.queue')" :current="request()->routeIs('reception.queue')" wire:navigate>
-                                {{ __('Queue') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('payout.doctor')
@@ -172,126 +158,16 @@
                     </flux:sidebar.group>
                 @endif
 
-                @if ($user->isAdmin())
+                @if ($showExtras)
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
                             <span class="size-2 rounded-full bg-purple-500"></span>
-                            {{ __('Administration') }}
+                            {{ __('More') }}
                         </div>
 
-                        @pageAccess('management.crud')
-                            <flux:sidebar.item icon="cog-6-tooth" :href="route('management.crud')" :current="request()->routeIs('management.crud')" wire:navigate>
-                                {{ __('Management CRUD') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.users')
-                            <flux:sidebar.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>
-                                {{ __('Users') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.employees')
-                            <flux:sidebar.item icon="identification" :href="route('admin.employees')" :current="request()->routeIs('admin.employees*')" wire:navigate>
-                                {{ __('Staff Profiles') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.health-aides')
-                            <flux:sidebar.item icon="finger-print" :href="route('admin.health-aides')" :current="request()->routeIs('admin.health-aides')" wire:navigate>
-                                {{ __('Health Aides') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @if ($pageAccess->canAccessAny($user, $adminSideRoutes))
-                            <flux:sidebar.group
-                                icon="shield-check"
-                                expandable
-                                :expanded="request()->routeIs(...$adminSideRoutes)"
-                                :heading="__('Admin Side')"
-                                class="grid"
-                            >
-                                @pageAccess('admin.policy-journal')
-                                    <flux:sidebar.item icon="book-open" :href="route('admin.policy-journal')" :current="request()->routeIs('admin.policy-journal')" wire:navigate>
-                                        {{ __('Policy Journal') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.notifications')
-                                    <flux:sidebar.item icon="bell" :href="route('admin.notifications')" :current="request()->routeIs('admin.notifications')" wire:navigate>
-                                        {{ __('Notifications') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.reports')
-                                    <flux:sidebar.item icon="inbox-arrow-down" :href="route('admin.reports')" :current="request()->routeIs('admin.reports')" wire:navigate>
-                                        {{ __('Reports to Admin') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                            </flux:sidebar.group>
-                        @endif
-                        @if ($pageAccess->canAccessAny($user, $devSideRoutes))
-                            <flux:sidebar.group
-                                icon="code-bracket"
-                                expandable
-                                :expanded="request()->routeIs(...$devSideRoutes)"
-                                :heading="__('Dev Side')"
-                                class="grid"
-                            >
-                                @pageAccess('admin.sms-logs')
-                                    <flux:sidebar.item icon="chat-bubble-left-right" :href="route('admin.sms-logs')" :current="request()->routeIs('admin.sms-logs')" wire:navigate>
-                                        {{ __('SMS Logs') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.merge-duplicates')
-                                    <flux:sidebar.item icon="user-group" :href="route('admin.merge-duplicates')" :current="request()->routeIs('admin.merge-duplicates')" wire:navigate>
-                                        {{ __('Merge Duplicates') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.sql-runner')
-                                    <flux:sidebar.item icon="command-line" :href="route('admin.sql-runner')" :current="request()->routeIs('admin.sql-runner')" wire:navigate>
-                                        {{ __('SQL Runner') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.kanban')
-                                    <flux:sidebar.item icon="squares-2x2" :href="route('admin.kanban')" :current="request()->routeIs('admin.kanban')" wire:navigate>
-                                        {{ __('Kanban') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                            </flux:sidebar.group>
-                        @endif
-                        @if ($pageAccess->canAccessAny($user, $statsRoutes))
-                            <flux:sidebar.group
-                                icon="chart-bar"
-                                expandable
-                                :expanded="request()->routeIs(...$statsRoutes)"
-                                :heading="__('Stats')"
-                                class="grid"
-                            >
-                                @pageAccess('admin.monthly-report')
-                                    <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
-                                        {{ __('Monthly Report') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.procedure-finances')
-                                    <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
-                                        {{ __('Procedure Finances') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.service-stats')
-                                    <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
-                                        {{ __('Service Statistics') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                                @pageAccess('admin.medication-deliveries')
-                                    <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
-                                        {{ __('Medication Deliveries') }}
-                                    </flux:sidebar.item>
-                                @endpageAccess
-                            </flux:sidebar.group>
-                        @endif
-                        <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>
-                            {{ __('Page Access') }}
+                        <flux:sidebar.item icon="squares-plus" :href="route('extras')" :current="request()->routeIs('extras', 'extras.*')" wire:navigate>
+                            {{ __('Extras') }}
                         </flux:sidebar.item>
-                        @if ($user->isActuallyAdmin())
-                            <flux:sidebar.item icon="eye" :href="route('admin.act-as-role')" :current="request()->routeIs('admin.act-as-role')" wire:navigate>
-                                {{ __('Act as Role') }}
-                            </flux:sidebar.item>
-                        @endif
                     </flux:sidebar.group>
                 @endif
 

@@ -172,111 +172,104 @@ test('sidebar hides doctor pages from admins', function () {
         ->assertDontSee('href="'.route('doctor.portal', absolute: false).'"', false);
 });
 
-test('lab entries and mr lookup appear under management in the sidebar', function () {
+test('mr lookup appears under management in the sidebar', function () {
     $user = User::factory()->management()->create();
 
     $html = $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertSuccessful()
-        ->assertSee(__('Lab Entries'))
         ->assertSee(__('MR Lookup'))
+        ->assertDontSee(__('Lab API and Info'))
         ->getContent();
 
     $managementPos = strpos($html, __('Management'));
-    $labEntriesPos = strpos($html, __('Lab Entries'));
     $mrLookupPos = strpos($html, __('MR Lookup'));
-    $administrationPos = strpos($html, __('Administration'));
+    $extrasPos = strpos($html, __('Extras'));
 
     expect($managementPos)->not->toBeFalse()
-        ->and($labEntriesPos)->toBeGreaterThan($managementPos)
         ->and($mrLookupPos)->toBeGreaterThan($managementPos);
 
-    if ($administrationPos !== false) {
-        expect($labEntriesPos)->toBeLessThan($administrationPos)
-            ->and($mrLookupPos)->toBeLessThan($administrationPos);
+    if ($extrasPos !== false) {
+        expect($mrLookupPos)->toBeLessThan($extrasPos);
     }
 });
 
-test('dev tools appear under expandable Dev Side in the sidebar', function () {
-    $user = User::factory()->admin()->create();
+test('lab api and info is reachable from extras instead of the sidebar', function () {
+    $user = User::factory()->management()->create();
 
     $html = $this->actingAs($user)
         ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Extras'))
+        ->getContent();
+
+    expect(str_contains($html, 'href="'.route('lab-api-and-info').'"'))->toBeFalse();
+
+    $this->actingAs($user)
+        ->get(route('extras'))
+        ->assertSuccessful()
+        ->assertSee(__('Lab API and Info'));
+});
+
+test('dev tools are reachable from extras instead of the sidebar', function () {
+    $user = User::factory()->admin()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Extras'))
+        ->assertDontSee(__('SMS Logs'))
+        ->assertDontSee(__('Merge Duplicates'))
+        ->assertDontSee(__('SQL Runner'))
+        ->assertDontSee(__('Kanban'));
+
+    $this->actingAs($user)
+        ->get(route('extras.dev-side'))
         ->assertSuccessful()
         ->assertSee(__('Dev Side'))
         ->assertSee(__('SMS Logs'))
         ->assertSee(__('Merge Duplicates'))
         ->assertSee(__('SQL Runner'))
-        ->assertSee(__('Kanban'))
-        ->getContent();
-
-    $devSidePos = strpos($html, __('Dev Side'));
-    $smsLogsPos = strpos($html, __('SMS Logs'));
-    $mergeDuplicatesPos = strpos($html, __('Merge Duplicates'));
-    $sqlRunnerPos = strpos($html, __('SQL Runner'));
-    $kanbanPos = strpos($html, __('Kanban'));
-    $administrationPos = strpos($html, __('Administration'));
-
-    expect($devSidePos)->not->toBeFalse()
-        ->and($administrationPos)->not->toBeFalse()
-        ->and($devSidePos)->toBeGreaterThan($administrationPos)
-        ->and($smsLogsPos)->toBeGreaterThan($devSidePos)
-        ->and($mergeDuplicatesPos)->toBeGreaterThan($devSidePos)
-        ->and($sqlRunnerPos)->toBeGreaterThan($devSidePos)
-        ->and($kanbanPos)->toBeGreaterThan($devSidePos);
+        ->assertSee(__('Kanban'));
 });
 
-test('admin tools appear under expandable Admin Side in the sidebar', function () {
+test('admin tools are reachable from extras instead of the sidebar', function () {
     $user = User::factory()->admin()->create();
 
-    $html = $this->actingAs($user)
+    $this->actingAs($user)
         ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Extras'))
+        ->assertDontSee(__('Policy Journal'))
+        ->assertDontSee(__('Reports to Admin'));
+
+    $this->actingAs($user)
+        ->get(route('extras.admin-side'))
         ->assertSuccessful()
         ->assertSee(__('Admin Side'))
         ->assertSee(__('Policy Journal'))
         ->assertSee(__('Notifications'))
-        ->assertSee(__('Reports to Admin'))
-        ->getContent();
-
-    $adminSidePos = strpos($html, __('Admin Side'));
-    $policyJournalPos = strpos($html, __('Policy Journal'));
-    $notificationsPos = strpos($html, __('Notifications'));
-    $reportsPos = strpos($html, __('Reports to Admin'));
-    $administrationPos = strpos($html, __('Administration'));
-
-    expect($adminSidePos)->not->toBeFalse()
-        ->and($administrationPos)->not->toBeFalse()
-        ->and($adminSidePos)->toBeGreaterThan($administrationPos)
-        ->and($policyJournalPos)->toBeGreaterThan($adminSidePos)
-        ->and($notificationsPos)->toBeGreaterThan($adminSidePos)
-        ->and($reportsPos)->toBeGreaterThan($adminSidePos);
+        ->assertSee(__('Reports to Admin'));
 });
 
-test('stats pages appear under expandable Stats in the sidebar', function () {
+test('stats pages are reachable from extras instead of the sidebar', function () {
     $user = User::factory()->admin()->create();
 
-    $html = $this->actingAs($user)
+    $this->actingAs($user)
         ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Extras'))
+        ->assertDontSee(__('Monthly Report'))
+        ->assertDontSee(__('Procedure Finances'))
+        ->assertDontSee(__('Service Statistics'))
+        ->assertDontSee(__('Medication Deliveries'));
+
+    $this->actingAs($user)
+        ->get(route('extras.stats'))
         ->assertSuccessful()
         ->assertSee(__('Stats'))
         ->assertSee(__('Monthly Report'))
         ->assertSee(__('Procedure Finances'))
         ->assertSee(__('Service Statistics'))
-        ->assertSee(__('Medication Deliveries'))
-        ->getContent();
-
-    $statsPos = strpos($html, __('Stats'));
-    $monthlyReportPos = strpos($html, __('Monthly Report'));
-    $procedureFinancesPos = strpos($html, __('Procedure Finances'));
-    $serviceStatsPos = strpos($html, __('Service Statistics'));
-    $medicationDeliveriesPos = strpos($html, __('Medication Deliveries'));
-    $administrationPos = strpos($html, __('Administration'));
-
-    expect($statsPos)->not->toBeFalse()
-        ->and($administrationPos)->not->toBeFalse()
-        ->and($statsPos)->toBeGreaterThan($administrationPos)
-        ->and($monthlyReportPos)->toBeGreaterThan($statsPos)
-        ->and($procedureFinancesPos)->toBeGreaterThan($statsPos)
-        ->and($serviceStatsPos)->toBeGreaterThan($statsPos)
-        ->and($medicationDeliveriesPos)->toBeGreaterThan($statsPos);
+        ->assertSee(__('Medication Deliveries'));
 });

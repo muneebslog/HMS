@@ -83,6 +83,11 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
         Route::livewire('pending-role', 'pages::pending-role')->name('pending-role');
 
+        Route::livewire('extras', 'pages::extras')->name('extras');
+        Route::livewire('extras/admin-side', 'pages::extras.admin-side')->name('extras.admin-side');
+        Route::livewire('extras/dev-side', 'pages::extras.dev-side')->name('extras.dev-side');
+        Route::livewire('extras/stats', 'pages::extras.stats')->name('extras.stats');
+
         Route::livewire('management/crud', 'pages::management.crud')->name('management.crud');
         Route::get('management/procedure-type-documents/{document}/preview', ProcedureTypeDocumentPreviewController::class)
             ->name('management.procedure-type-documents.preview');
@@ -129,7 +134,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
 
-        Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
+        Route::livewire('lab-api-and-info', 'pages::admin.lab-entries')->name('lab-api-and-info');
+        Route::redirect('lab-entries', '/lab-api-and-info');
 
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
