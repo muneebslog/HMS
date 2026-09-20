@@ -33,6 +33,7 @@ return [
         'Reception',
         'Management',
         'Administration',
+        'Stats',
         'Dev Side',
         'System',
     ],
@@ -104,12 +105,11 @@ return [
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],
         'admin.policy-journals.download' => ['label' => 'Policy Journal Download', 'group' => 'Administration', 'parent' => 'admin.policy-journal'],
         'admin.reports' => ['label' => 'Reports to Admin', 'group' => 'Administration'],
-        'admin.monthly-report' => ['label' => 'Monthly Report', 'group' => 'Administration'],
-        'admin.procedure-finances' => ['label' => 'Procedure Finances', 'group' => 'Administration'],
-        'admin.service-stats' => ['label' => 'Service Statistics', 'group' => 'Administration'],
-        'admin.medication-deliveries' => ['label' => 'Medication Deliveries', 'group' => 'Administration'],
-        'admin.rechecks' => ['label' => 'Recheck Timers', 'group' => 'Administration'],
-        'admin.patient-flow' => ['label' => 'Patient Flow', 'group' => 'Administration'],
+        // Stats
+        'admin.monthly-report' => ['label' => 'Monthly Report', 'group' => 'Stats'],
+        'admin.procedure-finances' => ['label' => 'Procedure Finances', 'group' => 'Stats'],
+        'admin.service-stats' => ['label' => 'Service Statistics', 'group' => 'Stats'],
+        'admin.medication-deliveries' => ['label' => 'Medication Deliveries', 'group' => 'Stats'],
 
         // Dev Side
         'admin.sms-logs' => ['label' => 'SMS Logs', 'group' => 'Dev Side'],
@@ -121,7 +121,6 @@ return [
         'display.tokens' => ['label' => 'Token Display', 'group' => 'System'],
         'display.er' => ['label' => 'ER Station', 'group' => 'System'],
         'display.drips' => ['label' => 'Drip Delivery', 'group' => 'System'],
-        'display.stock' => ['label' => 'Stock Station', 'group' => 'System'],
         'display.er_drips' => ['label' => 'ER + Drips', 'group' => 'System'],
         'display.shift_orders' => ['label' => 'Shift Orders', 'group' => 'System'],
     ],
@@ -144,7 +143,7 @@ return [
             'reception.vitals', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice',
             'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             'lab-entries', 'reception.shift', 'reception.print-jobs',
-            'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
+            'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
         ],
 
         UserRole::Management->value => [
@@ -153,7 +152,7 @@ return [
             'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
             'lab-entries', 'reception.shift', 'reception.print-jobs',
-            'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
+            'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',
         ],
 
@@ -165,7 +164,7 @@ return [
 
         UserRole::Indoor->value => [
             'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
-            'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
+            'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
         ],
 
         UserRole::InchargeNurse->value => [

@@ -6,7 +6,6 @@ use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
-use App\Enums\UserRole;
 use App\Models\DripBase;
 use App\Models\DripCharge;
 use App\Models\HealthAide;
@@ -18,7 +17,6 @@ use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
-use App\Models\User;
 use App\Services\HealthAidePinSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -382,33 +380,6 @@ test('paid drip charge shows paid badge and allows start at drip station', funct
         ->assertHasNoErrors();
 
     expect($drip->fresh()->status)->toBe(DripLineStatus::Started);
-});
-
-test('admin can mark started drip done from recheck timers', function () {
-    [$order] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
-    $aide = HealthAide::factory()->create();
-    $drip = $order->drips->first();
-    $drip->update([
-        'status' => DripLineStatus::Started,
-        'started_at' => now()->subMinutes(35),
-        'started_by_health_aide_id' => $aide->id,
-        'check_due_at' => now()->subMinutes(5),
-    ]);
-
-    $admin = User::factory()->create(['role' => UserRole::Admin]);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.rechecks')
-        ->assertSee($order->patient->name)
-        ->assertSee($drip->name)
-        ->call('markDripDone', $drip->id)
-        ->assertHasNoErrors();
-
-    $drip->refresh();
-
-    expect($drip->status)->toBe(DripLineStatus::Done)
-        ->and($drip->done_by_user_id)->toBe($admin->id)
-        ->and($drip->done_at)->not->toBeNull();
 });
 
 test('drip page notifies once when check is due', function () {

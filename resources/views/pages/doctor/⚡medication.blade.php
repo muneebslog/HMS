@@ -6,7 +6,6 @@ use App\Enums\DripChargeStatus;
 use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
-use App\Models\DoctorRecheck;
 use App\Models\DripBase;
 use App\Models\DripCharge;
 use App\Models\Injection;
@@ -92,12 +91,6 @@ new #[Title('Medication')] class extends Component
 
     public ?int $dripServiceId = null;
 
-    public string $recheckMinutes = '15';
-
-    public string $recheckNote = '';
-
-    public bool $showRecheckForm = false;
-
     /**
      * @var list<array{
      *     selection: string|null,
@@ -131,7 +124,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return QueueToken::query()
-            ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder', 'activeRecheck'])
+            ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder'])
             ->where(function ($query): void {
                 $query->whereIn('status', ['waiting', 'serving'])
                     ->orWhere(function ($servedQuery): void {
@@ -147,10 +140,6 @@ new #[Title('Medication')] class extends Component
                     ->orWhereHas(
                         'medicationOrder',
                         fn ($orderQuery) => $orderQuery->where('status', MedicationOrderStatus::Draft)
-                    )
-                    ->orWhereHas(
-                        'doctorRechecks',
-                        fn ($recheckQuery) => $recheckQuery->whereNull('acknowledged_at')
                     );
             })
             ->whereHas('serviceQueue', function ($query) use ($shift): void {
@@ -161,9 +150,7 @@ new #[Title('Medication')] class extends Component
             ->orderByRaw('arrived_at is null')
             ->orderBy('arrived_at')
             ->orderBy('token_number')
-            ->get()
-            ->sortByDesc(fn (QueueToken $token): int => $token->activeRecheck?->isDue() ? 1 : 0)
-            ->values();
+            ->get();
     }
 
     /**
@@ -211,7 +198,7 @@ new #[Title('Medication')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives', 'activeRecheck'])
+            ?? QueueToken::with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
                 ->find($this->selectedTokenId);
     }
 
@@ -570,110 +557,8 @@ new #[Title('Medication')] class extends Component
         $this->activeOrderTab = 'medicines';
         $this->showWrittenMedicationInput = false;
         $this->writtenMedicationName = '';
-        $this->recheckMinutes = '15';
-        $this->recheckNote = $token->activeRecheck?->note ?? '';
-        $this->showRecheckForm = false;
         $this->resetValidation();
         $this->loadOrderForm($token);
-    }
-
-    /**
-     * Show the recheck timer form.
-     */
-    public function openRecheckForm(): void
-    {
-        $this->showRecheckForm = true;
-    }
-
-    /**
-     * Hide the recheck timer form.
-     */
-    public function closeRecheckForm(): void
-    {
-        $this->showRecheckForm = false;
-        $this->resetValidation(['recheckMinutes', 'recheckNote']);
-    }
-
-    /**
-     * Set a recheck timer for the selected patient.
-     */
-    public function setRecheck(): void
-    {
-        $token = $this->selectedToken;
-
-        if ($token === null || $token->patient_id === null) {
-            Flux::toast(variant: 'danger', text: __('Patient not found.'));
-            $this->backToList();
-
-            return;
-        }
-
-        $validated = $this->validate([
-            'recheckMinutes' => ['required', 'integer', 'min:1', 'max:240'],
-            'recheckNote' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        DoctorRecheck::query()
-            ->where('queue_token_id', $token->id)
-            ->whereNull('acknowledged_at')
-            ->update(['acknowledged_at' => now()]);
-
-        DoctorRecheck::create([
-            'queue_token_id' => $token->id,
-            'patient_id' => $token->patient_id,
-            'set_by' => auth()->id(),
-            'minutes' => (int) $validated['recheckMinutes'],
-            'note' => filled($validated['recheckNote'] ?? null) ? $validated['recheckNote'] : null,
-            'due_at' => now()->addMinutes((int) $validated['recheckMinutes']),
-        ]);
-
-        unset($this->queue, $this->selectedToken);
-
-        Flux::toast(variant: 'success', text: __('Recheck timer set for :minutes minutes.', ['minutes' => $validated['recheckMinutes']]));
-        $this->backToList();
-    }
-
-    /**
-     * Clear the active recheck for a patient.
-     */
-    public function acknowledgeRecheck(int $tokenId): void
-    {
-        DoctorRecheck::query()
-            ->where('queue_token_id', $tokenId)
-            ->whereNull('acknowledged_at')
-            ->update(['acknowledged_at' => now()]);
-
-        unset($this->queue, $this->selectedToken);
-
-        Flux::toast(variant: 'success', text: __('Recheck cleared.'));
-    }
-
-    /**
-     * Refresh the queue and toast for any newly due rechecks.
-     */
-    public function notifyDueRechecks(): void
-    {
-        unset($this->queue);
-
-        $dueRechecks = DoctorRecheck::query()
-            ->with('patient.family')
-            ->due()
-            ->whereNull('notified_at')
-            ->get();
-
-        foreach ($dueRechecks as $recheck) {
-            $name = $recheck->patient?->name ?? __('Unknown');
-            $note = filled($recheck->note) ? ' — '.$recheck->note : '';
-
-            Flux::toast(
-                variant: 'warning',
-                text: __('Recheck due: :name:note (Again)', ['name' => $name, 'note' => $note]),
-            );
-
-            $recheck->update(['notified_at' => now()]);
-        }
-
-        unset($this->queue);
     }
 
     /**
@@ -962,9 +847,6 @@ new #[Title('Medication')] class extends Component
         $this->complaintOrDiagnosis = '';
         $this->suggestedPrice = '';
         $this->dripServiceId = null;
-        $this->recheckMinutes = '15';
-        $this->recheckNote = '';
-        $this->showRecheckForm = false;
         $this->showWrittenMedicationInput = false;
         $this->writtenMedicationName = '';
         $this->showWrittenAdditiveInput = false;
@@ -2199,7 +2081,7 @@ new #[Title('Medication')] class extends Component
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-4" wire:poll.10s="notifyDueRechecks">
+<div class="flex h-full w-full flex-1 flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
         <flux:heading level="1">{{ __('Medication') }}</flux:heading>
         @if ($selectedTokenId === null)
@@ -2215,12 +2097,10 @@ new #[Title('Medication')] class extends Component
     @if ($selectedTokenId === null)
         <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @forelse ($this->queue as $token)
-                @php($recheck = $token->activeRecheck)
                 <x-paper-slip
                     as="button"
                     type="button"
                     :token="$token->token_number"
-                    :tone="$recheck?->isDue() ? 'accent' : 'default'"
                     wire:key="medication-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
                     class="min-h-48 active:scale-[0.99] hover:-translate-y-0.5"
@@ -2232,24 +2112,14 @@ new #[Title('Medication')] class extends Component
                                 {{ $token->patient?->name ?? __('Unknown') }}
                             </p>
                         </div>
-                        @if ($recheck?->isDue())
-                            <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
-                        @elseif ($recheck)
-                            <flux:badge size="sm" color="zinc">{{ __('Recheck :time', ['time' => $recheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}</flux:badge>
-                        @endif
                     </div>
                     <p class="truncate text-xs uppercase tracking-wide text-zinc-500">
                         {{ $token->patient?->mrn ?? __('No MRN') }}
                         · {{ $token->serviceQueue?->service?->name }}
                     </p>
-                    @if ($token->medicationOrder || $recheck?->isDue())
+                    @if ($token->medicationOrder)
                         <div class="mt-1 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
-                            @if ($token->medicationOrder)
-                                {{ $token->medicationOrder->status->label() }}
-                            @endif
-                            @if ($recheck?->isDue())
-                                {{ $token->medicationOrder ? ' · ' : '' }}{{ __('Again') }}{{ filled($recheck->note) ? ' — '.$recheck->note : '' }}
-                            @endif
+                            {{ $token->medicationOrder->status->label() }}
                         </div>
                     @endif
                     <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
@@ -2266,7 +2136,6 @@ new #[Title('Medication')] class extends Component
         </div>
     @else
         @php($token = $this->selectedToken)
-        @php($activeRecheck = $token?->activeRecheck)
         <div class="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900 sm:mx-0 sm:rounded-xl sm:border">
             <div class="flex items-center gap-3">
                 <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-lg font-bold text-white dark:bg-white dark:text-zinc-900">
@@ -2276,9 +2145,6 @@ new #[Title('Medication')] class extends Component
                     <p class="flex min-w-0 items-center gap-2 truncate text-lg font-semibold text-zinc-900 dark:text-white">
                         <x-patient-phone-indicator :patient="$token?->patient" />
                         <span class="truncate">{{ $token?->patient?->name ?? __('Unknown') }}</span>
-                        @if ($activeRecheck?->isDue())
-                            <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
-                        @endif
                         @if (filled($complaintOrDiagnosis))
                             <flux:badge size="sm" color="sky" class="ms-1 align-middle">
                                 {{ __('Diagnosis') }}: {{ $complaintOrDiagnosis }}
@@ -2303,28 +2169,7 @@ new #[Title('Medication')] class extends Component
 
         <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div class="mb-3 flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                    <flux:heading size="sm">{{ __('Vitals') }}</flux:heading>
-                    @if ($activeRecheck?->isDue())
-                        <flux:badge color="amber">{{ __('Again') }}</flux:badge>
-                    @endif
-                </div>
-                <div class="flex shrink-0 items-center gap-2">
-                    @unless ($showRecheckForm)
-                        <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openRecheckForm">
-                            {{ __('Set recheck timer') }}
-                            @if ($activeRecheck)
-                                <flux:badge size="sm" color="{{ $activeRecheck->isDue() ? 'amber' : 'zinc' }}" class="ms-1">
-                                    {{ $activeRecheck->isDue() ? __('Again') : $activeRecheck->timeRemainingLabel() }}
-                                </flux:badge>
-                            @endif
-                        </flux:button>
-                    @else
-                        <flux:button type="button" size="sm" variant="ghost" wire:click="closeRecheckForm">
-                            {{ __('Hide') }}
-                        </flux:button>
-                    @endunless
-                </div>
+                <flux:heading size="sm">{{ __('Vitals') }}</flux:heading>
             </div>
             @if ($token?->vitals->isNotEmpty())
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2353,52 +2198,8 @@ new #[Title('Medication')] class extends Component
                         </x-paper-slip>
                     @endforeach
                 </div>
-                @if ($activeRecheck?->isDue())
-                    <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">{{ __('Again — recheck due') }}</p>
-                @endif
             @else
                 <p class="text-sm text-zinc-500">{{ __('No vitals recorded for this visit.') }}</p>
-                @if ($activeRecheck?->isDue())
-                    <p class="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">{{ __('Again — recheck due') }}</p>
-                @endif
-            @endif
-
-            @if ($showRecheckForm)
-                <div class="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-700">
-                    @if ($activeRecheck)
-                        <p class="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
-                            @if ($activeRecheck->isDue())
-                                {{ __('Due now') }}{{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
-                            @else
-                                {{ $activeRecheck->timeRemainingLabel() }}
-                                · {{ __('Due at :time', ['time' => $activeRecheck->due_at->timezone(config('app.timezone'))->format('h:i A')]) }}
-                                {{ filled($activeRecheck->note) ? ' — '.$activeRecheck->note : '' }}
-                            @endif
-                        </p>
-                        <div class="mb-4">
-                            <flux:button type="button" size="sm" variant="ghost" wire:click="acknowledgeRecheck({{ $token->id }})">
-                                {{ __('Clear recheck') }}
-                            </flux:button>
-                        </div>
-                    @endif
-                    <form wire:submit="setRecheck" class="grid gap-3 sm:grid-cols-12">
-                        <flux:field class="sm:col-span-3">
-                            <flux:label>{{ __('Minutes') }}</flux:label>
-                            <flux:input wire:model="recheckMinutes" type="number" min="1" max="240" required />
-                            <flux:error name="recheckMinutes" />
-                        </flux:field>
-                        <flux:field class="sm:col-span-6">
-                            <flux:label>{{ __('Note') }}</flux:label>
-                            <flux:input wire:model="recheckNote" type="text" placeholder="{{ __('e.g. Check BP again') }}" />
-                            <flux:error name="recheckNote" />
-                        </flux:field>
-                        <div class="flex items-end sm:col-span-3">
-                            <flux:button type="submit" variant="primary" class="w-full" icon="clock">
-                                {{ __('Set timer') }}
-                            </flux:button>
-                        </div>
-                    </form>
-                </div>
             @endif
         </div>
 

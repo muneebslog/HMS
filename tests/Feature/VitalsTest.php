@@ -9,10 +9,15 @@ use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\Vital;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 /**
  * @return array{0: User, 1: Shift, 2: Service, 3: ServiceQueue, 4: Patient, 5: QueueToken}

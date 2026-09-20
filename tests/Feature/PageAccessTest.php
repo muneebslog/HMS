@@ -251,3 +251,32 @@ test('admin tools appear under expandable Admin Side in the sidebar', function (
         ->and($notificationsPos)->toBeGreaterThan($adminSidePos)
         ->and($reportsPos)->toBeGreaterThan($adminSidePos);
 });
+
+test('stats pages appear under expandable Stats in the sidebar', function () {
+    $user = User::factory()->admin()->create();
+
+    $html = $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Stats'))
+        ->assertSee(__('Monthly Report'))
+        ->assertSee(__('Procedure Finances'))
+        ->assertSee(__('Service Statistics'))
+        ->assertSee(__('Medication Deliveries'))
+        ->getContent();
+
+    $statsPos = strpos($html, __('Stats'));
+    $monthlyReportPos = strpos($html, __('Monthly Report'));
+    $procedureFinancesPos = strpos($html, __('Procedure Finances'));
+    $serviceStatsPos = strpos($html, __('Service Statistics'));
+    $medicationDeliveriesPos = strpos($html, __('Medication Deliveries'));
+    $administrationPos = strpos($html, __('Administration'));
+
+    expect($statsPos)->not->toBeFalse()
+        ->and($administrationPos)->not->toBeFalse()
+        ->and($statsPos)->toBeGreaterThan($administrationPos)
+        ->and($monthlyReportPos)->toBeGreaterThan($statsPos)
+        ->and($procedureFinancesPos)->toBeGreaterThan($statsPos)
+        ->and($serviceStatsPos)->toBeGreaterThan($statsPos)
+        ->and($medicationDeliveriesPos)->toBeGreaterThan($statsPos);
+});

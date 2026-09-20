@@ -22,7 +22,7 @@ it('extends session lifetime on display routes', function () {
 });
 
 it('forces non-secure session cookies for local ip display access', function () {
-    $request = Request::create('http://192.168.100.104/display/stock');
+    $request = Request::create('http://192.168.100.104/display/drips');
 
     (new EnsureDisplayKioskSession)->handle($request, fn (Request $req) => new Response('OK'));
 

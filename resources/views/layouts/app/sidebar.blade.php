@@ -20,18 +20,20 @@
             ];
             $administrationRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides',
-                'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
-                'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow',
                 'admin.page-access', 'admin.act-as-role',
             ];
             $adminSideRoutes = [
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
             ];
+            $statsRoutes = [
+                'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
+                'admin.medication-deliveries',
+            ];
             $devSideRoutes = [
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
             ];
             $systemRoutes = [
-                'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders', 'reception.shift',
+                'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders', 'reception.shift',
             ];
         @endphp
         <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
@@ -252,36 +254,36 @@
                                 @endpageAccess
                             </flux:sidebar.group>
                         @endif
-                        @pageAccess('admin.monthly-report')
-                            <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
-                                {{ __('Monthly Report') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.procedure-finances')
-                            <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
-                                {{ __('Procedure Finances') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.service-stats')
-                            <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
-                                {{ __('Service Statistics') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.medication-deliveries')
-                            <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
-                                {{ __('Medication Deliveries') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.rechecks')
-                            <flux:sidebar.item icon="clock" :href="route('admin.rechecks')" :current="request()->routeIs('admin.rechecks')" wire:navigate>
-                                {{ __('Recheck Timers') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.patient-flow')
-                            <flux:sidebar.item icon="map" :href="route('admin.patient-flow')" :current="request()->routeIs('admin.patient-flow')" wire:navigate>
-                                {{ __('Patient Flow') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
+                        @if ($pageAccess->canAccessAny($user, $statsRoutes))
+                            <flux:sidebar.group
+                                icon="chart-bar"
+                                expandable
+                                :expanded="request()->routeIs(...$statsRoutes)"
+                                :heading="__('Stats')"
+                                class="grid"
+                            >
+                                @pageAccess('admin.monthly-report')
+                                    <flux:sidebar.item icon="chart-bar" :href="route('admin.monthly-report')" :current="request()->routeIs('admin.monthly-report')" wire:navigate>
+                                        {{ __('Monthly Report') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.procedure-finances')
+                                    <flux:sidebar.item icon="banknotes" :href="route('admin.procedure-finances')" :current="request()->routeIs('admin.procedure-finances')" wire:navigate>
+                                        {{ __('Procedure Finances') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.service-stats')
+                                    <flux:sidebar.item icon="chart-bar" :href="route('admin.service-stats')" :current="request()->routeIs('admin.service-stats')" wire:navigate>
+                                        {{ __('Service Statistics') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('admin.medication-deliveries')
+                                    <flux:sidebar.item icon="beaker" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
+                                        {{ __('Medication Deliveries') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                            </flux:sidebar.group>
+                        @endif
                         <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>
                             {{ __('Page Access') }}
                         </flux:sidebar.item>
@@ -313,11 +315,6 @@
                         @pageAccess('display.drips')
                             <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
                                 {{ __('Drip Delivery') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('display.stock')
-                            <flux:sidebar.item icon="archive-box" :href="route('display.stock')" :current="request()->routeIs('display.stock')" wire:navigate>
-                                {{ __('Stock Station') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('display.er_drips')

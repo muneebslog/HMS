@@ -117,28 +117,4 @@ class QueueToken extends Model
     {
         return $this->hasMany(MedicationOrder::class)->latest('id');
     }
-
-    /**
-     * Get the doctor recheck timers for this token.
-     *
-     * @return HasMany<DoctorRecheck, $this>
-     */
-    public function doctorRechecks(): HasMany
-    {
-        return $this->hasMany(DoctorRecheck::class);
-    }
-
-    /**
-     * Get the active (not acknowledged) recheck for this token.
-     *
-     * @return HasOne<DoctorRecheck, $this>
-     */
-    public function activeRecheck(): HasOne
-    {
-        return $this->hasOne(DoctorRecheck::class)
-            ->ofMany(
-                ['id' => 'max'],
-                fn ($query) => $query->whereNull('acknowledged_at')
-            );
-    }
 }

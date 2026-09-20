@@ -5,7 +5,6 @@ use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
-use App\Models\DoctorRecheck;
 use App\Models\DripBase;
 use App\Models\Family;
 use App\Models\Injection;
@@ -19,10 +18,15 @@ use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\Vital;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 /**
  * @return array{0: User, 1: ?Doctor, 2: Shift, 3: Service, 4: ServiceQueue, 5: Patient, 6: QueueToken}
@@ -643,63 +647,6 @@ test('medication modals render with unique flux names', function () {
         ->assertSeeHtml('data-modal="medication-history"');
 });
 
-test('medication queue keeps patients with an active recheck after an order is saved', function () {
-    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
-    $medicine = Medicine::factory()->create();
-
-    Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->call('selectToken', $token->id)
-        ->set('medicationLines', [[
-            'selection' => 'medicine:'.$medicine->id,
-            'dose' => '1-0-0',
-            'administration_type' => 'im',
-            'comment' => '',
-        ]])
-        ->set('complaintOrDiagnosis', 'General')
-        ->call('save')
-        ->assertHasNoErrors()
-        ->assertDontSee($patient->name);
-
-    DoctorRecheck::factory()->due()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'set_by' => $user->id,
-        'note' => 'BP',
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->assertSee($patient->name)
-        ->assertSee(__('Again'));
-});
-
-test('medication queue removes patients after recheck is acknowledged when order exists', function () {
-    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
-
-    MedicationOrder::factory()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'prescribed_by' => $user->id,
-        'status' => MedicationOrderStatus::Pending,
-    ]);
-
-    $recheck = DoctorRecheck::factory()->due()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'set_by' => $user->id,
-    ]);
-
-    Livewire::actingAs($user)
-        ->test('pages::doctor.medication')
-        ->assertSee($patient->name)
-        ->call('acknowledgeRecheck', $token->id)
-        ->assertHasNoErrors()
-        ->assertDontSee($patient->name);
-
-    expect($recheck->fresh()->acknowledged_at)->not->toBeNull();
-});
-
 test('doctor can save a medication order for a standalone service without a doctor', function () {
     [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
     $medicine = Medicine::factory()->create(['name' => 'Paracetamol']);
@@ -1308,7 +1255,7 @@ test('reopening an order restores written injection names', function () {
         'queue_token_id' => $token->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
-        'status' => MedicationOrderStatus::Pending,
+        'status' => MedicationOrderStatus::Draft,
     ]);
 
     $order->injections()->create([
@@ -1325,12 +1272,6 @@ test('reopening an order restores written injection names', function () {
     $drip->additives()->create([
         'injection_id' => null,
         'name' => 'Vitamin C 500mg',
-    ]);
-
-    DoctorRecheck::factory()->due()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'set_by' => $user->id,
     ]);
 
     $component = Livewire::actingAs($user)
@@ -1468,7 +1409,7 @@ test('existing diagnosis loads into the free text field', function () {
         'queue_token_id' => $token->id,
         'patient_id' => $patient->id,
         'prescribed_by' => $user->id,
-        'status' => MedicationOrderStatus::Pending,
+        'status' => MedicationOrderStatus::Draft,
         'complaint_or_diagnosis' => 'Old free text complaint',
     ]);
 
@@ -1476,12 +1417,6 @@ test('existing diagnosis loads into the free text field', function () {
         'medicine_id' => $medicine->id,
         'dose' => MedicineDose::OneZeroZero,
         'name' => 'Legacy Med',
-    ]);
-
-    DoctorRecheck::factory()->due()->create([
-        'queue_token_id' => $token->id,
-        'patient_id' => $patient->id,
-        'set_by' => $user->id,
     ]);
 
     Livewire::actingAs($user)

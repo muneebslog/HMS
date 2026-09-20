@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\DoctorRecheck;
 use App\Models\QueueToken;
 use App\Models\Shift;
 use App\Models\Vital;
@@ -53,7 +52,7 @@ new #[Title('Vitals')] class extends Component
     }
 
     /**
-     * Waiting tokens that still need vitals, plus due recheck patients awaiting redo.
+     * Waiting tokens that still need vitals for the current open shift.
      *
      * @return Collection<int, QueueToken>
      */
@@ -67,35 +66,20 @@ new #[Title('Vitals')] class extends Component
         }
 
         return QueueToken::query()
-            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'activeRecheck'])
-            ->where(function ($query) use ($shift): void {
-                $query->where(function ($initial) use ($shift): void {
-                    $initial->where('status', 'waiting')
-                        ->whereDoesntHave('vital')
-                        ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
-                            $serviceQueue->where('status', 'open')
-                                ->forShift($shift)
-                                ->whereHas('service', fn ($serviceQuery) => $serviceQuery
-                                    ->where('needs_vitals', true)
-                                    ->orWhere('ends_at_vitals', true));
-                        });
-                })->orWhere(function ($recheck) use ($shift): void {
-                    $recheck->whereIn('status', ['waiting', 'serving'])
-                        ->whereHas('activeRecheck', fn ($activeRecheck) => $activeRecheck
-                            ->where('due_at', '<=', now())
-                            ->whereNull('vitals_redone_at'))
-                        ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
-                            $serviceQueue->where('status', 'open')
-                                ->forShift($shift);
-                        });
-                });
+            ->with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital'])
+            ->where('status', 'waiting')
+            ->whereDoesntHave('vital')
+            ->whereHas('serviceQueue', function ($serviceQueue) use ($shift): void {
+                $serviceQueue->where('status', 'open')
+                    ->forShift($shift)
+                    ->whereHas('service', fn ($serviceQuery) => $serviceQuery
+                        ->where('needs_vitals', true)
+                        ->orWhere('ends_at_vitals', true));
             })
             ->orderByRaw('arrived_at is null')
             ->orderBy('arrived_at')
             ->orderBy('token_number')
-            ->get()
-            ->sortByDesc(fn (QueueToken $token): int => $this->isRecheckCapture($token) ? 1 : 0)
-            ->values();
+            ->get();
     }
 
     /**
@@ -109,20 +93,8 @@ new #[Title('Vitals')] class extends Component
         }
 
         return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'activeRecheck'])
+            ?? QueueToken::with(['patient', 'serviceQueue.service', 'serviceQueue.doctor', 'vital'])
                 ->find($this->selectedTokenId);
-    }
-
-    /**
-     * Whether this token is in the queue for a due recheck vitals redo.
-     */
-    private function isRecheckCapture(?QueueToken $token): bool
-    {
-        $recheck = $token?->activeRecheck;
-
-        return $recheck !== null
-            && $recheck->isDue()
-            && ! $recheck->hasVitalsRedone();
     }
 
     /**
@@ -140,11 +112,6 @@ new #[Title('Vitals')] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->resetCaptureFields();
-
-        if ($token->vital !== null && $this->isRecheckCapture($token)) {
-            $this->fillCaptureFromVital($token->vital);
-        }
-
         $this->resetValidation();
     }
 
@@ -182,59 +149,39 @@ new #[Title('Vitals')] class extends Component
             return;
         }
 
-        $isRecheck = $this->isRecheckCapture($token);
-
-        if ($isRecheck) {
-            if (! in_array($token->status, ['waiting', 'serving'], true)) {
-                Flux::toast(variant: 'danger', text: __('Patient is no longer in the vitals queue.'));
-                $this->backToList();
-
-                return;
-            }
-        } elseif ($token->status !== 'waiting' || $token->vital()->exists()) {
+        if ($token->status !== 'waiting' || $token->vital()->exists()) {
             Flux::toast(variant: 'danger', text: __('Patient is no longer in the vitals queue.'));
             $this->backToList();
 
             return;
-        } elseif (! $token->serviceQueue?->service?->needs_vitals && ! $token->serviceQueue?->service?->ends_at_vitals) {
+        }
+
+        if (! $token->serviceQueue?->service?->needs_vitals && ! $token->serviceQueue?->service?->ends_at_vitals) {
             Flux::toast(variant: 'danger', text: __('This service does not require vitals.'));
             $this->backToList();
 
             return;
         }
 
-        $vitalAttributes = [
+        Vital::create([
+            'queue_token_id' => $token->id,
             'patient_id' => $token->patient_id,
             'recorded_by' => auth()->id(),
             'temperature' => filled($validated['temperatureFahrenheit'] ?? null) ? $validated['temperatureFahrenheit'] : null,
             'bp_systolic' => filled($validated['bpSystolic'] ?? null) ? $validated['bpSystolic'] : null,
             'bp_diastolic' => filled($validated['bpDiastolic'] ?? null) ? $validated['bpDiastolic'] : null,
             'bsr' => filled($validated['bsr'] ?? null) ? $validated['bsr'] : null,
-        ];
-
-        Vital::create([
-            'queue_token_id' => $token->id,
-            ...$vitalAttributes,
         ]);
 
-        if (! $isRecheck && $token->serviceQueue?->service?->ends_at_vitals) {
+        if ($token->serviceQueue?->service?->ends_at_vitals) {
             $token->update(['status' => 'served']);
-        }
-
-        if ($isRecheck) {
-            DoctorRecheck::query()
-                ->where('queue_token_id', $token->id)
-                ->whereNull('acknowledged_at')
-                ->whereNull('vitals_redone_at')
-                ->where('due_at', '<=', now())
-                ->update(['vitals_redone_at' => now()]);
         }
 
         unset($this->queue);
 
         $nextToken = $this->queue->first();
 
-        Flux::toast(variant: 'success', text: $isRecheck ? __('Vitals recorded (Again).') : __('Vitals saved.'));
+        Flux::toast(variant: 'success', text: __('Vitals saved.'));
 
         if ($nextToken === null) {
             $this->backToList();
@@ -246,21 +193,6 @@ new #[Title('Vitals')] class extends Component
         $this->resetCaptureFields();
         $this->resetValidation();
         unset($this->selectedToken);
-
-        if ($nextToken->vital !== null && $this->isRecheckCapture($nextToken)) {
-            $this->fillCaptureFromVital($nextToken->vital);
-        }
-    }
-
-    /**
-     * Prefill capture fields from an existing vitals reading.
-     */
-    private function fillCaptureFromVital(Vital $vital): void
-    {
-        $this->temperatureFahrenheit = $vital->temperature !== null ? (string) $vital->temperature : '';
-        $this->bpSystolic = $vital->bp_systolic !== null ? (string) $vital->bp_systolic : '';
-        $this->bpDiastolic = $vital->bp_diastolic !== null ? (string) $vital->bp_diastolic : '';
-        $this->bsr = $vital->bsr !== null ? (string) $vital->bsr : '';
     }
 
     /**
@@ -286,12 +218,10 @@ new #[Title('Vitals')] class extends Component
     @if ($selectedTokenId === null)
         <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3" wire:poll.10s>
             @forelse ($this->queue as $token)
-                @php($isAgain = $token->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
                 <x-paper-slip
                     as="button"
                     type="button"
                     :token="$token->token_number"
-                    :tone="$isAgain ? 'accent' : 'default'"
                     wire:key="vitals-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
                     class="active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_4px_8px_rgba(0,0,0,0.08),0_16px_28px_rgba(0,0,0,0.14)]"
@@ -300,9 +230,6 @@ new #[Title('Vitals')] class extends Component
                         <p class="truncate text-base font-semibold text-zinc-900">
                             {{ $token->patient?->name ?? __('Unknown') }}
                         </p>
-                        @if ($isAgain)
-                            <flux:badge size="sm" color="amber">{{ __('Again') }}</flux:badge>
-                        @endif
                     </div>
                     <p class="text-sm text-zinc-600">
                         {{ $token->serviceQueue?->service?->name }}
@@ -310,11 +237,6 @@ new #[Title('Vitals')] class extends Component
                     @if ($token->serviceQueue?->doctor)
                         <p class="text-xs uppercase tracking-wide text-zinc-500">
                             {{ $token->serviceQueue->doctor->name }}
-                        </p>
-                    @endif
-                    @if ($isAgain && filled($token->activeRecheck?->note))
-                        <p class="border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
-                            {{ $token->activeRecheck->note }}
                         </p>
                     @endif
                     <p class="mt-auto pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
@@ -331,18 +253,13 @@ new #[Title('Vitals')] class extends Component
         </div>
     @else
         @php($token = $this->selectedToken)
-        @php($isAgain = $token?->activeRecheck?->isDue() && ! $token->activeRecheck->hasVitalsRedone())
         <x-paper-slip
             :token="$token?->token_number"
-            :tone="$isAgain ? 'accent' : 'default'"
             class="mx-auto w-full max-w-lg"
         >
             <div class="space-y-1">
                 <p class="text-lg font-semibold text-zinc-900">
                     {{ $token?->patient?->name ?? __('Unknown') }}
-                    @if ($isAgain)
-                        <flux:badge size="sm" color="amber" class="ms-1 align-middle">{{ __('Again') }}</flux:badge>
-                    @endif
                 </p>
                 <p class="text-sm text-zinc-600">
                     {{ $token?->serviceQueue?->service?->name }}

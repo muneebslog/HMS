@@ -49,9 +49,6 @@ Route::livewire('display/medication', 'pages::display.medication-delivery')
 Route::livewire('display/drips', 'pages::display.drip-delivery')
     ->name('display.drips');
 
-Route::livewire('display/stock', 'pages::display.catalog-stock')
-    ->name('display.stock');
-
 Route::view('display/er-drips', 'pages.display.er-drips')
     ->name('display.er_drips');
 
@@ -103,8 +100,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/reports', 'pages::admin.reports')->name('admin.reports');
         Route::livewire('admin/monthly-report', 'pages::admin.monthly-report')->name('admin.monthly-report');
         Route::livewire('admin/procedure-finances', 'pages::admin.procedure-finances')->name('admin.procedure-finances');
-        Route::livewire('admin/rechecks', 'pages::admin.rechecks')->name('admin.rechecks');
-        Route::livewire('admin/patient-flow', 'pages::admin.patient-flow')->name('admin.patient-flow');
         Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
         Route::livewire('admin/medication-deliveries', 'pages::admin.medication-deliveries')->name('admin.medication-deliveries');
 
