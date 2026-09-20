@@ -92,7 +92,7 @@
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ __('Edit Patient') }}</flux:heading>
-                <flux:text class="mt-2">{{ __('Update the patient name and phone number.') }}</flux:text>
+                <flux:text class="mt-2">{{ __('Update the patient name, age, and gender.') }}</flux:text>
             </div>
 
             <flux:field>
@@ -102,15 +102,19 @@
             </flux:field>
 
             <flux:field>
-                <flux:label>{{ __('Phone') }}</flux:label>
-                <flux:input
-                    wire:model="editPatientPhone"
-                    type="text"
-                    inputmode="numeric"
-                    maxlength="11"
-                    placeholder="03001234567"
-                />
-                <flux:error name="editPatientPhone" />
+                <flux:label>{{ __('Age') }}</flux:label>
+                <flux:input wire:model="editPatientAge" type="number" min="0" max="150" />
+                <flux:error name="editPatientAge" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Gender') }}</flux:label>
+                <flux:select wire:model="editPatientGender">
+                    <option value="">{{ __('Select') }}</option>
+                    <option value="male">{{ __('Male') }}</option>
+                    <option value="female">{{ __('Female') }}</option>
+                </flux:select>
+                <flux:error name="editPatientGender" />
             </flux:field>
 
             <div class="flex justify-end gap-3">

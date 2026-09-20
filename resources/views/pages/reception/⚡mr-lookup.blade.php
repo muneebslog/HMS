@@ -150,6 +150,7 @@ new #[Title('MR Lookup')] class extends Component
             $patient,
             $validated['editName'],
             $validated['editAge'],
+            $patient->gender,
         );
 
         $this->cancelEditingPatient();

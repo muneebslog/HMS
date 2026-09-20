@@ -191,11 +191,11 @@ class PatientIntakeService
     }
 
     /**
-     * Update a patient's name and age.
+     * Update a patient's name, age, and gender.
      */
-    public function updatePatientDemographics(Patient $patient, string $name, ?int $age): Patient
+    public function updatePatientDemographics(Patient $patient, string $name, ?int $age, ?string $gender = null): Patient
     {
-        return DB::transaction(function () use ($patient, $name, $age) {
+        return DB::transaction(function () use ($patient, $name, $age, $gender) {
             $lockedPatient = Patient::query()
                 ->whereKey($patient->id)
                 ->lockForUpdate()
@@ -204,6 +204,7 @@ class PatientIntakeService
             $lockedPatient->update([
                 'name' => $name,
                 'age' => $age,
+                'gender' => $gender,
             ]);
 
             return $lockedPatient->fresh(['family']);

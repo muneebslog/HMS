@@ -6,7 +6,6 @@ use App\Models\AppSetting;
 use App\Models\Patient;
 use App\Services\PatientIntakeService;
 use Flux\Flux;
-use Illuminate\Validation\ValidationException;
 
 trait InteractsWithPatientIntake
 {
@@ -20,7 +19,9 @@ trait InteractsWithPatientIntake
 
     public string $editPatientName = '';
 
-    public string $editPatientPhone = '';
+    public ?int $editPatientAge = null;
+
+    public string $editPatientGender = '';
 
     /**
      * @var list<array{id: int, name: string, mrn: ?string, age: ?int, gender: ?string, phone: ?string}>
@@ -145,7 +146,7 @@ trait InteractsWithPatientIntake
     }
 
     /**
-     * Open the modal to edit the selected patient's name and phone.
+     * Open the modal to edit the selected patient's name, age, and gender.
      */
     public function openEditPatientModal(): void
     {
@@ -162,9 +163,10 @@ trait InteractsWithPatientIntake
         }
 
         $this->editPatientName = $patient->name ?? '';
-        $this->editPatientPhone = $patient->contactPhone() ?? '';
+        $this->editPatientAge = $patient->age;
+        $this->editPatientGender = $patient->gender ?? '';
         $this->showEditPatientModal = true;
-        $this->resetValidation(['editPatientName', 'editPatientPhone']);
+        $this->resetValidation(['editPatientName', 'editPatientAge', 'editPatientGender']);
     }
 
     /**
@@ -174,18 +176,20 @@ trait InteractsWithPatientIntake
     {
         $this->showEditPatientModal = false;
         $this->editPatientName = '';
-        $this->editPatientPhone = '';
-        $this->resetValidation(['editPatientName', 'editPatientPhone']);
+        $this->editPatientAge = null;
+        $this->editPatientGender = '';
+        $this->resetValidation(['editPatientName', 'editPatientAge', 'editPatientGender']);
     }
 
     /**
-     * Persist edits to the selected patient's name and phone.
+     * Persist edits to the selected patient's name, age, and gender.
      */
     public function saveSelectedPatientDetails(): void
     {
         $validated = $this->validate([
             'editPatientName' => ['required', 'string', 'max:255'],
-            'editPatientPhone' => ['nullable', 'digits:11'],
+            'editPatientAge' => ['nullable', 'integer', 'min:0', 'max:150'],
+            'editPatientGender' => ['nullable', 'string', 'in:male,female'],
         ]);
 
         if ($this->selectedPatientId === null) {
@@ -203,30 +207,12 @@ trait InteractsWithPatientIntake
             return;
         }
 
-        $intake = app(PatientIntakeService::class);
-
-        try {
-            $intake->updatePatientDemographics(
-                $patient,
-                $validated['editPatientName'],
-                $patient->age,
-            );
-
-            $intake->updateContactPhone(
-                $patient->fresh(['family']),
-                filled($validated['editPatientPhone']) ? $validated['editPatientPhone'] : null,
-            );
-        } catch (ValidationException $exception) {
-            $phoneError = $exception->errors()['phone'][0] ?? null;
-
-            if ($phoneError !== null) {
-                $this->addError('editPatientPhone', $phoneError);
-
-                return;
-            }
-
-            throw $exception;
-        }
+        app(PatientIntakeService::class)->updatePatientDemographics(
+            $patient,
+            $validated['editPatientName'],
+            $validated['editPatientAge'] ?? null,
+            filled($validated['editPatientGender']) ? $validated['editPatientGender'] : null,
+        );
 
         $this->selectMatchedPatient($this->selectedPatientId);
         $this->closeEditPatientModal();
@@ -280,7 +266,8 @@ trait InteractsWithPatientIntake
             'matchedPatients',
             'showEditPatientModal',
             'editPatientName',
-            'editPatientPhone',
+            'editPatientAge',
+            'editPatientGender',
         ];
     }
 

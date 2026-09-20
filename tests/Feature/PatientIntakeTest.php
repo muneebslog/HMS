@@ -50,11 +50,12 @@ test('walk-in can select an existing patient by phone so invoices share the same
     expect(Invoice::first()->patient->mrn)->toBe($existing->fresh()->mrn);
 });
 
-test('walk-in can edit a selected patient name and phone from the modal', function () {
+test('walk-in can edit a selected patient name age and gender from the modal', function () {
     $user = User::factory()->create();
     $existing = Patient::factory()->withPhone(intakePhone())->create([
         'name' => 'Original Name',
         'age' => 28,
+        'gender' => 'female',
     ]);
 
     Livewire::actingAs($user)
@@ -65,19 +66,20 @@ test('walk-in can edit a selected patient name and phone from the modal', functi
         ->call('openEditPatientModal')
         ->assertSet('showEditPatientModal', true)
         ->assertSet('editPatientName', 'ORIGINAL NAME')
-        ->assertSet('editPatientPhone', intakePhone())
+        ->assertSet('editPatientAge', 28)
+        ->assertSet('editPatientGender', 'female')
         ->set('editPatientName', 'Corrected Name')
-        ->set('editPatientPhone', '03009876543')
+        ->set('editPatientAge', 35)
+        ->set('editPatientGender', 'male')
         ->call('saveSelectedPatientDetails')
         ->assertSet('showEditPatientModal', false)
         ->assertSet('patientName', 'CORRECTED NAME')
-        ->assertSet('patientPhone', '03009876543')
         ->assertHasNoErrors();
 
     expect($existing->fresh())
         ->name->toBe('CORRECTED NAME')
-        ->age->toBe(28)
-        ->and($existing->fresh()->contactPhone())->toBe('03009876543');
+        ->age->toBe(35)
+        ->gender->toBe('male');
 });
 
 test('walk-in edit patient modal requires a name', function () {
