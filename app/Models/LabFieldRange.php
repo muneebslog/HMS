@@ -29,8 +29,6 @@ class LabFieldRange extends Model
     {
         return [
             'category' => LabFieldRangeCategory::class,
-            'value_low' => 'float',
-            'value_high' => 'float',
         ];
     }
 

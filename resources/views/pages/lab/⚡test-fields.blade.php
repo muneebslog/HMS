@@ -20,7 +20,8 @@ new #[Title('Test Fields')] class extends Component
 
     public bool $creatingNewField = false;
 
-    public ?int $fieldIdToAttach = null;
+    /** @var array<int, int> */
+    public array $fieldIdsToAttach = [];
 
     public string $newFieldName = '';
 
@@ -85,6 +86,28 @@ new #[Title('Test Fields')] class extends Component
     }
 
     /**
+     * Get the currently selected (not yet attached) fields, for the removable pill list.
+     *
+     * @return array<int, array{value: int, label: string}>
+     */
+    #[Computed]
+    public function selectedFieldsToAttach(): array
+    {
+        if ($this->fieldIdsToAttach === []) {
+            return [];
+        }
+
+        return LabField::whereIn('id', $this->fieldIdsToAttach)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (LabField $field) => [
+                'value' => $field->id,
+                'label' => $field->unit ? "{$field->name} ({$field->unit})" : $field->name,
+            ])
+            ->all();
+    }
+
+    /**
      * Get the category options for a range row select.
      *
      * @return array<int, array{value: string, label: string}>
@@ -103,11 +126,19 @@ new #[Title('Test Fields')] class extends Component
      */
     public function openAttachModal(): void
     {
-        $this->fieldIdToAttach = null;
+        $this->fieldIdsToAttach = [];
         $this->creatingNewField = false;
         $this->resetNewFieldForm();
         $this->resetValidation();
         $this->showAttachModal = true;
+    }
+
+    /**
+     * Remove a field from the pending "attach existing" selection.
+     */
+    public function removeFieldIdToAttach(int $fieldId): void
+    {
+        $this->fieldIdsToAttach = array_values(array_diff($this->fieldIdsToAttach, [$fieldId]));
     }
 
     /**
@@ -165,17 +196,21 @@ new #[Title('Test Fields')] class extends Component
     public function attachExistingField(): void
     {
         $validated = $this->validate([
-            'fieldIdToAttach' => ['required', 'integer', 'exists:lab_fields,id'],
+            'fieldIdsToAttach' => ['required', 'array', 'min:1'],
+            'fieldIdsToAttach.*' => ['integer', 'exists:lab_fields,id'],
         ]);
 
-        $nextOrder = ((int) $this->labTest->fields()->max('display_order')) + 1;
+        $nextOrder = (int) $this->labTest->fields()->max('display_order');
 
-        $this->labTest->fields()->attach($validated['fieldIdToAttach'], ['display_order' => $nextOrder]);
+        foreach ($validated['fieldIdsToAttach'] as $fieldId) {
+            $nextOrder++;
+            $this->labTest->fields()->attach($fieldId, ['display_order' => $nextOrder]);
+        }
 
         unset($this->fields);
         $this->showAttachModal = false;
 
-        Flux::toast(variant: 'success', text: __('Field attached to test.'));
+        Flux::toast(variant: 'success', text: __('Fields attached to test.'));
     }
 
     /**
@@ -187,12 +222,12 @@ new #[Title('Test Fields')] class extends Component
             'newFieldName' => ['required', 'string', 'max:255', 'unique:lab_fields,name'],
             'newFieldUnit' => ['nullable', 'string', 'max:50'],
             'newFieldHasMultipleRanges' => ['boolean'],
-            'newFieldMinValue' => ['nullable', 'numeric'],
-            'newFieldMaxValue' => ['nullable', 'numeric'],
+            'newFieldMinValue' => ['nullable', 'string', 'max:50'],
+            'newFieldMaxValue' => ['nullable', 'string', 'max:50'],
             'newFieldRanges' => ['required_if:newFieldHasMultipleRanges,true', 'array'],
             'newFieldRanges.*.category' => ['required_if:newFieldHasMultipleRanges,true', Rule::in(LabFieldRangeCategory::values())],
-            'newFieldRanges.*.value_low' => ['nullable', 'numeric'],
-            'newFieldRanges.*.value_high' => ['nullable', 'numeric'],
+            'newFieldRanges.*.value_low' => ['nullable', 'string', 'max:50'],
+            'newFieldRanges.*.value_high' => ['nullable', 'string', 'max:50'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -369,12 +404,12 @@ new #[Title('Test Fields')] class extends Component
             'editFieldName' => ['required', 'string', 'max:255', Rule::unique('lab_fields', 'name')->ignore($this->editingFieldId)],
             'editFieldUnit' => ['nullable', 'string', 'max:50'],
             'editFieldHasMultipleRanges' => ['boolean'],
-            'editFieldMinValue' => ['nullable', 'numeric'],
-            'editFieldMaxValue' => ['nullable', 'numeric'],
+            'editFieldMinValue' => ['nullable', 'string', 'max:50'],
+            'editFieldMaxValue' => ['nullable', 'string', 'max:50'],
             'editFieldRanges' => ['required_if:editFieldHasMultipleRanges,true', 'array'],
             'editFieldRanges.*.category' => ['required_if:editFieldHasMultipleRanges,true', Rule::in(LabFieldRangeCategory::values())],
-            'editFieldRanges.*.value_low' => ['nullable', 'numeric'],
-            'editFieldRanges.*.value_high' => ['nullable', 'numeric'],
+            'editFieldRanges.*.value_low' => ['nullable', 'string', 'max:50'],
+            'editFieldRanges.*.value_high' => ['nullable', 'string', 'max:50'],
         ]);
 
         DB::transaction(function () use ($validated) {
@@ -512,7 +547,7 @@ new #[Title('Test Fields')] class extends Component
         @endif
     </div>
 
-    <flux:modal wire:model="showAttachModal" class="w-full max-w-2xl">
+    <flux:modal wire:model="showAttachModal" class="w-full max-w-3xl">
         <flux:heading level="2">{{ __('Add Field') }}</flux:heading>
 
         <div class="mt-4 flex gap-2">
@@ -527,14 +562,33 @@ new #[Title('Test Fields')] class extends Component
         @if (! $creatingNewField)
             <form wire:submit="attachExistingField" class="mt-6 space-y-4">
                 <flux:field>
-                    <flux:label>{{ __('Field') }}</flux:label>
+                    <flux:label>{{ __('Fields') }}</flux:label>
                     <x-searchable-select
-                        wire:model="fieldIdToAttach"
+                        wire:model.live="fieldIdsToAttach"
+                        :multiple="true"
                         :options="$this->fieldOptions"
                         placeholder="{{ __('Search fields...') }}"
                     />
-                    <flux:error name="fieldIdToAttach" />
+                    <flux:error name="fieldIdsToAttach" />
                 </flux:field>
+
+                @if (count($fieldIdsToAttach))
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach ($this->selectedFieldsToAttach as $selected)
+                            <span class="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 py-1 ps-2.5 pe-1 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                {{ $selected['label'] }}
+                                <button
+                                    type="button"
+                                    wire:click="removeFieldIdToAttach({{ $selected['value'] }})"
+                                    class="rounded-full p-0.5 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                                    aria-label="{{ __('Remove') }}"
+                                >
+                                    <flux:icon name="x-mark" class="size-3" />
+                                </button>
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
 
                 <div class="flex justify-end gap-3">
                     <flux:button type="button" variant="ghost" wire:click="$set('showAttachModal', false)">
@@ -565,13 +619,13 @@ new #[Title('Test Fields')] class extends Component
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>{{ __('Min') }}</flux:label>
-                            <flux:input wire:model="newFieldMinValue" placeholder="{{ __('e.g. 12') }}" />
+                            <flux:input wire:model="newFieldMinValue" placeholder="{{ __('e.g. 12 or 02:00') }}" />
                             <flux:error name="newFieldMinValue" />
                         </flux:field>
 
                         <flux:field>
                             <flux:label>{{ __('Max') }}</flux:label>
-                            <flux:input wire:model="newFieldMaxValue" placeholder="{{ __('e.g. 16') }}" />
+                            <flux:input wire:model="newFieldMaxValue" placeholder="{{ __('e.g. 16 or 07:00') }}" />
                             <flux:error name="newFieldMaxValue" />
                         </flux:field>
                     </div>
@@ -624,7 +678,7 @@ new #[Title('Test Fields')] class extends Component
         @endif
     </flux:modal>
 
-    <flux:modal wire:model="showEditModal" class="w-full max-w-2xl">
+    <flux:modal wire:model="showEditModal" class="w-full max-w-3xl">
         <flux:heading level="2">{{ __('Edit Field') }}</flux:heading>
         <flux:text class="mt-1 text-sm text-amber-600 dark:text-amber-400">
             {{ __('Editing this field updates it on every test that uses it.') }}

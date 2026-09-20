@@ -1,6 +1,6 @@
 <x-layouts::app.sidebar :title="$title ?? null">
-    <livewire:role-acting-banner />
     <flux:main>
+        <livewire:role-acting-banner />
         {{ $slot }}
     </flux:main>
 </x-layouts::app.sidebar>
