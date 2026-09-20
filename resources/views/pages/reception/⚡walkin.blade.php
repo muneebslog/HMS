@@ -921,7 +921,7 @@ new #[Title('Walk-in')] class extends Component
         </div>
     </div>
 
-    <flux:modal wire:model="showRecentPatientsModal" class="md:max-w-3xl">
+    <flux:modal name="walkin-recent-patients" wire:model="showRecentPatientsModal" class="md:max-w-3xl">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ __('Recent Patients') }}</flux:heading>
@@ -994,7 +994,7 @@ new #[Title('Walk-in')] class extends Component
         </div>
     </flux:modal>
 
-    <flux:modal wire:model="showDripPayModal" class="w-full max-w-sm">
+    <flux:modal name="walkin-drip-pay" wire:model="showDripPayModal" class="w-full max-w-sm">
         <flux:heading level="2">{{ __('Collect drip payment') }}</flux:heading>
         <flux:text class="mt-1">{{ __('You can adjust the doctor\'s suggested price, then mark as paid and print the slip.') }}</flux:text>
 
@@ -1033,7 +1033,7 @@ new #[Title('Walk-in')] class extends Component
         </form>
     </flux:modal>
 
-    <flux:modal wire:model="showDripPriceModal" class="w-full max-w-sm">
+    <flux:modal name="walkin-drip-price" wire:model="showDripPriceModal" class="w-full max-w-sm">
         <flux:heading level="2">{{ __('Edit drip price') }}</flux:heading>
         <flux:text class="mt-1">{{ __('Update the doctor-suggested drip price before collecting payment.') }}</flux:text>
 
@@ -1062,7 +1062,7 @@ new #[Title('Walk-in')] class extends Component
         </form>
     </flux:modal>
 
-    <flux:modal wire:model="showPriceModal" class="w-full max-w-sm">
+    <flux:modal name="walkin-edit-price" wire:model="showPriceModal" class="w-full max-w-sm">
         <flux:heading level="2">{{ __('Edit price') }}</flux:heading>
 
         <form wire:submit="updatePrice" class="mt-6 space-y-6">
