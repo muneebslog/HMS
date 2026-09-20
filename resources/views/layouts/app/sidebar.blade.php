@@ -28,6 +28,9 @@
             $systemRoutes = [
                 'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders', 'reception.shift',
             ];
+            $stationRoutes = [
+                'display.er', 'display.drips', 'display.er_drips',
+            ];
             $showExtras = $user->isAdmin()
                 || $user->isActuallyAdmin()
                 || $pageAccess->canAccessAny($user, $extrasRoutes);
@@ -183,21 +186,31 @@
                                 {{ __('Token Display') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('display.er')
-                            <flux:sidebar.item icon="beaker" :href="route('display.er')" :current="request()->routeIs('display.er')" wire:navigate>
-                                {{ __('ER Station') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('display.drips')
-                            <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
-                                {{ __('Drip Delivery') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('display.er_drips')
-                            <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
-                                {{ __('ER + Drips') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
+                        @if ($pageAccess->canAccessAny($user, $stationRoutes))
+                            <flux:sidebar.group
+                                icon="beaker"
+                                expandable
+                                :expanded="request()->routeIs(...$stationRoutes)"
+                                :heading="__('Stations')"
+                                class="grid"
+                            >
+                                @pageAccess('display.er')
+                                    <flux:sidebar.item icon="beaker" :href="route('display.er')" :current="request()->routeIs('display.er')" wire:navigate>
+                                        {{ __('ER Station') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('display.drips')
+                                    <flux:sidebar.item icon="heart" :href="route('display.drips')" :current="request()->routeIs('display.drips')" wire:navigate>
+                                        {{ __('Drip Delivery') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                                @pageAccess('display.er_drips')
+                                    <flux:sidebar.item icon="squares-2x2" :href="route('display.er_drips')" :current="request()->routeIs('display.er_drips')">
+                                        {{ __('ER + Drips') }}
+                                    </flux:sidebar.item>
+                                @endpageAccess
+                            </flux:sidebar.group>
+                        @endif
                         @pageAccess('display.shift_orders')
                             <flux:sidebar.item icon="clipboard-document-check" :href="route('display.shift_orders')" :current="request()->routeIs('display.shift_orders')" wire:navigate>
                                 {{ __('Shift Orders') }}

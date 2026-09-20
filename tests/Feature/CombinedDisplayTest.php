@@ -18,27 +18,47 @@ test('combined display shows er and drip stations side by side', function () {
         ->assertSee('src="'.route('display.drips').'"', false);
 });
 
-test('combined display link appears in the system sidebar', function () {
+test('combined display link appears under stations in the system sidebar', function () {
     $user = User::factory()->admin()->create();
 
-    $this->actingAs($user)
+    $html = $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertSuccessful()
+        ->assertSee(__('Stations'))
         ->assertSee(__('ER + Drips'))
-        ->assertSee(route('display.er_drips'), false);
+        ->assertSee(route('display.er_drips'), false)
+        ->getContent();
+
+    $stationsPos = strpos($html, __('Stations'));
+    $erDripsPos = strpos($html, __('ER + Drips'));
+
+    expect($stationsPos)->not->toBeFalse()
+        ->and($erDripsPos)->toBeGreaterThan($stationsPos);
 });
 
 test('indoor staff see system pages in the sidebar', function () {
     $user = User::factory()->indoor()->create();
 
-    $this->actingAs($user)
+    $html = $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertSuccessful()
         ->assertSee(__('System'))
         ->assertSee(__('Token Display'))
+        ->assertSee(__('Stations'))
         ->assertSee(__('ER Station'))
         ->assertSee(__('Drip Delivery'))
         ->assertSee(__('ER + Drips'))
         ->assertSee(route('display.er_drips'), false)
-        ->assertDontSee(route('reception.shift'), false);
+        ->assertDontSee(route('reception.shift'), false)
+        ->getContent();
+
+    $stationsPos = strpos($html, __('Stations'));
+    $erStationPos = strpos($html, __('ER Station'));
+    $dripDeliveryPos = strpos($html, __('Drip Delivery'));
+    $erDripsPos = strpos($html, __('ER + Drips'));
+
+    expect($stationsPos)->not->toBeFalse()
+        ->and($erStationPos)->toBeGreaterThan($stationsPos)
+        ->and($dripDeliveryPos)->toBeGreaterThan($stationsPos)
+        ->and($erDripsPos)->toBeGreaterThan($stationsPos);
 });
