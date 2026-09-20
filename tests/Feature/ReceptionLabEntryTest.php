@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\LabInvoice;
 use App\Models\LabTest;
+use App\Models\Patient;
 use App\Models\Shift;
 use App\Models\User;
 use Database\Seeders\RolePagePermissionSeeder;
@@ -190,4 +192,117 @@ test('inactive lab tests are not available in lab entry', function () {
             return $labTests->contains('id', $activeLabTest->id)
                 && ! $labTests->contains('id', $inactiveLabTest->id);
         });
+});
+
+test('lab entry shows the recent patients button', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->assertSee(__('Recent Patients'));
+});
+
+test('lab entry recent patients modal lists only patients from the current shift', function () {
+    $user = User::factory()->create();
+    $currentShift = Shift::factory()->for($user)->open()->create();
+    $otherShift = Shift::factory()->for($user)->closed()->create([
+        'opened_at' => now()->subDay(),
+        'closed_at' => now()->subHours(12),
+    ]);
+
+    $currentPatient = Patient::factory()->withPhone('03001112233')->create([
+        'name' => 'Current Shift Patient',
+        'age' => 32,
+    ]);
+    $otherPatient = Patient::factory()->withPhone('03004445566')->create([
+        'name' => 'Other Shift Patient',
+        'age' => 40,
+    ]);
+
+    LabInvoice::factory()->create([
+        'patient_id' => $currentPatient->id,
+        'shift_id' => $currentShift->id,
+        'created_by' => $user->id,
+    ]);
+    LabInvoice::factory()->create([
+        'patient_id' => $otherPatient->id,
+        'shift_id' => $otherShift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->call('openRecentPatientsModal')
+        ->assertSet('showRecentPatientsModal', true)
+        ->assertSee('Current Shift Patient')
+        ->assertSee('32')
+        ->assertSee('03001112233')
+        ->assertDontSee('Other Shift Patient');
+});
+
+test('lab entry recent patients search filters by name or phone', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+
+    $ali = Patient::factory()->withPhone('03001234567')->create(['name' => 'Ali Khan', 'age' => 25]);
+    $sara = Patient::factory()->withPhone('03007654321')->create(['name' => 'Sara Ahmed', 'age' => 28]);
+
+    LabInvoice::factory()->create([
+        'patient_id' => $ali->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+    LabInvoice::factory()->create([
+        'patient_id' => $sara->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->call('openRecentPatientsModal')
+        ->set('recentPatientsSearch', 'Sara')
+        ->assertSee('Sara Ahmed')
+        ->assertDontSee('Ali Khan')
+        ->set('recentPatientsSearch', '03001234567')
+        ->assertSee('Ali Khan')
+        ->assertDontSee('Sara Ahmed');
+});
+
+test('selecting a recent patient fills the lab entry intake form', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $patient = Patient::factory()->withPhone('03009876543')->create([
+        'name' => 'Selected Patient',
+        'age' => 45,
+        'gender' => 'female',
+    ]);
+
+    LabInvoice::factory()->create([
+        'patient_id' => $patient->id,
+        'shift_id' => $shift->id,
+        'created_by' => $user->id,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->call('openRecentPatientsModal')
+        ->call('selectPatientFromRecentList', $patient->id)
+        ->assertSet('showRecentPatientsModal', false)
+        ->assertSet('selectedPatientId', $patient->id)
+        ->assertSet('patientName', 'Selected Patient')
+        ->assertSet('patientPhone', '03009876543')
+        ->assertSet('patientAge', 45)
+        ->assertSet('patientGender', 'female')
+        ->assertSet('hasNoPhone', false);
+});
+
+test('opening lab entry recent patients without an open shift does not open the modal', function () {
+    $user = User::factory()->create();
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->call('openRecentPatientsModal')
+        ->assertSet('showRecentPatientsModal', false);
 });

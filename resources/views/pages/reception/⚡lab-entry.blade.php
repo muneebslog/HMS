@@ -14,16 +14,19 @@ use App\Models\Shift;
 use App\Services\PatientIntakeService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new #[Title('Lab Entry')] class extends Component
 {
     use InteractsWithPatientIntake;
+    use WithPagination;
 
     #[Validate]
     public string $patientName = '';
@@ -50,6 +53,10 @@ new #[Title('Lab Entry')] class extends Component
 
     #[Validate]
     public string $paymentMode = 'cash';
+
+    public bool $showRecentPatientsModal = false;
+
+    public string $recentPatientsSearch = '';
 
     /**
      * Get the validation rules for the lab entry form.
@@ -151,9 +158,79 @@ new #[Title('Lab Entry')] class extends Component
             'discountPercentage',
             'referredByDoctorId',
             'paymentMode',
+            'showRecentPatientsModal',
+            'recentPatientsSearch',
         ]);
         $this->paymentMode = PaymentMode::Cash->value;
         $this->resetValidation();
+        unset($this->recentShiftPatients);
+    }
+
+    /**
+     * Open the current-shift recent patients modal.
+     */
+    public function openRecentPatientsModal(): void
+    {
+        if (Shift::current() === null) {
+            Flux::toast(variant: 'danger', text: __('Please open a shift first.'));
+
+            return;
+        }
+
+        $this->recentPatientsSearch = '';
+        $this->resetPage();
+        $this->showRecentPatientsModal = true;
+        unset($this->recentShiftPatients);
+    }
+
+    /**
+     * Close the recent patients modal.
+     */
+    public function closeRecentPatientsModal(): void
+    {
+        $this->showRecentPatientsModal = false;
+        $this->recentPatientsSearch = '';
+        unset($this->recentShiftPatients);
+    }
+
+    /**
+     * Reset pagination when searching recent patients.
+     */
+    public function updatedRecentPatientsSearch(): void
+    {
+        $this->resetPage();
+        unset($this->recentShiftPatients);
+    }
+
+    /**
+     * Select a patient from the recent shift list into the intake form.
+     */
+    public function selectPatientFromRecentList(int $patientId): void
+    {
+        $this->showRecentPatientsModal = false;
+        $this->recentPatientsSearch = '';
+        $this->selectMatchedPatient($patientId);
+        unset($this->recentShiftPatients);
+    }
+
+    /**
+     * Patients with reception activity on the current open shift.
+     *
+     * @return LengthAwarePaginator<int, \App\Models\Patient>
+     */
+    #[Computed]
+    public function recentShiftPatients(): LengthAwarePaginator
+    {
+        $shift = Shift::current();
+
+        if ($shift === null) {
+            return new LengthAwarePaginator([], 0, 15);
+        }
+
+        return app(PatientIntakeService::class)->paginateCurrentShiftPatients(
+            $shift,
+            $this->recentPatientsSearch !== '' ? $this->recentPatientsSearch : null,
+        );
     }
 
     /**
@@ -365,8 +442,12 @@ new #[Title('Lab Entry')] class extends Component
 
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap items-start justify-between gap-4">
             <flux:heading level="1">{{ __('Lab Entry') }}</flux:heading>
+
+            <flux:button type="button" variant="ghost" icon="users" wire:click="openRecentPatientsModal">
+                {{ __('Recent Patients') }}
+            </flux:button>
         </div>
 
         <flux:card>
@@ -536,4 +617,77 @@ new #[Title('Lab Entry')] class extends Component
             @endif
         </flux:card>
     </div>
+
+    <flux:modal name="lab-entry-recent-patients" wire:model="showRecentPatientsModal" class="md:max-w-3xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Recent Patients') }}</flux:heading>
+                <flux:text class="mt-2">
+                    {{ __('Patients from the current shift. Search by name or phone number.') }}
+                </flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>{{ __('Search') }}</flux:label>
+                <flux:input
+                    wire:model.live.debounce.300ms="recentPatientsSearch"
+                    type="search"
+                    placeholder="{{ __('Name or phone...') }}"
+                    icon="magnifying-glass"
+                    autofocus
+                />
+            </flux:field>
+
+            <div class="max-h-[28rem] space-y-2 overflow-y-auto">
+                @forelse ($this->recentShiftPatients as $patient)
+                    <div
+                        wire:key="lab-recent-shift-patient-{{ $patient->id }}"
+                        class="flex w-full items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-base font-semibold text-zinc-900 dark:text-white">
+                                {{ $patient->name }}
+                            </div>
+                            <div class="mt-0.5 truncate text-sm text-zinc-500 dark:text-zinc-400">
+                                @if ($patient->age !== null)
+                                    {{ $patient->age }} {{ __('yrs') }}
+                                @else
+                                    {{ __('Age unknown') }}
+                                @endif
+                                @if ($patient->contactPhone())
+                                    · {{ $patient->contactPhone() }}
+                                @else
+                                    · {{ __('No phone') }}
+                                @endif
+                            </div>
+                        </div>
+                        <flux:button
+                            type="button"
+                            size="sm"
+                            variant="primary"
+                            wire:click="selectPatientFromRecentList({{ $patient->id }})"
+                        >
+                            {{ __('Select') }}
+                        </flux:button>
+                    </div>
+                @empty
+                    <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                        <p class="text-sm text-zinc-500">{{ __('No patients found for this shift.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+
+            @if ($this->recentShiftPatients->hasPages())
+                <div>
+                    {{ $this->recentShiftPatients->links() }}
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeRecentPatientsModal">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>
