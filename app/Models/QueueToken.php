@@ -141,14 +141,4 @@ class QueueToken extends Model
                 fn ($query) => $query->whereNull('acknowledged_at')
             );
     }
-
-    /**
-     * Get the call records for this token.
-     *
-     * @return HasMany<PatientCall, $this>
-     */
-    public function patientCalls(): HasMany
-    {
-        return $this->hasMany(PatientCall::class);
-    }
 }

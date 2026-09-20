@@ -68,18 +68,12 @@ return [
         // Reception
         'reception.walkin' => ['label' => 'Walk-in', 'group' => 'Reception'],
         'reception.reservation' => ['label' => 'Reservations', 'group' => 'Reception'],
-        'reception.patient-calling' => ['label' => 'Patient Calling', 'group' => 'Reception'],
         'reception.lab-entry' => ['label' => 'Lab Entry', 'group' => 'Reception'],
-        'reception.lab-tracking' => ['label' => 'Lab Tracking', 'group' => 'Reception'],
-        'reception.lab-tracking.report' => ['label' => 'Lab Outgoing Report', 'group' => 'Reception', 'parent' => 'reception.lab-tracking'],
         'reception.vitals' => ['label' => 'Vitals', 'group' => 'Reception'],
-        'reception.ultrasound' => ['label' => 'Ultrasound', 'group' => 'Reception'],
         'reception.procedures' => ['label' => 'Procedures', 'group' => 'Reception'],
         'reception.procedures.file' => ['label' => 'Procedure File', 'group' => 'Reception', 'parent' => 'reception.procedures'],
         'reception.procedures.print' => ['label' => 'Procedure Print', 'group' => 'Reception', 'parent' => 'reception.procedures'],
         'reception.procedures.apparent-invoice' => ['label' => 'Apparent Invoice', 'group' => 'Reception', 'parent' => 'reception.procedures'],
-        'reception.ultrasound.print' => ['label' => 'Ultrasound Print', 'group' => 'Reception', 'parent' => 'reception.ultrasound'],
-        'reception.rooms' => ['label' => 'Rooms', 'group' => 'Reception'],
         'reception.token-flow' => ['label' => 'Token Flow', 'group' => 'Reception'],
         'payout.daily' => ['label' => 'Daily Payout', 'group' => 'Reception'],
         'supervisor.checklist' => ['label' => 'Checklist', 'group' => 'Reception'],
@@ -126,8 +120,6 @@ return [
         'admin.medication-deliveries' => ['label' => 'Medication Deliveries', 'group' => 'Administration'],
         'admin.rechecks' => ['label' => 'Recheck Timers', 'group' => 'Administration'],
         'admin.patient-flow' => ['label' => 'Patient Flow', 'group' => 'Administration'],
-        'admin.supervisor-questions' => ['label' => 'Checklist Questions', 'group' => 'Administration'],
-        'admin.supervisor-checklist' => ['label' => 'Checklist Summary', 'group' => 'Administration'],
 
         // System (sidebar links; display routes are public but visibility is role-controlled)
         'display.tokens' => ['label' => 'Token Display', 'group' => 'System'],
@@ -152,9 +144,9 @@ return [
         UserRole::Receptionist->value => [
             'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'reception.mr-lookup',
-            'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry', 'reception.lab-tracking',
-            'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice', 'reception.ultrasound.print',
-            'reception.rooms', 'reception.token-flow', 'payout.daily', 'supervisor.checklist',
+            'reception.walkin', 'reception.reservation', 'reception.lab-entry',
+            'reception.vitals', 'reception.procedures', 'reception.procedures.file', 'reception.procedures.print', 'reception.procedures.apparent-invoice',
+            'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             'lab-entries', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
         ],
@@ -164,7 +156,7 @@ return [
             'reception.invoices', 'invoices.print', 'reception.queue', 'reception.queue.tv',
             'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
-            'lab-entries', 'reception.lab-tracking', 'reception.shift', 'reception.print-jobs',
+            'lab-entries', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',
         ],
@@ -186,7 +178,6 @@ return [
 
         UserRole::LabTechnician->value => [
             'lab-entries',
-            'reception.lab-tracking',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
         ],

@@ -172,16 +172,6 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * Get the patient calls made by this user.
-     *
-     * @return HasMany<PatientCall, $this>
-     */
-    public function patientCalls(): HasMany
-    {
-        return $this->hasMany(PatientCall::class, 'called_by');
-    }
-
-    /**
      * Determine whether the user has the given role.
      */
     public function hasRole(UserRole $role): bool

@@ -7,10 +7,15 @@ use App\Models\SupervisorChecklistOption;
 use App\Models\SupervisorChecklistQuestion;
 use App\Models\User;
 use App\Services\SupervisorChecklistService;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('supervisor.checklist'));

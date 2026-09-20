@@ -13,8 +13,8 @@
                 'indoor.ward', 'lab-entries', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
-                'reception.walkin', 'reception.reservation', 'reception.patient-calling', 'reception.lab-entry', 'reception.lab-tracking',
-                'reception.vitals', 'reception.ultrasound', 'reception.procedures', 'reception.rooms',
+                'reception.walkin', 'reception.reservation', 'reception.lab-entry',
+                'reception.vitals', 'reception.procedures',
                 'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
@@ -25,8 +25,7 @@
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban', 'admin.policy-journal',
                 'admin.notifications', 'admin.reports', 'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
-                'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow', 'admin.supervisor-questions',
-                'admin.supervisor-checklist',
+                'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow',
                 'admin.page-access', 'admin.act-as-role',
             ];
             $systemRoutes = [
@@ -111,19 +110,9 @@
                                 {{ __('Reservations') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('reception.patient-calling')
-                            <flux:sidebar.item icon="phone" :href="route('reception.patient-calling')" :current="request()->routeIs('reception.patient-calling')" wire:navigate>
-                                {{ __('Patient Calling') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
                         @pageAccess('reception.lab-entry')
                             <flux:sidebar.item icon="beaker" :href="route('reception.lab-entry')" :current="request()->routeIs('reception.lab-entry')" wire:navigate>
                                 {{ __('Lab Entry') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('reception.lab-tracking')
-                            <flux:sidebar.item icon="queue-list" :href="route('reception.lab-tracking')" :current="request()->routeIs('reception.lab-tracking*')" wire:navigate>
-                                {{ __('Lab Tracking') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('reception.vitals')
@@ -131,19 +120,9 @@
                                 {{ __('Vitals') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('reception.ultrasound')
-                            <flux:sidebar.item icon="clipboard-document-check" :href="route('reception.ultrasound')" :current="request()->routeIs('reception.ultrasound')" wire:navigate>
-                                {{ __('Ultrasound') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
                         @pageAccess('reception.procedures')
                             <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                                 {{ __('Procedures') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('reception.rooms')
-                            <flux:sidebar.item icon="home" :href="route('reception.rooms')" :current="request()->routeIs('reception.rooms')" wire:navigate>
-                                {{ __('Rooms') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('reception.token-flow')
@@ -299,16 +278,6 @@
                         @pageAccess('admin.patient-flow')
                             <flux:sidebar.item icon="map" :href="route('admin.patient-flow')" :current="request()->routeIs('admin.patient-flow')" wire:navigate>
                                 {{ __('Patient Flow') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.supervisor-questions')
-                            <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.supervisor-questions')" :current="request()->routeIs('admin.supervisor-questions')" wire:navigate>
-                                {{ __('Checklist Questions') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.supervisor-checklist')
-                            <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
-                                {{ __('Checklist Summary') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>

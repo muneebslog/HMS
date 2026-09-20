@@ -29,7 +29,6 @@ $routeMap = [
         'reception.lab-entry',
         'reception.vitals',
         'reception.procedures',
-        'reception.rooms',
         'payout.daily',
         'supervisor.checklist',
     ],
@@ -58,7 +57,6 @@ test('admins can access all protected routes', function () use ($routeMap) {
         'reception.lab-entry',
         'reception.vitals',
         'reception.procedures',
-        'reception.rooms',
         'reception.invoices',
         'reception.queue',
     ];

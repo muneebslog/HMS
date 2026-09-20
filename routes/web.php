@@ -11,7 +11,6 @@ use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
-use App\Http\Controllers\Reception\LabOutgoingReportController;
 use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\ProcedurePrintController;
@@ -19,7 +18,6 @@ use App\Http\Controllers\Reception\QueueTvController;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
 use App\Models\Shift;
-use App\Models\UltrasoundReport;
 use App\Services\ShiftOrdersExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -98,8 +96,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/merge-duplicates', 'pages::admin.merge-duplicates')->name('admin.merge-duplicates');
         Route::livewire('admin/sql-runner', 'pages::admin.sql-runner')->name('admin.sql-runner');
         Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
-        Route::livewire('admin/supervisor-questions', 'pages::admin.supervisor-questions')->name('admin.supervisor-questions');
-        Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -144,8 +140,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
 
         Route::livewire('lab-entries', 'pages::admin.lab-entries')->name('lab-entries');
-        Route::livewire('reception/lab-tracking', 'pages::reception.lab-tracking')->name('reception.lab-tracking');
-        Route::get('reception/lab-tracking/items/{item}/report', LabOutgoingReportController::class)->name('reception.lab-tracking.report');
 
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
@@ -158,16 +152,12 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::middleware('open.shift')->group(function () {
             Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');
             Route::livewire('reception/reservation', 'pages::reception.reservation')->name('reception.reservation');
-            Route::livewire('reception/patient-calling', 'pages::reception.patient-calling')->name('reception.patient-calling');
             Route::livewire('reception/lab-entry', 'pages::reception.lab-entry')->name('reception.lab-entry');
             Route::livewire('reception/vitals', 'pages::reception.vitals')->name('reception.vitals');
-            Route::livewire('reception/ultrasound', 'pages::reception.ultrasound')->name('reception.ultrasound');
             Route::livewire('reception/procedures', 'pages::reception.procedures')->name('reception.procedures');
-            Route::livewire('reception/rooms', 'pages::reception.rooms')->name('reception.rooms');
             Route::get('reception/procedures/{procedure}/file', ProcedureFileController::class)->name('reception.procedures.file');
             Route::get('reception/procedures/{procedure}/print', ProcedurePrintController::class)->name('reception.procedures.print');
             Route::get('reception/procedures/{procedure}/apparent-invoice', ProcedureApparentInvoicePrintController::class)->name('reception.procedures.apparent-invoice');
-            Route::get('reception/ultrasound/{report}/print', fn (UltrasoundReport $report) => view('ultrasound.print', compact('report')))->name('reception.ultrasound.print');
         });
 
         Route::livewire('reception/token-flow', 'pages::reception.token-flow')->name('reception.token-flow');

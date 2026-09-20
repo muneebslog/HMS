@@ -674,7 +674,7 @@ class NotificationService
             'supervisor_checklist_missing',
             $title,
             $message,
-            route('admin.supervisor-checklist'),
+            route('admin.notifications'),
             [
                 'supervisor_id' => $receptionist->id,
                 'block_starts_at' => $blockStart->toDateTimeString(),
@@ -781,7 +781,7 @@ class NotificationService
             'supervisor_checklist_no_answers',
             $title,
             $message,
-            route('admin.supervisor-checklist'),
+            route('admin.notifications'),
             [
                 'supervisor_id' => $receptionist->id,
                 'entry_id' => $entry->id,

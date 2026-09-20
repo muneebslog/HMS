@@ -22,7 +22,7 @@ test('notification is created when checklist is missing for a block', function (
     expect(AdminNotification::count())->toBe(1);
     expect($notification->type)->toBe('supervisor_checklist_missing');
     expect($notification->metadata)->toHaveKey('supervisor_id', $receptionist->id);
-    expect($notification->actionable_url)->toBe(route('admin.supervisor-checklist'));
+    expect($notification->actionable_url)->toBe(route('admin.notifications'));
 });
 
 test('duplicate notifications for the same block are suppressed', function () {

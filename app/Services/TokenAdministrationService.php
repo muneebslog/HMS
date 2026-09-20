@@ -170,7 +170,6 @@ class TokenAdministrationService
 
             $patientId = $lockedToken->patient_id;
 
-            $lockedToken->patientCalls()->delete();
             $lockedToken->delete();
 
             if ($patientId !== null) {
@@ -203,7 +202,7 @@ class TokenAdministrationService
     private function lockToken(int $tokenId): QueueToken
     {
         return QueueToken::query()
-            ->with(['patient.family', 'invoiceItem.invoice', 'patientCalls'])
+            ->with(['patient.family', 'invoiceItem.invoice'])
             ->whereKey($tokenId)
             ->lockForUpdate()
             ->firstOrFail();

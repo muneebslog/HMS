@@ -3,10 +3,15 @@
 use App\Models\LabTest;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('reception.lab-entry'));
@@ -15,7 +20,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the lab entry page', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->receptionist()->create();
     Shift::factory()->for($user)->open()->create();
 
     $response = $this->actingAs($user)->get(route('reception.lab-entry'));
