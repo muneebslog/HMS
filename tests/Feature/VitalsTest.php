@@ -196,7 +196,7 @@ test('saving vitals keeps token waiting and advances to the next patient', funct
         ->call('saveAndNext')
         ->assertHasNoErrors()
         ->assertSet('selectedTokenId', $secondToken->id)
-        ->assertSee('Second Patient');
+        ->assertSee('SECOND PATIENT');
 
     $this->assertDatabaseHas('vitals', [
         'queue_token_id' => $firstToken->id,

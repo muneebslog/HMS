@@ -125,8 +125,8 @@ test('medication queue shows phone linked indicator for patients', function () {
         ->test('pages::doctor.medication')
         ->assertSeeHtml('bg-green-500')
         ->assertSeeHtml('bg-orange-500')
-        ->assertSee('Sana Malik')
-        ->assertSee('No Phone Patient');
+        ->assertSee('SANA MALIK')
+        ->assertSee('NO PHONE PATIENT');
 });
 
 test('medication queue includes overnight daily queues after midnight', function () {
@@ -1628,10 +1628,10 @@ test('doctor can browse med orders by date and repeat an unlinked patient order'
         ->call('openMedOrders')
         ->assertSet('showMedOrdersModal', true)
         ->set('medOrdersDate', today()->subDay()->toDateString())
-        ->assertSee('Unlinked Walkin')
+        ->assertSee('UNLINKED WALKIN')
         ->assertSee('Cefixime')
         ->set('medOrdersSearch', 'Unlinked')
-        ->assertSee('Unlinked Walkin')
+        ->assertSee('UNLINKED WALKIN')
         ->call('selectBrowseOrder', $otherOrder->id)
         ->assertSet('selectedBrowseOrderId', $otherOrder->id)
         ->call('repeatOrder', $otherOrder->id)

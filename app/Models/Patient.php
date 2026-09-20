@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\PatientFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +39,46 @@ class Patient extends Model
                 $patient->update(['mrn' => 'MRN'.str_pad((string) $patient->id, 6, '0', STR_PAD_LEFT)]);
             }
         });
+    }
+
+    /**
+     * Format a person name as uppercase for storage and display.
+     */
+    public static function formatName(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value === '') {
+            return '';
+        }
+
+        return mb_strtoupper($value);
+    }
+
+    /**
+     * Always store patient names in uppercase.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function name(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => self::formatName($value),
+        );
+    }
+
+    /**
+     * Always store husband names in uppercase.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function husbandName(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => self::formatName($value),
+        );
     }
 
     /**

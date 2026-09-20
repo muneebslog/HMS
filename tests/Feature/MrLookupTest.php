@@ -114,17 +114,17 @@ test('mr lookup allows clinical staff to edit patient name and age', function (s
         ->test('pages::reception.mr-lookup')
         ->call('selectPatient', $patient->id)
         ->call('startEditingPatient')
-        ->assertSet('editName', 'Original Name')
+        ->assertSet('editName', 'ORIGINAL NAME')
         ->assertSet('editAge', 30)
         ->set('editName', 'Updated Name')
         ->set('editAge', 35)
         ->call('savePatientDetails')
         ->assertSet('isEditingPatient', false)
-        ->assertSee('Updated Name')
+        ->assertSee('UPDATED NAME')
         ->assertSee('35');
 
     expect($patient->fresh())
-        ->name->toBe('Updated Name')
+        ->name->toBe('UPDATED NAME')
         ->age->toBe(35);
 })->with([
     'admin' => 'admin',
@@ -144,7 +144,7 @@ test('mr lookup requires a patient name when saving edits', function () {
         ->call('savePatientDetails')
         ->assertHasErrors(['editName' => 'required']);
 
-    expect($patient->fresh()->name)->toBe('Original Name');
+    expect($patient->fresh()->name)->toBe('ORIGINAL NAME');
 });
 
 test('admins see the recent patients button on mr lookup', function () {
@@ -184,7 +184,7 @@ test('admins can browse recent reception patients in a paginated modal', functio
         ->call('openRecentPatientsModal')
         ->assertSet('showRecentPatientsModal', true)
         ->assertSee(__('Recent reception patients'))
-        ->assertSeeInOrder(['Recent Patient', 'Older Patient']);
+        ->assertSeeInOrder(['RECENT PATIENT', 'OLDER PATIENT']);
 });
 
 test('admins can open a patient from the recent reception patients modal', function () {
@@ -198,7 +198,7 @@ test('admins can open a patient from the recent reception patients modal', funct
         ->call('selectPatientFromRecentList', $patient->id)
         ->assertSet('showRecentPatientsModal', false)
         ->assertSet('selectedPatientId', $patient->id)
-        ->assertSee('Modal Patient')
+        ->assertSee('MODAL PATIENT')
         ->assertSee(__('Patient details'));
 });
 

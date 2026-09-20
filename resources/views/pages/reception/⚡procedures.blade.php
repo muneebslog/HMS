@@ -8,6 +8,7 @@ use App\Enums\PaymentMode;
 use App\Enums\ProcedureStatus;
 use App\Livewire\Concerns\InteractsWithPatientIntake;
 use App\Models\Doctor;
+use App\Models\Patient;
 use App\Models\Procedure;
 use App\Models\ProcedureApparentInvoice;
 use App\Models\ProcedureBirthCertificateDetail;
@@ -326,13 +327,13 @@ new #[Title('Procedures')] class extends Component
         $procedure = Procedure::with('patient.family')->findOrFail($id);
 
         $this->selectedPatientId = $procedure->patient->id;
-        $this->patientName = $procedure->patient->name;
+        $this->patientName = Patient::formatName($procedure->patient->name) ?? '';
         $this->editingPatientMrn = $procedure->patient->mrn;
         $this->editingPatientPhone = $procedure->patient->contactPhone();
         $this->patientPhone = '';
         $this->hasNoPhone = false;
         $this->matchedPatients = [];
-        $this->husbandName = $procedure->patient->husband_name ?? '';
+        $this->husbandName = Patient::formatName($procedure->patient->husband_name) ?? '';
         $this->patientAge = $procedure->patient->age;
         $this->expectedDeliveryDate = $procedure->expected_delivery_date?->format('Y-m-d');
         $this->doctorId = $procedure->doctor_id;
@@ -1600,7 +1601,7 @@ new #[Title('Procedures')] class extends Component
                     @if ($this->shouldShowPatientNameField())
                         <flux:field class="sm:col-span-2">
                             <flux:label>{{ __('Name') }}</flux:label>
-                            <flux:input wire:model="patientName" type="text" required />
+                            <flux:input wire:model.live.debounce.200ms="patientName" type="text" required class="uppercase" />
                             <flux:error name="patientName" />
                         </flux:field>
                     @endif
@@ -1620,14 +1621,14 @@ new #[Title('Procedures')] class extends Component
 
                     <flux:field class="sm:col-span-2">
                         <flux:label>{{ __('Name') }}</flux:label>
-                        <flux:input wire:model="patientName" type="text" required />
+                        <flux:input wire:model.live.debounce.200ms="patientName" type="text" required class="uppercase" />
                         <flux:error name="patientName" />
                     </flux:field>
                 @endif
 
                 <flux:field>
                     <flux:label>{{ __('Husband') }}</flux:label>
-                    <flux:input wire:model="husbandName" type="text" required />
+                    <flux:input wire:model.live.debounce.200ms="husbandName" type="text" required class="uppercase" />
                     <flux:error name="husbandName" />
                 </flux:field>
 

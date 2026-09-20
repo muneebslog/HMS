@@ -235,10 +235,10 @@ test('lab entry recent patients modal lists only patients from the current shift
         ->test('pages::reception.lab-entry')
         ->call('openRecentPatientsModal')
         ->assertSet('showRecentPatientsModal', true)
-        ->assertSee('Current Shift Patient')
+        ->assertSee('CURRENT SHIFT PATIENT')
         ->assertSee('32')
         ->assertSee('03001112233')
-        ->assertDontSee('Other Shift Patient');
+        ->assertDontSee('OTHER SHIFT PATIENT');
 });
 
 test('lab entry recent patients search filters by name or phone', function () {
@@ -263,11 +263,11 @@ test('lab entry recent patients search filters by name or phone', function () {
         ->test('pages::reception.lab-entry')
         ->call('openRecentPatientsModal')
         ->set('recentPatientsSearch', 'Sara')
-        ->assertSee('Sara Ahmed')
-        ->assertDontSee('Ali Khan')
+        ->assertSee('SARA AHMED')
+        ->assertDontSee('ALI KHAN')
         ->set('recentPatientsSearch', '03001234567')
-        ->assertSee('Ali Khan')
-        ->assertDontSee('Sara Ahmed');
+        ->assertSee('ALI KHAN')
+        ->assertDontSee('SARA AHMED');
 });
 
 test('selecting a recent patient fills the lab entry intake form', function () {
@@ -291,7 +291,7 @@ test('selecting a recent patient fills the lab entry intake form', function () {
         ->call('selectPatientFromRecentList', $patient->id)
         ->assertSet('showRecentPatientsModal', false)
         ->assertSet('selectedPatientId', $patient->id)
-        ->assertSet('patientName', 'Selected Patient')
+        ->assertSet('patientName', 'SELECTED PATIENT')
         ->assertSet('patientPhone', '03009876543')
         ->assertSet('patientAge', 45)
         ->assertSet('patientGender', 'female')

@@ -96,7 +96,7 @@ test('a token can be reserved for a doctor', function () {
         ->origin->toBe('reservation')
         ->invoice_item_id->toBeNull();
 
-    expect($token->patient->name)->toBe('Reserved Patient');
+    expect($token->patient->name)->toBe('RESERVED PATIENT');
     expect($token->patient->contactPhone())->toBe(validPhone());
 });
 
@@ -185,7 +185,7 @@ test('walk-in tokens skip reserved numbers', function () {
         ->call('saveInvoice')
         ->assertHasNoErrors();
 
-    $invoice = Invoice::whereHas('patient', fn ($q) => $q->where('name', 'Walk-in Patient'))->first();
+    $invoice = Invoice::whereHas('patient', fn ($q) => $q->where('name', 'WALK-IN PATIENT'))->first();
     expect($invoice->items->first()->queueToken->token_number)->toBe(2);
 });
 
@@ -217,7 +217,7 @@ test('marking a reservation arrived creates an invoice and links the token', fun
         ->invoice_id->toBe($invoice->id)
         ->status->toBe(PrintJobStatus::Pending);
     expect($invoice)->not->toBeNull()
-        ->patient->name->toBe('Phone Patient')
+        ->patient->name->toBe('PHONE PATIENT')
         ->total->toBe(250.00)
         ->status->toBe('paid')
         ->payment_mode->value->toBe('cash');
@@ -307,7 +307,7 @@ test('a token can be reserved without a phone number', function () {
         ->test('pages::reception.reservation')
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 5)
-        ->set('patientName', 'No Phone Patient')
+        ->set('patientName', 'NO PHONE PATIENT')
         ->set('hasNoPhone', true)
         ->call('reserve')
         ->assertHasNoErrors();
@@ -317,7 +317,7 @@ test('a token can be reserved without a phone number', function () {
         ->token_number->toBe(5)
         ->status->toBe('reserved');
 
-    expect($token->patient->name)->toBe('No Phone Patient');
+    expect($token->patient->name)->toBe('NO PHONE PATIENT');
     expect($token->patient->contactPhone())->toBeNull();
 });
 
@@ -458,7 +458,7 @@ test('reservation does not send a confirmation sms when no phone number is provi
         ->test('pages::reception.reservation')
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 5)
-        ->set('patientName', 'No Phone Patient')
+        ->set('patientName', 'NO PHONE PATIENT')
         ->set('hasNoPhone', true)
         ->call('reserve')
         ->assertHasNoErrors();
@@ -479,7 +479,7 @@ test('reserving without a phone number logs an admin notification', function () 
         ->test('pages::reception.reservation')
         ->set('selectedDoctorId', $doctor->id)
         ->call('selectToken', 5)
-        ->set('patientName', 'No Phone Patient')
+        ->set('patientName', 'NO PHONE PATIENT')
         ->set('hasNoPhone', true)
         ->call('reserve')
         ->assertHasNoErrors();
@@ -491,7 +491,7 @@ test('reserving without a phone number logs an admin notification', function () 
         ->title->toBe(__('📵 Patient Registered Without Contact Number'))
         ->read_at->toBeNull();
 
-    expect($notification->message)->toContain('No Phone Patient');
+    expect($notification->message)->toContain('NO PHONE PATIENT');
     expect($notification->message)->toContain((string) $user->name);
 });
 
@@ -517,7 +517,7 @@ test('reservation page shows patient phone on reserved tokens', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.reservation')
         ->set('selectedDoctorId', $doctor->id)
-        ->assertSee('Phone Visible Patient')
+        ->assertSee('PHONE VISIBLE PATIENT')
         ->assertSee(validPhone())
         ->assertSee(__('Blue for reservation'))
         ->assertSee(__('Green for walk-in'));

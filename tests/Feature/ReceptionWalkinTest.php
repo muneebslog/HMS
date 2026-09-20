@@ -177,7 +177,7 @@ test('a walk-in invoice can be saved with items', function () {
         ->call('saveInvoice')
         ->assertHasNoErrors();
 
-    $patient = Patient::where('name', 'John Doe')->first();
+    $patient = Patient::where('name', 'JOHN DOE')->first();
     expect($patient)->not->toBeNull();
 
     $invoice = Invoice::where('patient_id', $patient->id)->first();
@@ -215,7 +215,7 @@ test('a walk-in invoice can be saved with online payment mode', function () {
         ->call('saveInvoice')
         ->assertHasNoErrors();
 
-    $invoice = Invoice::whereHas('patient', fn ($q) => $q->where('name', 'Online Patient'))->first();
+    $invoice = Invoice::whereHas('patient', fn ($q) => $q->where('name', 'ONLINE PATIENT'))->first();
 
     expect($invoice)->not->toBeNull()
         ->payment_mode->value->toBe('online');
@@ -241,7 +241,7 @@ test('a walk-in invoice can be saved with a doctor service', function () {
         ->call('saveInvoice')
         ->assertHasNoErrors();
 
-    $patient = Patient::where('name', 'Jane Doe')->first();
+    $patient = Patient::where('name', 'JANE DOE')->first();
     $invoice = Invoice::where('patient_id', $patient->id)->first();
 
     expect($invoice->items)->toHaveCount(1)
@@ -381,10 +381,10 @@ test('recent patients modal lists only patients from the current shift', functio
         ->assertSet('showDripPayModal', false)
         ->assertSet('showDripPriceModal', false)
         ->assertSet('showPriceModal', false)
-        ->assertSee('Current Shift Patient')
+        ->assertSee('CURRENT SHIFT PATIENT')
         ->assertSee('32')
         ->assertSee('03001112233')
-        ->assertDontSee('Other Shift Patient');
+        ->assertDontSee('OTHER SHIFT PATIENT');
 });
 
 test('recent patients modal search filters by name or phone', function () {
@@ -409,11 +409,11 @@ test('recent patients modal search filters by name or phone', function () {
         ->test('pages::reception.walkin')
         ->call('openRecentPatientsModal')
         ->set('recentPatientsSearch', 'Sara')
-        ->assertSee('Sara Ahmed')
-        ->assertDontSee('Ali Khan')
+        ->assertSee('SARA AHMED')
+        ->assertDontSee('ALI KHAN')
         ->set('recentPatientsSearch', '03001234567')
-        ->assertSee('Ali Khan')
-        ->assertDontSee('Sara Ahmed');
+        ->assertSee('ALI KHAN')
+        ->assertDontSee('SARA AHMED');
 });
 
 test('selecting a recent patient fills the walk-in intake form', function () {
@@ -436,7 +436,7 @@ test('selecting a recent patient fills the walk-in intake form', function () {
         ->call('selectPatientFromRecentList', $patient->id)
         ->assertSet('showRecentPatientsModal', false)
         ->assertSet('selectedPatientId', $patient->id)
-        ->assertSet('patientName', 'Selected Patient')
+        ->assertSet('patientName', 'SELECTED PATIENT')
         ->assertSet('patientPhone', '03009876543')
         ->assertSet('hasNoPhone', false);
 });

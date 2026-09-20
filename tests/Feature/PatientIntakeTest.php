@@ -59,10 +59,33 @@ test('clearing a selected patient also clears the patient name', function () {
         ->set('patientPhone', intakePhone())
         ->call('selectMatchedPatient', $existing->id)
         ->assertSet('selectedPatientId', $existing->id)
-        ->assertSet('patientName', 'Returning Patient')
+        ->assertSet('patientName', 'RETURNING PATIENT')
         ->call('clearSelectedPatient')
         ->assertSet('selectedPatientId', null)
         ->assertSet('patientName', '');
+});
+
+test('patient names are uppercased while typing and when saved', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = Service::factory()->create(['is_standalone' => true]);
+    ServicePrice::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'price' => 100,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.walkin')
+        ->set('patientName', 'john doe')
+        ->assertSet('patientName', 'JOHN DOE')
+        ->set('hasNoPhone', true)
+        ->set('selectedServiceId', $service->id)
+        ->call('add')
+        ->call('saveInvoice')
+        ->assertHasNoErrors();
+
+    expect(Patient::first()->name)->toBe('JOHN DOE');
 });
 
 test('walk-in without phone notifies admin', function () {
@@ -161,7 +184,7 @@ test('lab entry can add a new family member under an existing phone', function (
         ->assertHasNoErrors();
 
     expect(Patient::count())->toBe(2);
-    $newPatient = Patient::where('name', 'Brother')->first();
+    $newPatient = Patient::where('name', 'BROTHER')->first();
     expect($newPatient->family_id)->toBe($familyPatient->family_id);
     expect(LabInvoice::first()->patient_id)->toBe($newPatient->id);
 });
@@ -204,7 +227,7 @@ test('walk-in shows patient name field only when creating a new person', functio
 
     $component->set('patientPhone', intakePhone())->call('selectMatchedPatient', $existing->id);
     expect($component->instance()->shouldShowPatientNameField())->toBeFalse()
-        ->and($component->get('patientName'))->toBe('Existing');
+        ->and($component->get('patientName'))->toBe('EXISTING');
 
     $component->call('addNewFamilyMember');
     expect($component->instance()->shouldShowPatientNameField())->toBeTrue()

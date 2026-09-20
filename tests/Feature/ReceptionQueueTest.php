@@ -13,6 +13,7 @@ use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
@@ -21,6 +22,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Http::fake();
+    $this->seed(RolePagePermissionSeeder::class);
 });
 
 test('guests are redirected to the login page', function () {
@@ -145,14 +147,14 @@ test('admin can edit patient name and phone from the queue page', function () {
         ->assertSet('showEditPatientModal', false);
 
     expect($patient->fresh()->load('family'))
-        ->name->toBe('Updated Patient');
+        ->name->toBe('UPDATED PATIENT');
     expect($patient->fresh()->contactPhone())->toBe('03001234567');
 
     $notification = AdminNotification::where('type', 'token_patient_updated')->first();
 
     expect($notification)->not->toBeNull()
-        ->and($notification->metadata['before']['name'])->toBe('Reserved Patient')
-        ->and($notification->metadata['after']['name'])->toBe('Updated Patient')
+        ->and($notification->metadata['before']['name'])->toBe('RESERVED PATIENT')
+        ->and($notification->metadata['after']['name'])->toBe('UPDATED PATIENT')
         ->and($notification->metadata['after']['phone'])->toBe('03001234567')
         ->and($notification->metadata['token_id'])->toBe($token->id);
 });
@@ -179,7 +181,7 @@ test('management users cannot edit patient details from the queue page', functio
         ->call('openEditPatient', $token->id)
         ->assertForbidden();
 
-    expect($patient->fresh()->name)->toBe('Locked Patient');
+    expect($patient->fresh()->name)->toBe('LOCKED PATIENT');
     expect($patient->fresh()->contactPhone())->toBe('03001111111');
 });
 

@@ -117,10 +117,15 @@ new #[Title('MR Lookup')] class extends Component
             return;
         }
 
-        $this->editName = $patient->name;
+        $this->editName = Patient::formatName($patient->name) ?? '';
         $this->editAge = $patient->age;
         $this->isEditingPatient = true;
         $this->resetValidation(['editName', 'editAge']);
+    }
+
+    public function updatedEditName(string $value): void
+    {
+        $this->editName = Patient::formatName($value) ?? '';
     }
 
     public function cancelEditingPatient(): void
@@ -298,7 +303,7 @@ new #[Title('MR Lookup')] class extends Component
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <flux:field>
                                 <flux:label>{{ __('Name') }}</flux:label>
-                                <flux:input wire:model="editName" type="text" required />
+                                <flux:input wire:model.live.debounce.200ms="editName" type="text" required class="uppercase" />
                                 <flux:error name="editName" />
                             </flux:field>
 

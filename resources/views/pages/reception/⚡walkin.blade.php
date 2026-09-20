@@ -728,7 +728,7 @@ new #[Title('Walk-in')] class extends Component
                 @if ($this->shouldShowPatientNameField())
                     <flux:field class="w-full">
                         <flux:label>{{ __('Patient name') }}</flux:label>
-                        <flux:input wire:model="patientName" type="text" required placeholder="Patient Name..." />
+                        <flux:input wire:model.live.debounce.200ms="patientName" type="text" required placeholder="Patient Name..." class="uppercase" />
                         <flux:error name="patientName" />
                     </flux:field>
                 @endif

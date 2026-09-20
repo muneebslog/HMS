@@ -57,9 +57,9 @@ test('a procedure with patient details and advance payment can be created', func
         ->call('saveProcedure')
         ->assertHasNoErrors();
 
-    $patient = Patient::where('name', 'John Doe')->first();
+    $patient = Patient::where('name', 'JOHN DOE')->first();
     expect($patient)->not->toBeNull()
-        ->husband_name->toBe('James Doe')
+        ->husband_name->toBe('JAMES DOE')
         ->age->toBe(30)
         ->gender->toBe('female');
     expect($patient->contactPhone())->toBe('03001234567');
@@ -133,7 +133,7 @@ test('a procedure can be created without advance payment when checkbox is unchec
         ->and($procedure->procedure_type_id)->toBe($procedureType->id)
         ->and($procedure->payments)->toHaveCount(0)
         ->and($procedure->balance())->toBe(1000.0)
-        ->and($procedure->patient->husband_name)->toBe('John Doe');
+        ->and($procedure->patient->husband_name)->toBe('JOHN DOE');
 });
 
 test('a procedure can be created without a doctor', function () {
@@ -321,7 +321,7 @@ test('procedure maternity fields can be updated without changing type or package
         ->and($procedure->procedure_type_id)->toBe($originalType->id)
         ->and($procedure->full_amount)->toBe(8000.0)
         ->and($procedure->expected_delivery_date->format('Y-m-d'))->toBe('2026-11-20')
-        ->and($procedure->patient->fresh()->husband_name)->toBe('Robert Doe');
+        ->and($procedure->patient->fresh()->husband_name)->toBe('ROBERT DOE');
 });
 
 test('editing a procedure does not show phone intake and cannot reassign the patient', function () {
@@ -360,9 +360,9 @@ test('editing a procedure does not show phone intake and cannot reassign the pat
 
     $procedure->refresh();
     expect($procedure->patient_id)->toBe($linkedPatient->id)
-        ->and($linkedPatient->fresh()->name)->toBe('Updated Linked Name')
+        ->and($linkedPatient->fresh()->name)->toBe('UPDATED LINKED NAME')
         ->and($linkedPatient->fresh()->contactPhone())->toBe('03001112222')
-        ->and($otherPatient->fresh()->name)->toBe('Other Patient');
+        ->and($otherPatient->fresh()->name)->toBe('OTHER PATIENT');
 });
 
 test('clearing or replacing the patient while editing a procedure shows an error', function () {
@@ -387,7 +387,7 @@ test('clearing or replacing the patient while editing a procedure shows an error
         ->assertSet('selectedPatientId', $patient->id)
         ->call('addNewFamilyMember')
         ->assertHasErrors(['selectedPatientId'])
-        ->assertSet('patientName', 'Ada Patient');
+        ->assertSet('patientName', 'ADA PATIENT');
 });
 
 test('payment amount cannot exceed the remaining balance', function () {
@@ -469,7 +469,7 @@ test('procedures are listed with correct totals and status', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.procedures')
         ->assertSee('Knee Surgery')
-        ->assertSee('Sara Khan')
+        ->assertSee('SARA KHAN')
         ->assertSee($patient->mrn)
         ->assertSee('10,000.00')
         ->assertSee('4,000.00')
