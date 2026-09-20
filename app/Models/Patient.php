@@ -58,25 +58,27 @@ class Patient extends Model
     }
 
     /**
-     * Always store patient names in uppercase.
+     * Always store and expose patient names in uppercase.
      *
      * @return Attribute<string|null, string|null>
      */
     protected function name(): Attribute
     {
         return Attribute::make(
+            get: fn (?string $value): ?string => self::formatName($value),
             set: fn (?string $value): ?string => self::formatName($value),
         );
     }
 
     /**
-     * Always store husband names in uppercase.
+     * Always store and expose husband names in uppercase.
      *
      * @return Attribute<string|null, string|null>
      */
     protected function husbandName(): Attribute
     {
         return Attribute::make(
+            get: fn (?string $value): ?string => self::formatName($value),
             set: fn (?string $value): ?string => self::formatName($value),
         );
     }

@@ -51,6 +51,9 @@
                 margin-top: 24px;
                 text-align: center;
             }
+            .person-name {
+                text-transform: uppercase;
+            }
             @media print {
                 @page {
                     margin-left: 12mm;
@@ -81,7 +84,7 @@
             </div>
             <div class="row">
                 <span class="label">{{ __('Patient') }}</span>
-                <span>{{ $invoice->patient->name }}</span>
+                <span class="person-name">{{ $invoice->patient->name }}</span>
             </div>
             <div class="row">
                 <span class="label">{{ __('MRN') }}</span>

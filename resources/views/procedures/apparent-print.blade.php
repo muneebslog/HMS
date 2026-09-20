@@ -53,6 +53,10 @@
                 line-height: 1.2;
             }
 
+            .person-name {
+                text-transform: uppercase;
+            }
+
             .header-left .tagline {
                 margin: 4px 0 0;
                 font-size: 9.5pt;
@@ -250,11 +254,11 @@
             <div class="info-grid">
                 <div class="info-row">
                     <span class="label">{{ __('PATIENT NAME') }} :</span>
-                    <span class="value">{{ $procedure->patient->name }}</span>
+                    <span class="value person-name">{{ $procedure->patient->name }}</span>
                 </div>
                 <div class="info-row">
                     <span class="label">{{ __('W/O') }} :</span>
-                    <span class="value">{{ $procedure->patient->husband_name ?? '-' }}</span>
+                    <span class="value person-name">{{ $procedure->patient->husband_name ?? '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="label">{{ __('Consultant') }} :</span>

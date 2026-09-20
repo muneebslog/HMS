@@ -71,6 +71,10 @@
                 line-height: 1.2;
             }
 
+            .person-name {
+                text-transform: uppercase;
+            }
+
             .header-left .tagline {
                 margin: 4px 0 0;
                 font-size: 9.5pt;
@@ -242,8 +246,8 @@
                 'female', 'f' => __('Female'),
                 default => filled($sex) ? ucfirst((string) $sex) : '-',
             };
-            $motherName = $certificate?->mother_name ?? $procedure->patient->name;
-            $fatherName = $certificate?->father_name ?? $procedure->patient->husband_name;
+            $motherName = \App\Models\Patient::formatName($certificate?->mother_name ?? $procedure->patient->name);
+            $fatherName = \App\Models\Patient::formatName($certificate?->father_name ?? $procedure->patient->husband_name);
             $motherAge = $certificate?->mother_age ?? $procedure->patient->age;
             $motherCnic = $certificate?->mother_cnic ?? $procedure->patient->cnic;
         @endphp
@@ -273,7 +277,7 @@
                     <div class="grid">
                         <div class="row">
                             <span class="label">{{ __('Name (if given)') }}</span>
-                            <span class="value">{{ $certificate?->baby_name ?: '-' }}</span>
+                            <span class="value person-name">{{ $certificate?->baby_name ?: '-' }}</span>
                         </div>
                         <div class="row">
                             <span class="label">{{ __('Sex') }}</span>
@@ -313,19 +317,19 @@
                     <div class="grid">
                         <div class="row">
                             <span class="label">{{ __('Father Name') }}</span>
-                            <span class="value">{{ $fatherName ?: '-' }}</span>
+                            <span class="value person-name">{{ $fatherName ?: '-' }}</span>
                         </div>
                         <div class="row">
                             <span class="label">{{ __('Mother Name') }}</span>
-                            <span class="value">{{ $motherName ?: '-' }}</span>
+                            <span class="value person-name">{{ $motherName ?: '-' }}</span>
                         </div>
                         <div class="row">
                             <span class="label">{{ __('Grand Father Name') }}</span>
-                            <span class="value">{{ $certificate?->grandfather_name ?: '-' }}</span>
+                            <span class="value person-name">{{ $certificate?->grandfather_name ?: '-' }}</span>
                         </div>
                         <div class="row">
                             <span class="label">{{ __('Mother\'s Father Name') }}</span>
-                            <span class="value">{{ $certificate?->maternal_grandfather_name ?: '-' }}</span>
+                            <span class="value person-name">{{ $certificate?->maternal_grandfather_name ?: '-' }}</span>
                         </div>
                         <div class="row">
                             <span class="label">{{ __('Father Age') }}</span>

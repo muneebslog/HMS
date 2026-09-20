@@ -52,6 +52,10 @@
                 line-height: 1.2;
             }
 
+            .person-name {
+                text-transform: uppercase;
+            }
+
             .header-left .tagline {
                 margin: 4px 0 0;
                 font-size: 9pt;
@@ -197,7 +201,7 @@
                 <div class="grid-3">
                     <div class="row">
                         <span class="label">{{ __('Name') }}</span>
-                        <span class="value">{{ $procedure->patient->name }}</span>
+                        <span class="value person-name">{{ $procedure->patient->name }}</span>
                     </div>
                     <div class="row">
                         <span class="label">{{ __('MRN') }}</span>
@@ -209,7 +213,7 @@
                     </div>
                     <div class="row">
                         <span class="label">{{ __('Husband') }}</span>
-                        <span class="value">{{ $procedure->patient->husband_name ?? '-' }}</span>
+                        <span class="value person-name">{{ $procedure->patient->husband_name ?? '-' }}</span>
                     </div>
                     <div class="row">
                         <span class="label">{{ __('Room') }}</span>

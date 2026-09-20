@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LabInvoice;
+use App\Models\Patient;
 use App\Models\PrintJob;
 use App\Models\Shift;
 use Illuminate\Http\JsonResponse;
@@ -120,7 +121,7 @@ class PrintJobController extends Controller
                     'total' => $labInvoice->total,
                     'created_at' => $labInvoice->created_at->format('Y-m-d H:i'),
                     'patient' => [
-                        'name' => $labInvoice->patient->name,
+                        'name' => Patient::formatName($labInvoice->patient->name),
                         'mrn' => $labInvoice->patient->mrn,
                         'age' => $labInvoice->patient->age,
                         'gender' => $labInvoice->patient->gender,
@@ -149,7 +150,7 @@ class PrintJobController extends Controller
                 'total' => $invoice->total,
                 'created_at' => $invoice->created_at->format('Y-m-d H:i'),
                 'patient' => [
-                    'name' => $invoice->patient->name,
+                    'name' => Patient::formatName($invoice->patient->name),
                     'mrn' => $invoice->patient->mrn,
                 ],
                 'items' => $invoice->items->map(fn ($item) => [

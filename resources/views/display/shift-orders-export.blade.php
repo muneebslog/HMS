@@ -40,6 +40,9 @@
                 text-transform: uppercase;
                 letter-spacing: 0.04em;
             }
+            .person-name {
+                text-transform: uppercase;
+            }
             .empty {
                 color: #666;
                 padding: 24px 0;
@@ -92,7 +95,7 @@
                     @foreach ($rows as $row)
                         <tr>
                             <td>{{ $row->mrn ?? __('No MRN') }}</td>
-                            <td>{{ $row->patient_name }}</td>
+                            <td class="person-name">{{ $row->patient_name }}</td>
                             <td>{{ $row->phone_linked ? __('Yes') : __('No') }}</td>
                             <td>{{ $row->items }}</td>
                         </tr>
