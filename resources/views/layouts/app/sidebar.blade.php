@@ -49,15 +49,6 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
-                    @if ($user->isAdmin())
-                        <flux:sidebar.item icon="building-office" :href="route('hq')" :current="request()->routeIs('hq')" wire:navigate>
-                            {{ __('HQ') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="user-plus" :href="route('reception.hub')" :current="request()->routeIs('reception.hub')" wire:navigate>
-                            {{ __('Reception') }}
-                        </flux:sidebar.item>
-                    @endif
-
                     @pageAccess('doctor.portal')
                         <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>
                             {{ __('Doctor Portal') }}

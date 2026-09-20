@@ -311,29 +311,6 @@ test('admin can add and complete a todo', function () {
     expect($todo->completed_by)->toBe($admin->id);
 });
 
-test('dashboard shows pending employee todos to admin', function () {
-    $admin = User::factory()->admin()->create();
-    $todo = EmployeeTodo::factory()->create([
-        'title' => 'License renewal',
-        'due_date' => now()->addDay()->format('Y-m-d'),
-    ]);
-
-    Livewire::actingAs($admin)
-        ->test('pages::hq')
-        ->assertSet('pendingEmployeeTodoCount', 1)
-        ->assertSee('License renewal')
-        ->assertSee($todo->employee->name);
-});
-
-test('dashboard todo card hides completed todos', function () {
-    $admin = User::factory()->admin()->create();
-    EmployeeTodo::factory()->completed()->create();
-
-    Livewire::actingAs($admin)
-        ->test('pages::hq')
-        ->assertSet('pendingEmployeeTodoCount', 0);
-});
-
 test('employee todos notify command creates admin notification for overdue todos', function () {
     $admin = User::factory()->admin()->create();
     $todo = EmployeeTodo::factory()->overdue()->create([

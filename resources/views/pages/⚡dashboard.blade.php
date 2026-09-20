@@ -158,17 +158,10 @@ new #[Title('Dashboard')] class extends Component
 
                 $adminHubCards = [
                     [
-                        'label' => __('HQ'),
-                        'description' => __('Operations overview and alerts'),
-                        'icon' => 'building-office-2',
-                        'href' => route('hq'),
-                        'icon_bg' => 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
-                    ],
-                    [
                         'label' => __('Reception'),
                         'description' => __('Front desk and patient intake'),
                         'icon' => 'user-plus',
-                        'href' => route('reception.hub'),
+                        'href' => null,
                         'icon_bg' => 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400',
                     ],
                     [
