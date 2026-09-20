@@ -459,7 +459,7 @@ new #[Title('Lab Entry')] class extends Component
                 @if ($this->shouldShowPatientNameField())
                     <flux:field class="md:col-span-6">
                         <flux:label>{{ __('Patient name') }}</flux:label>
-                        <flux:input wire:model.live.debounce.200ms="patientName" type="text" required class="uppercase" />
+                        <flux:input wire:model="patientName" type="text" required />
                         <flux:error name="patientName" />
                     </flux:field>
                 @endif

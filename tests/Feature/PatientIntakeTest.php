@@ -65,7 +65,7 @@ test('clearing a selected patient also clears the patient name', function () {
         ->assertSet('patientName', '');
 });
 
-test('patient names are uppercased while typing and when saved', function () {
+test('patient names are uppercased when saved', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();
     $service = Service::factory()->create(['is_standalone' => true]);
@@ -78,7 +78,7 @@ test('patient names are uppercased while typing and when saved', function () {
     Livewire::actingAs($user)
         ->test('pages::reception.walkin')
         ->set('patientName', 'john doe')
-        ->assertSet('patientName', 'JOHN DOE')
+        ->assertSet('patientName', 'john doe')
         ->set('hasNoPhone', true)
         ->set('selectedServiceId', $service->id)
         ->call('add')

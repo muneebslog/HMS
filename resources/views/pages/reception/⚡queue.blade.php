@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
@@ -115,18 +114,10 @@ new #[Title('Queue')] class extends Component
         }
 
         $this->editingTokenId = $token->id;
-        $this->editPatientName = Patient::formatName($patient->name) ?? '';
+        $this->editPatientName = $patient->name;
         $this->editPatientPhone = $patient->contactPhone() ?? '';
         $this->showEditPatientModal = true;
         $this->resetValidation();
-    }
-
-    /**
-     * Keep edited patient names uppercase while typing.
-     */
-    public function updatedEditPatientName(string $value): void
-    {
-        $this->editPatientName = Patient::formatName($value) ?? '';
     }
 
     /**
@@ -509,7 +500,7 @@ new #[Title('Queue')] class extends Component
 
             <flux:field>
                 <flux:label>{{ __('Name') }}</flux:label>
-                <flux:input wire:model.live.debounce.200ms="editPatientName" type="text" required class="uppercase" />
+                <flux:input wire:model="editPatientName" type="text" required />
                 <flux:error name="editPatientName" />
             </flux:field>
 

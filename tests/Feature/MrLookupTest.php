@@ -117,6 +117,7 @@ test('mr lookup allows clinical staff to edit patient name and age', function (s
         ->assertSet('editName', 'ORIGINAL NAME')
         ->assertSet('editAge', 30)
         ->set('editName', 'Updated Name')
+        ->assertSet('editName', 'Updated Name')
         ->set('editAge', 35)
         ->call('savePatientDetails')
         ->assertSet('isEditingPatient', false)

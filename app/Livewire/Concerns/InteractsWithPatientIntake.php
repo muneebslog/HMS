@@ -72,26 +72,6 @@ trait InteractsWithPatientIntake
     }
 
     /**
-     * Keep patient names uppercase while typing.
-     */
-    public function updatedPatientName(string $value): void
-    {
-        $this->patientName = Patient::formatName($value) ?? '';
-    }
-
-    /**
-     * Keep husband names uppercase while typing.
-     */
-    public function updatedHusbandName(string $value): void
-    {
-        if (! property_exists($this, 'husbandName')) {
-            return;
-        }
-
-        $this->husbandName = Patient::formatName($value) ?? '';
-    }
-
-    /**
      * Select an existing patient from search results.
      */
     public function selectMatchedPatient(int $patientId): void
@@ -99,10 +79,10 @@ trait InteractsWithPatientIntake
         $patient = Patient::query()->with('family')->findOrFail($patientId);
 
         $this->selectedPatientId = $patient->id;
-        $this->patientName = Patient::formatName($patient->name) ?? '';
+        $this->patientName = $patient->name;
 
         if (property_exists($this, 'husbandName')) {
-            $this->husbandName = Patient::formatName($patient->husband_name) ?? '';
+            $this->husbandName = $patient->husband_name ?? '';
         }
 
         if (property_exists($this, 'patientAge')) {
