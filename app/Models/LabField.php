@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
-use Database\Factories\LabTestFactory;
+use Database\Factories\LabFieldFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class LabTest extends Model
+class LabField extends Model
 {
-    /** @use HasFactory<LabTestFactory> */
+    /** @use HasFactory<LabFieldFactory> */
     use HasFactory;
 
     /**
@@ -18,12 +19,8 @@ class LabTest extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'test_name',
-        'test_code',
-        'test_price',
-        'sample',
-        'time_required',
-        'is_in_house',
+        'name',
+        'unit',
         'is_active',
     ];
 
@@ -44,14 +41,12 @@ class LabTest extends Model
     protected function casts(): array
     {
         return [
-            'test_price' => 'float',
-            'is_in_house' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
 
     /**
-     * Scope the query to only active lab tests.
+     * Scope the query to only active lab fields.
      */
     public function scopeActive($query)
     {
@@ -59,15 +54,24 @@ class LabTest extends Model
     }
 
     /**
-     * Get the fields (parameters) that make up this test, in display order.
+     * Get the normal ranges defined for this field.
      *
-     * @return BelongsToMany<LabField, $this>
+     * @return HasMany<LabFieldRange, $this>
      */
-    public function fields(): BelongsToMany
+    public function ranges(): HasMany
     {
-        return $this->belongsToMany(LabField::class, 'lab_test_field')
+        return $this->hasMany(LabFieldRange::class);
+    }
+
+    /**
+     * Get the lab tests this field is attached to.
+     *
+     * @return BelongsToMany<LabTest, $this>
+     */
+    public function labTests(): BelongsToMany
+    {
+        return $this->belongsToMany(LabTest::class, 'lab_test_field')
             ->withPivot('display_order')
-            ->withTimestamps()
-            ->orderByPivot('display_order');
+            ->withTimestamps();
     }
 }

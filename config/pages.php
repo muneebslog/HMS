@@ -81,6 +81,8 @@ return [
 
         // Management
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
+        'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],
+        'lab.tests.fields' => ['label' => 'Test Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
         'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Management'],
         'reception.invoices' => ['label' => 'Invoices', 'group' => 'Management'],
         'invoices.print' => ['label' => 'Invoice Print', 'group' => 'Management', 'parent' => 'reception.invoices'],
@@ -177,6 +179,7 @@ return [
 
         UserRole::LabTechnician->value => [
             'lab-api-and-info',
+            'lab.tests',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
         ],

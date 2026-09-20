@@ -137,6 +137,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('lab-api-and-info', 'pages::admin.lab-entries')->name('lab-api-and-info');
         Route::redirect('lab-entries', '/lab-api-and-info');
 
+        Route::livewire('lab/tests', 'pages::lab.tests')->name('lab.tests');
+        Route::livewire('lab/tests/{labTest}/fields', 'pages::lab.test-fields')->name('lab.tests.fields');
+
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');
         Route::get('admin/drive/files/{driveFile}/download', [DriveFileController::class, 'download'])
