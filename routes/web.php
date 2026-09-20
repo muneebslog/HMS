@@ -100,11 +100,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/kanban', 'pages::admin.kanban')->name('admin.kanban');
         Route::livewire('admin/supervisor-questions', 'pages::admin.supervisor-questions')->name('admin.supervisor-questions');
         Route::livewire('admin/supervisor-checklist', 'pages::admin.supervisor-checklist')->name('admin.supervisor-checklist');
-        Route::livewire('admin/nurse-questionnaires', 'pages::admin.nurse-questionnaires')->name('admin.nurse-questionnaires');
-        Route::livewire('admin/nurse-questionnaire-submissions', 'pages::admin.nurse-questionnaire-submissions')->name('admin.nurse-questionnaire-submissions');
-        Route::livewire('admin/ward-maintenance-submissions', 'pages::admin.ward-maintenance-submissions')->name('admin.ward-maintenance-submissions');
-        Route::livewire('admin/equipment-inspection-submissions', 'pages::admin.equipment-inspection-submissions')->name('admin.equipment-inspection-submissions');
-        Route::livewire('admin/emergency-department-log-submissions', 'pages::admin.emergency-department-log-submissions')->name('admin.emergency-department-log-submissions');
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
@@ -159,24 +154,6 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('admin/drive/files/{driveFile}/view', [DriveFileController::class, 'view'])
             ->name('admin.drive.view');
         Route::livewire('admin/pdf-print', 'pages::admin.pdf-print')->name('admin.pdf-print');
-        Route::livewire('admin/attendance', 'pages::admin.attendance-dashboard')->name('admin.attendance');
-        Route::livewire('admin/attendance/roster', 'pages::admin.attendance-roster')->name('admin.attendance.roster');
-        Route::livewire('admin/attendance/leaves', 'pages::admin.attendance-leaves')->name('admin.attendance.leaves');
-        Route::livewire('admin/attendance/punches', 'pages::admin.attendance-punches')->name('admin.attendance.punches');
-        Route::livewire('admin/attendance/daily', 'pages::admin.attendance-daily')->name('admin.attendance.daily');
-        Route::livewire('admin/attendance/payroll', 'pages::admin.attendance-payroll')->name('admin.attendance.payroll');
-        Route::livewire('admin/attendance/device', 'pages::admin.attendance-device')->name('admin.attendance.device');
-
-        Route::livewire('incharge/questionnaires', 'pages::incharge.questionnaires')->name('incharge.questionnaires');
-        Route::livewire('incharge/questionnaires/{questionnaire}', 'pages::incharge.questionnaire')->name('incharge.questionnaire');
-
-        Route::livewire('incharge/ward-maintenance', 'pages::incharge.ward-maintenance')->name('incharge.ward-maintenance');
-        Route::livewire('incharge/ward-maintenance/{shift}', 'pages::incharge.ward-maintenance-form')->name('incharge.ward-maintenance.form');
-        Route::livewire('incharge/equipment-inspections', 'pages::incharge.equipment-inspections')->name('incharge.equipment-inspections');
-        Route::livewire('incharge/equipment-inspections/{area}', 'pages::incharge.equipment-inspection-area')->name('incharge.equipment-inspections.area');
-        Route::livewire('incharge/equipment-inspections/{area}/{shift}', 'pages::incharge.equipment-inspection-form')->name('incharge.equipment-inspections.form');
-        Route::livewire('incharge/emergency-department-log', 'pages::incharge.emergency-department-log')->name('incharge.emergency-department-log');
-        Route::livewire('incharge/emergency-department-log/{shift}', 'pages::incharge.emergency-department-log-form')->name('incharge.emergency-department-log.form');
 
         Route::middleware('open.shift')->group(function () {
             Route::livewire('reception/walkin', 'pages::reception.walkin')->name('reception.walkin');

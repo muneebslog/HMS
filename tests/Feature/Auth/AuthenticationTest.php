@@ -42,7 +42,7 @@ test('doctors are redirected to the doctor portal after login', function () {
     $this->assertAuthenticated();
 });
 
-test('incharge nurses are redirected to questionnaires after login', function () {
+test('incharge nurses are redirected to the dashboard after login', function () {
     $user = User::factory()->inchargeNurse()->create();
 
     $response = $this->post(route('login.store'), [
@@ -52,7 +52,7 @@ test('incharge nurses are redirected to questionnaires after login', function ()
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('incharge.questionnaires', absolute: false));
+        ->assertRedirect(route('dashboard', absolute: false));
 
     $this->assertAuthenticated();
 });

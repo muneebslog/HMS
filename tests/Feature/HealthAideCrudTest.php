@@ -74,3 +74,15 @@ test('admin can update health aide without changing pin', function () {
     expect($aide->name)->toBe('New Name')
         ->and(Hash::check('1234', $aide->pin))->toBeTrue();
 });
+
+test('health aides page does not show attendance enrollment column', function () {
+    $admin = User::factory()->admin()->create();
+    HealthAide::factory()->create(['name' => 'Aide Without Device']);
+
+    $this->actingAs($admin)
+        ->get(route('admin.health-aides'))
+        ->assertSuccessful()
+        ->assertDontSee('Attendance')
+        ->assertDontSee('Not enrolled')
+        ->assertSee('Aide Without Device');
+});

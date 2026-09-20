@@ -1,9 +1,8 @@
 <?php
 
-use App\Models\DutyAssignment;
-use App\Models\DutyLocation;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -18,29 +17,29 @@ return new class extends Migration
             $table->boolean('is_override')->default(false)->after('duty_location_id');
         });
 
-        $stations = DutyAssignment::query()
+        $stations = DB::table('duty_assignments')
             ->whereNotNull('station')
             ->where('station', '!=', '')
             ->distinct()
             ->pluck('station');
 
         foreach ($stations as $station) {
-            DutyLocation::query()->firstOrCreate(
-                ['name' => $station],
-                ['sort_order' => 0, 'is_active' => true],
-            );
+            $locationId = DB::table('duty_locations')->where('name', $station)->value('id');
+
+            if ($locationId === null) {
+                $locationId = DB::table('duty_locations')->insertGetId([
+                    'name' => $station,
+                    'sort_order' => 0,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::table('duty_assignments')
+                ->where('station', $station)
+                ->update(['duty_location_id' => $locationId]);
         }
-
-        DutyAssignment::query()
-            ->whereNotNull('station')
-            ->where('station', '!=', '')
-            ->each(function (DutyAssignment $assignment): void {
-                $location = DutyLocation::query()->where('name', $assignment->station)->first();
-
-                if ($location !== null) {
-                    $assignment->update(['duty_location_id' => $location->id]);
-                }
-            });
     }
 
     /**

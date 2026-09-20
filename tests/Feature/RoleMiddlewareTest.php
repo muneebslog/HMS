@@ -37,7 +37,7 @@ $routeMap = [
         'doctor.portal',
     ],
     'incharge_nurse' => [
-        'incharge.questionnaires',
+        // Checklist form pages removed; incharge nurses keep birth-certificate access only.
     ],
     'lab_technician' => [
         'lab-entries',
@@ -131,7 +131,7 @@ test('doctors are redirected from dashboard to doctor portal', function () {
         ->assertRedirect(route('doctor.portal'));
 });
 
-test('incharge nurses can access their own routes', function () use ($routeMap) {
+test('incharge nurses can access the dashboard', function () use ($routeMap) {
     $user = User::factory()->inchargeNurse()->create();
 
     foreach ($routeMap['incharge_nurse'] as $route) {
@@ -141,12 +141,12 @@ test('incharge nurses can access their own routes', function () use ($routeMap) 
     }
 });
 
-test('incharge nurses are redirected from dashboard to questionnaires', function () {
+test('incharge nurses can visit the dashboard without redirect', function () {
     $user = User::factory()->inchargeNurse()->create();
 
     $this->actingAs($user)
         ->get(route('dashboard'))
-        ->assertRedirect(route('incharge.questionnaires'));
+        ->assertSuccessful();
 });
 
 test('incharge nurses are blocked from admin, management and receptionist routes', function () use ($routeMap) {

@@ -52,20 +52,6 @@ return [
         'doctor.medication' => ['label' => 'Medication', 'group' => 'Platform'],
         'doctor.procedures' => ['label' => 'My Procedures', 'group' => 'Platform'],
 
-        // Incharge (Platform)
-        'incharge.questionnaires' => ['label' => 'Questionnaires', 'group' => 'Platform'],
-        'incharge.questionnaire' => ['label' => 'Questionnaire Detail', 'group' => 'Platform', 'parent' => 'incharge.questionnaires'],
-
-        'incharge.ward-maintenance' => ['label' => 'Ward Maintenance', 'group' => 'Platform'],
-        'incharge.ward-maintenance.form' => ['label' => 'Ward Maintenance Form', 'group' => 'Platform', 'parent' => 'incharge.ward-maintenance'],
-
-        'incharge.equipment-inspections' => ['label' => 'Equipment Inspection', 'group' => 'Platform'],
-        'incharge.equipment-inspections.area' => ['label' => 'Equipment Inspection Area', 'group' => 'Platform', 'parent' => 'incharge.equipment-inspections'],
-        'incharge.equipment-inspections.form' => ['label' => 'Equipment Inspection Form', 'group' => 'Platform', 'parent' => 'incharge.equipment-inspections'],
-
-        'incharge.emergency-department-log' => ['label' => 'ER Operational Log', 'group' => 'Platform'],
-        'incharge.emergency-department-log.form' => ['label' => 'ER Operational Log Form', 'group' => 'Platform', 'parent' => 'incharge.emergency-department-log'],
-
         // Indoor (Platform)
         'indoor.ward' => ['label' => 'Indoor Ward', 'group' => 'Platform'],
         'indoor.procedure' => ['label' => 'Indoor Procedure', 'group' => 'Platform', 'parent' => 'indoor.ward'],
@@ -109,13 +95,6 @@ return [
         'payout.doctor' => ['label' => 'Doctor Payout', 'group' => 'Management'],
         'management.shift-history' => ['label' => 'Shift History', 'group' => 'Management'],
         'management.approvals' => ['label' => 'Approvals', 'group' => 'Management'],
-        'admin.attendance' => ['label' => 'Attendance', 'group' => 'Management'],
-        'admin.attendance.roster' => ['label' => 'Attendance Roster', 'group' => 'Management', 'parent' => 'admin.attendance'],
-        'admin.attendance.leaves' => ['label' => 'Attendance Leaves', 'group' => 'Management', 'parent' => 'admin.attendance'],
-        'admin.attendance.punches' => ['label' => 'Attendance Punches', 'group' => 'Management', 'parent' => 'admin.attendance'],
-        'admin.attendance.daily' => ['label' => 'Daily Attendance', 'group' => 'Management', 'parent' => 'admin.attendance'],
-        'admin.attendance.payroll' => ['label' => 'Attendance Payroll', 'group' => 'Management', 'parent' => 'admin.attendance'],
-        'admin.attendance.device' => ['label' => 'Attendance Device', 'group' => 'Management', 'parent' => 'admin.attendance'],
         'admin.drive' => ['label' => 'HMS Drive', 'group' => 'Management'],
         'admin.drive.download' => ['label' => 'Drive Download', 'group' => 'Management', 'parent' => 'admin.drive'],
         'admin.drive.view' => ['label' => 'Drive View', 'group' => 'Management', 'parent' => 'admin.drive'],
@@ -149,11 +128,6 @@ return [
         'admin.patient-flow' => ['label' => 'Patient Flow', 'group' => 'Administration'],
         'admin.supervisor-questions' => ['label' => 'Checklist Questions', 'group' => 'Administration'],
         'admin.supervisor-checklist' => ['label' => 'Checklist Summary', 'group' => 'Administration'],
-        'admin.nurse-questionnaires' => ['label' => 'Nurse Questionnaires', 'group' => 'Administration'],
-        'admin.nurse-questionnaire-submissions' => ['label' => 'Nurse Form Submissions', 'group' => 'Administration'],
-        'admin.ward-maintenance-submissions' => ['label' => 'Ward Maintenance Submissions', 'group' => 'Administration'],
-        'admin.equipment-inspection-submissions' => ['label' => 'Equipment Inspection Submissions', 'group' => 'Administration'],
-        'admin.emergency-department-log-submissions' => ['label' => 'ER Operational Log Submissions', 'group' => 'Administration'],
 
         // System (sidebar links; display routes are public but visibility is role-controlled)
         'display.tokens' => ['label' => 'Token Display', 'group' => 'System'],
@@ -189,7 +163,6 @@ return [
             'reception.mr-lookup',
             'reception.invoices', 'invoices.print', 'reception.queue', 'reception.queue.tv',
             'payout.doctor', 'management.shift-history', 'management.approvals',
-            'admin.attendance', 'admin.attendance.roster', 'admin.attendance.leaves', 'admin.attendance.punches', 'admin.attendance.daily', 'admin.attendance.payroll', 'admin.attendance.device',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
             'lab-entries', 'reception.lab-tracking', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
@@ -203,18 +176,11 @@ return [
         ],
 
         UserRole::Indoor->value => [
-            'incharge.ward-maintenance', 'incharge.ward-maintenance.form',
-            'incharge.equipment-inspections', 'incharge.equipment-inspections.area', 'incharge.equipment-inspections.form',
-            'incharge.emergency-department-log', 'incharge.emergency-department-log.form',
             'indoor.ward', 'indoor.procedure', 'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'display.tokens', 'display.er', 'display.drips', 'display.stock', 'display.er_drips', 'display.shift_orders',
         ],
 
         UserRole::InchargeNurse->value => [
-            'incharge.questionnaires', 'incharge.questionnaire',
-            'incharge.ward-maintenance', 'incharge.ward-maintenance.form',
-            'incharge.equipment-inspections', 'incharge.equipment-inspections.area', 'incharge.equipment-inspections.form',
-            'incharge.emergency-department-log', 'incharge.emergency-department-log.form',
             'indoor.procedures.birth-certificate',
         ],
 

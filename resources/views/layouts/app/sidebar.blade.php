@@ -10,7 +10,6 @@
 
             $platformRoutes = [
                 'doctor.portal', 'doctor.medication', 'doctor.procedures',
-                'incharge.questionnaires', 'incharge.ward-maintenance', 'incharge.equipment-inspections', 'incharge.emergency-department-log',
                 'indoor.ward', 'lab-entries', 'reception.mr-lookup',
             ];
             $receptionRoutes = [
@@ -20,15 +19,14 @@
             ];
             $managementRoutes = [
                 'reception.invoices', 'reception.queue', 'payout.doctor', 'management.shift-history', 'management.approvals',
-                'admin.attendance', 'admin.drive', 'admin.pdf-print', 'admin.notifications',
+                'admin.drive', 'admin.pdf-print', 'admin.notifications',
             ];
             $administrationRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.leave-calendar',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban', 'admin.policy-journal',
                 'admin.notifications', 'admin.reports', 'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
                 'admin.medication-deliveries', 'admin.rechecks', 'admin.patient-flow', 'admin.supervisor-questions',
-                'admin.supervisor-checklist', 'admin.nurse-questionnaires', 'admin.nurse-questionnaire-submissions',
-                'admin.ward-maintenance-submissions', 'admin.equipment-inspection-submissions', 'admin.emergency-department-log-submissions',
+                'admin.supervisor-checklist',
                 'admin.page-access', 'admin.act-as-role',
             ];
             $systemRoutes = [
@@ -74,28 +72,6 @@
                     @pageAccess('doctor.procedures')
                         <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
                             {{ __('My Procedures') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-
-                    @pageAccess('incharge.questionnaires')
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('incharge.questionnaires')" :current="request()->routeIs('incharge.questionnaire*')" wire:navigate>
-                            {{ __('Questionnaires') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-
-                    @pageAccess('incharge.ward-maintenance')
-                        <flux:sidebar.item icon="wrench-screwdriver" :href="route('incharge.ward-maintenance')" :current="request()->routeIs('incharge.ward-maintenance*')" wire:navigate>
-                            {{ __('Ward Maintenance') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-                    @pageAccess('incharge.equipment-inspections')
-                        <flux:sidebar.item icon="clipboard-document-list" :href="route('incharge.equipment-inspections')" :current="request()->routeIs('incharge.equipment-inspection*')" wire:navigate>
-                            {{ __('Equipment Inspection') }}
-                        </flux:sidebar.item>
-                    @endpageAccess
-                    @pageAccess('incharge.emergency-department-log')
-                        <flux:sidebar.item icon="shield-check" :href="route('incharge.emergency-department-log')" :current="request()->routeIs('incharge.emergency-department-log*')" wire:navigate>
-                            {{ __('ER Operational Log') }}
                         </flux:sidebar.item>
                     @endpageAccess
 
@@ -213,11 +189,6 @@
                         @pageAccess('management.approvals')
                             <flux:sidebar.item icon="clipboard-document-check" :href="route('management.approvals')" :current="request()->routeIs('management.approvals')" wire:navigate>
                                 {{ __('Approvals') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.attendance')
-                            <flux:sidebar.item icon="clock" :href="route('admin.attendance')" :current="request()->routeIs('admin.attendance*')" wire:navigate>
-                                {{ __('Attendance') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('admin.drive')
@@ -338,31 +309,6 @@
                         @pageAccess('admin.supervisor-checklist')
                             <flux:sidebar.item icon="calendar-days" :href="route('admin.supervisor-checklist')" :current="request()->routeIs('admin.supervisor-checklist')" wire:navigate>
                                 {{ __('Checklist Summary') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.nurse-questionnaires')
-                            <flux:sidebar.item icon="clipboard-document-check" :href="route('admin.nurse-questionnaires')" :current="request()->routeIs('admin.nurse-questionnaires')" wire:navigate>
-                                {{ __('Nurse Questionnaires') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.nurse-questionnaire-submissions')
-                            <flux:sidebar.item icon="document-magnifying-glass" :href="route('admin.nurse-questionnaire-submissions')" :current="request()->routeIs('admin.nurse-questionnaire-submissions')" wire:navigate>
-                                {{ __('Nurse Form Submissions') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.ward-maintenance-submissions')
-                            <flux:sidebar.item icon="wrench-screwdriver" :href="route('admin.ward-maintenance-submissions')" :current="request()->routeIs('admin.ward-maintenance-submissions')" wire:navigate>
-                                {{ __('Ward Maintenance') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.equipment-inspection-submissions')
-                            <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.equipment-inspection-submissions')" :current="request()->routeIs('admin.equipment-inspection-submissions')" wire:navigate>
-                                {{ __('Equipment Inspection') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
-                        @pageAccess('admin.emergency-department-log-submissions')
-                            <flux:sidebar.item icon="shield-check" :href="route('admin.emergency-department-log-submissions')" :current="request()->routeIs('admin.emergency-department-log-submissions')" wire:navigate>
-                                {{ __('ER Operational Log') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         <flux:sidebar.item icon="key" :href="route('admin.page-access')" :current="request()->routeIs('admin.page-access')" wire:navigate>

@@ -7,7 +7,6 @@ use App\Enums\TokenDisplayLayout;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\DripBase;
-use App\Models\DutyLocation;
 use App\Models\Injection;
 use App\Models\LabDoctorShare;
 use App\Models\LabTest;
@@ -248,15 +247,6 @@ new #[Title('Management')] class extends Component
     public bool $roomIsActive = true;
 
     #[Validate]
-    public string $dutyLocationName = '';
-
-    #[Validate]
-    public string $dutyLocationSortOrder = '0';
-
-    #[Validate]
-    public bool $dutyLocationIsActive = true;
-
-    #[Validate]
     public string $symptomName = '';
 
     #[Validate]
@@ -415,11 +405,6 @@ new #[Title('Management')] class extends Component
                 'roomNumber' => ['required', 'string', 'max:255', Rule::unique('rooms', 'number')->ignore($this->editingId)],
                 'roomIsActive' => ['boolean'],
             ],
-            'dutyLocations' => [
-                'dutyLocationName' => ['required', 'string', 'max:255', Rule::unique('duty_locations', 'name')->ignore($this->editingId)],
-                'dutyLocationSortOrder' => ['required', 'integer', 'min:0'],
-                'dutyLocationIsActive' => ['boolean'],
-            ],
             'symptoms' => [
                 'symptomName' => ['required', 'string', 'max:255', Rule::unique('symptoms', 'name')->ignore($this->editingId)],
                 'symptomIsActive' => ['boolean'],
@@ -554,7 +539,6 @@ new #[Title('Management')] class extends Component
             'supplies' => $this->loadSupply($id),
             'procedureTypes' => $this->loadProcedureType($id),
             'rooms' => $this->loadRoom($id),
-            'dutyLocations' => $this->loadDutyLocation($id),
             'symptoms' => $this->loadSymptom($id),
         };
 
@@ -722,18 +706,6 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * Load duty location data into the form.
-     */
-    private function loadDutyLocation(int $id): void
-    {
-        $location = DutyLocation::findOrFail($id);
-
-        $this->dutyLocationName = $location->name;
-        $this->dutyLocationSortOrder = (string) $location->sort_order;
-        $this->dutyLocationIsActive = $location->is_active;
-    }
-
-    /**
      * Load symptom data into the form.
      */
     private function loadSymptom(int $id): void
@@ -812,9 +784,6 @@ new #[Title('Management')] class extends Component
             'procedureTypeIsActive',
             'roomNumber',
             'roomIsActive',
-            'dutyLocationName',
-            'dutyLocationSortOrder',
-            'dutyLocationIsActive',
             'symptomName',
             'symptomIsActive',
             'symptomMedicineIds',
@@ -863,7 +832,6 @@ new #[Title('Management')] class extends Component
             'supplies' => $this->saveSupply($validated),
             'procedureTypes' => $this->saveProcedureType($validated),
             'rooms' => $this->saveRoom($validated),
-            'dutyLocations' => $this->saveDutyLocation($validated),
             'symptoms' => $this->saveSymptom($validated),
         };
 
@@ -1235,28 +1203,6 @@ new #[Title('Management')] class extends Component
         } else {
             Room::create($data);
             Flux::toast(variant: 'success', text: __('Room created.'));
-        }
-    }
-
-    /**
-     * Persist duty location data.
-     *
-     * @param  array<string, mixed>  $validated
-     */
-    private function saveDutyLocation(array $validated): void
-    {
-        $data = [
-            'name' => $validated['dutyLocationName'],
-            'sort_order' => (int) $validated['dutyLocationSortOrder'],
-            'is_active' => $validated['dutyLocationIsActive'],
-        ];
-
-        if ($this->editingId) {
-            DutyLocation::findOrFail($this->editingId)->update($data);
-            Flux::toast(variant: 'success', text: __('Duty location updated.'));
-        } else {
-            DutyLocation::create($data);
-            Flux::toast(variant: 'success', text: __('Duty location created.'));
         }
     }
 
@@ -1636,7 +1582,6 @@ new #[Title('Management')] class extends Component
             'supplies' => Supply::findOrFail($id)->delete(),
             'procedureTypes' => ProcedureType::findOrFail($id)->delete(),
             'rooms' => Room::findOrFail($id)->delete(),
-            'dutyLocations' => DutyLocation::findOrFail($id)->delete(),
             'symptoms' => Symptom::findOrFail($id)->delete(),
         };
 
@@ -1834,17 +1779,6 @@ new #[Title('Management')] class extends Component
     }
 
     /**
-     * Get the list of duty locations.
-     *
-     * @return Collection<int, DutyLocation>
-     */
-    #[Computed]
-    public function dutyLocations(): Collection
-    {
-        return DutyLocation::query()->orderBy('sort_order')->orderBy('name')->get();
-    }
-
-    /**
      * Get the list of symptoms with linked medicines.
      *
      * @return Collection<int, Symptom>
@@ -1965,13 +1899,6 @@ new #[Title('Management')] class extends Component
                         </button>
                         <button
                             type="button"
-                            wire:click="switchTab('dutyLocations')"
-                            class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'dutyLocations' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
-                        >
-                            {{ __('Duty Locations') }}
-                        </button>
-                        <button
-                            type="button"
                             wire:click="switchTab('notifications')"
                             class="cursor-pointer border-b-2 px-1 pb-3 text-sm font-medium transition-colors {{ $activeTab === 'notifications' ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300' }}"
                         >
@@ -2007,39 +1934,6 @@ new #[Title('Management')] class extends Component
                                 <flux:table.row>
                                     <flux:table.cell colspan="3" class="text-center text-zinc-500">
                                         {{ __('No rooms found.') }}
-                                    </flux:table.cell>
-                                </flux:table.row>
-                            @endforelse
-                        </flux:table.rows>
-                    </flux:table>
-                @elseif ($activeTab === 'dutyLocations')
-                    <flux:table>
-                        <flux:table.columns>
-                            <flux:table.column>{{ __('Name') }}</flux:table.column>
-                            <flux:table.column>{{ __('Sort Order') }}</flux:table.column>
-                            <flux:table.column>{{ __('Status') }}</flux:table.column>
-                            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                        </flux:table.columns>
-
-                        <flux:table.rows>
-                            @forelse ($this->dutyLocations as $location)
-                                <flux:table.row wire:key="duty-location-{{ $location->id }}">
-                                    <flux:table.cell>{{ $location->name }}</flux:table.cell>
-                                    <flux:table.cell>{{ $location->sort_order }}</flux:table.cell>
-                                    <flux:table.cell>
-                                        <flux:badge size="sm" color="{{ $location->is_active ? 'green' : 'zinc' }}">
-                                            {{ $location->is_active ? __('Active') : __('Inactive') }}
-                                        </flux:badge>
-                                    </flux:table.cell>
-                                    <flux:table.cell class="text-right">
-                                        <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="edit({{ $location->id }})" />
-                                        <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this duty location?') }}" />
-                                    </flux:table.cell>
-                                </flux:table.row>
-                            @empty
-                                <flux:table.row>
-                                    <flux:table.cell colspan="4" class="text-center text-zinc-500">
-                                        {{ __('No duty locations found.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
                             @endforelse
@@ -2603,13 +2497,13 @@ new #[Title('Management')] class extends Component
     <flux:modal wire:model="showModal" class="w-full {{ ! $editingId && in_array($activeTab, ['medicines', 'injections'], true) ? 'max-w-4xl' : ($activeTab === 'symptoms' ? 'max-w-2xl' : 'max-w-lg') }}">
         <flux:heading level="2">
             @if ($editingId)
-                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'symptoms' => __('Symptom'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), 'dutyLocations' => __('Duty Location'), default => __('Service Price') }]) }}
+                {{ __('Edit :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'medicines' => __('Medicine'), 'symptoms' => __('Symptom'), 'injections' => __('Injection'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @elseif ($activeTab === 'medicines')
                 {{ __('Bulk add medicines') }}
             @elseif ($activeTab === 'injections')
                 {{ __('Bulk add injections') }}
             @else
-                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'symptoms' => __('Symptom'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), 'dutyLocations' => __('Duty Location'), default => __('Service Price') }]) }}
+                {{ __('Create :resource', ['resource' => match($activeTab) { 'doctors' => __('Doctor'), 'services' => __('Service'), 'labTests' => __('Lab Test'), 'labDoctorShares' => __('Lab Doc Share'), 'symptoms' => __('Symptom'), 'dripBases' => __('Drip Base'), 'procedureTypes' => __('Procedure Type'), 'rooms' => __('Room'), default => __('Service Price') }]) }}
             @endif
         </flux:heading>
 
@@ -2805,23 +2699,6 @@ new #[Title('Management')] class extends Component
                 <flux:field>
                     <flux:switch wire:model="roomIsActive" :label="__('Active')" />
                     <flux:error name="roomIsActive" />
-                </flux:field>
-            @elseif ($activeTab === 'dutyLocations')
-                <flux:field>
-                    <flux:label>{{ __('Name') }}</flux:label>
-                    <flux:input wire:model="dutyLocationName" type="text" required />
-                    <flux:error name="dutyLocationName" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:label>{{ __('Sort Order') }}</flux:label>
-                    <flux:input wire:model="dutyLocationSortOrder" type="number" min="0" step="1" required />
-                    <flux:error name="dutyLocationSortOrder" />
-                </flux:field>
-
-                <flux:field>
-                    <flux:switch wire:model="dutyLocationIsActive" :label="__('Active')" />
-                    <flux:error name="dutyLocationIsActive" />
                 </flux:field>
             @elseif ($activeTab === 'medicines')
                 @if ($editingId)
