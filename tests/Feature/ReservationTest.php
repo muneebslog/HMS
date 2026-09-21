@@ -100,6 +100,25 @@ test('a token can be reserved for a doctor', function () {
     expect($token->patient->contactPhone())->toBe(validPhone());
 });
 
+test('reservation reserve button does not nest a required edit-patient field in its form', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $service = consultationService();
+    $doctor = Doctor::factory()->create();
+    consultationPrice($service, $doctor);
+
+    $html = Livewire::actingAs($user)
+        ->test('pages::reception.reservation')
+        ->set('selectedDoctorId', $doctor->id)
+        ->call('selectToken', 5)
+        ->html();
+
+    expect($html)
+        ->toContain('wire:click="reserve"')
+        ->not->toContain('wire:model="editPatientName" type="text" required')
+        ->and(str_contains($html, 'wire:model="editPatientName"'))->toBeTrue();
+});
+
 test('reservation tokens respect service price token_starts_from', function () {
     $user = User::factory()->create();
     Shift::factory()->for($user)->open()->create();

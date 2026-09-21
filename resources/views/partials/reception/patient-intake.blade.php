@@ -87,7 +87,10 @@
     @endif
 
     <flux:error name="selectedPatientId" />
+</div>
 
+{{-- Teleport so closed dialog fields cannot block parent form submit. --}}
+@teleport('body')
     <flux:modal name="intake-edit-patient" wire:model="showEditPatientModal" class="md:w-96">
         <div class="space-y-6">
             <div>
@@ -97,7 +100,7 @@
 
             <flux:field>
                 <flux:label>{{ __('Name') }}</flux:label>
-                <flux:input wire:model="editPatientName" type="text" required autofocus />
+                <flux:input wire:model="editPatientName" type="text" autofocus />
                 <flux:error name="editPatientName" />
             </flux:field>
 
@@ -127,4 +130,4 @@
             </div>
         </div>
     </flux:modal>
-</div>
+@endteleport

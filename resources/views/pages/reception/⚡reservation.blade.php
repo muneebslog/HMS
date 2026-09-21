@@ -127,9 +127,11 @@ new #[Title('Reservations')] class extends Component
 
             app(ReservationService::class)->reserve($queue, $this->viewingTokenNumber, $patient);
 
+            $reservedNumber = $this->viewingTokenNumber;
+
             $this->closeReserveModal();
 
-            Flux::toast(variant: 'success', text: __('Token :number reserved.', ['number' => $this->viewingTokenNumber]));
+            Flux::toast(variant: 'success', text: __('Token :number reserved.', ['number' => $reservedNumber]));
         } catch (\Throwable $e) {
             Flux::toast(variant: 'danger', text: $e->getMessage());
         }
@@ -458,7 +460,7 @@ new #[Title('Reservations')] class extends Component
                 <flux:button type="button" variant="ghost" wire:click="closeReserveModal">
                     {{ __('Cancel') }}
                 </flux:button>
-                <flux:button type="submit" variant="primary">
+                <flux:button type="button" variant="primary" wire:click="reserve">
                     {{ __('Reserve') }}
                 </flux:button>
             </div>

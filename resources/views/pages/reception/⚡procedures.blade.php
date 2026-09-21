@@ -1704,7 +1704,7 @@ new #[Title('Procedures')] class extends Component
                 <flux:button type="button" variant="ghost" wire:click="closeProcedureModal">
                     {{ __('Cancel') }}
                 </flux:button>
-                <flux:button type="submit" variant="primary">
+                <flux:button type="button" variant="primary" wire:click="saveProcedure">
                     {{ $editingProcedureId ? __('Update') : __('Save') }}
                 </flux:button>
             </div>
