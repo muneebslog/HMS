@@ -138,14 +138,14 @@ function oldPatient(int $id, string $receipt, string $name, string $gender = 'fe
     return ['id' => $id, 'name' => $name, 'gender' => $gender, 'age' => 30, 'receipt_no' => $receipt, 'created_at' => '2026-09-20 08:00:00'];
 }
 
-function oldPatientTest(int $id, int $patientId, int $testId, int $resultAdded = 1, string $updatedAt = '2026-09-20 09:00:00'): array
+function oldPatientTest(int $id, int $patientId, int $testId, int $resultAdded = 1, string $updatedAt = '2026-10-05 10:00:00'): array
 {
     return ['id' => $id, 'patient_id' => $patientId, 'test_id' => $testId, 'isResultAdded' => $resultAdded, 'created_at' => '2026-09-20 08:00:00', 'updated_at' => $updatedAt];
 }
 
-function oldResult(int $id, int $patientTestId, int $fieldId, string $value): array
+function oldResult(int $id, int $patientTestId, int $fieldId, string $value, string $savedAt = '2026-09-20 09:00:00'): array
 {
-    return ['id' => $id, 'patient_test_id' => $patientTestId, 'test_field_id' => $fieldId, 'result' => $value];
+    return ['id' => $id, 'patient_test_id' => $patientTestId, 'test_field_id' => $fieldId, 'result' => $value, 'created_at' => $savedAt, 'updated_at' => $savedAt];
 }
 
 test('the dump parser reads rows, trims values and handles escaped quotes and nulls', function () {
@@ -171,6 +171,7 @@ test('a dry run plans the import and writes nothing', function () {
 });
 
 test('results are imported with values translated and the test completed at the old time', function () {
+    // Old test rows were last touched when printed on 5 Oct; completion must use when results were saved.
     $items = ($this->case)('928001', 'Ayesha Khan', 'female', [$this->cbc, $this->hbsagTest, $this->antiHcvTest, $this->urine]);
     $path = oldDumpFor($this, [oldPatient(1, '928001', 'AYESHA KHAN')], [
         oldPatientTest(1, 1, 17),

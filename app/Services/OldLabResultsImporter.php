@@ -142,8 +142,15 @@ class OldLabResultsImporter
         }
 
         $oldResults = [];
+        $oldResultsSavedAt = [];
         foreach ($old['test_results'] as $result) {
             $oldResults[$result['patient_test_id']][$result['test_field_id']] = (string) $result['result'];
+
+            // When results were entered. patient_test.updated_at is not used: the old software bumps it on printing.
+            $savedAt = $result['updated_at'] ?? $result['created_at'] ?? null;
+            if (filled($savedAt) && $savedAt > ($oldResultsSavedAt[$result['patient_test_id']] ?? '')) {
+                $oldResultsSavedAt[$result['patient_test_id']] = $savedAt;
+            }
         }
 
         $oldFieldNames = [];
@@ -244,7 +251,7 @@ class OldLabResultsImporter
                     'invoice_number' => (string) $invoice->invoice_number,
                     'patient' => (string) $invoice->patient?->name,
                     'test' => trim((string) $item->test_name),
-                    'completed_at' => $this->oldTimestamp($patientTest['updated_at'] ?? $patientTest['created_at']),
+                    'completed_at' => $this->oldTimestamp($oldResultsSavedAt[$patientTest['id']] ?? $patientTest['created_at']),
                     'values' => $planned['values'],
                     'notes' => $planned['notes'],
                 ];
