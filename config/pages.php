@@ -83,6 +83,7 @@ return [
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'lab.cases' => ['label' => 'Lab Cases', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
+        'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],
         'lab.tests.fields' => ['label' => 'Test Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
         'lab.fields' => ['label' => 'All Lab Fields', 'group' => 'Management', 'parent' => 'lab.tests'],

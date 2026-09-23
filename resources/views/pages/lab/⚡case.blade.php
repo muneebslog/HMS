@@ -323,6 +323,11 @@ new #[Title('Lab Case')] class extends Component
                 @else
                     <flux:badge color="amber" icon="clock">{{ __('Awaiting results') }}</flux:badge>
                 @endif
+                @if ($items->contains(fn ($item) => $item->is_in_house && $item->isDone()))
+                    <flux:button size="sm" icon="document-text" :href="route('lab.cases.report', $labInvoice)" target="_blank">
+                        {{ __('Show report') }}
+                    </flux:button>
+                @endif
             </div>
         </div>
 
@@ -392,6 +397,18 @@ new #[Title('Lab Case')] class extends Component
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
                                 @if ($this->canEnterResults($item))
+                                    <div class="flex justify-end gap-2">
+                                    @if ($item->is_in_house && $item->isDone())
+                                        <flux:button
+                                            size="sm"
+                                            variant="primary"
+                                            icon="document-text"
+                                            :href="route('lab.cases.report', ['labInvoice' => $labInvoice, 'item' => $item->id])"
+                                            target="_blank"
+                                        >
+                                            {{ __('Show report') }}
+                                        </flux:button>
+                                    @endif
                                     <flux:button
                                         size="sm"
                                         :variant="$item->results->isEmpty() && ! $item->results_completed_at ? 'primary' : 'filled'"
@@ -400,6 +417,7 @@ new #[Title('Lab Case')] class extends Component
                                     >
                                         {{ $item->results->isEmpty() && ! $item->results_completed_at ? __('Add results') : __('Edit results') }}
                                     </flux:button>
+                                    </div>
                                 @elseif ($item->is_in_house)
                                     <span class="text-xs text-zinc-500">{{ __('No fields set up for this test') }}</span>
                                 @else

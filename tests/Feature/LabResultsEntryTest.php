@@ -236,3 +236,86 @@ test('the case page tags each test as in-house or outsourced', function () {
         ->assertSeeInOrder(['CBC', 'In-house'])
         ->assertSeeInOrder(['TSH', 'Outsourced']);
 });
+
+test('show report buttons appear only once results are completed', function () {
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.show', $this->invoice))
+        ->assertDontSee('Show report');
+
+    $this->item->update(['results_completed_at' => now(), 'results_completed_by' => $this->labTechnician->id]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->hb->id, 'value' => '10.2']);
+
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.show', $this->invoice))
+        ->assertSee('Show report')
+        ->assertSee(route('lab.cases.report', ['labInvoice' => $this->invoice, 'item' => $this->item->id]), false)
+        ->assertSee('target="_blank"', false);
+});
+
+test('the report shows completed results with the patient range, flag and comment', function () {
+    $this->item->update(['result_comment' => 'Repeat after 2 weeks', 'results_completed_at' => now(), 'results_completed_by' => $this->labTechnician->id]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->hb->id, 'value' => '10.2']);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->group->id, 'value' => 'B']);
+
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.report', ['labInvoice' => $this->invoice, 'item' => $this->item->id]))
+        ->assertOk()
+        ->assertSee('Complete Blood Count')
+        ->assertSee('RESULT PATIENT')
+        ->assertSee('34 Years / Female')
+        ->assertSee($this->invoice->invoice_number)
+        ->assertSee('10.2')
+        ->assertSee('12 – 15.5')
+        ->assertSee('class="flag">L', false)
+        ->assertSee('Repeat after 2 weeks')
+        ->assertDontSee('Remarks');
+});
+
+test('the case report includes only completed tests, one sheet each', function () {
+    $this->item->update(['results_completed_at' => now()]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->hb->id, 'value' => '13']);
+
+    $secondTest = LabTest::factory()->create(['test_name' => 'Blood Group Test', 'is_in_house' => true]);
+    $secondTest->fields()->attach($this->group->id, ['display_order' => 1]);
+    $second = LabInvoiceItem::factory()->inHouse()->create(['lab_invoice_id' => $this->invoice->id, 'lab_test_id' => $secondTest->id, 'results_completed_at' => now()]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $second->id, 'lab_field_id' => $this->group->id, 'value' => 'AB']);
+
+    $pendingTest = LabTest::factory()->create(['test_name' => 'Pending Only Test', 'is_in_house' => true]);
+    $pendingTest->fields()->attach($this->note->id, ['display_order' => 1]);
+    $pending = LabInvoiceItem::factory()->inHouse()->create(['lab_invoice_id' => $this->invoice->id, 'lab_test_id' => $pendingTest->id]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $pending->id, 'lab_field_id' => $this->note->id, 'value' => 'draft']);
+
+    $html = $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.report', $this->invoice))
+        ->assertOk()
+        ->assertSee('Complete Blood Count')
+        ->assertSee('Blood Group Test')
+        ->assertDontSee('Pending Only Test')
+        ->getContent();
+
+    expect(substr_count($html, 'class="sheet"'))->toBe(2);
+});
+
+test('the report is unavailable until a test is completed', function () {
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->hb->id, 'value' => '13']);
+
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.report', $this->invoice))
+        ->assertNotFound();
+});
+
+test('a report cannot be opened for a test from another case', function () {
+    $other = LabInvoiceItem::factory()->inHouse()->create(['lab_test_id' => $this->labTest->id, 'results_completed_at' => now()]);
+
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.report', ['labInvoice' => $this->invoice, 'item' => $other->id]))
+        ->assertNotFound();
+});
+
+test('doctors cannot open lab reports', function () {
+    $this->item->update(['results_completed_at' => now()]);
+
+    $this->actingAs(User::factory()->doctor()->create())
+        ->get(route('lab.cases.report', $this->invoice))
+        ->assertForbidden();
+});
