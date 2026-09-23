@@ -11,35 +11,37 @@ use App\Models\Shift;
 class CreatePrintJob
 {
     /**
-     * Create a pending print job for the given invoice.
+     * Create a pending print job for the given invoice. A lab invoice always prints
+     * both slips (patient copy with payment + QR, lab copy with tests + samples), so
+     * reprints match the original; the patient copy's job is returned.
      */
     public function create(Invoice|LabInvoice $invoice): PrintJob
     {
-        $data = [
+        if ($invoice instanceof LabInvoice) {
+            return $this->createLabInvoiceReceipts($invoice)[0];
+        }
+
+        return PrintJob::create([
+            'invoice_id' => $invoice->id,
             'status' => PrintJobStatus::Pending,
             'payload' => [
-                'type' => $invoice instanceof LabInvoice ? 'lab_invoice' : 'invoice',
+                'type' => 'invoice',
                 'source' => 'web',
             ],
             'attempts' => 0,
-        ];
-
-        if ($invoice instanceof LabInvoice) {
-            $data['lab_invoice_id'] = $invoice->id;
-        } else {
-            $data['invoice_id'] = $invoice->id;
-        }
-
-        return PrintJob::create($data);
+        ]);
     }
 
     /**
-     * Create pending print jobs for a lab invoice receipt.
+     * Create pending print jobs for a lab invoice receipt: [patient copy, lab copy].
+     * The QR links to the patient's public results page unless a URL is given.
      *
-     * @return array<int, PrintJob>
+     * @return array{0: PrintJob, 1: PrintJob}
      */
-    public function createLabInvoiceReceipts(LabInvoice $invoice, string $qrUrl): array
+    public function createLabInvoiceReceipts(LabInvoice $invoice, ?string $qrUrl = null): array
     {
+        $qrUrl ??= (string) $invoice->publicReportsUrl();
+
         return [
             $this->createLabCopy($invoice, $qrUrl, 'patient'),
             $this->createLabCopy($invoice, $qrUrl, 'lab'),

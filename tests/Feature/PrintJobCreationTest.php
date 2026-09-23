@@ -87,7 +87,7 @@ test('the invoices page can queue a print job for a walk-in invoice', function (
         ->status->toBe(PrintJobStatus::Pending);
 });
 
-test('the invoices page can queue a print job for a lab invoice', function () {
+test('reprinting a lab invoice from the invoices page queues both the patient and lab copies with the results QR', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $labInvoice = LabInvoice::factory()->create(['shift_id' => $shift->id]);
@@ -97,10 +97,23 @@ test('the invoices page can queue a print job for a lab invoice', function () {
         ->call('printInvoice', $labInvoice->id, 'lab')
         ->assertHasNoErrors();
 
-    expect(PrintJob::count())->toBe(1);
-    expect(PrintJob::first())
-        ->lab_invoice_id->toBe($labInvoice->id)
-        ->status->toBe(PrintJobStatus::Pending);
+    $jobs = PrintJob::orderBy('id')->get();
+
+    expect($jobs)->toHaveCount(2)
+        ->and($jobs->pluck('lab_invoice_id')->unique()->all())->toBe([$labInvoice->id])
+        ->and($jobs->pluck('status')->unique()->all())->toBe([PrintJobStatus::Pending])
+        ->and($jobs->pluck('payload.copy_for')->all())->toBe(['patient', 'lab'])
+        ->and($jobs->pluck('payload.qr_url')->unique()->all())->toBe([route('lab.public.show', $labInvoice->public_token)]);
+});
+
+test('reprinting a lab invoice through CreatePrintJob::create never makes a single generic slip', function () {
+    $labInvoice = LabInvoice::factory()->create();
+
+    $job = app(CreatePrintJob::class)->create($labInvoice);
+
+    expect(PrintJob::count())->toBe(2)
+        ->and($job->payload['copy_for'])->toBe('patient')
+        ->and(PrintJob::where('lab_invoice_id', $labInvoice->id)->whereNull('payload->copy_for')->count())->toBe(0);
 });
 
 test('createForShift creates a pending shift report print job', function () {
