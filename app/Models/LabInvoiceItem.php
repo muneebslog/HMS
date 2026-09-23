@@ -138,6 +138,38 @@ class LabInvoiceItem extends Model
     }
 
     /**
+     * Determine whether this test is finished: an in-house test once its
+     * results are ready, a send-out test once its report is received or uploaded.
+     */
+    public function isDone(): bool
+    {
+        if ($this->is_in_house) {
+            return $this->lab_result_ready === true;
+        }
+
+        return $this->outgoing_status === OutgoingSampleStatus::Received || filled($this->report_path);
+    }
+
+    /**
+     * Scope the query to tests that are not finished yet (the inverse of isDone()).
+     */
+    public function scopePending($query)
+    {
+        return $query->where(function ($query) {
+            $query
+                ->where(function ($inHouse) {
+                    $inHouse->where('is_in_house', true)
+                        ->where(fn ($ready) => $ready->whereNull('lab_result_ready')->orWhere('lab_result_ready', false));
+                })
+                ->orWhere(function ($outgoing) {
+                    $outgoing->where('is_in_house', false)
+                        ->whereNull('report_path')
+                        ->where(fn ($status) => $status->whereNull('outgoing_status')->orWhere('outgoing_status', '!=', OutgoingSampleStatus::Received->value));
+                });
+        });
+    }
+
+    /**
      * Determine whether a report PDF is stored for this item.
      */
     public function hasReport(): bool

@@ -182,6 +182,30 @@ class LabInvoice extends Model
     }
 
     /**
+     * Get how many of this invoice's tests are finished.
+     */
+    public function doneItemsCount(): int
+    {
+        return $this->items->filter(fn (LabInvoiceItem $item) => $item->isDone())->count();
+    }
+
+    /**
+     * Determine whether every test on this invoice is finished.
+     */
+    public function isComplete(): bool
+    {
+        return $this->items->isNotEmpty() && $this->doneItemsCount() === $this->items->count();
+    }
+
+    /**
+     * Scope the query to invoices that still have at least one unfinished test.
+     */
+    public function scopeWithPendingItems($query)
+    {
+        return $query->whereHas('items', fn ($items) => $items->pending());
+    }
+
+    /**
      * Determine whether this return is awaiting management approval.
      */
     public function isReturnPending(): bool

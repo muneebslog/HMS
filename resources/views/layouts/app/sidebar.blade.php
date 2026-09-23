@@ -16,7 +16,7 @@
             $managementRoutes = [
                 'reception.mr-lookup',
                 'reception.invoices', 'payout.doctor', 'management.shift-history', 'management.approvals',
-                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests',
+                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests', 'lab.cases',
             ];
             $financeRoutes = [
                 'admin.finance',
@@ -159,6 +159,11 @@
                         @pageAccess('admin.pdf-print')
                             <flux:sidebar.item icon="printer" :href="route('admin.pdf-print')" :current="request()->routeIs('admin.pdf-print')" wire:navigate>
                                 {{ __('PDF Print') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('lab.cases')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('lab.cases')" :current="request()->routeIs('lab.cases', 'lab.cases.*')" wire:navigate>
+                                {{ __('Lab Cases') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('lab.tests')
