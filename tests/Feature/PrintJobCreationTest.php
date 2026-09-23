@@ -142,3 +142,18 @@ test('a print job can be retried from the monitoring page', function () {
         ->failed_at->toBeNull()
         ->error_message->toBeNull();
 });
+
+test('lab slip QR links use the public domain, not the address staff opened the page on', function () {
+    config(['app.url' => 'https://mednexus.space']);
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $labInvoice = LabInvoice::factory()->create(['shift_id' => $shift->id]);
+
+    Livewire::withHeaders(['Host' => '192.168.100.104'])
+        ->actingAs($user)
+        ->test('pages::reception.invoices')
+        ->call('printInvoice', $labInvoice->id, 'lab');
+
+    expect(PrintJob::pluck('payload')->pluck('qr_url')->unique()->all())
+        ->toBe(['https://mednexus.space/lab/r/'.$labInvoice->public_token]);
+});

@@ -104,6 +104,7 @@ class LabInvoice extends Model
 
     /**
      * The patient's public results page (QR link on the lab slip), e.g. https://mednexus.space/lab/r/{code}.
+     * Always built on APP_URL: staff reach the server by its LAN address, which would not work for patients.
      */
     public function publicReportsUrl(): ?string
     {
@@ -111,7 +112,7 @@ class LabInvoice extends Model
             return null;
         }
 
-        return route('lab.public.show', $this->public_token);
+        return rtrim((string) config('app.url'), '/').route('lab.public.show', $this->public_token, false);
     }
 
     /**

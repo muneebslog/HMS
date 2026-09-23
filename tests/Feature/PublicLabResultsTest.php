@@ -99,3 +99,11 @@ test('the migration gives every existing invoice its own code', function () {
         ->and($tokens->filter()->count())->toBe(4)
         ->and($tokens->unique()->count())->toBe(4);
 });
+
+test('the results link uses the public domain even when staff use the server by its LAN address', function () {
+    config(['app.url' => 'https://mednexus.space']);
+
+    $this->get('http://192.168.100.104/lab/r/'.$this->invoice->public_token)->assertOk();
+
+    expect($this->invoice->publicReportsUrl())->toBe('https://mednexus.space/lab/r/'.$this->invoice->public_token);
+});
