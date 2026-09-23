@@ -34,12 +34,28 @@ function labCase(Patient $patient, array $items, array $attributes = []): LabInv
     return $invoice->load('items');
 }
 
-test('an in-house test is done once its results are ready', function () {
-    $item = LabInvoiceItem::factory()->inHouse()->make(['lab_result_ready' => null]);
+test('an in-house test is done only once its results are completed in the HMS', function () {
+    $item = LabInvoiceItem::factory()->inHouse()->make(['results_completed_at' => null]);
     expect($item->isDone())->toBeFalse();
 
-    $item->lab_result_ready = true;
+    $item->results_completed_at = now();
     expect($item->isDone())->toBeTrue();
+});
+
+test('the old lab software ready flag does not mark a case done', function () {
+    $case = labCase(Patient::factory()->create(['name' => 'Synced Patient']), [
+        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true, 'results_completed_at' => null],
+    ]);
+
+    expect($case->items->first()->isDone())->toBeFalse()
+        ->and(LabInvoiceItem::pending()->count())->toBe(1);
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.cases')
+        ->assertSee('SYNCED PATIENT')
+        ->assertSee('0/1')
+        ->assertSee('Awaiting results')
+        ->assertDontSee('Complete');
 });
 
 test('a send-out test is done once received or its report is uploaded', function () {
@@ -59,8 +75,8 @@ test('a send-out test is done once received or its report is uploaded', function
 test('the pending scope matches exactly the tests that are not done', function () {
     $patient = Patient::factory()->create();
     $case = labCase($patient, [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => null],
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => null],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => now()],
         ['is_in_house' => false, 'outgoing_status' => OutgoingSampleStatus::Asked],
         ['is_in_house' => false, 'outgoing_status' => OutgoingSampleStatus::Received],
         ['is_in_house' => false, 'outgoing_status' => OutgoingSampleStatus::Pending, 'report_path' => 'lab-reports/2.pdf'],
@@ -74,11 +90,11 @@ test('the pending scope matches exactly the tests that are not done', function (
 
 test('lab technicians can see cases with their progress and status', function () {
     $pending = labCase(Patient::factory()->create(['name' => 'Ramzan Ali']), [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true],
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => null],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => now()],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => null],
     ], ['invoice_number' => '928554']);
     $complete = labCase(Patient::factory()->create(['name' => 'Meerab Khan']), [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => now()],
     ], ['invoice_number' => '928550']);
 
     Livewire::actingAs($this->labTechnician)
@@ -94,10 +110,10 @@ test('lab technicians can see cases with their progress and status', function ()
 
 test('the pending filter hides finished cases', function () {
     labCase(Patient::factory()->create(['name' => 'Pending Patient']), [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => null],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => null],
     ]);
     labCase(Patient::factory()->create(['name' => 'Finished Patient']), [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true],
+        ['is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => now()],
     ]);
 
     Livewire::actingAs($this->labTechnician)
@@ -156,7 +172,7 @@ test('patient details can be corrected from the cases list', function () {
 
 test('the case page lists each test with its status', function () {
     $case = labCase(Patient::factory()->create(['name' => 'Case Patient']), [
-        ['test_name' => 'CBC', 'is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => null],
+        ['test_name' => 'CBC', 'is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => null],
         ['test_name' => 'TSH', 'is_in_house' => false, 'outgoing_status' => OutgoingSampleStatus::Given],
     ]);
 

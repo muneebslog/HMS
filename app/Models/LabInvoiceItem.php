@@ -39,6 +39,8 @@ class LabInvoiceItem extends Model
         'report_uploaded_at',
         'report_uploaded_by',
         'lab_result_ready',
+        'results_completed_at',
+        'results_completed_by',
         'price',
     ];
 
@@ -58,6 +60,7 @@ class LabInvoiceItem extends Model
             'received_at' => 'datetime',
             'report_uploaded_at' => 'datetime',
             'lab_result_ready' => 'boolean',
+            'results_completed_at' => 'datetime',
         ];
     }
 
@@ -138,13 +141,25 @@ class LabInvoiceItem extends Model
     }
 
     /**
-     * Determine whether this test is finished: an in-house test once its
-     * results are ready, a send-out test once its report is received or uploaded.
+     * Get the user who completed this test's results in the HMS.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function resultsCompletedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'results_completed_by');
+    }
+
+    /**
+     * Determine whether this test is finished, using HMS data only: an in-house
+     * test once its results are completed in the HMS, a send-out test once its
+     * report is received or uploaded. The old lab software's `lab_result_ready`
+     * flag is deliberately not used.
      */
     public function isDone(): bool
     {
         if ($this->is_in_house) {
-            return $this->lab_result_ready === true;
+            return $this->results_completed_at !== null;
         }
 
         return $this->outgoing_status === OutgoingSampleStatus::Received || filled($this->report_path);
@@ -158,8 +173,7 @@ class LabInvoiceItem extends Model
         return $query->where(function ($query) {
             $query
                 ->where(function ($inHouse) {
-                    $inHouse->where('is_in_house', true)
-                        ->where(fn ($ready) => $ready->whereNull('lab_result_ready')->orWhere('lab_result_ready', false));
+                    $inHouse->where('is_in_house', true)->whereNull('results_completed_at');
                 })
                 ->orWhere(function ($outgoing) {
                     $outgoing->where('is_in_house', false)
