@@ -251,6 +251,7 @@ new #[Title('Lab Case')] class extends Component
                 'result_comment' => filled($this->resultComment) ? trim($this->resultComment) : null,
                 'results_completed_at' => $complete ? now() : null,
                 'results_completed_by' => $complete ? auth()->id() : null,
+                'results_imported_at' => null,
             ]);
         });
 
@@ -282,6 +283,7 @@ new #[Title('Lab Case')] class extends Component
                 'result_comment' => null,
                 'results_completed_at' => null,
                 'results_completed_by' => null,
+                'results_imported_at' => null,
             ]);
         });
 
@@ -387,7 +389,11 @@ new #[Title('Lab Case')] class extends Component
                                 @endif
                                 @if ($item->results_completed_at)
                                     <div class="text-xs text-zinc-500">
-                                        {{ __('Completed :date by :name', ['date' => $item->results_completed_at->format('d M, g:i A'), 'name' => $item->resultsCompletedByUser?->name ?? __('unknown')]) }}
+                                        @if ($item->results_imported_at)
+                                            {{ __('Completed :date · imported from old lab software', ['date' => $item->results_completed_at->format('d M, g:i A')]) }}
+                                        @else
+                                            {{ __('Completed :date by :name', ['date' => $item->results_completed_at->format('d M, g:i A'), 'name' => $item->resultsCompletedByUser?->name ?? __('unknown')]) }}
+                                        @endif
                                     </div>
                                 @endif
                             </flux:table.cell>

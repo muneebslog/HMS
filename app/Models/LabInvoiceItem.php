@@ -42,6 +42,7 @@ class LabInvoiceItem extends Model
         'lab_result_ready',
         'results_completed_at',
         'results_completed_by',
+        'results_imported_at',
         'result_comment',
         'price',
     ];
@@ -63,6 +64,7 @@ class LabInvoiceItem extends Model
             'report_uploaded_at' => 'datetime',
             'lab_result_ready' => 'boolean',
             'results_completed_at' => 'datetime',
+            'results_imported_at' => 'datetime',
         ];
     }
 
