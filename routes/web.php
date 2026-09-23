@@ -9,6 +9,7 @@ use App\Http\Controllers\EmployeeQualificationDownloadController;
 use App\Http\Controllers\Indoor\ProcedureAttachmentController;
 use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
+use App\Http\Controllers\Lab\LabTestReportPreviewController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
@@ -141,6 +142,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('lab/tests', 'pages::lab.tests')->name('lab.tests');
         Route::livewire('lab/tests/{labTest}/fields', 'pages::lab.test-fields')->name('lab.tests.fields');
         Route::livewire('lab/fields', 'pages::lab.fields')->name('lab.fields');
+        Route::get('lab/tests/{labTest}/report-preview', LabTestReportPreviewController::class)->name('lab.tests.report-preview');
 
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');

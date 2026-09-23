@@ -84,6 +84,7 @@ return [
         'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],
         'lab.tests.fields' => ['label' => 'Test Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
         'lab.fields' => ['label' => 'All Lab Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
+        'lab.tests.report-preview' => ['label' => 'Lab Report Preview', 'group' => 'Management', 'parent' => 'lab.tests'],
         'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Management'],
         'reception.invoices' => ['label' => 'Invoices', 'group' => 'Management'],
         'invoices.print' => ['label' => 'Invoice Print', 'group' => 'Management', 'parent' => 'reception.invoices'],

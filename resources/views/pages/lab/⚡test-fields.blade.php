@@ -2,6 +2,7 @@
 
 use App\Enums\LabFieldRangeCategory;
 use App\Enums\LabFieldType;
+use App\Enums\LabReportLayout;
 use App\Models\LabField;
 use App\Models\LabFieldRange;
 use App\Models\LabTest;
@@ -40,6 +41,19 @@ new #[Title('Test Fields')] class extends Component
 
     /** @var array<int, array{category: string, value_low: ?string, value_high: ?string}> */
     public array $newFieldRanges = [];
+
+    public bool $showReportSettingsModal = false;
+
+    public string $reportLayout = '';
+
+    public string $reportNote = '';
+
+    public bool $reportShowRanges = true;
+
+    public string $reportCustomTemplate = '';
+
+    /** @var array<int, string> Section heading per attached field id. */
+    public array $fieldSections = [];
 
     public bool $showEditModal = false;
 
@@ -516,6 +530,88 @@ new #[Title('Test Fields')] class extends Component
         $this->newFieldRanges = [];
     }
 
+    /**
+     * Get the options for the report layout select, with "Automatic" first.
+     *
+     * @return array<int, array{value: string, label: string, description: string}>
+     */
+    #[Computed]
+    public function reportLayoutOptions(): array
+    {
+        return [
+            ['value' => '', 'label' => __('Automatic'), 'description' => __('Compact for single-field tests, Table otherwise.')],
+            ...array_map(
+                fn (LabReportLayout $layout) => ['value' => $layout->value, 'label' => $layout->label(), 'description' => $layout->description()],
+                LabReportLayout::cases(),
+            ),
+        ];
+    }
+
+    /**
+     * Open the report settings modal, loaded from the test and its field sections.
+     */
+    public function openReportSettingsModal(): void
+    {
+        $this->reportLayout = $this->labTest->report_layout?->value ?? '';
+        $this->reportNote = $this->labTest->report_note ?? '';
+        $this->reportShowRanges = $this->labTest->report_show_ranges;
+        $this->reportCustomTemplate = $this->labTest->report_custom_template ?? '';
+        $this->fieldSections = $this->fields
+            ->mapWithKeys(fn (LabField $field) => [$field->id => $field->pivot->section ?? ''])
+            ->all();
+
+        $this->resetValidation();
+        $this->showReportSettingsModal = true;
+    }
+
+    /**
+     * Save how this test is laid out on the printed report.
+     */
+    public function saveReportSettings(): void
+    {
+        $validated = $this->validate([
+            'reportLayout' => ['nullable', Rule::enum(LabReportLayout::class)],
+            'reportNote' => ['nullable', 'string', 'max:2000'],
+            'reportShowRanges' => ['boolean'],
+            'reportCustomTemplate' => ['required_if:reportLayout,custom', 'nullable', 'string', 'max:100', 'regex:/^[a-z0-9-]+$/'],
+            'fieldSections' => ['array'],
+            'fieldSections.*' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $isCustom = $validated['reportLayout'] === LabReportLayout::Custom->value;
+
+        if ($isCustom && ! view()->exists('lab.reports.custom.'.$validated['reportCustomTemplate'])) {
+            $this->addError('reportCustomTemplate', __('No template found at resources/views/lab/reports/custom/:name.blade.php', ['name' => $validated['reportCustomTemplate']]));
+
+            return;
+        }
+
+        DB::transaction(function () use ($validated, $isCustom) {
+            $this->labTest->update([
+                'report_layout' => $validated['reportLayout'] ?: null,
+                'report_note' => filled($validated['reportNote']) ? trim($validated['reportNote']) : null,
+                'report_show_ranges' => $validated['reportShowRanges'],
+                'report_custom_template' => $isCustom ? $validated['reportCustomTemplate'] : null,
+            ]);
+
+            $attachedIds = $this->fields->pluck('id')->all();
+
+            foreach ($validated['fieldSections'] ?? [] as $fieldId => $section) {
+                if (! in_array((int) $fieldId, $attachedIds, true)) {
+                    continue;
+                }
+
+                $this->labTest->fields()->updateExistingPivot($fieldId, [
+                    'section' => filled($section) ? trim($section) : null,
+                ]);
+            }
+        });
+
+        unset($this->fields);
+        $this->showReportSettingsModal = false;
+
+        Flux::toast(variant: 'success', text: __('Report settings saved.'));
+    }
 }; ?>
 
 <div>
@@ -533,12 +629,21 @@ new #[Title('Test Fields')] class extends Component
                         'sample' => $labTest->sample ?: '—',
                         'count' => $this->fields->count(),
                     ]) }}
+                    · {{ __('report layout: :layout', ['layout' => $labTest->report_layout ? $labTest->report_layout->label() : __('Automatic')]) }}
                 </flux:text>
             </div>
 
-            <flux:button variant="primary" icon="plus" wire:click="openAttachModal">
-                {{ __('Add Field') }}
-            </flux:button>
+            <div class="flex flex-wrap gap-2">
+                <flux:button icon="document-text" wire:click="openReportSettingsModal">
+                    {{ __('Report Settings') }}
+                </flux:button>
+                <flux:button icon="eye" :href="route('lab.tests.report-preview', $labTest)" target="_blank">
+                    {{ __('Preview') }}
+                </flux:button>
+                <flux:button variant="primary" icon="plus" wire:click="openAttachModal">
+                    {{ __('Add Field') }}
+                </flux:button>
+            </div>
         </div>
 
         @if ($this->fields->isEmpty())
@@ -857,6 +962,73 @@ new #[Title('Test Fields')] class extends Component
 
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="$set('showEditModal', false)">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Save') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showReportSettingsModal" class="w-full max-w-3xl">
+        <flux:heading level="2">{{ __('Report Settings') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">
+            {{ __('How this test appears on the printed report. Empty results never print.') }}
+        </flux:text>
+
+        <form wire:submit="saveReportSettings" class="mt-6 space-y-5">
+            <flux:field>
+                <flux:label>{{ __('Layout') }}</flux:label>
+                <flux:select wire:model.live="reportLayout">
+                    @foreach ($this->reportLayoutOptions as $option)
+                        <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:description>
+                    {{ collect($this->reportLayoutOptions)->firstWhere('value', $reportLayout)['description'] ?? '' }}
+                </flux:description>
+                <flux:error name="reportLayout" />
+            </flux:field>
+
+            @if ($reportLayout === 'custom')
+                <flux:field>
+                    <flux:label>{{ __('Custom Template Name') }}</flux:label>
+                    <flux:input wire:model="reportCustomTemplate" placeholder="{{ __('e.g. semen-analysis') }}" />
+                    <flux:description>{{ __('File in resources/views/lab/reports/custom/, without .blade.php.') }}</flux:description>
+                    <flux:error name="reportCustomTemplate" />
+                </flux:field>
+            @endif
+
+            <flux:field>
+                <flux:label>{{ __('Default Note') }}</flux:label>
+                <flux:textarea wire:model="reportNote" rows="4" placeholder="{{ __('Printed under this test every time, e.g. method or interpretation.') }}" />
+                <flux:error name="reportNote" />
+            </flux:field>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:gap-8">
+                <flux:checkbox wire:model="reportShowRanges" label="{{ __('Show normal ranges') }}" />
+            </div>
+
+            @if ($this->fields->isNotEmpty())
+                <div>
+                    <flux:label>{{ __('Section Headings') }}</flux:label>
+                    <flux:text class="mt-1 text-sm">
+                        {{ __('Optional heading printed above a field, e.g. Physical, Chemical, Microscopic. Consecutive fields with the same heading are grouped.') }}
+                    </flux:text>
+                    <div class="mt-3 flex flex-col gap-2">
+                        @foreach ($this->fields as $field)
+                            <div wire:key="section-{{ $field->id }}" class="grid grid-cols-2 items-center gap-3">
+                                <flux:text class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{{ $field->name }}</flux:text>
+                                <flux:input wire:model="fieldSections.{{ $field->id }}" size="sm" placeholder="{{ __('No heading') }}" />
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showReportSettingsModal', false)">
                     {{ __('Cancel') }}
                 </flux:button>
                 <flux:button type="submit" variant="primary">

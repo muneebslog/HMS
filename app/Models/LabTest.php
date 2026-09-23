@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LabReportLayout;
 use Database\Factories\LabTestFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,10 @@ class LabTest extends Model
         'time_required',
         'is_in_house',
         'is_active',
+        'report_layout',
+        'report_note',
+        'report_show_ranges',
+        'report_custom_template',
     ];
 
     /**
@@ -34,6 +39,7 @@ class LabTest extends Model
      */
     protected $attributes = [
         'is_active' => true,
+        'report_show_ranges' => true,
     ];
 
     /**
@@ -47,6 +53,8 @@ class LabTest extends Model
             'test_price' => 'float',
             'is_in_house' => 'boolean',
             'is_active' => 'boolean',
+            'report_layout' => LabReportLayout::class,
+            'report_show_ranges' => 'boolean',
         ];
     }
 
@@ -66,8 +74,23 @@ class LabTest extends Model
     public function fields(): BelongsToMany
     {
         return $this->belongsToMany(LabField::class, 'lab_test_field')
-            ->withPivot('display_order')
+            ->withPivot('display_order', 'section')
             ->withTimestamps()
             ->orderByPivot('display_order');
+    }
+
+    /**
+     * Get the layout used on the report: the chosen one, or Compact for
+     * single-field tests and Table for everything else.
+     */
+    public function resolvedReportLayout(?int $fieldCount = null): LabReportLayout
+    {
+        if ($this->report_layout !== null) {
+            return $this->report_layout;
+        }
+
+        $fieldCount ??= $this->relationLoaded('fields') ? $this->fields->count() : $this->fields()->count();
+
+        return $fieldCount === 1 ? LabReportLayout::Compact : LabReportLayout::Table;
     }
 }
