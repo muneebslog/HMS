@@ -57,7 +57,7 @@ new #[Title('Lab Fields')] class extends Component
 <div>
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <flux:heading level="1">{{ __('Lab Fields') }}</flux:heading>
+            <flux:heading level="1">{{ __('Lab Tests') }}</flux:heading>
         </div>
 
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
