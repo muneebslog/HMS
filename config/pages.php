@@ -159,6 +159,7 @@ return [
             'reception.invoices', 'invoices.print', 'reception.queue', 'reception.queue.tv',
             'payout.doctor', 'management.shift-history', 'management.approvals',
             'admin.drive', 'admin.drive.download', 'admin.drive.view', 'admin.pdf-print', 'admin.notifications',
+            'admin.finance',
             'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',

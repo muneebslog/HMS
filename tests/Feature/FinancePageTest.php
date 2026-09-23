@@ -6,10 +6,15 @@ use App\Enums\UserRole;
 use App\Models\FinanceCashEntry;
 use App\Models\FinanceExpense;
 use App\Models\User;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->seed(RolePagePermissionSeeder::class);
+});
 
 test('admins can visit the finance page', function () {
     $admin = User::factory()->admin()->create();
@@ -19,7 +24,15 @@ test('admins can visit the finance page', function () {
         ->assertOk();
 });
 
-test('non-admin users cannot visit the finance page', function (UserRole $role) {
+test('management users can visit the finance page', function () {
+    $user = User::factory()->management()->create();
+
+    $this->actingAs($user)
+        ->get(route('admin.finance'))
+        ->assertOk();
+});
+
+test('non-privileged users cannot visit the finance page', function (UserRole $role) {
     $user = User::factory()->{$role->value}()->create();
 
     $this->actingAs($user)
@@ -27,9 +40,32 @@ test('non-admin users cannot visit the finance page', function (UserRole $role) 
         ->assertForbidden();
 })->with([
     'receptionist' => [UserRole::Receptionist],
-    'management' => [UserRole::Management],
     'doctor' => [UserRole::Doctor],
 ]);
+
+test('finance appears in the sidebar for admin and management', function (string $factory) {
+    $user = User::factory()->{$factory}()->create();
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->assertSee(__('Finance'))
+        ->assertSee(route('admin.finance', absolute: false), false);
+})->with([
+    'admin' => ['admin'],
+    'management' => ['management'],
+]);
+
+test('finance does not appear in the sidebar for receptionists', function () {
+    $user = User::factory()->receptionist()->create();
+
+    $html = $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertSuccessful()
+        ->getContent();
+
+    expect(str_contains($html, 'href="'.route('admin.finance').'"'))->toBeFalse();
+});
 
 test('admin can create a cash collection entry', function () {
     $admin = User::factory()->admin()->create();

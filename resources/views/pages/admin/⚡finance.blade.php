@@ -4,6 +4,7 @@ use App\Enums\FinanceExpenseCategory;
 use App\Enums\FinanceShiftPeriod;
 use App\Models\FinanceCashEntry;
 use App\Models\FinanceExpense;
+use App\Services\PageAccessService;
 use Flux\Flux;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -52,7 +53,12 @@ new #[Title('Finance')] class extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $user = auth()->user();
+
+        abort_unless(
+            $user !== null && app(PageAccessService::class)->canAccess($user, 'admin.finance'),
+            403
+        );
 
         $this->month = now()->month;
         $this->year = now()->year;

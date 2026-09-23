@@ -18,11 +18,14 @@
                 'reception.invoices', 'payout.doctor', 'management.shift-history', 'management.approvals',
                 'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests',
             ];
+            $financeRoutes = [
+                'admin.finance',
+            ];
             $extrasRoutes = [
                 'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides',
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
-                'admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats',
+                'admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats',
                 'admin.medication-deliveries', 'reception.queue', 'lab-api-and-info',
             ];
             $systemRoutes = [
@@ -164,6 +167,21 @@
                             </flux:sidebar.item>
                             <flux:sidebar.item icon="list-bullet" :href="route('lab.fields')" :current="request()->routeIs('lab.fields')" wire:navigate>
                                 {{ __('Lab Fields') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                    </flux:sidebar.group>
+                @endif
+
+                @if ($pageAccess->canAccessAny($user, $financeRoutes))
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                            <span class="size-2 rounded-full bg-emerald-500"></span>
+                            {{ __('Finance') }}
+                        </div>
+
+                        @pageAccess('admin.finance')
+                            <flux:sidebar.item icon="banknotes" :href="route('admin.finance')" :current="request()->routeIs('admin.finance')" wire:navigate>
+                                {{ __('Finance') }}
                             </flux:sidebar.item>
                         @endpageAccess
                     </flux:sidebar.group>
