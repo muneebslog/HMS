@@ -27,6 +27,8 @@ new #[Title('Test Fields')] class extends Component
 
     public string $newFieldName = '';
 
+    public string $newFieldDisplayName = '';
+
     public string $newFieldUnit = '';
 
     public string $newFieldType = 'numeric';
@@ -60,6 +62,8 @@ new #[Title('Test Fields')] class extends Component
     public ?int $editingFieldId = null;
 
     public string $editFieldName = '';
+
+    public string $editFieldDisplayName = '';
 
     public string $editFieldUnit = '';
 
@@ -257,6 +261,7 @@ new #[Title('Test Fields')] class extends Component
     {
         $validated = $this->validate([
             'newFieldName' => ['required', 'string', 'max:255', 'unique:lab_fields,name'],
+            'newFieldDisplayName' => ['nullable', 'string', 'max:255'],
             'newFieldUnit' => ['nullable', 'string', 'max:50'],
             'newFieldType' => ['required', Rule::enum(LabFieldType::class)],
             'newFieldOptions' => ['required_if:newFieldType,choice', 'nullable', 'string', 'max:1000'],
@@ -281,6 +286,7 @@ new #[Title('Test Fields')] class extends Component
         DB::transaction(function () use ($validated, $type, $options) {
             $field = LabField::create([
                 'name' => $validated['newFieldName'],
+                'display_name' => filled($validated['newFieldDisplayName']) ? trim($validated['newFieldDisplayName']) : null,
                 'unit' => $validated['newFieldUnit'] ?: null,
                 'type' => $type,
                 'options' => $type === LabFieldType::Choice ? $options : null,
@@ -409,6 +415,7 @@ new #[Title('Test Fields')] class extends Component
 
         $this->editingFieldId = $field->id;
         $this->editFieldName = $field->name;
+        $this->editFieldDisplayName = $field->display_name ?? '';
         $this->editFieldUnit = $field->unit ?? '';
         $this->editFieldType = $field->type->value;
         $this->editFieldOptions = implode(', ', $field->options ?? []);
@@ -471,6 +478,7 @@ new #[Title('Test Fields')] class extends Component
     {
         $validated = $this->validate([
             'editFieldName' => ['required', 'string', 'max:255', Rule::unique('lab_fields', 'name')->ignore($this->editingFieldId)],
+            'editFieldDisplayName' => ['nullable', 'string', 'max:255'],
             'editFieldUnit' => ['nullable', 'string', 'max:50'],
             'editFieldType' => ['required', Rule::enum(LabFieldType::class)],
             'editFieldOptions' => ['required_if:editFieldType,choice', 'nullable', 'string', 'max:1000'],
@@ -497,6 +505,7 @@ new #[Title('Test Fields')] class extends Component
 
             $field->update([
                 'name' => $validated['editFieldName'],
+                'display_name' => filled($validated['editFieldDisplayName']) ? trim($validated['editFieldDisplayName']) : null,
                 'unit' => $validated['editFieldUnit'] ?: null,
                 'type' => $type,
                 'options' => $type === LabFieldType::Choice ? $options : null,
@@ -521,6 +530,7 @@ new #[Title('Test Fields')] class extends Component
     private function resetNewFieldForm(): void
     {
         $this->newFieldName = '';
+        $this->newFieldDisplayName = '';
         $this->newFieldUnit = '';
         $this->newFieldType = LabFieldType::Numeric->value;
         $this->newFieldOptions = '';
@@ -680,6 +690,11 @@ new #[Title('Test Fields')] class extends Component
                                     <span class="font-normal text-zinc-500">({{ $field->unit }})</span>
                                 @endif
                             </flux:text>
+                            @if (filled($field->display_name))
+                                <flux:text class="text-xs text-zinc-500">
+                                    {{ __('On report: :name', ['name' => $field->display_name]) }}
+                                </flux:text>
+                            @endif
 
                             <div class="mt-1.5 flex flex-wrap gap-1.5">
                                 @if ($field->type === LabFieldType::Numeric)
@@ -782,6 +797,13 @@ new #[Title('Test Fields')] class extends Component
                         <flux:error name="newFieldUnit" />
                     </flux:field>
                 </div>
+
+                <flux:field>
+                    <flux:label>{{ __('Display Name') }}</flux:label>
+                    <flux:input wire:model="newFieldDisplayName" placeholder="{{ __('e.g. Haemoglobin (Hb)') }}" />
+                    <flux:description>{{ __('Printed on the report instead of the field name. Leave empty to use the field name.') }}</flux:description>
+                    <flux:error name="newFieldDisplayName" />
+                </flux:field>
 
                 <flux:field>
                     <flux:label>{{ __('Result Type') }}</flux:label>
@@ -887,6 +909,13 @@ new #[Title('Test Fields')] class extends Component
                     <flux:error name="editFieldUnit" />
                 </flux:field>
             </div>
+
+            <flux:field>
+                <flux:label>{{ __('Display Name') }}</flux:label>
+                <flux:input wire:model="editFieldDisplayName" placeholder="{{ $editFieldName }}" />
+                <flux:description>{{ __('Printed on the report instead of the field name. Leave empty to use the field name.') }}</flux:description>
+                <flux:error name="editFieldDisplayName" />
+            </flux:field>
 
             <flux:field>
                 <flux:label>{{ __('Result Type') }}</flux:label>

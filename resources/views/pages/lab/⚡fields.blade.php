@@ -33,6 +33,7 @@ new #[Title('All Lab Fields')] class extends Component
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', "%{$this->search}%")
+                        ->orWhere('display_name', 'like', "%{$this->search}%")
                         ->orWhere('unit', 'like', "%{$this->search}%");
                 });
             })
@@ -133,6 +134,9 @@ new #[Title('All Lab Fields')] class extends Component
                                 @unless ($labField->is_active)
                                     <flux:badge size="sm" color="red" class="ms-1">{{ __('Inactive') }}</flux:badge>
                                 @endunless
+                                @if (filled($labField->display_name))
+                                    <div class="text-xs font-normal text-zinc-500">{{ __('On report: :name', ['name' => $labField->display_name]) }}</div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $labField->unit ?: '—' }}</flux:table.cell>
                             <flux:table.cell>
