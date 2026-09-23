@@ -95,11 +95,22 @@ new #[Title('Lab Case')] class extends Component
     }
 
     /**
-     * Whether results can be entered for a test in the HMS: in-house with fields set up.
+     * Whether the current user may add, edit or discard results (the "Lab Results Entry" permission).
+     * Without it the page is view, search and print only.
+     */
+    #[Computed]
+    public function canManageResults(): bool
+    {
+        return auth()->user()?->canAccessRoute('lab.results.entry') ?? false;
+    }
+
+    /**
+     * Whether results can be entered for a test: the user may manage results,
+     * and the test is in-house with fields set up.
      */
     public function canEnterResults(LabInvoiceItem $item): bool
     {
-        return $item->is_in_house && ($item->labTest?->fields->isNotEmpty() ?? false);
+        return $this->canManageResults && $item->is_in_house && ($item->labTest?->fields->isNotEmpty() ?? false);
     }
 
     /**
@@ -107,6 +118,8 @@ new #[Title('Lab Case')] class extends Component
      */
     public function openResults(int $itemId): void
     {
+        abort_unless($this->canManageResults, 403);
+
         $this->editingItemId = $itemId;
         unset($this->editingItem);
 
@@ -194,6 +207,8 @@ new #[Title('Lab Case')] class extends Component
      */
     public function saveResults(bool $complete): void
     {
+        abort_unless($this->canManageResults, 403);
+
         $item = $this->editingItem;
 
         if (! $item || ! $this->canEnterResults($item)) {
@@ -268,6 +283,8 @@ new #[Title('Lab Case')] class extends Component
      */
     public function discardResults(): void
     {
+        abort_unless($this->canManageResults, 403);
+
         $item = $this->editingItem;
 
         if (! $item || ! $item->is_in_house) {
@@ -402,9 +419,9 @@ new #[Title('Lab Case')] class extends Component
                                 <flux:badge size="sm" :color="$status['color']">{{ $status['label'] }}</flux:badge>
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
-                                @if ($this->canEnterResults($item))
-                                    <div class="flex justify-end gap-2">
-                                    @if ($item->is_in_house && $item->isDone())
+                                @php($showReport = $item->is_in_house && $item->isDone())
+                                <div class="flex items-center justify-end gap-2">
+                                    @if ($showReport)
                                         <flux:button
                                             size="sm"
                                             variant="primary"
@@ -415,20 +432,22 @@ new #[Title('Lab Case')] class extends Component
                                             {{ __('Show report') }}
                                         </flux:button>
                                     @endif
-                                    <flux:button
-                                        size="sm"
-                                        :variant="$item->results->isEmpty() && ! $item->results_completed_at ? 'primary' : 'filled'"
-                                        :icon="$item->results->isEmpty() && ! $item->results_completed_at ? 'plus' : 'pencil-square'"
-                                        wire:click="openResults({{ $item->id }})"
-                                    >
-                                        {{ $item->results->isEmpty() && ! $item->results_completed_at ? __('Add results') : __('Edit results') }}
-                                    </flux:button>
-                                    </div>
-                                @elseif ($item->is_in_house)
-                                    <span class="text-xs text-zinc-500">{{ __('No fields set up for this test') }}</span>
-                                @else
-                                    <span class="text-xs text-zinc-400">—</span>
-                                @endif
+
+                                    @if ($this->canEnterResults($item))
+                                        <flux:button
+                                            size="sm"
+                                            :variant="$item->results->isEmpty() && ! $item->results_completed_at ? 'primary' : 'filled'"
+                                            :icon="$item->results->isEmpty() && ! $item->results_completed_at ? 'plus' : 'pencil-square'"
+                                            wire:click="openResults({{ $item->id }})"
+                                        >
+                                            {{ $item->results->isEmpty() && ! $item->results_completed_at ? __('Add results') : __('Edit results') }}
+                                        </flux:button>
+                                    @elseif ($this->canManageResults && $item->is_in_house)
+                                        <span class="text-xs text-zinc-500">{{ __('No fields set up for this test') }}</span>
+                                    @elseif (! $showReport)
+                                        <span class="text-xs text-zinc-400">—</span>
+                                    @endif
+                                </div>
                             </flux:table.cell>
                         </flux:table.row>
                     @endforeach

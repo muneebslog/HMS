@@ -138,10 +138,22 @@ new #[Title('Lab Cases')] class extends Component
     }
 
     /**
+     * Whether the current user may edit on this page (the "Lab Results Entry" permission).
+     * Without it the list is search, status and open only.
+     */
+    #[Computed]
+    public function canEdit(): bool
+    {
+        return auth()->user()?->canAccessRoute('lab.results.entry') ?? false;
+    }
+
+    /**
      * Open the modal to correct a case's patient name, age or gender.
      */
     public function openEditPatientModal(int $patientId): void
     {
+        abort_unless($this->canEdit, 403);
+
         $patient = Patient::find($patientId);
 
         if (! $patient) {
@@ -163,6 +175,8 @@ new #[Title('Lab Cases')] class extends Component
      */
     public function savePatientDetails(): void
     {
+        abort_unless($this->canEdit, 403);
+
         $validated = $this->validate([
             'editPatientName' => ['required', 'string', 'max:255'],
             'editPatientAge' => ['nullable', 'integer', 'min:0', 'max:150'],
@@ -286,7 +300,7 @@ new #[Title('Lab Cases')] class extends Component
                             <flux:table.cell class="text-right">
                                 <div class="flex justify-end gap-1">
                                     <flux:button size="sm" :href="route('lab.cases.show', $case)" wire:navigate>{{ __('Open') }}</flux:button>
-                                    @if ($case->patient)
+                                    @if ($case->patient && $this->canEdit)
                                         <flux:button size="sm" variant="ghost" wire:click="openEditPatientModal({{ $case->patient->id }})">{{ __('Edit') }}</flux:button>
                                     @endif
                                 </div>

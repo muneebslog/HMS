@@ -84,6 +84,8 @@ return [
         'lab.cases' => ['label' => 'Lab Cases', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
+        // Not a route: allows adding/editing/discarding results and editing patient details on Lab Cases.
+        'lab.results.entry' => ['label' => 'Lab Results Entry', 'group' => 'Management'],
         'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],
         'lab.tests.fields' => ['label' => 'Test Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
         'lab.fields' => ['label' => 'All Lab Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
@@ -156,6 +158,7 @@ return [
             'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
+            'lab.cases',
         ],
 
         UserRole::Management->value => [
@@ -187,6 +190,7 @@ return [
         UserRole::LabTechnician->value => [
             'lab-api-and-info',
             'lab.cases',
+            'lab.results.entry',
             'lab.tests',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
