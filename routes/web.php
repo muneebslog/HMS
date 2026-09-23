@@ -11,6 +11,7 @@ use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Lab\LabCaseReportController;
 use App\Http\Controllers\Lab\LabTestReportPreviewController;
+use App\Http\Controllers\Lab\PublicLabResultsController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
 use App\Http\Controllers\PolicyJournalController;
 use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
@@ -73,6 +74,12 @@ Route::get('display/shift-orders/export', function (Request $request, ShiftOrder
         'rows' => $export->rowsForShift($shift, $type),
     ]);
 })->name('display.shift_orders.export');
+
+// Public lab results, reached by scanning the QR on the lab slip (random code, no login).
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('lab/r/{token}', [PublicLabResultsController::class, 'show'])->name('lab.public.show');
+    Route::get('lab/r/{token}/report', [PublicLabResultsController::class, 'report'])->name('lab.public.report');
+});
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
     Route::middleware('role:'.UserRole::Admin->value)->group(function () {

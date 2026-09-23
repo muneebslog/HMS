@@ -7,6 +7,8 @@ use App\Enums\LabFieldType;
 use App\Enums\LabReportLayout;
 use App\Models\LabField;
 use App\Models\LabFieldRange;
+use App\Models\LabInvoice;
+use App\Models\LabInvoiceItem;
 use App\Models\LabTest;
 
 /**
@@ -86,6 +88,65 @@ class LabReportBuilder
             'custom_template' => $labTest->report_custom_template,
             'groups' => $groups,
             'rows' => $rows,
+        ];
+    }
+
+    /**
+     * Build the full printable report (header + one section per completed in-house
+     * test) for a lab case, optionally for one test only. Null when nothing is completed.
+     *
+     * @return array{header: array<string, ?string>, sections: list<ReportSection>, remarks: null}|null
+     */
+    public function caseReport(LabInvoice $labInvoice, ?int $itemId = null): ?array
+    {
+        $labInvoice->loadMissing(['patient.family', 'referredByDoctor']);
+
+        $items = $labInvoice->items()
+            ->with(['labTest.fields.ranges', 'results'])
+            ->where('is_in_house', true)
+            ->whereNotNull('results_completed_at')
+            ->when($itemId !== null, fn ($query) => $query->whereKey($itemId))
+            ->orderBy('id')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return null;
+        }
+
+        $patient = $labInvoice->patient;
+
+        $sections = $items
+            ->filter(fn (LabInvoiceItem $item) => $item->labTest !== null)
+            ->map(fn (LabInvoiceItem $item) => $this->buildSection(
+                $item->labTest,
+                $item->results->pluck('value', 'lab_field_id')->all(),
+                $patient?->gender,
+                $patient?->age,
+                $item->result_comment,
+            ))
+            ->filter()
+            ->values()
+            ->all();
+
+        $ageSex = collect([
+            $patient?->age !== null ? __(':age Years', ['age' => $patient->age]) : null,
+            $patient?->gender ? ucfirst($patient->gender) : null,
+        ])->filter()->implode(' / ');
+
+        return [
+            'header' => [
+                'title' => __('Laboratory Report'),
+                'number' => $labInvoice->invoice_number,
+                'mrn' => $patient?->mrn,
+                'patient_name' => $patient?->name ?? __('Unknown patient'),
+                'age_sex' => $ageSex !== '' ? $ageSex : null,
+                'phone' => $patient?->contactPhone(),
+                'referred_by' => $labInvoice->referredByDoctor?->name,
+                'sample_date' => $labInvoice->created_at->format('d M Y, g:i A'),
+                'report_date' => $items->max('results_completed_at')?->format('d M Y, g:i A'),
+            ],
+            'sections' => $sections,
+            'remarks' => null,
         ];
     }
 

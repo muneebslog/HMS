@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class LabInvoice extends Model
 {
@@ -92,23 +93,25 @@ class LabInvoice extends Model
     }
 
     /**
-     * Resolve the public lab visit URL for in-house reports.
+     * Give every new lab invoice its random public results code.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (LabInvoice $invoice): void {
+            $invoice->public_token ??= Str::random(20);
+        });
+    }
+
+    /**
+     * The patient's public results page (QR link on the lab slip), e.g. https://mednexus.space/lab/r/{code}.
      */
     public function publicReportsUrl(): ?string
     {
-        $fromLog = $this->labApiLog?->lab_case_url;
-
-        if (filled($fromLog)) {
-            return $fromLog;
-        }
-
-        $base = config('services.lab.url');
-
-        if (! filled($base)) {
+        if (blank($this->public_token)) {
             return null;
         }
 
-        return rtrim((string) $base, '/').'/my-visit/'.$this->invoice_number;
+        return route('lab.public.show', $this->public_token);
     }
 
     /**
