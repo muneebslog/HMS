@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\LabFieldRangeCategory;
+use App\Enums\LabFieldType;
 use App\Models\LabField;
 use App\Models\LabTest;
 use App\Models\User;
@@ -104,7 +106,7 @@ test('a new field can be created with a single general range and attached to a t
     expect($labTest->fields()->where('lab_field_id', $field->id)->exists())->toBeTrue();
     expect($field->ranges)->toHaveCount(1);
     expect($field->ranges->first())
-        ->category->toBe(\App\Enums\LabFieldRangeCategory::General)
+        ->category->toBe(LabFieldRangeCategory::General)
         ->value_low->toBe('150')
         ->value_high->toBe('450');
 });
@@ -183,4 +185,99 @@ test('fields can be reordered on a test', function () {
     $orderedIds = $labTest->fields()->orderBy('display_order')->pluck('lab_fields.id')->all();
 
     expect($orderedIds)->toBe([$second->id, $first->id]);
+});
+
+test('a new choice field stores its options and no ranges', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->set('newFieldName', 'HBsAg')
+        ->set('newFieldType', 'choice')
+        ->set('newFieldOptions', ' Reactive, Non-reactive , ,Reactive')
+        ->set('newFieldMinValue', '1')
+        ->call('createAndAttachField')
+        ->assertHasNoErrors()
+        ->assertSee('Non-reactive');
+
+    $field = LabField::where('name', 'HBsAg')->firstOrFail();
+
+    expect($field->type)->toBe(LabFieldType::Choice);
+    expect($field->options)->toBe(['Reactive', 'Non-reactive']);
+    expect($field->ranges)->toHaveCount(0);
+    expect($labTest->fields()->where('lab_field_id', $field->id)->exists())->toBeTrue();
+});
+
+test('a choice field requires at least one option', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->set('newFieldName', 'Blood Group')
+        ->set('newFieldType', 'choice')
+        ->set('newFieldOptions', ' , ')
+        ->call('createAndAttachField')
+        ->assertHasErrors('newFieldOptions');
+
+    expect(LabField::where('name', 'Blood Group')->exists())->toBeFalse();
+});
+
+test('a new text field can be created', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->set('newFieldName', 'Donor Name')
+        ->set('newFieldType', 'text')
+        ->call('createAndAttachField')
+        ->assertHasNoErrors();
+
+    $field = LabField::where('name', 'Donor Name')->firstOrFail();
+
+    expect($field->type)->toBe(LabFieldType::Text);
+    expect($field->options)->toBeNull();
+});
+
+test('new fields default to numeric', function () {
+    $field = LabField::create(['name' => 'Calcium']);
+
+    expect($field->fresh()->type)->toBe(LabFieldType::Numeric);
+});
+
+test('the edit modal loads a choice field type and options', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+    $field = LabField::factory()->choice(['Positive', 'Negative'])->create();
+    $labTest->fields()->attach($field->id, ['display_order' => 1]);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->call('openEditFieldModal', $field->id)
+        ->assertSet('editFieldType', 'choice')
+        ->assertSet('editFieldOptions', 'Positive, Negative');
+});
+
+test('changing a numeric field to choice removes its ranges', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+    $field = LabField::factory()->create(['name' => 'Malaria Parasite']);
+    $field->ranges()->create(['category' => 'general', 'value_low' => '0', 'value_high' => '1']);
+    $labTest->fields()->attach($field->id, ['display_order' => 1]);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->call('openEditFieldModal', $field->id)
+        ->set('editFieldType', 'choice')
+        ->set('editFieldOptions', 'Seen, Not seen')
+        ->call('updateField')
+        ->assertHasNoErrors();
+
+    $field->refresh();
+
+    expect($field->type)->toBe(LabFieldType::Choice);
+    expect($field->options)->toBe(['Seen', 'Not seen']);
+    expect($field->ranges()->count())->toBe(0);
 });

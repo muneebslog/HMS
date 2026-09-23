@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\LabFieldRangeCategory;
+use App\Enums\LabFieldType;
 use App\Models\LabField;
 use App\Models\LabFieldRange;
 use App\Models\LabTest;
@@ -27,6 +28,10 @@ new #[Title('Test Fields')] class extends Component
 
     public string $newFieldUnit = '';
 
+    public string $newFieldType = 'numeric';
+
+    public string $newFieldOptions = '';
+
     public bool $newFieldHasMultipleRanges = false;
 
     public ?string $newFieldMinValue = null;
@@ -43,6 +48,10 @@ new #[Title('Test Fields')] class extends Component
     public string $editFieldName = '';
 
     public string $editFieldUnit = '';
+
+    public string $editFieldType = 'numeric';
+
+    public string $editFieldOptions = '';
 
     public bool $editFieldHasMultipleRanges = false;
 
@@ -105,6 +114,20 @@ new #[Title('Test Fields')] class extends Component
                 'label' => $field->unit ? "{$field->name} ({$field->unit})" : $field->name,
             ])
             ->all();
+    }
+
+    /**
+     * Get the options for the field type select.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    #[Computed]
+    public function typeOptions(): array
+    {
+        return array_map(
+            fn (LabFieldType $type) => ['value' => $type->value, 'label' => $type->label()],
+            LabFieldType::cases(),
+        );
     }
 
     /**
@@ -221,6 +244,8 @@ new #[Title('Test Fields')] class extends Component
         $validated = $this->validate([
             'newFieldName' => ['required', 'string', 'max:255', 'unique:lab_fields,name'],
             'newFieldUnit' => ['nullable', 'string', 'max:50'],
+            'newFieldType' => ['required', Rule::enum(LabFieldType::class)],
+            'newFieldOptions' => ['required_if:newFieldType,choice', 'nullable', 'string', 'max:1000'],
             'newFieldHasMultipleRanges' => ['boolean'],
             'newFieldMinValue' => ['nullable', 'string', 'max:50'],
             'newFieldMaxValue' => ['nullable', 'string', 'max:50'],
@@ -230,13 +255,26 @@ new #[Title('Test Fields')] class extends Component
             'newFieldRanges.*.value_high' => ['nullable', 'string', 'max:50'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $type = LabFieldType::from($validated['newFieldType']);
+        $options = $this->parseOptions($validated['newFieldOptions'] ?? '');
+
+        if ($type === LabFieldType::Choice && $options === []) {
+            $this->addError('newFieldOptions', __('Enter at least one option.'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($validated, $type, $options) {
             $field = LabField::create([
                 'name' => $validated['newFieldName'],
                 'unit' => $validated['newFieldUnit'] ?: null,
+                'type' => $type,
+                'options' => $type === LabFieldType::Choice ? $options : null,
             ]);
 
-            $this->saveRanges($field, $validated['newFieldHasMultipleRanges'], $validated['newFieldRanges'] ?? [], $validated['newFieldMinValue'], $validated['newFieldMaxValue']);
+            if ($type->hasRanges()) {
+                $this->saveRanges($field, $validated['newFieldHasMultipleRanges'], $validated['newFieldRanges'] ?? [], $validated['newFieldMinValue'], $validated['newFieldMaxValue']);
+            }
 
             $nextOrder = ((int) $this->labTest->fields()->max('display_order')) + 1;
 
@@ -247,6 +285,21 @@ new #[Title('Test Fields')] class extends Component
         $this->showAttachModal = false;
 
         Flux::toast(variant: 'success', text: __('Field created and attached to test.'));
+    }
+
+    /**
+     * Split a comma-separated options string into a clean, de-duplicated list.
+     *
+     * @return list<string>
+     */
+    private function parseOptions(string $input): array
+    {
+        return collect(explode(',', $input))
+            ->map(fn (string $option) => trim($option))
+            ->filter(fn (string $option) => $option !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**
@@ -343,6 +396,8 @@ new #[Title('Test Fields')] class extends Component
         $this->editingFieldId = $field->id;
         $this->editFieldName = $field->name;
         $this->editFieldUnit = $field->unit ?? '';
+        $this->editFieldType = $field->type->value;
+        $this->editFieldOptions = implode(', ', $field->options ?? []);
         $this->editFieldHasMultipleRanges = ! $isSimple;
 
         if ($isSimple) {
@@ -403,6 +458,8 @@ new #[Title('Test Fields')] class extends Component
         $validated = $this->validate([
             'editFieldName' => ['required', 'string', 'max:255', Rule::unique('lab_fields', 'name')->ignore($this->editingFieldId)],
             'editFieldUnit' => ['nullable', 'string', 'max:50'],
+            'editFieldType' => ['required', Rule::enum(LabFieldType::class)],
+            'editFieldOptions' => ['required_if:editFieldType,choice', 'nullable', 'string', 'max:1000'],
             'editFieldHasMultipleRanges' => ['boolean'],
             'editFieldMinValue' => ['nullable', 'string', 'max:50'],
             'editFieldMaxValue' => ['nullable', 'string', 'max:50'],
@@ -412,17 +469,30 @@ new #[Title('Test Fields')] class extends Component
             'editFieldRanges.*.value_high' => ['nullable', 'string', 'max:50'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $type = LabFieldType::from($validated['editFieldType']);
+        $options = $this->parseOptions($validated['editFieldOptions'] ?? '');
+
+        if ($type === LabFieldType::Choice && $options === []) {
+            $this->addError('editFieldOptions', __('Enter at least one option.'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($validated, $type, $options) {
             $field = LabField::findOrFail($this->editingFieldId);
 
             $field->update([
                 'name' => $validated['editFieldName'],
                 'unit' => $validated['editFieldUnit'] ?: null,
+                'type' => $type,
+                'options' => $type === LabFieldType::Choice ? $options : null,
             ]);
 
             $field->ranges()->delete();
 
-            $this->saveRanges($field, $validated['editFieldHasMultipleRanges'], $validated['editFieldRanges'] ?? [], $validated['editFieldMinValue'], $validated['editFieldMaxValue']);
+            if ($type->hasRanges()) {
+                $this->saveRanges($field, $validated['editFieldHasMultipleRanges'], $validated['editFieldRanges'] ?? [], $validated['editFieldMinValue'], $validated['editFieldMaxValue']);
+            }
         });
 
         unset($this->fields);
@@ -438,6 +508,8 @@ new #[Title('Test Fields')] class extends Component
     {
         $this->newFieldName = '';
         $this->newFieldUnit = '';
+        $this->newFieldType = LabFieldType::Numeric->value;
+        $this->newFieldOptions = '';
         $this->newFieldHasMultipleRanges = false;
         $this->newFieldMinValue = null;
         $this->newFieldMaxValue = null;
@@ -523,11 +595,20 @@ new #[Title('Test Fields')] class extends Component
                             </flux:text>
 
                             <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                @forelse ($field->ranges as $range)
-                                    <flux:badge size="sm">{{ $this->formatRange($range) }}</flux:badge>
-                                @empty
-                                    <flux:badge size="sm" color="zinc">{{ __('No ranges set') }}</flux:badge>
-                                @endforelse
+                                @if ($field->type === LabFieldType::Numeric)
+                                    @forelse ($field->ranges as $range)
+                                        <flux:badge size="sm">{{ $this->formatRange($range) }}</flux:badge>
+                                    @empty
+                                        <flux:badge size="sm" color="zinc">{{ __('No ranges set') }}</flux:badge>
+                                    @endforelse
+                                @elseif ($field->type === LabFieldType::Choice)
+                                    <flux:badge size="sm" color="blue">{{ $field->type->label() }}</flux:badge>
+                                    @foreach ($field->options ?? [] as $option)
+                                        <flux:badge size="sm" color="zinc">{{ $option }}</flux:badge>
+                                    @endforeach
+                                @else
+                                    <flux:badge size="sm" color="purple">{{ $field->type->label() }}</flux:badge>
+                                @endif
                             </div>
                         </div>
 
@@ -615,7 +696,26 @@ new #[Title('Test Fields')] class extends Component
                     </flux:field>
                 </div>
 
-                @unless ($newFieldHasMultipleRanges)
+                <flux:field>
+                    <flux:label>{{ __('Result Type') }}</flux:label>
+                    <flux:select wire:model.live="newFieldType">
+                        @foreach ($this->typeOptions as $option)
+                            <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="newFieldType" />
+                </flux:field>
+
+                @if ($newFieldType === 'choice')
+                    <flux:field>
+                        <flux:label>{{ __('Options') }}</flux:label>
+                        <flux:input wire:model="newFieldOptions" placeholder="{{ __('e.g. Positive, Negative') }}" />
+                        <flux:description>{{ __('Separate options with commas.') }}</flux:description>
+                        <flux:error name="newFieldOptions" />
+                    </flux:field>
+                @endif
+
+                @if ($newFieldType === 'numeric' && ! $newFieldHasMultipleRanges)
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <flux:field>
                             <flux:label>{{ __('Min') }}</flux:label>
@@ -629,11 +729,13 @@ new #[Title('Test Fields')] class extends Component
                             <flux:error name="newFieldMaxValue" />
                         </flux:field>
                     </div>
-                @endunless
+                @endif
 
-                <flux:checkbox wire:model.live="newFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+                @if ($newFieldType === 'numeric')
+                    <flux:checkbox wire:model.live="newFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+                @endif
 
-                @if ($newFieldHasMultipleRanges)
+                @if ($newFieldType === 'numeric' && $newFieldHasMultipleRanges)
                     <div>
                         <flux:label>{{ __('Normal Ranges') }}</flux:label>
                         <div class="mt-2 flex flex-col gap-2">
@@ -699,7 +801,26 @@ new #[Title('Test Fields')] class extends Component
                 </flux:field>
             </div>
 
-            @unless ($editFieldHasMultipleRanges)
+            <flux:field>
+                <flux:label>{{ __('Result Type') }}</flux:label>
+                <flux:select wire:model.live="editFieldType">
+                    @foreach ($this->typeOptions as $option)
+                        <flux:select.option value="{{ $option['value'] }}">{{ $option['label'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="editFieldType" />
+            </flux:field>
+
+            @if ($editFieldType === 'choice')
+                <flux:field>
+                    <flux:label>{{ __('Options') }}</flux:label>
+                    <flux:input wire:model="editFieldOptions" placeholder="{{ __('e.g. Positive, Negative') }}" />
+                    <flux:description>{{ __('Separate options with commas.') }}</flux:description>
+                    <flux:error name="editFieldOptions" />
+                </flux:field>
+            @endif
+
+            @if ($editFieldType === 'numeric' && ! $editFieldHasMultipleRanges)
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <flux:field>
                         <flux:label>{{ __('Min') }}</flux:label>
@@ -713,11 +834,13 @@ new #[Title('Test Fields')] class extends Component
                         <flux:error name="editFieldMaxValue" />
                     </flux:field>
                 </div>
-            @endunless
+            @endif
 
-            <flux:checkbox wire:model.live="editFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+            @if ($editFieldType === 'numeric')
+                <flux:checkbox wire:model.live="editFieldHasMultipleRanges" label="{{ __('Has different normal ranges (e.g. by gender)') }}" />
+            @endif
 
-            @if ($editFieldHasMultipleRanges)
+            @if ($editFieldType === 'numeric' && $editFieldHasMultipleRanges)
                 <div>
                     <flux:label>{{ __('Normal Ranges') }}</flux:label>
                     <div class="mt-2 flex flex-col gap-2">

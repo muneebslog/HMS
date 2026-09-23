@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LabFieldType;
 use Database\Factories\LabFieldFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,8 @@ class LabField extends Model
     protected $fillable = [
         'name',
         'unit',
+        'type',
+        'options',
         'is_active',
     ];
 
@@ -30,6 +33,7 @@ class LabField extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'type' => 'numeric',
         'is_active' => true,
     ];
 
@@ -41,6 +45,8 @@ class LabField extends Model
     protected function casts(): array
     {
         return [
+            'type' => LabFieldType::class,
+            'options' => 'array',
             'is_active' => 'boolean',
         ];
     }
