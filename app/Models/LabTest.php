@@ -20,6 +20,7 @@ class LabTest extends Model
      */
     protected $fillable = [
         'test_name',
+        'display_name',
         'test_code',
         'test_price',
         'sample',
@@ -77,6 +78,15 @@ class LabTest extends Model
             ->withPivot('display_order', 'section')
             ->withTimestamps()
             ->orderByPivot('display_order');
+    }
+
+    /**
+     * Get the heading printed on the report: the display name when set,
+     * otherwise the test name (e.g. "CBC" → "Complete Blood Count").
+     */
+    public function reportTitle(): string
+    {
+        return trim(filled($this->display_name) ? $this->display_name : $this->test_name);
     }
 
     /**

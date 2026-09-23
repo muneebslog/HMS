@@ -44,6 +44,8 @@ new #[Title('Test Fields')] class extends Component
 
     public bool $showReportSettingsModal = false;
 
+    public string $reportDisplayName = '';
+
     public string $reportLayout = '';
 
     public string $reportNote = '';
@@ -552,6 +554,7 @@ new #[Title('Test Fields')] class extends Component
      */
     public function openReportSettingsModal(): void
     {
+        $this->reportDisplayName = $this->labTest->display_name ?? '';
         $this->reportLayout = $this->labTest->report_layout?->value ?? '';
         $this->reportNote = $this->labTest->report_note ?? '';
         $this->reportShowRanges = $this->labTest->report_show_ranges;
@@ -570,6 +573,7 @@ new #[Title('Test Fields')] class extends Component
     public function saveReportSettings(): void
     {
         $validated = $this->validate([
+            'reportDisplayName' => ['nullable', 'string', 'max:255'],
             'reportLayout' => ['nullable', Rule::enum(LabReportLayout::class)],
             'reportNote' => ['nullable', 'string', 'max:2000'],
             'reportShowRanges' => ['boolean'],
@@ -588,6 +592,7 @@ new #[Title('Test Fields')] class extends Component
 
         DB::transaction(function () use ($validated, $isCustom) {
             $this->labTest->update([
+                'display_name' => filled($validated['reportDisplayName']) ? trim($validated['reportDisplayName']) : null,
                 'report_layout' => $validated['reportLayout'] ?: null,
                 'report_note' => filled($validated['reportNote']) ? trim($validated['reportNote']) : null,
                 'report_show_ranges' => $validated['reportShowRanges'],
@@ -623,6 +628,9 @@ new #[Title('Test Fields')] class extends Component
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <flux:heading level="1">{{ $labTest->test_name }}</flux:heading>
+                @if (filled($labTest->display_name))
+                    <flux:text class="mt-0.5 text-sm text-zinc-500">{{ __('On report: :name', ['name' => $labTest->display_name]) }}</flux:text>
+                @endif
                 <flux:text class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                     {{ __('Code :code · sample :sample · :count fields', [
                         'code' => $labTest->test_code ?: '—',
@@ -978,6 +986,13 @@ new #[Title('Test Fields')] class extends Component
         </flux:text>
 
         <form wire:submit="saveReportSettings" class="mt-6 space-y-5">
+            <flux:field>
+                <flux:label>{{ __('Display Name') }}</flux:label>
+                <flux:input wire:model="reportDisplayName" placeholder="{{ $labTest->test_name }}" />
+                <flux:description>{{ __('Printed as the test heading on the report, e.g. "Complete Blood Count" for CBC. Leave empty to use the test name.') }}</flux:description>
+                <flux:error name="reportDisplayName" />
+            </flux:field>
+
             <flux:field>
                 <flux:label>{{ __('Layout') }}</flux:label>
                 <flux:select wire:model.live="reportLayout">

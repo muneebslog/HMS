@@ -155,3 +155,24 @@ test('doctors cannot open the report preview', function () {
 
     $this->actingAs($doctor)->get(route('lab.tests.report-preview', $labTest))->assertForbidden();
 });
+
+test('a test display name can be set in report settings and is shown on the tests list', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create(['test_name' => 'CBC']);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.test-fields', ['labTest' => $labTest])
+        ->call('openReportSettingsModal')
+        ->assertSet('reportDisplayName', '')
+        ->set('reportDisplayName', ' Complete Blood Count ')
+        ->call('saveReportSettings')
+        ->assertHasNoErrors();
+
+    expect($labTest->fresh()->display_name)->toBe('Complete Blood Count');
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.tests')
+        ->set('search', 'blood count')
+        ->assertSee('CBC')
+        ->assertSee('Complete Blood Count');
+});

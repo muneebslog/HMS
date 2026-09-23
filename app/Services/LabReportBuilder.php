@@ -78,7 +78,7 @@ class LabReportBuilder
         }
 
         return [
-            'title' => trim($labTest->test_name),
+            'title' => $labTest->reportTitle(),
             'layout' => $labTest->resolvedReportLayout($labTest->fields->count()),
             'note' => filled($labTest->report_note) ? $labTest->report_note : null,
             'comment' => filled($comment) ? trim($comment) : null,

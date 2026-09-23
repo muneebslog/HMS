@@ -141,3 +141,14 @@ test('sample values fill every field and push one numeric value above its range'
         ->and($values[$choice->id])->toBe('Reactive')
         ->and($section['rows'][0]['flag'])->toBe(LabReportBuilder::FLAG_HIGH);
 });
+
+test('the report heading uses the test display name when set', function () {
+    $named = LabTest::factory()->create(['test_name' => 'CBC', 'display_name' => 'Complete Blood Count']);
+    $plain = LabTest::factory()->create(['test_name' => 'ESR', 'display_name' => null]);
+    $field = LabField::factory()->create();
+    attachFields($named, [[$field]]);
+    attachFields($plain, [[$field]]);
+
+    expect($this->builder->buildSection($named, [$field->id => '5'])['title'])->toBe('Complete Blood Count')
+        ->and($this->builder->buildSection($plain, [$field->id => '5'])['title'])->toBe('ESR');
+});

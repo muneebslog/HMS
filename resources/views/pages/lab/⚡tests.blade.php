@@ -27,6 +27,7 @@ new #[Title('Lab Fields')] class extends Component
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('test_name', 'like', "%{$this->search}%")
+                        ->orWhere('display_name', 'like', "%{$this->search}%")
                         ->orWhere('test_code', 'like', "%{$this->search}%");
                 });
             })
@@ -88,7 +89,12 @@ new #[Title('Lab Fields')] class extends Component
                 <flux:table.rows>
                     @forelse ($this->labTests as $labTest)
                         <flux:table.row wire:key="lab-test-{{ $labTest->id }}">
-                            <flux:table.cell class="font-medium">{{ $labTest->test_name }}</flux:table.cell>
+                            <flux:table.cell class="font-medium">
+                                {{ $labTest->test_name }}
+                                @if (filled($labTest->display_name))
+                                    <div class="text-xs font-normal text-zinc-500">{{ $labTest->display_name }}</div>
+                                @endif
+                            </flux:table.cell>
                             <flux:table.cell>{{ $labTest->test_code ?: '—' }}</flux:table.cell>
                             <flux:table.cell>{{ $labTest->sample ?: '—' }}</flux:table.cell>
                             <flux:table.cell>
