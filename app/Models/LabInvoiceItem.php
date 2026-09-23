@@ -7,6 +7,7 @@ use Database\Factories\LabInvoiceItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 class LabInvoiceItem extends Model
@@ -41,6 +42,7 @@ class LabInvoiceItem extends Model
         'lab_result_ready',
         'results_completed_at',
         'results_completed_by',
+        'result_comment',
         'price',
     ];
 
@@ -138,6 +140,16 @@ class LabInvoiceItem extends Model
     public function isOutgoing(): bool
     {
         return ! $this->is_in_house;
+    }
+
+    /**
+     * Get the results entered in the HMS for this test, one per field.
+     *
+     * @return HasMany<LabResult, $this>
+     */
+    public function results(): HasMany
+    {
+        return $this->hasMany(LabResult::class);
     }
 
     /**

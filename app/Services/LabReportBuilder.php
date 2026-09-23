@@ -196,9 +196,17 @@ class LabReportBuilder
     }
 
     /**
-     * Format a range's bounds without its category, e.g. "12 – 16" or "< 200".
+     * Whether a value can be compared against a range: a plain number or an "m:ss" time.
      */
-    private function formatRangeBounds(LabFieldRange $range): ?string
+    public function isMeasurable(string $value): bool
+    {
+        return $this->toComparable($value) !== null;
+    }
+
+    /**
+     * Format a range's bounds without its category, e.g. "12 – 16" or "≤ 200".
+     */
+    public function formatRangeBounds(LabFieldRange $range): ?string
     {
         $low = filled($range->value_low) ? $this->trimZeros($range->value_low) : null;
         $high = filled($range->value_high) ? $this->trimZeros($range->value_high) : null;
