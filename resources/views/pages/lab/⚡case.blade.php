@@ -232,6 +232,39 @@ new #[Title('Lab Case')] class extends Component
 
         Flux::toast(variant: 'success', text: $complete ? __('Results saved and completed.') : __('Results saved as pending.'));
     }
+
+    /**
+     * Throw away everything entered for the open test: its values, comment and
+     * completion, putting it back to awaiting results.
+     */
+    public function discardResults(): void
+    {
+        $item = $this->editingItem;
+
+        if (! $item || ! $item->is_in_house) {
+            Flux::toast(variant: 'danger', text: __('Results cannot be discarded for this test.'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($item) {
+            $item->results()->delete();
+
+            $item->update([
+                'result_comment' => null,
+                'results_completed_at' => null,
+                'results_completed_by' => null,
+            ]);
+        });
+
+        $this->showResultsModal = false;
+        $this->editingItemId = null;
+        $this->resultValues = [];
+        $this->resultComment = '';
+        unset($this->items, $this->editingItem);
+
+        Flux::toast(variant: 'success', text: __('Results discarded.'));
+    }
 }; ?>
 
 <div>
@@ -420,6 +453,18 @@ new #[Title('Lab Case')] class extends Component
                 <flux:textarea wire:model="resultComment" :label="__('Comment')" rows="2" placeholder="{{ __('Optional, printed under this test.') }}" />
 
                 <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    @if ($item->results->isNotEmpty() || $item->results_completed_at || filled($item->result_comment))
+                        <flux:button
+                            type="button"
+                            variant="danger"
+                            icon="trash"
+                            wire:click="discardResults"
+                            wire:confirm="{{ __('Discard all results for this test? This cannot be undone.') }}"
+                            class="sm:me-auto"
+                        >
+                            {{ __('Discard results') }}
+                        </flux:button>
+                    @endif
                     <flux:button type="button" variant="ghost" wire:click="$set('showResultsModal', false)">{{ __('Cancel') }}</flux:button>
                     <flux:button type="button" wire:click="saveResults(false)">{{ __('Save as pending') }}</flux:button>
                     <flux:button type="submit" variant="primary" icon="check">{{ __('Save & complete') }}</flux:button>

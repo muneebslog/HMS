@@ -161,3 +161,33 @@ test('completing results moves the case to complete on the cases list', function
         ->assertSee('1/1')
         ->assertSee('Complete');
 });
+
+test('saved results can be discarded, putting the test back to awaiting results', function () {
+    $this->item->update(['result_comment' => 'Old comment', 'results_completed_at' => now(), 'results_completed_by' => $this->labTechnician->id]);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->hb->id, 'value' => '14']);
+    LabResult::factory()->create(['lab_invoice_item_id' => $this->item->id, 'lab_field_id' => $this->group->id, 'value' => 'O']);
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->assertSee('Discard results')
+        ->call('discardResults')
+        ->assertSet('showResultsModal', false)
+        ->assertSee('Awaiting results')
+        ->assertSee('Add results');
+
+    $item = $this->item->fresh();
+
+    expect($item->results()->count())->toBe(0)
+        ->and($item->result_comment)->toBeNull()
+        ->and($item->results_completed_at)->toBeNull()
+        ->and($item->results_completed_by)->toBeNull()
+        ->and($item->isDone())->toBeFalse();
+});
+
+test('the discard button only shows once results have been saved', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->assertDontSee('Discard results');
+});
