@@ -53,7 +53,7 @@ class LabReportBuilder
             $range = $field->type->hasRanges() ? $this->selectRange($field, $gender, $age) : null;
 
             $row = [
-                'field' => $field->reportName(),
+                'field' => trim($field->name),
                 'unit' => $field->unit,
                 'value' => $value,
                 'range' => $range ? $this->formatRangeBounds($range) : null,

@@ -141,14 +141,3 @@ test('sample values fill every field and push one numeric value above its range'
         ->and($values[$choice->id])->toBe('Reactive')
         ->and($section['rows'][0]['flag'])->toBe(LabReportBuilder::FLAG_HIGH);
 });
-
-test('the report uses the field display name when set', function () {
-    $labTest = LabTest::factory()->create();
-    $named = LabField::factory()->create(['name' => 'WBC', 'display_name' => 'Total Leucocyte Count (TLC)']);
-    $plain = LabField::factory()->create(['name' => 'HB', 'display_name' => null]);
-    attachFields($labTest, [[$named], [$plain]]);
-
-    $section = $this->builder->buildSection($labTest, [$named->id => '7', $plain->id => '13']);
-
-    expect(array_column($section['rows'], 'field'))->toBe(['Total Leucocyte Count (TLC)', 'HB']);
-});

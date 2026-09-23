@@ -21,7 +21,6 @@ class LabField extends Model
      */
     protected $fillable = [
         'name',
-        'display_name',
         'unit',
         'type',
         'options',
@@ -50,14 +49,6 @@ class LabField extends Model
             'options' => 'array',
             'is_active' => 'boolean',
         ];
-    }
-
-    /**
-     * Get the name printed on reports: the display name when set, otherwise the field name.
-     */
-    public function reportName(): string
-    {
-        return trim(filled($this->display_name) ? $this->display_name : $this->name);
     }
 
     /**
