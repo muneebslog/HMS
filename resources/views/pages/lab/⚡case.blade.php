@@ -89,7 +89,7 @@ new #[Title('Lab Case')] class extends Component
         $status = $item->outgoing_status ?? OutgoingSampleStatus::Pending;
 
         return [
-            'label' => __('Send-out: :status', ['status' => $status->label()]),
+            'label' => __('Outsourced: :status', ['status' => $status->label()]),
             'color' => $status === OutgoingSampleStatus::Received ? 'green' : 'purple',
         ];
     }
@@ -163,6 +163,32 @@ new #[Title('Lab Case')] class extends Component
     }
 
     /**
+     * Expand typing shortcuts: a lone "n" in a text field means "Nil".
+     */
+    public function normalizeResultValue(LabField $field, string $value): string
+    {
+        $value = trim($value);
+
+        if ($field->type === LabFieldType::Text && strtolower($value) === 'n') {
+            return 'Nil';
+        }
+
+        return $value;
+    }
+
+    /**
+     * Apply typing shortcuts as soon as a field is left, so the lab sees "Nil" straight away.
+     */
+    public function updatedResultValues(mixed $value, string $fieldId): void
+    {
+        $field = $this->editingItem?->labTest?->fields->firstWhere('id', (int) $fieldId);
+
+        if ($field && is_string($value)) {
+            $this->resultValues[$field->id] = $this->normalizeResultValue($field, $value);
+        }
+    }
+
+    /**
      * Save the entered results. Completing marks the test done in the HMS;
      * saving as pending keeps the values but leaves it awaiting results.
      */
@@ -197,7 +223,9 @@ new #[Title('Lab Case')] class extends Component
 
         $this->validate($rules, [], $attributes);
 
-        $values = $fields->mapWithKeys(fn (LabField $field) => [$field->id => trim((string) ($this->resultValues[$field->id] ?? ''))]);
+        $values = $fields->mapWithKeys(fn (LabField $field) => [
+            $field->id => $this->normalizeResultValue($field, (string) ($this->resultValues[$field->id] ?? '')),
+        ]);
 
         if ($complete && $values->filter()->isEmpty()) {
             $this->addError('resultValues', __('Enter at least one result before completing.'));
@@ -334,7 +362,6 @@ new #[Title('Lab Case')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('Test') }}</flux:table.column>
                     <flux:table.column>{{ __('Sample') }}</flux:table.column>
-                    <flux:table.column>{{ __('Done at') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Results') }}</flux:table.column>
                 </flux:table.columns>
@@ -344,7 +371,12 @@ new #[Title('Lab Case')] class extends Component
                         @php($status = $this->itemStatus($item))
                         <flux:table.row wire:key="case-item-{{ $item->id }}">
                             <flux:table.cell>
-                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ trim($item->test_name) }}</div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ trim($item->test_name) }}</span>
+                                    <flux:badge size="sm" :color="$item->is_in_house ? 'teal' : 'purple'">
+                                        {{ $item->is_in_house ? __('In-house') : __('Outsourced') }}
+                                    </flux:badge>
+                                </div>
                                 @if (filled($item->labTest?->display_name))
                                     <div class="text-xs text-zinc-500">{{ $item->labTest->display_name }}</div>
                                 @endif
@@ -355,11 +387,6 @@ new #[Title('Lab Case')] class extends Component
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $item->sample ?: '—' }}</flux:table.cell>
-                            <flux:table.cell>
-                                <flux:badge size="sm" :color="$item->is_in_house ? 'zinc' : 'purple'">
-                                    {{ $item->is_in_house ? __('In-house') : __('Send-out') }}
-                                </flux:badge>
-                            </flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge size="sm" :color="$status['color']">{{ $status['label'] }}</flux:badge>
                             </flux:table.cell>
@@ -397,7 +424,28 @@ new #[Title('Lab Case')] class extends Component
                 · {{ __('Empty fields are not printed.') }}
             </flux:text>
 
-            <form wire:submit="saveResults(true)" class="mt-6 space-y-5">
+            <form
+                wire:submit="saveResults(true)"
+                class="mt-6 space-y-5"
+                x-data="{
+                    focusNextResultField(event) {
+                        if (! ['INPUT', 'SELECT'].includes(event.target.tagName)) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        const fields = [...this.$el.querySelectorAll('[data-result-field] input, [data-result-field] select, textarea')];
+                        const next = fields[fields.indexOf(event.target) + 1];
+
+                        if (next) {
+                            next.focus();
+                            next.select?.();
+                        }
+                    },
+                }"
+                x-on:keydown.enter="focusNextResultField($event)"
+            >
                 <div class="flex flex-col gap-2">
                     @php($currentSection = false)
                     @foreach ($item->labTest->fields as $field)
@@ -418,7 +466,7 @@ new #[Title('Lab Case')] class extends Component
                                 @endif
                             </div>
 
-                            <div class="sm:col-span-5">
+                            <div class="sm:col-span-5" data-result-field>
                                 @if ($field->type === LabFieldType::Choice)
                                     <flux:select wire:model="resultValues.{{ $field->id }}" size="sm">
                                         <flux:select.option value="">—</flux:select.option>
@@ -429,7 +477,7 @@ new #[Title('Lab Case')] class extends Component
                                 @elseif ($field->type === LabFieldType::Numeric)
                                     <flux:input wire:model.live.debounce.400ms="resultValues.{{ $field->id }}" size="sm" inputmode="decimal" />
                                 @else
-                                    <flux:input wire:model="resultValues.{{ $field->id }}" size="sm" />
+                                    <flux:input wire:model.blur="resultValues.{{ $field->id }}" size="sm" placeholder="{{ __('n = Nil') }}" />
                                 @endif
                                 <flux:error name="resultValues.{{ $field->id }}" />
                             </div>

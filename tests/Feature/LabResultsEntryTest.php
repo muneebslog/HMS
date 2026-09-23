@@ -191,3 +191,48 @@ test('the discard button only shows once results have been saved', function () {
         ->call('openResults', $this->item->id)
         ->assertDontSee('Discard results');
 });
+
+test('pressing enter in the results form moves to the next field instead of submitting', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->assertSeeHtml('x-on:keydown.enter="focusNextResultField($event)"')
+        ->assertSeeHtml('data-result-field');
+});
+
+test('typing n in a text field becomes Nil', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->set("resultValues.{$this->note->id}", 'n')
+        ->assertSet("resultValues.{$this->note->id}", 'Nil')
+        ->set("resultValues.{$this->note->id}", ' N ')
+        ->assertSet("resultValues.{$this->note->id}", 'Nil')
+        ->set("resultValues.{$this->note->id}", 'no casts seen')
+        ->assertSet("resultValues.{$this->note->id}", 'no casts seen')
+        ->set("resultValues.{$this->note->id}", 'n')
+        ->call('saveResults', true)
+        ->assertHasNoErrors();
+
+    expect($this->item->results()->where('lab_field_id', $this->note->id)->value('value'))->toBe('Nil');
+});
+
+test('n is not turned into Nil for number fields', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->set("resultValues.{$this->hb->id}", 'n')
+        ->assertSet("resultValues.{$this->hb->id}", 'n')
+        ->call('saveResults', true)
+        ->assertHasErrors("resultValues.{$this->hb->id}");
+});
+
+test('the case page tags each test as in-house or outsourced', function () {
+    LabInvoiceItem::factory()->outgoing()->create(['lab_invoice_id' => $this->invoice->id, 'test_name' => 'TSH']);
+
+    $this->actingAs($this->labTechnician)
+        ->get(route('lab.cases.show', $this->invoice))
+        ->assertOk()
+        ->assertSeeInOrder(['CBC', 'In-house'])
+        ->assertSeeInOrder(['TSH', 'Outsourced']);
+});

@@ -183,7 +183,7 @@ test('the case page lists each test with its status', function () {
         ->assertSee('CBC')
         ->assertSee('Awaiting results')
         ->assertSee('TSH')
-        ->assertSee('Send-out: Given')
+        ->assertSee('Outsourced: Given')
         ->assertSee('0 of 2 tests done');
 });
 
