@@ -1,6 +1,6 @@
 {{--
-    Printable lab report. Each test prints on its own page, and the letterhead
-    and footer repeat on every printed page.
+    Printable lab report. Every test is its own A4 sheet (210 × 297 mm) with
+    the letterhead at the top and the footer pinned to the bottom.
 
     @var array{title: string, number: string, mrn: ?string, patient_name: string, age_sex: ?string, phone: ?string, referred_by: ?string, sample_date: ?string, report_date: ?string} $header
     @var list<array> $sections  Sections built by App\Services\LabReportBuilder::buildSection()
@@ -30,7 +30,7 @@
 
             @page {
                 size: A4;
-                margin: 8mm 8mm 6mm;
+                margin: 0;
             }
 
             body {
@@ -43,27 +43,27 @@
                 background: #f4f4f5;
             }
 
+            /* One A4 page per test. */
             .sheet {
-                max-width: 210mm;
-                margin: 0 auto;
+                display: flex;
+                flex-direction: column;
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0 auto 24px;
                 padding: 10mm 10mm 0;
                 background: #fff;
                 box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+                overflow: hidden;
             }
 
-            table.page {
-                width: 100%;
-                border-collapse: collapse;
+            .sheet-body {
+                flex: 1;
             }
 
-            table.page > thead > tr > td,
-            table.page > tbody > tr > td,
-            table.page > tfoot > tr > td {
-                padding: 0;
-            }
-
-            .footer-space {
-                display: none;
+            .sheet-body.empty {
+                padding-top: 40mm;
+                color: #777;
+                text-align: center;
             }
 
             .banner {
@@ -186,7 +186,7 @@
 
             /* Footer */
             .page-footer {
-                margin-top: 28px;
+                margin-top: 16px;
             }
 
             .disclaimer {
@@ -233,11 +233,6 @@
             /* Test sections */
             .test {
                 margin-bottom: 18px;
-                break-inside: avoid;
-            }
-
-            .test.new-page {
-                break-before: page;
             }
 
             .test-title {
@@ -406,34 +401,20 @@
                     background: #fff;
                 }
 
+                /* Slightly under 297mm so rounding never spills onto a blank extra page. */
                 .sheet {
-                    max-width: none;
-                    padding: 0;
+                    min-height: 296mm;
+                    margin: 0;
                     box-shadow: none;
+                }
+
+                .sheet + .sheet {
+                    break-before: page;
                 }
 
                 .no-print,
                 .banner {
                     display: none;
-                }
-
-                /* Reserve room on every page for the fixed footer. */
-                .footer-space {
-                    display: block;
-                    height: 34mm;
-                }
-
-                .page-footer {
-                    position: fixed;
-                    right: 0;
-                    bottom: 0;
-                    left: 0;
-                    margin: 0;
-                }
-
-                .address-band {
-                    margin: 0;
-                    padding: 6px 0;
                 }
             }
         </style>
@@ -443,125 +424,29 @@
             <div class="banner">{{ $banner }}</div>
         @endif
 
-        <div class="sheet">
-            <table class="page">
-                <thead>
-                    <tr>
-                        <td>
-                            <div class="letterhead">
-                                <div>
-                                    <div class="brand">
-                                        <span class="brand-name">{{ $lab['brand'] }}</span>
-                                        <span class="brand-subtitle">{!! nl2br(e(str_replace(' ', "\n", $lab['brand_subtitle']))) !!}</span>
-                                    </div>
-                                    @if (filled($lab['registration']))
-                                        <div class="registration">{{ $lab['registration'] }}</div>
-                                    @endif
-                                </div>
+        @forelse ($sections as $section)
+            <div class="sheet">
+                @include('lab.reports.partials.letterhead')
 
-                                @if (filled($header['mrn']))
-                                    <div class="mr">
-                                        <div class="mr-label">{{ __('Medical Record No') }}</div>
-                                        {!! \App\Support\Code39Barcode::svg($header['mrn'], 30, 1) !!}
-                                        <div class="mr-number">{{ $header['mrn'] }}</div>
-                                    </div>
-                                @endif
-                            </div>
+                <div class="sheet-body">
+                    @include('lab.reports.section', ['section' => $section])
 
-                            <div class="patient">
-                                <div class="patient-col">
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Patient') }}</span>
-                                        <span class="value person-name">{{ $header['patient_name'] }}</span>
-                                    </div>
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Age / Sex') }}</span>
-                                        <span class="value">{{ $header['age_sex'] ?? '—' }}</span>
-                                    </div>
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Phone') }}</span>
-                                        <span class="value">{{ $header['phone'] ?? '—' }}</span>
-                                    </div>
-                                </div>
-                                <div class="patient-col">
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Receipt No') }}</span>
-                                        <span class="value">{{ $header['number'] }}</span>
-                                    </div>
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('MR No') }}</span>
-                                        <span class="value">{{ $header['mrn'] ?? '—' }}</span>
-                                    </div>
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Referred By') }}</span>
-                                        <span class="value">{{ $header['referred_by'] ?? __('Self') }}</span>
-                                    </div>
-                                </div>
-                                <div class="patient-col dates">
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Sample Date') }}</span>
-                                        <span class="value">{{ $header['sample_date'] ?? '—' }}</span>
-                                    </div>
-                                    <div class="patient-row">
-                                        <span class="label">{{ __('Report Date') }}</span>
-                                        <span class="value">{{ $header['report_date'] ?? '—' }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                </thead>
-
-                <tfoot>
-                    <tr>
-                        <td><div class="footer-space"></div></td>
-                    </tr>
-                </tfoot>
-
-                <tbody>
-                    <tr>
-                        <td>
-                            @foreach ($sections as $section)
-                                @include('lab.reports.section', ['section' => $section, 'startsNewPage' => ! $loop->first])
-                            @endforeach
-
-                            @if (filled($remarks ?? null))
-                                <div class="remarks"><strong>{{ __('Remarks') }}:</strong> {{ $remarks }}</div>
-                            @endif
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="page-footer">
-                @if (filled($lab['disclaimer']))
-                    <div class="disclaimer">{{ $lab['disclaimer'] }}</div>
-                @endif
-
-                @if (! empty($lab['signatories']))
-                    <div class="signatories">
-                        @foreach ($lab['signatories'] as $signatory)
-                            <div>
-                                <div class="signatory-name">{{ $signatory['name'] }}</div>
-                                @if (filled($signatory['qualification'] ?? null))
-                                    <div class="signatory-meta">{{ $signatory['qualification'] }}</div>
-                                @endif
-                                @if (filled($signatory['title'] ?? null))
-                                    <div class="signatory-meta">{{ $signatory['title'] }}</div>
-                                @endif
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-
-                <div class="address-band">
-                    <div>{{ collect([$lab['address'], $lab['phone']])->filter()->implode(', ') }}</div>
-                    @if (filled($lab['website']))
-                        <div class="website">{{ __('Website') }}: {{ $lab['website'] }}</div>
+                    @if ($loop->last && filled($remarks ?? null))
+                        <div class="remarks"><strong>{{ __('Remarks') }}:</strong> {{ $remarks }}</div>
                     @endif
                 </div>
+
+                @include('lab.reports.partials.footer')
             </div>
-        </div>
+        @empty
+            <div class="sheet">
+                @include('lab.reports.partials.letterhead')
+
+                <div class="sheet-body empty">{{ __('No results to print yet.') }}</div>
+
+                @include('lab.reports.partials.footer')
+            </div>
+        @endforelse
 
         <div class="no-print">
             <button type="button" onclick="window.print()">{{ __('Print') }}</button>

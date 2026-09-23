@@ -128,7 +128,7 @@ test('the report prints the lab letterhead, disclaimer and signatories', functio
         ->assertSee('MRN000000');
 });
 
-test('each test after the first starts on a new printed page', function () {
+test('each test is printed on its own A4 sheet with the letterhead and footer', function () {
     $builder = app(LabReportBuilder::class);
     $sections = collect(range(1, 3))->map(function (int $number) use ($builder) {
         $labTest = LabTest::factory()->create(['test_name' => "Test {$number}"]);
@@ -143,8 +143,10 @@ test('each test after the first starts on a new printed page', function () {
         'sections' => $sections,
     ])->render();
 
-    expect(substr_count($html, 'class="test new-page"'))->toBe(2)
-        ->and(substr_count($html, 'class="test"'))->toBe(1);
+    expect(substr_count($html, 'class="sheet"'))->toBe(3)
+        ->and(substr_count($html, 'class="letterhead"'))->toBe(3)
+        ->and(substr_count($html, 'class="page-footer"'))->toBe(3)
+        ->and(substr_count($html, 'class="test"'))->toBe(3);
 });
 
 test('doctors cannot open the report preview', function () {

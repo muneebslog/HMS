@@ -7,7 +7,7 @@
     }
 @endphp
 
-<div @class(['test', 'new-page' => $startsNewPage ?? false])>
+<div class="test">
     <h2 class="test-title">{{ $section['title'] }}</h2>
 
     @include($layoutView, ['section' => $section])
