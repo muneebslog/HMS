@@ -160,7 +160,7 @@
                         @endpageAccess
                         @pageAccess('lab.tests')
                             <flux:sidebar.item icon="beaker" :href="route('lab.tests')" :current="request()->routeIs('lab.tests', 'lab.tests.*')" wire:navigate>
-                                {{ __('Lab Fields') }}
+                                {{ __('Lab Tests') }}
                             </flux:sidebar.item>
                         @endpageAccess
                     </flux:sidebar.group>
