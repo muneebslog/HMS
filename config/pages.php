@@ -68,6 +68,7 @@ return [
         'reception.walkin' => ['label' => 'Walk-in', 'group' => 'Reception'],
         'reception.reservation' => ['label' => 'Reservations', 'group' => 'Reception'],
         'reception.lab-entry' => ['label' => 'Lab Entry', 'group' => 'Reception'],
+        'reception.lab-samples' => ['label' => 'Lab Samples', 'group' => 'Reception'],
         'reception.vitals' => ['label' => 'Vitals', 'group' => 'Reception'],
         'reception.procedures' => ['label' => 'Procedures', 'group' => 'Reception'],
         'reception.procedures.file' => ['label' => 'Procedure File', 'group' => 'Reception', 'parent' => 'reception.procedures'],
@@ -82,6 +83,7 @@ return [
         // Management
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'lab.cases' => ['label' => 'Lab Cases', 'group' => 'Management'],
+        'lab.samples' => ['label' => 'Sample Receiving', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
         // Not a route: allows adding/editing/discarding results and editing patient details on Lab Cases.
@@ -159,6 +161,7 @@ return [
             'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'lab.cases',
+            'reception.lab-samples',
         ],
 
         UserRole::Management->value => [
@@ -191,6 +194,7 @@ return [
             'lab-api-and-info',
             'lab.cases',
             'lab.results.entry',
+            'lab.samples',
             'lab.tests',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',

@@ -49,6 +49,28 @@ class CreatePrintJob
     }
 
     /**
+     * Create a pending print job for a no-charge retake slip listing only the given tests,
+     * printed when a patient comes back to give a sample again.
+     *
+     * @param  list<int>  $itemIds
+     */
+    public function createLabSampleRetakeSlip(LabInvoice $invoice, array $itemIds): PrintJob
+    {
+        return PrintJob::create([
+            'lab_invoice_id' => $invoice->id,
+            'status' => PrintJobStatus::Pending,
+            'payload' => [
+                'type' => 'lab_invoice',
+                'source' => 'web',
+                'copy_for' => 'retake',
+                'item_ids' => array_values(array_map('intval', $itemIds)),
+                'qr_url' => (string) $invoice->publicReportsUrl(),
+            ],
+            'attempts' => 0,
+        ]);
+    }
+
+    /**
      * Create a pending print job for the given shift closing report.
      */
     public function createForShift(Shift $shift): PrintJob

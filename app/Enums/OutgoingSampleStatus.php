@@ -15,10 +15,10 @@ enum OutgoingSampleStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Pending => __('Pending call'),
-            self::Asked => __('Asked'),
-            self::Given => __('Given'),
-            self::Received => __('Received'),
+            self::Pending => __('Rider not called'),
+            self::Asked => __('Rider called'),
+            self::Given => __('Handed to rider'),
+            self::Received => __('Result received'),
         };
     }
 

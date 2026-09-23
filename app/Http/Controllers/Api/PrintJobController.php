@@ -22,7 +22,7 @@ class PrintJobController extends Controller
             ->with([
                 'invoice.items.queueToken',
                 'invoice.patient',
-                'labInvoice.items',
+                'labInvoice.items.latestRetake',
                 'labInvoice.patient',
                 'shift.user',
                 'shift.expenses',
@@ -108,6 +108,11 @@ class PrintJobController extends Controller
         }
 
         if ($labInvoice instanceof LabInvoice) {
+            $isRetakeSlip = ($job->payload['copy_for'] ?? null) === 'retake';
+            $items = $isRetakeSlip
+                ? $labInvoice->items->whereIn('id', $job->payload['item_ids'] ?? [])->values()
+                : $labInvoice->items;
+
             return [
                 'id' => $job->id,
                 'status' => $job->status->value,
@@ -118,7 +123,7 @@ class PrintJobController extends Controller
                     'invoice_number' => $labInvoice->invoice_number,
                     'qr_url' => $job->payload['qr_url'] ?? null,
                     'copy_for' => $job->payload['copy_for'] ?? null,
-                    'total' => $labInvoice->total,
+                    'total' => $isRetakeSlip ? 0.0 : $labInvoice->total,
                     'created_at' => $labInvoice->created_at->format('Y-m-d H:i'),
                     'patient' => [
                         'name' => Patient::formatName($labInvoice->patient->name),
@@ -126,12 +131,13 @@ class PrintJobController extends Controller
                         'age' => $labInvoice->patient->age,
                         'gender' => $labInvoice->patient->gender,
                     ],
-                    'items' => $labInvoice->items->map(fn ($item) => [
+                    'items' => $items->map(fn ($item) => [
                         'service_name' => $item->test_name,
                         'test_code' => $item->test_code,
                         'sample' => $item->sample,
                         'time_required' => $item->time_required,
-                        'price' => $item->price,
+                        'retake_reason' => $isRetakeSlip ? $item->latestRetake?->reason : null,
+                        'price' => $isRetakeSlip ? 0.0 : $item->price,
                         'doctor_name' => null,
                         'token_number' => null,
                     ]),

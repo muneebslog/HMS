@@ -9,14 +9,14 @@
             $user = auth()->user();
 
             $receptionRoutes = [
-                'reception.walkin', 'reception.reservation', 'reception.lab-entry',
+                'reception.walkin', 'reception.reservation', 'reception.lab-entry', 'reception.lab-samples',
                 'reception.vitals', 'reception.procedures',
                 'reception.token-flow', 'payout.daily',
             ];
             $managementRoutes = [
                 'reception.mr-lookup',
                 'reception.invoices', 'payout.doctor', 'management.shift-history', 'management.approvals',
-                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests', 'lab.cases',
+                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests', 'lab.cases', 'lab.samples',
             ];
             $financeRoutes = [
                 'admin.finance',
@@ -96,6 +96,12 @@
                                 {{ __('Lab Entry') }}
                             </flux:sidebar.item>
                         @endpageAccess
+                        @pageAccess('reception.lab-samples')
+                            @php($labSamplesCount = \App\Models\LabInvoiceItem::query()->awaitingRider()->count() + \App\Models\LabSampleRetake::query()->open()->count())
+                            <flux:sidebar.item icon="truck" :href="route('reception.lab-samples')" :current="request()->routeIs('reception.lab-samples')" :badge="$labSamplesCount ?: null" badge:color="red" wire:navigate>
+                                {{ __('Lab Samples') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
                         @pageAccess('reception.vitals')
                             <flux:sidebar.item icon="heart" :href="route('reception.vitals')" :current="request()->routeIs('reception.vitals')" wire:navigate>
                                 {{ __('Vitals') }}
@@ -164,6 +170,12 @@
                         @pageAccess('lab.cases')
                             <flux:sidebar.item icon="clipboard-document-check" :href="route('lab.cases')" :current="request()->routeIs('lab.cases', 'lab.cases.*')" wire:navigate>
                                 {{ __('Lab Cases') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('lab.samples')
+                            @php($samplesToReceiveCount = \App\Models\LabInvoiceItem::query()->awaitingSample()->count())
+                            <flux:sidebar.item icon="inbox-arrow-down" :href="route('lab.samples')" :current="request()->routeIs('lab.samples')" :badge="$samplesToReceiveCount ?: null" badge:color="amber" wire:navigate>
+                                {{ __('Sample Receiving') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('lab.tests')

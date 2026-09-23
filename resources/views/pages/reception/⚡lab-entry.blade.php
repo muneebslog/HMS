@@ -323,11 +323,23 @@ new #[Title('Lab Entry')] class extends Component
         });
 
         $qrUrl = (string) $invoice->publicReportsUrl();
+        $outsourcedCount = collect($this->items)->reject(fn (array $item) => $item['is_in_house'])->count();
 
         app(CreatePrintJob::class)->createLabInvoiceReceipts($invoice, $qrUrl);
         SendLabCaseToLab::dispatch($invoice->id);
 
         $this->clear();
+
+        if ($outsourcedCount > 0) {
+            Flux::toast(
+                variant: 'warning',
+                heading: __('Lab invoice :number saved', ['number' => $invoice->invoice_number]),
+                text: trans_choice(':count outsourced sample: call the rider from Lab Samples.|:count outsourced samples: call the rider from Lab Samples.', $outsourcedCount, ['count' => $outsourcedCount]),
+                duration: 10000,
+            );
+
+            return;
+        }
 
         Flux::toast(variant: 'success', text: __('Lab invoice :number saved. Receipts and lab sync queued.', ['number' => $invoice->invoice_number]));
     }

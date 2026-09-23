@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
 class LabInvoiceItem extends Model
@@ -28,6 +29,8 @@ class LabInvoiceItem extends Model
         'sample',
         'time_required',
         'is_in_house',
+        'sample_received_at',
+        'sample_received_by',
         'outgoing_status',
         'asked_at',
         'asked_by',
@@ -57,6 +60,7 @@ class LabInvoiceItem extends Model
         return [
             'price' => 'float',
             'is_in_house' => 'boolean',
+            'sample_received_at' => 'datetime',
             'outgoing_status' => OutgoingSampleStatus::class,
             'asked_at' => 'datetime',
             'given_at' => 'datetime',
@@ -195,6 +199,69 @@ class LabInvoiceItem extends Model
                         ->where(fn ($status) => $status->whereNull('outgoing_status')->orWhere('outgoing_status', '!=', OutgoingSampleStatus::Received->value));
                 });
         });
+    }
+
+    /**
+     * Get the lab user who received this test's sample.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function sampleReceivedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sample_received_by');
+    }
+
+    /**
+     * Get every retake the lab asked for on this test.
+     *
+     * @return HasMany<LabSampleRetake, $this>
+     */
+    public function retakes(): HasMany
+    {
+        return $this->hasMany(LabSampleRetake::class);
+    }
+
+    /**
+     * Get the latest retake the lab asked for on this test, if any.
+     *
+     * @return HasOne<LabSampleRetake, $this>
+     */
+    public function latestRetake(): HasOne
+    {
+        return $this->hasOne(LabSampleRetake::class)->latestOfMany();
+    }
+
+    /**
+     * Determine whether a retake is waiting for the patient to come back.
+     */
+    public function hasOpenRetake(): bool
+    {
+        return $this->latestRetake?->isOpen() ?? false;
+    }
+
+    /**
+     * Scope the query to in-house tests whose sample the lab should be receiving now:
+     * not received, not finished, no retake waiting on the patient, case not returned.
+     */
+    public function scopeAwaitingSample($query)
+    {
+        return $query
+            ->where('is_in_house', true)
+            ->whereNull('sample_received_at')
+            ->whereNull('results_completed_at')
+            ->whereDoesntHave('retakes', fn ($retakes) => $retakes->open())
+            ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
+    }
+
+    /**
+     * Scope the query to send-out tests that still need the rider: not called yet, or called but not handed over.
+     */
+    public function scopeAwaitingRider($query)
+    {
+        return $query
+            ->where('is_in_house', false)
+            ->whereIn('outgoing_status', [OutgoingSampleStatus::Pending->value, OutgoingSampleStatus::Asked->value])
+            ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
     }
 
     /**

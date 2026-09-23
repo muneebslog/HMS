@@ -143,11 +143,13 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
+        Route::livewire('reception/lab-samples', 'pages::reception.lab-samples')->name('reception.lab-samples');
 
         Route::livewire('lab-api-and-info', 'pages::admin.lab-entries')->name('lab-api-and-info');
         Route::redirect('lab-entries', '/lab-api-and-info');
 
         Route::livewire('lab/cases', 'pages::lab.cases')->name('lab.cases');
+        Route::livewire('lab/samples', 'pages::lab.samples')->name('lab.samples');
         Route::livewire('lab/cases/{labInvoice}', 'pages::lab.case')->name('lab.cases.show');
         Route::get('lab/cases/{labInvoice}/report', LabCaseReportController::class)->name('lab.cases.report');
         Route::livewire('lab/tests', 'pages::lab.tests')->name('lab.tests');

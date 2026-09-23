@@ -43,7 +43,7 @@ new #[Title('Lab Case')] class extends Component
     public function items()
     {
         return $this->labInvoice->items()
-            ->with(['labTest.fields', 'results', 'resultsCompletedByUser'])
+            ->with(['labTest.fields', 'results', 'resultsCompletedByUser', 'latestRetake'])
             ->get()
             ->sortBy([['is_in_house', 'desc'], ['id', 'asc']])
             ->values();
@@ -75,6 +75,14 @@ new #[Title('Lab Case')] class extends Component
         if ($item->is_in_house) {
             if ($item->isDone()) {
                 return ['label' => __('Results complete'), 'color' => 'green'];
+            }
+
+            if ($item->hasOpenRetake()) {
+                return ['label' => __('Retake requested: :reason', ['reason' => $item->latestRetake->reason]), 'color' => 'red'];
+            }
+
+            if ($item->sample_received_at === null && $item->results->isEmpty()) {
+                return ['label' => __('Sample not received'), 'color' => 'zinc'];
             }
 
             return $item->results->isNotEmpty()
@@ -267,6 +275,8 @@ new #[Title('Lab Case')] class extends Component
                 'results_completed_at' => $complete ? now() : null,
                 'results_completed_by' => $complete ? auth()->id() : null,
                 'results_imported_at' => null,
+                'sample_received_at' => $item->sample_received_at ?? now(),
+                'sample_received_by' => $item->sample_received_at ? $item->sample_received_by : auth()->id(),
             ]);
         });
 
