@@ -13,6 +13,7 @@ new #[Title('Stats')] class extends Component
         abort_unless(
             $user !== null && app(PageAccessService::class)->canAccessAny($user, [
                 'admin.monthly-report',
+                'admin.finance',
                 'admin.procedure-finances',
                 'admin.service-stats',
                 'admin.medication-deliveries',
@@ -35,9 +36,16 @@ new #[Title('Stats')] class extends Component
             'show' => $pageAccess->canAccess($user, 'admin.monthly-report'),
         ],
         [
+            'label' => __('Finance'),
+            'description' => __('Shift cash collections and salary or other expenses.'),
+            'icon' => 'banknotes',
+            'route' => 'admin.finance',
+            'show' => $pageAccess->canAccess($user, 'admin.finance'),
+        ],
+        [
             'label' => __('Procedure Finances'),
             'description' => __('Procedure revenue and cost breakdown.'),
-            'icon' => 'banknotes',
+            'icon' => 'currency-dollar',
             'route' => 'admin.procedure-finances',
             'show' => $pageAccess->canAccess($user, 'admin.procedure-finances'),
         ],

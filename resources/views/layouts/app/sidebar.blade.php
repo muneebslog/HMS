@@ -162,6 +162,9 @@
                             <flux:sidebar.item icon="beaker" :href="route('lab.tests')" :current="request()->routeIs('lab.tests', 'lab.tests.*')" wire:navigate>
                                 {{ __('Lab Tests') }}
                             </flux:sidebar.item>
+                            <flux:sidebar.item icon="list-bullet" :href="route('lab.fields')" :current="request()->routeIs('lab.fields')" wire:navigate>
+                                {{ __('Lab Fields') }}
+                            </flux:sidebar.item>
                         @endpageAccess
                     </flux:sidebar.group>
                 @endif

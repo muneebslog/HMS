@@ -33,6 +33,25 @@ class LabFieldRange extends Model
     }
 
     /**
+     * Format the range for display, e.g. "12–16" or "Male ≥ 4".
+     */
+    public function formatted(): string
+    {
+        $bounds = match (true) {
+            $this->value_low !== null && $this->value_high !== null => "{$this->value_low}–{$this->value_high}",
+            $this->value_low !== null => __('≥ :value', ['value' => $this->value_low]),
+            $this->value_high !== null => __('≤ :value', ['value' => $this->value_high]),
+            default => __('no range set'),
+        };
+
+        if ($this->category === LabFieldRangeCategory::General) {
+            return $bounds;
+        }
+
+        return $this->category->label().' '.$bounds;
+    }
+
+    /**
      * Get the field this range belongs to.
      *
      * @return BelongsTo<LabField, $this>

@@ -27,6 +27,7 @@ new #[Title('Extras')] class extends Component
                     'admin.sql-runner',
                     'admin.kanban',
                     'admin.monthly-report',
+                    'admin.finance',
                     'admin.procedure-finances',
                     'admin.service-stats',
                     'admin.medication-deliveries',
@@ -45,7 +46,7 @@ new #[Title('Extras')] class extends Component
 
     $adminSideRoutes = ['admin.policy-journal', 'admin.notifications', 'admin.reports'];
     $devSideRoutes = ['admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban'];
-    $statsRoutes = ['admin.monthly-report', 'admin.procedure-finances', 'admin.service-stats', 'admin.medication-deliveries'];
+    $statsRoutes = ['admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats', 'admin.medication-deliveries'];
 
     $cards = [
         [

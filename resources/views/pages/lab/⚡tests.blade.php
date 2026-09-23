@@ -58,6 +58,10 @@ new #[Title('Lab Fields')] class extends Component
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <flux:heading level="1">{{ __('Lab Tests') }}</flux:heading>
+
+            <flux:button size="sm" variant="ghost" icon="list-bullet" :href="route('lab.fields')" wire:navigate>
+                {{ __('All Fields') }}
+            </flux:button>
         </div>
 
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -516,24 +516,6 @@ new #[Title('Test Fields')] class extends Component
         $this->newFieldRanges = [];
     }
 
-    /**
-     * Format a field's range row for display as a badge.
-     */
-    public function formatRange(LabFieldRange $range): string
-    {
-        $bounds = match (true) {
-            $range->value_low !== null && $range->value_high !== null => "{$range->value_low}–{$range->value_high}",
-            $range->value_low !== null => __('≥ :value', ['value' => $range->value_low]),
-            $range->value_high !== null => __('≤ :value', ['value' => $range->value_high]),
-            default => __('no range set'),
-        };
-
-        if ($range->category === LabFieldRangeCategory::General) {
-            return $bounds;
-        }
-
-        return $range->category->label().' '.$bounds;
-    }
 }; ?>
 
 <div>
@@ -597,7 +579,7 @@ new #[Title('Test Fields')] class extends Component
                             <div class="mt-1.5 flex flex-wrap gap-1.5">
                                 @if ($field->type === LabFieldType::Numeric)
                                     @forelse ($field->ranges as $range)
-                                        <flux:badge size="sm">{{ $this->formatRange($range) }}</flux:badge>
+                                        <flux:badge size="sm">{{ $range->formatted() }}</flux:badge>
                                     @empty
                                         <flux:badge size="sm" color="zinc">{{ __('No ranges set') }}</flux:badge>
                                     @endforelse

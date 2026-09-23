@@ -83,6 +83,7 @@ return [
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],
         'lab.tests.fields' => ['label' => 'Test Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
+        'lab.fields' => ['label' => 'All Lab Fields', 'group' => 'Management', 'parent' => 'lab.tests'],
         'reception.mr-lookup' => ['label' => 'MR Lookup', 'group' => 'Management'],
         'reception.invoices' => ['label' => 'Invoices', 'group' => 'Management'],
         'invoices.print' => ['label' => 'Invoice Print', 'group' => 'Management', 'parent' => 'reception.invoices'],
@@ -113,6 +114,7 @@ return [
         'admin.reports' => ['label' => 'Reports to Admin', 'group' => 'Administration'],
         // Stats
         'admin.monthly-report' => ['label' => 'Monthly Report', 'group' => 'Stats'],
+        'admin.finance' => ['label' => 'Finance', 'group' => 'Stats'],
         'admin.procedure-finances' => ['label' => 'Procedure Finances', 'group' => 'Stats'],
         'admin.service-stats' => ['label' => 'Service Statistics', 'group' => 'Stats'],
         'admin.medication-deliveries' => ['label' => 'Medication Deliveries', 'group' => 'Stats'],

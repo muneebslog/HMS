@@ -104,6 +104,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
             ->name('admin.policy-journals.download');
         Route::livewire('admin/reports', 'pages::admin.reports')->name('admin.reports');
         Route::livewire('admin/monthly-report', 'pages::admin.monthly-report')->name('admin.monthly-report');
+        Route::livewire('admin/finance', 'pages::admin.finance')->name('admin.finance');
         Route::livewire('admin/procedure-finances', 'pages::admin.procedure-finances')->name('admin.procedure-finances');
         Route::livewire('admin/service-stats', 'pages::admin.service-stats')->name('admin.service-stats');
         Route::livewire('admin/medication-deliveries', 'pages::admin.medication-deliveries')->name('admin.medication-deliveries');
@@ -139,6 +140,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
 
         Route::livewire('lab/tests', 'pages::lab.tests')->name('lab.tests');
         Route::livewire('lab/tests/{labTest}/fields', 'pages::lab.test-fields')->name('lab.tests.fields');
+        Route::livewire('lab/fields', 'pages::lab.fields')->name('lab.fields');
 
         Route::livewire('admin/notifications', 'pages::admin.notifications')->name('admin.notifications');
         Route::livewire('admin/drive', 'pages::admin.drive')->name('admin.drive');

@@ -281,3 +281,64 @@ test('changing a numeric field to choice removes its ranges', function () {
     expect($field->options)->toBe(['Seen', 'Not seen']);
     expect($field->ranges()->count())->toBe(0);
 });
+
+test('lab technicians can visit the all fields page and see linked tests', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create(['test_name' => 'Complete Blood Count']);
+    $field = LabField::factory()->create(['name' => 'Hemoglobin']);
+    $field->ranges()->create(['category' => 'general', 'value_low' => '12', 'value_high' => '16']);
+    $labTest->fields()->attach($field->id, ['display_order' => 1]);
+
+    $response = $this->actingAs($labTechnician)->get(route('lab.fields'));
+
+    $response->assertOk();
+    $response->assertSee('Hemoglobin');
+    $response->assertSee('Complete Blood Count');
+    $response->assertSee('12–16');
+});
+
+test('the all fields page shows choice options', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    LabField::factory()->choice(['Reactive', 'Non-Reactive'])->create(['name' => 'HBsAg']);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.fields')
+        ->assertSee('HBsAg')
+        ->assertSee('Non-Reactive');
+});
+
+test('the all fields page can be filtered by type and search', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    LabField::factory()->create(['name' => 'Calcium']);
+    LabField::factory()->choice()->create(['name' => 'Blood Group']);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.fields')
+        ->set('type', 'choice')
+        ->assertSee('Blood Group')
+        ->assertDontSee('Calcium')
+        ->set('type', '')
+        ->set('search', 'calc')
+        ->assertSee('Calcium')
+        ->assertDontSee('Blood Group');
+});
+
+test('the all fields page can show only unlinked fields', function () {
+    $labTechnician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create();
+    $linked = LabField::factory()->create(['name' => 'Linked field']);
+    LabField::factory()->create(['name' => 'Orphan field']);
+    $labTest->fields()->attach($linked->id, ['display_order' => 1]);
+
+    Livewire::actingAs($labTechnician)
+        ->test('pages::lab.fields')
+        ->set('unlinkedOnly', true)
+        ->assertSee('Orphan field')
+        ->assertDontSee('Linked field');
+});
+
+test('doctors cannot visit the all fields page', function () {
+    $doctor = User::factory()->doctor()->create();
+
+    $this->actingAs($doctor)->get(route('lab.fields'))->assertForbidden();
+});
