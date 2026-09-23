@@ -172,7 +172,7 @@ test('lab technicians are redirected from dashboard to lab entries', function ()
 
     $this->actingAs($user)
         ->get(route('dashboard'))
-        ->assertRedirect(route('lab-api-and-info'));
+        ->assertRedirect(route('lab.dashboard'));
 });
 
 test('lab technicians are blocked from admin, management and receptionist routes', function () use ($routeMap) {

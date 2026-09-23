@@ -83,6 +83,7 @@ return [
         // Management
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'lab.cases' => ['label' => 'Lab Cases', 'group' => 'Management'],
+        'lab.dashboard' => ['label' => 'Lab Dashboard', 'group' => 'Management'],
         'lab.samples' => ['label' => 'Sample Receiving', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
@@ -192,6 +193,7 @@ return [
 
         UserRole::LabTechnician->value => [
             'lab-api-and-info',
+            'lab.dashboard',
             'lab.cases',
             'lab.results.entry',
             'lab.samples',

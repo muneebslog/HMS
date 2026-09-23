@@ -149,6 +149,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::redirect('lab-entries', '/lab-api-and-info');
 
         Route::livewire('lab/cases', 'pages::lab.cases')->name('lab.cases');
+        Route::livewire('lab/dashboard', 'pages::lab.dashboard')->name('lab.dashboard');
         Route::livewire('lab/samples', 'pages::lab.samples')->name('lab.samples');
         Route::livewire('lab/cases/{labInvoice}', 'pages::lab.case')->name('lab.cases.show');
         Route::get('lab/cases/{labInvoice}/report', LabCaseReportController::class)->name('lab.cases.report');

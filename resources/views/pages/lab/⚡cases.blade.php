@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -25,6 +26,7 @@ new #[Title('Lab Cases')] class extends Component
 
     public string $search = '';
 
+    #[Url]
     public bool $pendingOnly = false;
 
     public bool $showEditPatientModal = false;
