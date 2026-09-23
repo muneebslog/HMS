@@ -114,20 +114,6 @@ new #[Title('Dashboard')] class extends Component
     }
 
     /**
-     * Count admitted procedures missing last-hour vitals or fetal heart readings.
-     */
-    #[Computed]
-    public function overdueProcedureReadingCount(): int
-    {
-        return Procedure::query()
-            ->onWard()
-            ->with('procedureType')
-            ->get()
-            ->filter(fn (Procedure $procedure) => $procedure->isVitalsOverdue() || $procedure->isFetalHeartOverdue())
-            ->count();
-    }
-
-    /**
      * Mark the given employee todo as done.
      */
     public function markEmployeeTodoDone(int $todoId): void
@@ -227,17 +213,6 @@ new #[Title('Dashboard')] class extends Component
                 />
             </div>
         @else
-            @if (auth()->user()->isAdmin() || auth()->user()->isManagement() || auth()->user()->isReceptionist())
-                @if ($this->overdueProcedureReadingCount > 0)
-                    <flux:callout variant="danger" icon="clock">
-                        <flux:callout.heading>{{ __('Overdue ward readings') }}</flux:callout.heading>
-                        <flux:callout.text>
-                            {{ __(':count admitted procedure(s) are missing hourly vitals or fetal heart readings.', ['count' => $this->overdueProcedureReadingCount]) }}
-                        </flux:callout.text>
-                    </flux:callout>
-                @endif
-            @endif
-
             @if (auth()->user()->isManagement())
             <div class="grid auto-rows-min gap-4 md:grid-cols-2" wire:poll.5s>
                 <flux:card>

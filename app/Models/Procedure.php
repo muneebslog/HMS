@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ProcedureStatus;
-use Carbon\CarbonInterface;
 use Database\Factories\ProcedureFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -351,53 +350,5 @@ class Procedure extends Model
     public function scopeOnWard(Builder $query): Builder
     {
         return $query->whereNotNull('admitted_at')->whereNull('discharged_at');
-    }
-
-    /**
-     * Determine whether vitals are overdue for the previous completed hour.
-     */
-    public function isVitalsOverdue(?CarbonInterface $reference = null): bool
-    {
-        if (! $this->isAdmitted() || $this->isDischarged()) {
-            return false;
-        }
-
-        $reference ??= now();
-        $hourStart = $reference->copy()->subHour()->startOfHour();
-        $hourEnd = $hourStart->copy()->endOfHour();
-
-        if ($this->admitted_at !== null && $this->admitted_at->gt($hourEnd)) {
-            return false;
-        }
-
-        return ! $this->vitals()
-            ->whereBetween('recorded_at', [$hourStart, $hourEnd])
-            ->exists();
-    }
-
-    /**
-     * Determine whether fetal heart readings are overdue for the previous completed hour.
-     */
-    public function isFetalHeartOverdue(?CarbonInterface $reference = null): bool
-    {
-        if (! $this->procedureType?->requires_fetal_heart) {
-            return false;
-        }
-
-        if (! $this->isAdmitted() || $this->isDischarged()) {
-            return false;
-        }
-
-        $reference ??= now();
-        $hourStart = $reference->copy()->subHour()->startOfHour();
-        $hourEnd = $hourStart->copy()->endOfHour();
-
-        if ($this->admitted_at !== null && $this->admitted_at->gt($hourEnd)) {
-            return false;
-        }
-
-        return ! $this->fetalHearts()
-            ->whereBetween('recorded_at', [$hourStart, $hourEnd])
-            ->exists();
     }
 }

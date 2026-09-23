@@ -7,10 +7,11 @@ use App\Models\Doctor;
 use App\Models\Procedure;
 use App\Models\ProcedureDocument;
 use App\Models\ProcedureType;
-use App\Models\ProcedureVital;
 use App\Models\User;
 use Database\Seeders\RolePagePermissionSeeder;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 
 uses(RefreshDatabase::class);
 
@@ -49,24 +50,33 @@ test('discharge and birth certificates are tracked when opened', function () {
         ->and(ProcedureDocument::where('procedure_id', $procedure->id)->where('kind', ProcedureDocumentKind::BirthCertificate)->exists())->toBeTrue();
 });
 
-test('missing vitals command notifies admins once per hour block', function () {
-    User::factory()->admin()->create();
-    $procedure = Procedure::factory()->admitted()->create([
-        'admitted_at' => now()->subHours(3),
+test('there is no overdue ward readings check now that readings cannot be recorded', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    Procedure::factory()->admitted()->create(['admitted_at' => now()->subHours(3)]);
+
+    $this->actingAs($receptionist)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertDontSee('Overdue ward readings');
+
+    expect(array_keys(Artisan::all()))->not->toContain('procedures:check-missing-vitals')
+        ->and(collect(app(Schedule::class)->events())->map->command->implode(' '))->not->toContain('check-missing-vitals');
+});
+
+test('the cleanup migration deletes old missing readings notifications only', function () {
+    $actor = User::factory()->admin()->create();
+    $make = fn (string $type) => AdminNotification::create([
+        'user_id' => $actor->id, 'type' => $type, 'title' => $type, 'message' => $type, 'actionable_url' => '/', 'metadata' => [],
     ]);
+    $make('procedure_vitals_missing');
+    $make('procedure_vitals_missing');
+    $kept = $make('checklist_missing');
 
-    $this->artisan('procedures:check-missing-vitals')->assertSuccessful();
+    $migration = require database_path('migrations/2026_09_24_014203_delete_procedure_vitals_missing_notifications.php');
+    $migration->up();
 
-    expect(AdminNotification::where('type', 'procedure_vitals_missing')->count())->toBe(1);
-
-    $this->artisan('procedures:check-missing-vitals')->assertSuccessful();
-
-    expect(AdminNotification::where('type', 'procedure_vitals_missing')->count())->toBe(1);
-
-    ProcedureVital::factory()->create([
-        'procedure_id' => $procedure->id,
-        'recorded_at' => now()->subHour()->startOfHour()->addMinutes(10),
-    ]);
+    expect(AdminNotification::where('type', 'procedure_vitals_missing')->count())->toBe(0)
+        ->and(AdminNotification::whereKey($kept->id)->exists())->toBeTrue();
 });
 
 test('indoor role is requestable', function () {

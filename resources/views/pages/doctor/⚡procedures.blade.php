@@ -122,16 +122,10 @@ new #[Title('Doctor Procedures')] class extends Component
                                 <flux:table.cell>{{ $procedure->admitted_at?->format('d M, g:i A') ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>
                                     <div class="flex flex-wrap gap-1">
-                                        @if ($procedure->isVitalsOverdue())
-                                            <flux:badge size="sm" color="red">{{ __('Vitals overdue') }}</flux:badge>
-                                        @endif
-                                        @if ($procedure->isFetalHeartOverdue())
-                                            <flux:badge size="sm" color="red">{{ __('FHR overdue') }}</flux:badge>
-                                        @endif
                                         @if ($pendingDoses > 0)
                                             <flux:badge size="sm" color="amber">{{ __(':count dose(s) due', ['count' => $pendingDoses]) }}</flux:badge>
                                         @endif
-                                        @if (! $procedure->isVitalsOverdue() && ! $procedure->isFetalHeartOverdue() && $pendingDoses === 0)
+                                        @if ($pendingDoses === 0)
                                             <flux:badge size="sm" color="green">{{ __('On track') }}</flux:badge>
                                         @endif
                                     </div>
