@@ -2,8 +2,10 @@
 
 use App\Enums\OutgoingSampleStatus;
 use App\Enums\UserRole;
+use App\Models\LabField;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
+use App\Models\LabTest;
 use App\Models\Patient;
 use App\Models\RolePagePermission;
 use App\Models\User;
@@ -205,4 +207,21 @@ test('the access migration grants lab cases to roles that have lab tests', funct
     $rolesWithCases = RolePagePermission::query()->where('route_name', 'lab.cases')->pluck('role')->map(fn ($role) => $role instanceof UserRole ? $role->value : $role)->sort()->values()->all();
 
     expect($rolesWithCases)->toBe($rolesWithTests)->toContain(UserRole::LabTechnician->value);
+});
+
+test('lab case rows open the case, and test rows open result entry', function () {
+    $this->seed(RolePagePermissionSeeder::class);
+    $technician = User::factory()->labTechnician()->create();
+    $labTest = LabTest::factory()->create(['is_in_house' => true]);
+    $labTest->fields()->attach(LabField::factory()->create()->id, ['display_order' => 1]);
+    $invoice = LabInvoice::factory()->paid()->create();
+    $item = LabInvoiceItem::factory()->inHouse()->create(['lab_invoice_id' => $invoice->id, 'lab_test_id' => $labTest->id]);
+
+    $this->actingAs($technician)->get(route('lab.cases'))
+        ->assertOk()
+        ->assertSee("Livewire.navigate('".route('lab.cases.show', $invoice)."')", false);
+
+    $this->actingAs($technician)->get(route('lab.cases.show', $invoice))
+        ->assertOk()
+        ->assertSee('$wire.openResults('.$item->id.')', false);
 });

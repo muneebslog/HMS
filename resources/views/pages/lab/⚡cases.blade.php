@@ -255,7 +255,12 @@ new #[Title('Lab Cases')] class extends Component
                             $total = $case->items->count();
                             $isComplete = $case->isComplete();
                         @endphp
-                        <flux:table.row wire:key="lab-case-{{ $case->id }}">
+                        <flux:table.row
+                            wire:key="lab-case-{{ $case->id }}"
+                            class="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                            x-data
+                            x-on:click="if (! $event.target.closest('a, button')) Livewire.navigate('{{ route('lab.cases.show', $case) }}')"
+                        >
                             <flux:table.cell>
                                 <div class="flex items-center gap-3">
                                     <flux:avatar size="sm" :name="$case->patient?->name ?? '?'" />

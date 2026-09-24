@@ -490,8 +490,20 @@ new #[Title('Lab Case')] class extends Component
 
                 <flux:table.rows>
                     @foreach ($items as $item)
-                        @php($status = $this->itemStatus($item))
-                        <flux:table.row wire:key="case-item-{{ $item->id }}">
+                        @php
+                            $status = $this->itemStatus($item);
+                            $rowAction = match (true) {
+                                $this->canEnterResults($item) => '$wire.openResults('.$item->id.')',
+                                $item->is_in_house && $item->isDone() => "window.open('".route('lab.cases.report', ['labInvoice' => $labInvoice, 'item' => $item->id])."', '_blank')",
+                                default => null,
+                            };
+                        @endphp
+                        <flux:table.row
+                            wire:key="case-item-{{ $item->id }}"
+                            :class="$rowAction ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50' : ''"
+                            x-data
+                            x-on:click="{{ $rowAction ? 'if (! $event.target.closest(\'a, button\')) '.$rowAction : '' }}"
+                        >
                             <flux:table.cell>
                                 <div class="flex items-center gap-2">
                                     <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ trim($item->test_name) }}</span>
@@ -644,8 +656,6 @@ new #[Title('Lab Case')] class extends Component
                 </div>
 
                 <flux:error name="resultValues" />
-
-                <flux:textarea wire:model="resultComment" :label="__('Comment')" rows="2" placeholder="{{ __('Optional, printed under this test.') }}" />
 
                 <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     @if ($item->results->isNotEmpty() || $item->results_completed_at || filled($item->result_comment))

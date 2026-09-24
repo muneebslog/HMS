@@ -319,3 +319,17 @@ test('doctors cannot open lab reports', function () {
         ->get(route('lab.cases.report', $this->invoice))
         ->assertForbidden();
 });
+
+test('the results form has no comment box, and saving keeps a comment the test already had', function () {
+    $this->item->update(['result_comment' => 'Imported note']);
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->assertDontSeeHtml('wire:model="resultComment"')
+        ->set("resultValues.{$this->hb->id}", '12.4')
+        ->call('saveResults', true)
+        ->assertHasNoErrors();
+
+    expect($this->item->fresh()->result_comment)->toBe('Imported note');
+});
