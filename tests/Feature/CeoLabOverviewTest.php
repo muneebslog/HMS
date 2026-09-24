@@ -161,3 +161,11 @@ test('the overview page renders with data and switches period', function () {
 test('an empty lab still renders', function () {
     Livewire::actingAs($this->ceo)->test('pages::ceo.lab')->assertOk()->assertSee('Nothing is late');
 });
+
+test('the CEO can open the lab technician dashboard from the sidebar and the overview', function () {
+    $html = $this->actingAs($this->ceo)->get(route('ceo.lab'))->assertOk()->assertSee('Lab tech dashboard')->getContent();
+
+    expect(substr_count($html, 'href="'.route('lab.dashboard').'"'))->toBe(2);
+
+    $this->actingAs($this->ceo)->get(route('lab.dashboard'))->assertOk()->assertSee('Lab Dashboard');
+});

@@ -110,13 +110,21 @@ new #[Title('Lab Overview')] class extends Component
                 <p class="text-sm text-zinc-400">{{ now()->format('l, d F Y · g:i A') }}</p>
             </div>
 
-            <div class="inline-flex rounded-xl bg-zinc-900 p-1 ring-1 ring-zinc-700">
-                @foreach (CeoLabOverview::PERIODS as $key => $label)
-                    <button type="button" wire:click="$set('period', '{{ $key }}')"
-                        class="cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition {{ $period === $key ? 'bg-cyan-500 text-zinc-950 shadow' : 'text-zinc-400 hover:text-white' }}">
-                        {{ __($label) }}
-                    </button>
-                @endforeach
+            <div class="flex flex-wrap items-center gap-2">
+                @if (auth()->user()?->canAccessRoute('lab.dashboard'))
+                    <a href="{{ route('lab.dashboard') }}" wire:navigate class="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-300 ring-1 ring-zinc-700 transition hover:text-white">
+                        <flux:icon.chart-bar variant="micro" />
+                        {{ __('Lab tech dashboard') }}
+                    </a>
+                @endif
+                <div class="inline-flex rounded-xl bg-zinc-900 p-1 ring-1 ring-zinc-700">
+                    @foreach (CeoLabOverview::PERIODS as $key => $label)
+                        <button type="button" wire:click="$set('period', '{{ $key }}')"
+                            class="cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition {{ $period === $key ? 'bg-cyan-500 text-zinc-950 shadow' : 'text-zinc-400 hover:text-white' }}">
+                            {{ __($label) }}
+                        </button>
+                    @endforeach
+                </div>
             </div>
         </div>
 

@@ -68,6 +68,11 @@
                             {{ __('Lab Overview') }}
                         </flux:sidebar.item>
                     @endpageAccess
+                    @if ($user->isCeo() && $pageAccess->canAccess($user, 'lab.dashboard'))
+                        <flux:sidebar.item icon="chart-bar" :href="route('lab.dashboard')" :current="request()->routeIs('lab.dashboard')" wire:navigate>
+                            {{ __('Lab Dashboard') }}
+                        </flux:sidebar.item>
+                    @endif
 
                     @unless ($user->isAdmin())
                         @pageAccess('doctor.portal')
@@ -186,7 +191,7 @@
                                 {{ __('Lab Cases') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @if (! $isLabTechnician && $pageAccess->canAccess($user, 'lab.dashboard'))
+                        @if (! $isLabTechnician && ! $user->isCeo() && $pageAccess->canAccess($user, 'lab.dashboard'))
                             <flux:sidebar.item icon="chart-bar" :href="route('lab.dashboard')" :current="request()->routeIs('lab.dashboard')" wire:navigate>
                                 {{ __('Lab Dashboard') }}
                             </flux:sidebar.item>
