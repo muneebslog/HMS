@@ -92,7 +92,9 @@ new #[Title('Lab Case')] class extends Component
             }
 
             if ($item->sample_received_at === null && $item->results->isEmpty()) {
-                return ['label' => __('Sample not received'), 'color' => 'zinc'];
+                return $item->sample_collected_at !== null
+                    ? ['label' => __('Collected at ER, not in lab yet'), 'color' => 'sky']
+                    : ['label' => __('Sample not received'), 'color' => 'zinc'];
             }
 
             return $item->results->isNotEmpty()

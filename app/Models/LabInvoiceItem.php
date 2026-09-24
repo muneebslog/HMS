@@ -32,7 +32,8 @@ class LabInvoiceItem extends Model
         'is_in_house',
         'sample_received_at',
         'sample_received_by',
-        'sample_received_by_health_aide_id',
+        'sample_collected_at',
+        'sample_collected_by_health_aide_id',
         'outgoing_status',
         'asked_at',
         'asked_by',
@@ -63,6 +64,7 @@ class LabInvoiceItem extends Model
             'price' => 'float',
             'is_in_house' => 'boolean',
             'sample_received_at' => 'datetime',
+            'sample_collected_at' => 'datetime',
             'outgoing_status' => OutgoingSampleStatus::class,
             'asked_at' => 'datetime',
             'given_at' => 'datetime',
@@ -233,25 +235,23 @@ class LabInvoiceItem extends Model
     }
 
     /**
-     * Get the health aide who received this test's sample at the ER Station.
+     * Get the health aide who collected this test's sample at the ER Station
+     * (the lab still has to receive it).
      *
      * @return BelongsTo<HealthAide, $this>
      */
-    public function sampleReceivedByHealthAide(): BelongsTo
+    public function sampleCollectedByHealthAide(): BelongsTo
     {
-        return $this->belongsTo(HealthAide::class, 'sample_received_by_health_aide_id');
+        return $this->belongsTo(HealthAide::class, 'sample_collected_by_health_aide_id');
     }
 
     /**
-     * Name of whoever received the sample: a lab user, or a health aide at the ER Station.
+     * Scope the query to samples still to be collected at the ER Station: awaited by the lab
+     * and not yet collected.
      */
-    public function sampleReceiverName(): ?string
+    public function scopeAwaitingCollection($query)
     {
-        if ($this->sample_received_by_health_aide_id !== null) {
-            return $this->sampleReceivedByHealthAide?->name;
-        }
-
-        return $this->sampleReceivedByUser?->name;
+        return $query->awaitingSample()->whereNull('sample_collected_at');
     }
 
     /**

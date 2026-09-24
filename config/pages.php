@@ -199,7 +199,6 @@ return [
             'lab.results.entry',
             'lab.samples',
             'lab.tests',
-            'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
         ],
 

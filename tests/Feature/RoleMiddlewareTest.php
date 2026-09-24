@@ -40,7 +40,8 @@ $routeMap = [
     ],
     'lab_technician' => [
         'lab-api-and-info',
-        'reception.mr-lookup',
+        'lab.dashboard',
+        'lab.samples',
     ],
     'shared' => [
         'reception.shift',

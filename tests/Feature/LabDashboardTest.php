@@ -72,3 +72,15 @@ test('an empty day still renders', function () {
         ->assertSee('All caught up')
         ->assertSee('No tests billed yet today.');
 });
+
+test('lab technicians get one Dashboard link, no MR Lookup, and Lab Tests under Extras', function () {
+    $html = $this->actingAs($this->labTechnician)->get(route('lab.dashboard'))->assertOk()->getContent();
+
+    expect(substr_count($html, '>Dashboard<') + substr_count($html, ">\n                            Dashboard\n"))->toBeLessThanOrEqual(1)
+        ->and($html)->not->toContain('href="'.route('reception.mr-lookup').'"')
+        ->and($html)->not->toContain('href="'.route('lab.tests').'"')
+        ->and($html)->toContain('href="'.route('extras').'"');
+
+    $this->actingAs($this->labTechnician)->get(route('reception.mr-lookup'))->assertForbidden();
+    $this->actingAs($this->labTechnician)->get(route('extras'))->assertOk()->assertSee('Lab Tests')->assertSee('Lab Fields');
+});

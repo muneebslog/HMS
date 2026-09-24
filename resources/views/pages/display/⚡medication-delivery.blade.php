@@ -286,7 +286,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     }
 
     /**
-     * In-house lab samples waiting to be received, grouped by case (oldest first).
+     * In-house lab samples to collect from patients at the ER, grouped by case (oldest first).
+     * Collecting does not receive them: the lab still confirms each one on its own page.
      *
      * @return Collection<int, Collection<int, LabInvoiceItem>>
      */
@@ -294,7 +295,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     public function labSamples(): Collection
     {
         return LabInvoiceItem::query()
-            ->awaitingSample()
+            ->awaitingCollection()
             ->with(['labInvoice.patient', 'latestRetake'])
             ->orderBy('lab_invoice_id')
             ->orderBy('id')
@@ -303,7 +304,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     }
 
     /**
-     * Ask for the aide's PIN (if needed), then mark one sample, or every sample of a case, received.
+     * Ask for the aide's PIN (if needed), then mark one sample, or every sample of a case, collected.
      */
     public function requestReceiveSamples(?int $labInvoiceId = null, ?int $itemId = null): void
     {
@@ -318,7 +319,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     }
 
     /**
-     * Mark the chosen lab samples as received by the signed-in health aide.
+     * Mark the chosen lab samples as collected by the signed-in health aide.
      */
     public function receiveSamples(): void
     {
@@ -340,19 +341,18 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
         }
 
         $count = LabInvoiceItem::query()
-            ->awaitingSample()
+            ->awaitingCollection()
             ->when($itemId, fn ($query) => $query->whereKey($itemId))
             ->when($labInvoiceId, fn ($query) => $query->where('lab_invoice_id', $labInvoiceId))
             ->update([
-                'sample_received_at' => now(),
-                'sample_received_by' => null,
-                'sample_received_by_health_aide_id' => $aide->id,
+                'sample_collected_at' => now(),
+                'sample_collected_by_health_aide_id' => $aide->id,
             ]);
 
         app(StationSessionService::class)->bump(StationType::Er, $aide);
         unset($this->labSamples);
 
-        Flux::toast(variant: 'success', text: trans_choice(':count lab sample received.|:count lab samples received.', $count, ['count' => $count]));
+        Flux::toast(variant: 'success', text: trans_choice(':count lab sample collected. Send it to the lab.|:count lab samples collected. Send them to the lab.', $count, ['count' => $count]));
     }
 
     #[Computed]
@@ -698,9 +698,9 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                         <div>
                             <flux:heading level="2" size="md" class="flex items-center gap-2">
                                 <flux:icon.beaker class="size-5 text-amber-400" />
-                                {{ __('Lab samples to receive') }}
+                                {{ __('Lab samples to collect') }}
                             </flux:heading>
-                            <flux:text class="text-zinc-400">{{ __('Tap when the sample is in your hand.') }}</flux:text>
+                            <flux:text class="text-zinc-400">{{ __('Tap once the sample is taken, then send it to the lab.') }}</flux:text>
                         </div>
                         <flux:badge color="amber" size="lg">{{ $this->labSamples->flatten()->count() }}</flux:badge>
                     </div>
@@ -741,7 +741,7 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                                 </span>
                                             </span>
                                             <span class="flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-400">
-                                                <flux:icon.check variant="micro" /> {{ __('Received') }}
+                                                <flux:icon.check variant="micro" /> {{ __('Collected') }}
                                             </span>
                                         </button>
                                     @endforeach

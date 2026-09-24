@@ -264,7 +264,7 @@ class CeoLabOverview
     {
         $completed = LabInvoiceItem::query()->where('results_completed_at', '>=', $from)->whereNotNull('results_completed_by')->pluck('results_completed_by')->countBy();
         $received = LabInvoiceItem::query()->where('sample_received_at', '>=', $from)->whereNotNull('sample_received_by')->pluck('sample_received_by')->countBy();
-        $receivedAtEr = LabInvoiceItem::query()->where('sample_received_at', '>=', $from)->whereNotNull('sample_received_by_health_aide_id')->pluck('sample_received_by_health_aide_id')->countBy();
+        $receivedAtEr = LabInvoiceItem::query()->where('sample_collected_at', '>=', $from)->whereNotNull('sample_collected_by_health_aide_id')->pluck('sample_collected_by_health_aide_id')->countBy();
         $aideNames = HealthAide::query()->whereIn('id', $receivedAtEr->keys())->pluck('name', 'id');
         $handed = LabInvoiceItem::query()->where('given_at', '>=', $from)->whereNotNull('given_by')->pluck('given_by')->countBy();
         $retakeSlips = LabSampleRetake::query()->where('slip_printed_at', '>=', $from)->whereNotNull('slip_printed_by')->pluck('slip_printed_by')->countBy();

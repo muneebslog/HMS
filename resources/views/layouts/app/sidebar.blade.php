@@ -26,7 +26,7 @@
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
                 'admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats',
-                'admin.medication-deliveries', 'reception.queue', 'lab-api-and-info',
+                'admin.medication-deliveries', 'reception.queue', 'lab-api-and-info', 'lab.tests',
             ];
             $systemRoutes = [
                 'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders', 'reception.shift',
@@ -34,6 +34,8 @@
             $stationRoutes = [
                 'display.er', 'display.drips', 'display.er_drips',
             ];
+            // Lab technicians get one Dashboard (their lab dashboard) and find Lab Tests / Fields under Extras.
+            $isLabTechnician = $user->isLabTechnician();
             $showExtras = $user->isAdmin()
                 || $user->isActuallyAdmin()
                 || $pageAccess->canAccessAny($user, $extrasRoutes);
@@ -51,9 +53,15 @@
                         {{ __('Platform') }}
                     </div>
 
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Dashboard') }}
-                    </flux:sidebar.item>
+                    @if ($isLabTechnician)
+                        <flux:sidebar.item icon="home" :href="route('lab.dashboard')" :current="request()->routeIs('dashboard', 'lab.dashboard')" wire:navigate>
+                            {{ __('Dashboard') }}
+                        </flux:sidebar.item>
+                    @elseif (! $user->isCeo())
+                        <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                            {{ __('Dashboard') }}
+                        </flux:sidebar.item>
+                    @endif
 
                     @pageAccess('ceo.lab')
                         <flux:sidebar.item icon="presentation-chart-line" :href="route('ceo.lab')" :current="request()->routeIs('ceo.lab')" wire:navigate>
@@ -178,25 +186,25 @@
                                 {{ __('Lab Cases') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('lab.dashboard')
+                        @if (! $isLabTechnician && $pageAccess->canAccess($user, 'lab.dashboard'))
                             <flux:sidebar.item icon="chart-bar" :href="route('lab.dashboard')" :current="request()->routeIs('lab.dashboard')" wire:navigate>
                                 {{ __('Lab Dashboard') }}
                             </flux:sidebar.item>
-                        @endpageAccess
+                        @endif
                         @pageAccess('lab.samples')
                             @php($samplesToReceiveCount = \App\Models\LabInvoiceItem::query()->awaitingSample()->count())
                             <flux:sidebar.item icon="inbox-arrow-down" :href="route('lab.samples')" :current="request()->routeIs('lab.samples')" :badge="$samplesToReceiveCount ?: null" badge:color="amber" wire:navigate>
                                 {{ __('Sample Receiving') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('lab.tests')
+                        @if (! $isLabTechnician && $pageAccess->canAccess($user, 'lab.tests'))
                             <flux:sidebar.item icon="beaker" :href="route('lab.tests')" :current="request()->routeIs('lab.tests', 'lab.tests.*')" wire:navigate>
                                 {{ __('Lab Tests') }}
                             </flux:sidebar.item>
                             <flux:sidebar.item icon="list-bullet" :href="route('lab.fields')" :current="request()->routeIs('lab.fields')" wire:navigate>
                                 {{ __('Lab Fields') }}
                             </flux:sidebar.item>
-                        @endpageAccess
+                        @endif
                     </flux:sidebar.group>
                 @endif
 

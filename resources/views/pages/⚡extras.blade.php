@@ -33,6 +33,7 @@ new #[Title('Extras')] class extends Component
                     'admin.medication-deliveries',
                     'reception.queue',
                     'lab-api-and-info',
+                    'lab.tests',
                 ])
             ),
             403
@@ -49,6 +50,20 @@ new #[Title('Extras')] class extends Component
     $statsRoutes = ['admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats', 'admin.medication-deliveries'];
 
     $cards = [
+        [
+            'label' => __('Lab Tests'),
+            'description' => __('Tests, their fields, normal ranges and report layouts.'),
+            'icon' => 'beaker',
+            'route' => 'lab.tests',
+            'show' => $pageAccess->canAccess($user, 'lab.tests'),
+        ],
+        [
+            'label' => __('Lab Fields'),
+            'description' => __('Every result field and the tests that use it.'),
+            'icon' => 'list-bullet',
+            'route' => 'lab.fields',
+            'show' => $pageAccess->canAccess($user, 'lab.tests'),
+        ],
         [
             'label' => __('Lab API and Info'),
             'description' => __('Lab invoices, API sync status, and retries.'),

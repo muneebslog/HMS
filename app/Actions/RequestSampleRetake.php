@@ -36,7 +36,8 @@ class RequestSampleRetake
             $item->update([
                 'sample_received_at' => null,
                 'sample_received_by' => null,
-                'sample_received_by_health_aide_id' => null,
+                'sample_collected_at' => null,
+                'sample_collected_by_health_aide_id' => null,
             ]);
 
             return $retake;
