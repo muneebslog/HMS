@@ -333,3 +333,13 @@ test('the results form has no comment box, and saving keeps a comment the test a
 
     expect($this->item->fresh()->result_comment)->toBe('Imported note');
 });
+
+test('the result form copes when all values arrive at once', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openResults', $this->item->id)
+        ->set('resultValues', [$this->hb->id => '12.1', $this->group->id => '', $this->note->id => 'n'])
+        ->assertHasNoErrors()
+        ->assertSet("resultValues.{$this->note->id}", 'Nil')
+        ->assertSet("resultValues.{$this->hb->id}", '12.1');
+});

@@ -288,12 +288,23 @@ new #[Title('Lab Case')] class extends Component
     /**
      * Apply typing shortcuts as soon as a field is left, so the lab sees "Nil" straight away.
      */
-    public function updatedResultValues(mixed $value, string $fieldId): void
+    public function updatedResultValues(mixed $value, ?string $fieldId = null): void
     {
-        $field = $this->editingItem?->labTest?->fields->firstWhere('id', (int) $fieldId);
+        $fields = $this->editingItem?->labTest?->fields;
 
-        if ($field && is_string($value)) {
-            $this->resultValues[$field->id] = $this->normalizeResultValue($field, $value);
+        if ($fields === null) {
+            return;
+        }
+
+        // Livewire may send the whole set of values at once instead of one field.
+        $changed = $fieldId === null ? (is_array($value) ? $value : []) : [$fieldId => $value];
+
+        foreach ($changed as $id => $fieldValue) {
+            $field = $fields->firstWhere('id', (int) $id);
+
+            if ($field && is_string($fieldValue)) {
+                $this->resultValues[$field->id] = $this->normalizeResultValue($field, $fieldValue);
+            }
         }
     }
 
