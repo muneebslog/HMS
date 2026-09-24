@@ -84,6 +84,7 @@ return [
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
         'lab.cases' => ['label' => 'Lab Cases', 'group' => 'Management'],
         'lab.dashboard' => ['label' => 'Lab Dashboard', 'group' => 'Management'],
+        'ceo.lab' => ['label' => 'CEO Lab Overview', 'group' => 'Management'],
         'lab.samples' => ['label' => 'Sample Receiving', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
@@ -200,6 +201,13 @@ return [
             'lab.tests',
             'reception.mr-lookup',
             'indoor.procedures.birth-certificate',
+        ],
+
+        UserRole::Ceo->value => [
+            'ceo.lab',
+            'lab.dashboard',
+            'lab.cases',
+            'reception.mr-lookup',
         ],
 
         UserRole::Admin->value => 'all',

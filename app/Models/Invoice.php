@@ -36,6 +36,8 @@ class Invoice extends Model
         'total',
         'status',
         'payment_mode',
+        'payment_mode_changed_at',
+        'payment_mode_changed_by',
         'created_by',
         'shift_id',
         'return_approval_status',
@@ -55,6 +57,7 @@ class Invoice extends Model
         return [
             'total' => 'float',
             'payment_mode' => PaymentMode::class,
+            'payment_mode_changed_at' => 'datetime',
             'return_approval_status' => ApprovalStatus::class,
             'return_reviewed_at' => 'datetime',
         ];

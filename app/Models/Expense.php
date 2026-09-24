@@ -37,6 +37,10 @@ class Expense extends Model
         'reviewed_by',
         'reviewed_at',
         'review_note',
+        'previous_name',
+        'previous_amount',
+        'edited_at',
+        'edited_by',
     ];
 
     /**
@@ -50,6 +54,8 @@ class Expense extends Model
             'amount' => 'float',
             'approval_status' => ApprovalStatus::class,
             'reviewed_at' => 'datetime',
+            'previous_amount' => 'float',
+            'edited_at' => 'datetime',
         ];
     }
 
@@ -67,6 +73,24 @@ class Expense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the user who last edited this expense.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
+    }
+
+    /**
+     * Determine whether the expense was changed after it was logged.
+     */
+    public function wasEdited(): bool
+    {
+        return $this->edited_at !== null && $this->previous_name !== null;
     }
 
     /**

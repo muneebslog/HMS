@@ -119,6 +119,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user is the CEO.
+     */
+    public function ceo(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Ceo,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

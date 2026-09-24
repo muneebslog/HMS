@@ -25,6 +25,7 @@ class RoleActingService
             UserRole::Indoor,
             UserRole::InchargeNurse,
             UserRole::LabTechnician,
+            UserRole::Ceo,
         ];
     }
 

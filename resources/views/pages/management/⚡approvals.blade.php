@@ -185,7 +185,7 @@ new #[Title('Approvals')] class extends Component
     #[Computed]
     public function pendingExpenses(): Collection
     {
-        return Expense::with(['user', 'shift.user'])
+        return Expense::with(['user', 'shift.user', 'editor'])
             ->where('approval_status', ApprovalStatus::Pending)
             ->latest()
             ->get();
@@ -364,8 +364,21 @@ new #[Title('Approvals')] class extends Component
                     <flux:table.rows>
                         @forelse ($this->pendingExpenses as $expense)
                             <flux:table.row wire:key="pending-expense-{{ $expense->id }}">
-                                <flux:table.cell>{{ $expense->name }}</flux:table.cell>
-                                <flux:table.cell>{{ number_format($expense->amount, 2) }}</flux:table.cell>
+                                <flux:table.cell>
+                                    {{ $expense->name }}
+                                    @if ($expense->wasEdited())
+                                        <div class="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
+                                            <flux:badge size="sm" color="amber">{{ __('Edited') }}</flux:badge>
+                                            {{ __('by :name at :time · was :old', ['name' => $expense->editor?->name ?? __('unknown'), 'time' => $expense->edited_at->format('Y-m-d H:i'), 'old' => $expense->previous_name]) }}
+                                        </div>
+                                    @endif
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    {{ number_format($expense->amount, 2) }}
+                                    @if ($expense->wasEdited() && (float) $expense->previous_amount !== (float) $expense->amount)
+                                        <div class="text-xs text-zinc-500 line-through">{{ number_format($expense->previous_amount, 2) }}</div>
+                                    @endif
+                                </flux:table.cell>
                                 <flux:table.cell>{{ $expense->shift?->user?->name ?? '-' }} · {{ $expense->shift?->opened_at?->format('Y-m-d') }}</flux:table.cell>
                                 <flux:table.cell>{{ $expense->user?->name ?? '-' }}</flux:table.cell>
                                 <flux:table.cell>{{ $expense->created_at->format('Y-m-d H:i') }}</flux:table.cell>

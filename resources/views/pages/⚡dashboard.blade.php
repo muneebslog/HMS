@@ -20,6 +20,10 @@ new #[Title('Dashboard')] class extends Component
             $this->redirect(route('doctor.portal'), navigate: true);
         }
 
+        if (auth()->user()?->isCeo()) {
+            $this->redirect(route('ceo.lab'), navigate: true);
+        }
+
         if (auth()->user()?->isLabTechnician()) {
             $this->redirect(route('lab.dashboard'), navigate: true);
         }

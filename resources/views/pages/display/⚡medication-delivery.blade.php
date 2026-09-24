@@ -3,6 +3,7 @@
 use App\Enums\DripLineStatus;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\StationType;
+use App\Models\LabInvoiceItem;
 use App\Models\MedicationOrder;
 use App\Models\QueueToken;
 use App\Models\ServiceQueue;
@@ -35,6 +36,10 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
     public bool $showPinModal = false;
 
     public ?string $pendingAction = null;
+
+    public ?int $pendingSampleInvoiceId = null;
+
+    public ?int $pendingSampleItemId = null;
 
     public function mount(HealthAidePinSession $pinSession): void
     {
@@ -280,6 +285,76 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             ?? QueueToken::with(['patient', 'serviceQueue.service', 'medicationOrder.drips'])->find($this->selectedTokenId);
     }
 
+    /**
+     * In-house lab samples waiting to be received, grouped by case (oldest first).
+     *
+     * @return Collection<int, Collection<int, LabInvoiceItem>>
+     */
+    #[Computed]
+    public function labSamples(): Collection
+    {
+        return LabInvoiceItem::query()
+            ->awaitingSample()
+            ->with(['labInvoice.patient', 'latestRetake'])
+            ->orderBy('lab_invoice_id')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('lab_invoice_id');
+    }
+
+    /**
+     * Ask for the aide's PIN (if needed), then mark one sample, or every sample of a case, received.
+     */
+    public function requestReceiveSamples(?int $labInvoiceId = null, ?int $itemId = null): void
+    {
+        if ($labInvoiceId === null && $itemId === null) {
+            return;
+        }
+
+        $this->pendingSampleInvoiceId = $labInvoiceId;
+        $this->pendingSampleItemId = $itemId;
+
+        $this->requirePinThen('receiveSamples');
+    }
+
+    /**
+     * Mark the chosen lab samples as received by the signed-in health aide.
+     */
+    public function receiveSamples(): void
+    {
+        $aide = app(HealthAidePinSession::class)->current();
+
+        if ($aide === null) {
+            $this->requirePinThen('receiveSamples');
+
+            return;
+        }
+
+        $labInvoiceId = $this->pendingSampleInvoiceId;
+        $itemId = $this->pendingSampleItemId;
+        $this->pendingSampleInvoiceId = null;
+        $this->pendingSampleItemId = null;
+
+        if ($labInvoiceId === null && $itemId === null) {
+            return;
+        }
+
+        $count = LabInvoiceItem::query()
+            ->awaitingSample()
+            ->when($itemId, fn ($query) => $query->whereKey($itemId))
+            ->when($labInvoiceId, fn ($query) => $query->where('lab_invoice_id', $labInvoiceId))
+            ->update([
+                'sample_received_at' => now(),
+                'sample_received_by' => null,
+                'sample_received_by_health_aide_id' => $aide->id,
+            ]);
+
+        app(StationSessionService::class)->bump(StationType::Er, $aide);
+        unset($this->labSamples);
+
+        Flux::toast(variant: 'success', text: trans_choice(':count lab sample received.|:count lab samples received.', $count, ['count' => $count]));
+    }
+
     #[Computed]
     public function currentAideName(): ?string
     {
@@ -385,6 +460,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             $this->deliverNext();
         } elseif ($action === 'completeService') {
             $this->completeService();
+        } elseif ($action === 'receiveSamples') {
+            $this->receiveSamples();
         }
     }
 
@@ -565,6 +642,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 $this->deliverNext();
             } elseif ($action === 'completeService') {
                 $this->completeService();
+            } elseif ($action === 'receiveSamples') {
+                $this->receiveSamples();
             }
 
             return;
@@ -612,6 +691,66 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                 ];
                 $totalPending = $this->queueItems->count();
             @endphp
+
+            @if ($this->labSamples->isNotEmpty())
+                <section class="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <flux:heading level="2" size="md" class="flex items-center gap-2">
+                                <flux:icon.beaker class="size-5 text-amber-400" />
+                                {{ __('Lab samples to receive') }}
+                            </flux:heading>
+                            <flux:text class="text-zinc-400">{{ __('Tap when the sample is in your hand.') }}</flux:text>
+                        </div>
+                        <flux:badge color="amber" size="lg">{{ $this->labSamples->flatten()->count() }}</flux:badge>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        @foreach ($this->labSamples as $labInvoiceId => $samples)
+                            @php $labCase = $samples->first()->labInvoice; @endphp
+                            <div wire:key="er-lab-case-{{ $labInvoiceId }}" class="flex flex-col gap-2 rounded-md bg-zinc-900 p-3 ring-1 ring-zinc-800">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-base font-semibold uppercase">{{ $labCase->patient?->name ?? __('Unknown') }}</p>
+                                        <p class="text-xs text-zinc-500">
+                                            <span class="font-mono">{{ $labCase->invoice_number }}</span> · {{ $labCase->created_at->format('g:i A') }}
+                                        </p>
+                                    </div>
+                                    @if ($samples->count() > 1)
+                                        <flux:button size="sm" variant="primary" icon="check" wire:click="requestReceiveSamples({{ $labInvoiceId }})">
+                                            {{ __('All :count', ['count' => $samples->count()]) }}
+                                        </flux:button>
+                                    @endif
+                                </div>
+
+                                <div class="flex flex-col gap-1.5">
+                                    @foreach ($samples as $sample)
+                                        <button
+                                            type="button"
+                                            wire:key="er-lab-sample-{{ $sample->id }}"
+                                            wire:click="requestReceiveSamples(null, {{ $sample->id }})"
+                                            class="flex cursor-pointer items-center justify-between gap-2 rounded-md bg-zinc-800 px-3 py-2 text-left transition hover:bg-emerald-600/30 active:scale-[0.99]"
+                                        >
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-sm font-medium">{{ trim($sample->test_name) }}</span>
+                                                <span class="block truncate text-xs text-amber-300">
+                                                    {{ $sample->sample ?: __('Sample not set') }}
+                                                    @if ($sample->latestRetake)
+                                                        · {{ __('Retake') }}
+                                                    @endif
+                                                </span>
+                                            </span>
+                                            <span class="flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-400">
+                                                <flux:icon.check variant="micro" /> {{ __('Received') }}
+                                            </span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
 
             <div class="flex items-center justify-between">
                 <flux:heading level="2" size="md">{{ __('Pending ER work') }}</flux:heading>

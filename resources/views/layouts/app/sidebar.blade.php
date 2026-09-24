@@ -55,6 +55,12 @@
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
 
+                    @pageAccess('ceo.lab')
+                        <flux:sidebar.item icon="presentation-chart-line" :href="route('ceo.lab')" :current="request()->routeIs('ceo.lab')" wire:navigate>
+                            {{ __('Lab Overview') }}
+                        </flux:sidebar.item>
+                    @endpageAccess
+
                     @unless ($user->isAdmin())
                         @pageAccess('doctor.portal')
                             <flux:sidebar.item icon="user-circle" :href="route('doctor.portal')" :current="request()->routeIs('doctor.portal')" wire:navigate>

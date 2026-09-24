@@ -25,6 +25,10 @@ class LoginResponse implements LoginResponseContract
             return redirect()->to(route('doctor.portal'));
         }
 
+        if ($user !== null && $user->role === UserRole::Ceo) {
+            return redirect()->to(route('ceo.lab'));
+        }
+
         if ($user !== null && $user->role === UserRole::LabTechnician) {
             return redirect()->to(route('lab.dashboard'));
         }

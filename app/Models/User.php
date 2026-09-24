@@ -154,6 +154,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is the CEO.
+     */
+    public function isCeo(): bool
+    {
+        return $this->effectiveRole() === UserRole::Ceo;
+    }
+
+    /**
      * Determine whether the user has only the default user role.
      */
     public function isUser(): bool

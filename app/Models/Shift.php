@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMode;
 use Database\Factories\ShiftFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -127,31 +128,54 @@ class Shift extends Model
     }
 
     /**
-     * Get the total walk-in invoice sales for this shift.
+     * Get the total walk-in invoice sales for this shift, optionally for one payment mode.
      */
-    public function totalWalkInSales(): float
+    public function totalWalkInSales(?PaymentMode $mode = null): float
     {
-        return $this->invoices()
+        return (float) ($this->invoices()
             ->whereNotIn('status', ['cancelled', 'returned'])
-            ->sum('total') ?: 0.0;
+            ->when($mode, fn ($query) => $query->where('payment_mode', $mode->value))
+            ->sum('total') ?: 0.0);
     }
 
     /**
-     * Get the total lab invoice sales for this shift.
+     * Get the total lab invoice sales for this shift, optionally for one payment mode.
      */
-    public function totalLabSales(): float
+    public function totalLabSales(?PaymentMode $mode = null): float
     {
-        return $this->labInvoices()
+        return (float) ($this->labInvoices()
             ->whereNotIn('status', ['cancelled', 'returned'])
-            ->sum('total') ?: 0.0;
+            ->when($mode, fn ($query) => $query->where('payment_mode', $mode->value))
+            ->sum('total') ?: 0.0);
     }
 
     /**
-     * Get the total procedure payments for this shift.
+     * Get the total procedure payments for this shift, optionally for one payment mode.
      */
-    public function totalProcedureSales(): float
+    public function totalProcedureSales(?PaymentMode $mode = null): float
     {
-        return (float) ($this->procedurePayments()->active()->sum('amount') ?: 0.0);
+        return (float) ($this->procedurePayments()
+            ->active()
+            ->when($mode, fn ($query) => $query->where('mode', $mode->value))
+            ->sum('amount') ?: 0.0);
+    }
+
+    /**
+     * Get the sales paid online (bank transfer, wallet...) in this shift. This money is not in the drawer.
+     */
+    public function totalOnlineSales(): float
+    {
+        return $this->totalWalkInSales(PaymentMode::Online)
+            + $this->totalLabSales(PaymentMode::Online)
+            + $this->totalProcedureSales(PaymentMode::Online);
+    }
+
+    /**
+     * Get the sales paid in cash in this shift.
+     */
+    public function totalCashSales(): float
+    {
+        return $this->totalSales() - $this->totalOnlineSales();
     }
 
     /**
@@ -179,12 +203,12 @@ class Shift extends Model
     }
 
     /**
-     * Get the expected cash for this shift.
+     * Get the cash expected in the drawer for this shift (online payments are not in the drawer).
      */
     public function expectedCash(): float
     {
         return $this->opening_balance
-            + $this->totalSales()
+            + $this->totalCashSales()
             - $this->totalDailyPayouts()
             - $this->totalExpenses();
     }

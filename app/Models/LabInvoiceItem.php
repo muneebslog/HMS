@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OutgoingSampleStatus;
+use Carbon\CarbonImmutable;
 use Database\Factories\LabInvoiceItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,7 @@ class LabInvoiceItem extends Model
         'is_in_house',
         'sample_received_at',
         'sample_received_by',
+        'sample_received_by_health_aide_id',
         'outgoing_status',
         'asked_at',
         'asked_by',
@@ -202,6 +204,25 @@ class LabInvoiceItem extends Model
     }
 
     /**
+     * When the result was promised, from the test's "time required" ("Same day", "Next day",
+     * "After 3 days", or just "2"): the end of that day, and never less than two hours after billing.
+     */
+    public function dueAt(): CarbonImmutable
+    {
+        $billedAt = CarbonImmutable::parse($this->created_at);
+        $timeRequired = strtolower(trim((string) $this->time_required));
+
+        $days = match (true) {
+            $timeRequired === '' || str_contains($timeRequired, 'same') => 0,
+            str_contains($timeRequired, 'next') => 1,
+            (bool) preg_match('/(\d+)/', $timeRequired, $matches) => (int) $matches[1],
+            default => 1,
+        };
+
+        return $billedAt->addDays($days)->endOfDay()->max($billedAt->addHours(2));
+    }
+
+    /**
      * Get the lab user who received this test's sample.
      *
      * @return BelongsTo<User, $this>
@@ -209,6 +230,28 @@ class LabInvoiceItem extends Model
     public function sampleReceivedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sample_received_by');
+    }
+
+    /**
+     * Get the health aide who received this test's sample at the ER Station.
+     *
+     * @return BelongsTo<HealthAide, $this>
+     */
+    public function sampleReceivedByHealthAide(): BelongsTo
+    {
+        return $this->belongsTo(HealthAide::class, 'sample_received_by_health_aide_id');
+    }
+
+    /**
+     * Name of whoever received the sample: a lab user, or a health aide at the ER Station.
+     */
+    public function sampleReceiverName(): ?string
+    {
+        if ($this->sample_received_by_health_aide_id !== null) {
+            return $this->sampleReceivedByHealthAide?->name;
+        }
+
+        return $this->sampleReceivedByUser?->name;
     }
 
     /**

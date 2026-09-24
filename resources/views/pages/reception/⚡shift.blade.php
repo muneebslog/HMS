@@ -1,8 +1,11 @@
 <?php
 
+use App\Actions\ChangePaymentMode;
 use App\Actions\CreatePrintJob;
 use App\Actions\MarkInvoiceReturn;
+use App\Actions\UpdateExpense;
 use App\Enums\ApprovalStatus;
+use App\Enums\PaymentMode;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\LabInvoice;
@@ -31,6 +34,14 @@ new #[Title('Shift')] class extends Component
 
     #[Validate]
     public string $expenseAmount = '';
+
+    public bool $showEditExpenseModal = false;
+
+    public ?int $editingExpenseId = null;
+
+    public string $editExpenseName = '';
+
+    public string $editExpenseAmount = '';
 
     public ?int $viewingInvoiceId = null;
 
@@ -178,6 +189,100 @@ new #[Title('Shift')] class extends Component
         unset($this->activeShift);
 
         Flux::toast(variant: 'success', text: __('Expense added. Pending management approval.'));
+    }
+
+    /**
+     * Switch a walk-in or lab invoice of the open shift between cash and online.
+     */
+    public function setPaymentMode(int $id, string $type, string $mode): void
+    {
+        $paymentMode = PaymentMode::tryFrom($mode);
+        $invoice = match ($type) {
+            'walkin' => $this->invoices->firstWhere('id', $id),
+            'lab' => $this->labInvoices->firstWhere('id', $id),
+            default => null,
+        };
+
+        if ($paymentMode === null || $invoice === null) {
+            Flux::toast(variant: 'danger', text: __('Invoice not found in this shift.'));
+
+            return;
+        }
+
+        try {
+            app(ChangePaymentMode::class)->handle(auth()->user(), $invoice, $paymentMode);
+        } catch (\InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        unset($this->invoices, $this->labInvoices, $this->activeShift);
+
+        Flux::toast(variant: 'success', text: __('Invoice :number marked as :mode.', ['number' => $invoice->invoice_number, 'mode' => $paymentMode->label()]));
+    }
+
+    /**
+     * Open the edit form for an expense in the open shift.
+     */
+    public function editExpense(int $expenseId): void
+    {
+        $expense = $this->shiftExpenses->firstWhere('id', $expenseId);
+
+        if ($expense === null) {
+            Flux::toast(variant: 'danger', text: __('Only expenses in the open shift can be edited.'));
+
+            return;
+        }
+
+        $this->editingExpenseId = $expense->id;
+        $this->editExpenseName = $expense->name;
+        $this->editExpenseAmount = (string) $expense->amount;
+        $this->resetValidation();
+        $this->showEditExpenseModal = true;
+    }
+
+    /**
+     * Save the edited expense. It goes back to management for approval.
+     */
+    public function updateExpense(): void
+    {
+        $validated = $this->validate([
+            'editExpenseName' => ['required', 'string', 'max:255'],
+            'editExpenseAmount' => ['required', 'numeric', 'min:0'],
+        ], [], [
+            'editExpenseName' => __('expense name'),
+            'editExpenseAmount' => __('amount'),
+        ]);
+
+        $expense = $this->shiftExpenses->firstWhere('id', $this->editingExpenseId);
+
+        if ($expense === null) {
+            $this->showEditExpenseModal = false;
+            Flux::toast(variant: 'danger', text: __('Only expenses in the open shift can be edited.'));
+
+            return;
+        }
+
+        $unchanged = $expense->name === trim($validated['editExpenseName'])
+            && (float) $expense->amount === round((float) $validated['editExpenseAmount'], 2);
+
+        try {
+            app(UpdateExpense::class)->handle(auth()->user(), $expense, $validated['editExpenseName'], (float) $validated['editExpenseAmount']);
+        } catch (\InvalidArgumentException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        $this->showEditExpenseModal = false;
+        $this->editingExpenseId = null;
+        unset($this->shiftExpenses, $this->activeShift);
+
+        Flux::toast(
+            variant: 'success',
+            text: $unchanged ? __('Nothing changed.') : __('Expense updated. Sent back for approval.'),
+        );
     }
 
     /**
@@ -529,7 +634,30 @@ new #[Title('Shift')] class extends Component
                                         <div class="text-xs text-zinc-500">{{ $invoice->patient->mrn ?? __('No MRN') }}</div>
                                     </flux:table.cell>
                                     <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
-                                    <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if (in_array($invoice->status, ['returned', 'cancelled'], true))
+                                            {{ $invoice->payment_mode?->label() ?? '-' }}
+                                        @else
+                                            <div class="inline-flex overflow-hidden rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700">
+                                                @foreach (PaymentMode::cases() as $mode)
+                                                    <button
+                                                        type="button"
+                                                        wire:click="setPaymentMode({{ $invoice->id }}, 'walkin', '{{ $mode->value }}')"
+                                                        @if ($invoice->payment_mode !== $mode) wire:confirm="{{ __('Mark invoice :number as :mode?', ['number' => $invoice->invoice_number, 'mode' => $mode->label()]) }}" @endif
+                                                        @class([
+                                                            'cursor-pointer px-2 py-0.5 text-xs font-medium transition',
+                                                            'bg-emerald-600 text-white' => $invoice->payment_mode === $mode && $mode === PaymentMode::Cash,
+                                                            'bg-sky-600 text-white' => $invoice->payment_mode === $mode && $mode === PaymentMode::Online,
+                                                            'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' => $invoice->payment_mode !== $mode,
+                                                        ])
+                                                    >{{ $mode->label() }}</button>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        @if ($invoice->payment_mode_changed_at)
+                                            <div class="mt-0.5 text-[11px] text-zinc-500">{{ __('changed :time', ['time' => $invoice->payment_mode_changed_at->format('H:i')]) }}</div>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>
                                         @if ($invoice->status === 'returned')
                                             @if ($invoice->return_approval_status === ApprovalStatus::Pending)
@@ -603,7 +731,30 @@ new #[Title('Shift')] class extends Component
                                         <div class="text-xs text-zinc-500">{{ $invoice->patient->mrn ?? __('No MRN') }}</div>
                                     </flux:table.cell>
                                     <flux:table.cell>{{ number_format($invoice->total, 2) }}</flux:table.cell>
-                                    <flux:table.cell>{{ $invoice->payment_mode?->label() ?? '-' }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        @if (in_array($invoice->status, ['returned', 'cancelled'], true))
+                                            {{ $invoice->payment_mode?->label() ?? '-' }}
+                                        @else
+                                            <div class="inline-flex overflow-hidden rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700">
+                                                @foreach (PaymentMode::cases() as $mode)
+                                                    <button
+                                                        type="button"
+                                                        wire:click="setPaymentMode({{ $invoice->id }}, 'lab', '{{ $mode->value }}')"
+                                                        @if ($invoice->payment_mode !== $mode) wire:confirm="{{ __('Mark invoice :number as :mode?', ['number' => $invoice->invoice_number, 'mode' => $mode->label()]) }}" @endif
+                                                        @class([
+                                                            'cursor-pointer px-2 py-0.5 text-xs font-medium transition',
+                                                            'bg-emerald-600 text-white' => $invoice->payment_mode === $mode && $mode === PaymentMode::Cash,
+                                                            'bg-sky-600 text-white' => $invoice->payment_mode === $mode && $mode === PaymentMode::Online,
+                                                            'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800' => $invoice->payment_mode !== $mode,
+                                                        ])
+                                                    >{{ $mode->label() }}</button>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        @if ($invoice->payment_mode_changed_at)
+                                            <div class="mt-0.5 text-[11px] text-zinc-500">{{ __('changed :time', ['time' => $invoice->payment_mode_changed_at->format('H:i')]) }}</div>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>
                                         @if ($invoice->status === 'returned')
                                             @if ($invoice->return_approval_status === ApprovalStatus::Pending)
@@ -775,6 +926,7 @@ new #[Title('Shift')] class extends Component
                                         <th scope="col" class="hidden px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500 sm:table-cell">
                                             {{ __('Added') }}
                                         </th>
+                                        <th scope="col" class="px-4 py-3"><span class="sr-only">{{ __('Edit') }}</span></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-zinc-200 bg-white dark:divide-zinc-700 dark:bg-zinc-900">
@@ -782,6 +934,11 @@ new #[Title('Shift')] class extends Component
                                         <tr wire:key="expense-{{ $expense->id }}">
                                             <td class="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
                                                 {{ $expense->name }}
+                                                @if ($expense->wasEdited())
+                                                    <div class="text-xs font-normal text-zinc-500">
+                                                        {{ __('Edited :time · was :name, :amount', ['time' => $expense->edited_at->format('H:i'), 'name' => $expense->previous_name, 'amount' => number_format($expense->previous_amount, 2)]) }}
+                                                    </div>
+                                                @endif
                                             </td>
                                             <td class="px-4 py-3 text-right text-sm text-zinc-700 dark:text-zinc-300">
                                                 {{ number_format($expense->amount, 2) }}
@@ -798,6 +955,9 @@ new #[Title('Shift')] class extends Component
                                             <td class="hidden px-4 py-3 text-right text-sm text-zinc-500 sm:table-cell">
                                                 {{ $expense->created_at->format('Y-m-d H:i') }}
                                             </td>
+                                            <td class="px-4 py-3 text-right">
+                                                <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="editExpense({{ $expense->id }})">{{ __('Edit') }}</flux:button>
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -811,6 +971,7 @@ new #[Title('Shift')] class extends Component
                                         </td>
                                         <td></td>
                                         <td class="hidden sm:table-cell"></td>
+                                        <td></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -986,6 +1147,21 @@ new #[Title('Shift')] class extends Component
                 <flux:button type="submit" variant="danger" icon="arrow-uturn-left">
                     {{ __('Return') }}
                 </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showEditExpenseModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('Edit expense') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">{{ __('Saving sends the expense back to management for approval.') }}</flux:text>
+
+        <form wire:submit="updateExpense" class="mt-6 space-y-4">
+            <flux:input wire:model="editExpenseName" :label="__('Expense Name')" required />
+            <flux:input wire:model="editExpenseAmount" :label="__('Amount')" type="number" step="0.01" min="0" required />
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showEditExpenseModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Save & send for approval') }}</flux:button>
             </div>
         </form>
     </flux:modal>

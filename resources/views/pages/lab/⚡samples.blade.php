@@ -67,8 +67,8 @@ new #[Title('Sample Receiving')] class extends Component
         return LabInvoiceItem::query()
             ->where('is_in_house', true)
             ->whereDate('sample_received_at', today())
-            ->whereNotNull('sample_received_by')
-            ->with(['labInvoice.patient', 'sampleReceivedByUser'])
+            ->where(fn ($query) => $query->whereNotNull('sample_received_by')->orWhereNotNull('sample_received_by_health_aide_id'))
+            ->with(['labInvoice.patient', 'sampleReceivedByUser', 'sampleReceivedByHealthAide'])
             ->latest('sample_received_at')
             ->get();
     }
@@ -88,7 +88,7 @@ new #[Title('Sample Receiving')] class extends Component
             ->awaitingSample()
             ->when($itemId, fn ($query) => $query->whereKey($itemId))
             ->when($labInvoiceId, fn ($query) => $query->where('lab_invoice_id', $labInvoiceId))
-            ->update(['sample_received_at' => now(), 'sample_received_by' => auth()->id()]);
+            ->update(['sample_received_at' => now(), 'sample_received_by' => auth()->id(), 'sample_received_by_health_aide_id' => null]);
 
         $this->refreshLists();
 
@@ -145,7 +145,7 @@ new #[Title('Sample Receiving')] class extends Component
                 'requested_by' => auth()->id(),
             ]);
 
-            $item->update(['sample_received_at' => null, 'sample_received_by' => null]);
+            $item->update(['sample_received_at' => null, 'sample_received_by' => null, 'sample_received_by_health_aide_id' => null]);
         });
 
         $this->showRetakeModal = false;
@@ -284,7 +284,7 @@ new #[Title('Sample Receiving')] class extends Component
                                 <div>{{ trim($item->test_name) }} @if ($item->sample)<span class="text-zinc-500">· {{ $item->sample }}</span>@endif</div>
                             </div>
                             <div class="flex items-center gap-3">
-                                <span class="text-xs text-zinc-500">{{ __(':time by :name', ['time' => $item->sample_received_at->format('g:i A'), 'name' => $item->sampleReceivedByUser?->name ?? __('unknown')]) }}</span>
+                                <span class="text-xs text-zinc-500">{{ __(':time by :name', ['time' => $item->sample_received_at->format('g:i A'), 'name' => $item->sampleReceiverName() ?? __('unknown')]) }}</span>
                                 @unless ($item->results_completed_at)
                                     <flux:button size="xs" variant="ghost" icon="arrow-path" wire:click="openRetake({{ $item->id }})">{{ __('Retake') }}</flux:button>
                                 @endunless

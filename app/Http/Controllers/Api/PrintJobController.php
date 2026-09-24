@@ -96,6 +96,8 @@ class PrintJobController extends Controller
                     'total_lab_sales' => $shift->totalLabSales(),
                     'total_procedure_sales' => $shift->totalProcedureSales(),
                     'total_sales' => $shift->totalSales(),
+                    'total_online_sales' => $shift->totalOnlineSales(),
+                    'total_cash_sales' => $shift->totalCashSales(),
                     'total_expenses' => $shift->totalExpenses(),
                     'total_daily_payouts' => $shift->totalDailyPayouts(),
                     'expected_cash' => $shift->expectedCash(),
