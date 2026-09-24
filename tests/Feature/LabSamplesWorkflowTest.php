@@ -252,3 +252,45 @@ test('the migration treats existing in-house tests as received so the queue star
     expect(DB::table('lab_invoice_items')->where('is_in_house', true)->whereNull('sample_received_at')->count())->toBe(0)
         ->and(DB::table('lab_invoice_items')->where('is_in_house', false)->whereNotNull('sample_received_at')->count())->toBe(0);
 });
+
+test('the lab can ask for a new sample straight from the case page', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->assertSee('Retake')
+        ->call('openRetake', $this->cbc->id)
+        ->assertSet('retakeReason', 'Sample not received')
+        ->call('requestRetake')
+        ->assertHasNoErrors()
+        ->assertSet('showRetakeModal', false)
+        ->assertSee('Retake requested: Sample not received');
+
+    expect(LabSampleRetake::sole())
+        ->lab_invoice_item_id->toBe($this->cbc->id)
+        ->requested_by->toBe($this->labTechnician->id);
+
+    Livewire::actingAs($this->receptionist)
+        ->test('pages::reception.lab-samples')
+        ->set('tab', 'retakes')
+        ->assertSee('CBC')
+        ->assertSee('Sample not received');
+});
+
+test('reception sees no retake button on the case page and cannot request one', function () {
+    Livewire::actingAs($this->receptionist)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->assertDontSeeHtml('openRetake(')
+        ->call('openRetake', $this->cbc->id)
+        ->assertForbidden();
+});
+
+test('a retake cannot be asked for a test from another case', function () {
+    $other = LabInvoiceItem::factory()->inHouse()->create();
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->set('retakeItemId', $other->id)
+        ->set('retakeReason', 'Clotted')
+        ->call('requestRetake');
+
+    expect(LabSampleRetake::count())->toBe(0);
+});

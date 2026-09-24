@@ -1,10 +1,12 @@
 <?php
 
+use App\Actions\RequestSampleRetake;
 use App\Enums\LabFieldType;
 use App\Enums\OutgoingSampleStatus;
 use App\Models\LabField;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
+use App\Models\LabSampleRetake;
 use App\Services\LabReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,14 @@ new #[Title('Lab Case')] class extends Component
     public array $resultValues = [];
 
     public string $resultComment = '';
+
+    public bool $showRetakeModal = false;
+
+    public ?int $retakeItemId = null;
+
+    public string $retakeReason = '';
+
+    public string $retakeOtherReason = '';
 
     /**
      * Load everything the case page shows up front.
@@ -110,6 +120,82 @@ new #[Title('Lab Case')] class extends Component
     public function canManageResults(): bool
     {
         return auth()->user()?->canAccessRoute('lab.results.entry') ?? false;
+    }
+
+    /**
+     * Whether the current user may ask for a sample retake (the Sample Receiving permission).
+     */
+    #[Computed]
+    public function canRequestRetake(): bool
+    {
+        return auth()->user()?->canAccessRoute('lab.samples') ?? false;
+    }
+
+    /**
+     * Whether a retake can be asked for this test: in-house, not finished, no retake already waiting.
+     */
+    public function retakeAllowedFor(LabInvoiceItem $item): bool
+    {
+        return $this->canRequestRetake
+            && $item->is_in_house
+            && $item->results_completed_at === null
+            && ! $item->hasOpenRetake()
+            && ! $this->labInvoice->isReturned();
+    }
+
+    /**
+     * Open the retake form for one of this case's tests.
+     */
+    public function openRetake(int $itemId): void
+    {
+        abort_unless($this->canRequestRetake, 403);
+
+        $this->retakeItemId = $itemId;
+        $this->retakeReason = $this->items->firstWhere('id', $itemId)?->sample_received_at === null ? 'Sample not received' : '';
+        $this->retakeOtherReason = '';
+        $this->resetValidation();
+        $this->showRetakeModal = true;
+    }
+
+    /**
+     * Ask reception to call the patient back for a new sample of this test.
+     */
+    public function requestRetake(): void
+    {
+        abort_unless($this->canRequestRetake, 403);
+
+        $this->validate([
+            'retakeReason' => ['required', 'string', Rule::in([...LabSampleRetake::REASONS, 'other'])],
+            'retakeOtherReason' => ['required_if:retakeReason,other', 'nullable', 'string', 'max:255'],
+        ], [], [
+            'retakeReason' => __('reason'),
+            'retakeOtherReason' => __('reason'),
+        ]);
+
+        $belongsToCase = $this->labInvoice->items()->whereKey($this->retakeItemId)->exists();
+
+        try {
+            if (! $belongsToCase) {
+                throw new \InvalidArgumentException(__('A retake cannot be requested for this test.'));
+            }
+
+            app(RequestSampleRetake::class)->handle(
+                auth()->user(),
+                (int) $this->retakeItemId,
+                $this->retakeReason === 'other' ? $this->retakeOtherReason : $this->retakeReason,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            $this->showRetakeModal = false;
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        $this->showRetakeModal = false;
+        $this->retakeItemId = null;
+        unset($this->items);
+
+        Flux::toast(variant: 'success', text: __('Retake requested. Reception will call the patient.'));
     }
 
     /**
@@ -443,6 +529,12 @@ new #[Title('Lab Case')] class extends Component
                                         </flux:button>
                                     @endif
 
+                                    @if ($this->retakeAllowedFor($item))
+                                        <flux:button size="sm" variant="ghost" icon="arrow-path" wire:click="openRetake({{ $item->id }})">
+                                            {{ __('Retake') }}
+                                        </flux:button>
+                                    @endif
+
                                     @if ($this->canEnterResults($item))
                                         <flux:button
                                             size="sm"
@@ -572,5 +664,28 @@ new #[Title('Lab Case')] class extends Component
                 </div>
             </form>
         @endif
+    </flux:modal>
+
+    <flux:modal wire:model="showRetakeModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('Ask for a new sample') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">{{ __('Reception will call the patient back and print a no-charge slip when they come.') }}</flux:text>
+
+        <form wire:submit="requestRetake" class="mt-6 space-y-4">
+            <flux:radio.group wire:model.live="retakeReason" :label="__('Why?')">
+                @foreach (LabSampleRetake::REASONS as $reason)
+                    <flux:radio :value="$reason" :label="__($reason)" />
+                @endforeach
+                <flux:radio value="other" :label="__('Other')" />
+            </flux:radio.group>
+
+            @if ($retakeReason === 'other')
+                <flux:input wire:model="retakeOtherReason" :label="__('Reason')" />
+            @endif
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showRetakeModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button type="submit" variant="danger" icon="arrow-path">{{ __('Ask for retake') }}</flux:button>
+            </div>
+        </form>
     </flux:modal>
 </div>

@@ -1,10 +1,10 @@
 <?php
 
+use App\Actions\RequestSampleRetake;
 use App\Models\LabInvoiceItem;
 use App\Models\LabSampleRetake;
 use Flux\Flux;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -125,28 +125,18 @@ new #[Title('Sample Receiving')] class extends Component
             'retakeOtherReason' => __('reason'),
         ]);
 
-        $item = LabInvoiceItem::query()
-            ->where('is_in_house', true)
-            ->whereNull('results_completed_at')
-            ->whereDoesntHave('retakes', fn ($retakes) => $retakes->open())
-            ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'))
-            ->find($this->retakeItemId);
-
-        if (! $item) {
+        try {
+            app(RequestSampleRetake::class)->handle(
+                auth()->user(),
+                (int) $this->retakeItemId,
+                $this->retakeReason === 'other' ? $this->retakeOtherReason : $this->retakeReason,
+            );
+        } catch (InvalidArgumentException $exception) {
             $this->showRetakeModal = false;
-            Flux::toast(variant: 'danger', text: __('A retake cannot be requested for this test.'));
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
-
-        DB::transaction(function () use ($item) {
-            $item->retakes()->create([
-                'reason' => $this->retakeReason === 'other' ? trim($this->retakeOtherReason) : $this->retakeReason,
-                'requested_by' => auth()->id(),
-            ]);
-
-            $item->update(['sample_received_at' => null, 'sample_received_by' => null, 'sample_received_by_health_aide_id' => null]);
-        });
 
         $this->showRetakeModal = false;
         $this->retakeItemId = null;
