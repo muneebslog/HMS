@@ -76,7 +76,7 @@ test('doctor can dismiss a patient from the medication list without touching the
         ->test('pages::doctor.medication')
         ->assertSee($patient->name)
         ->assertSeeHtml('wire:click="dismissFromQueue('.$token->id.')"')
-        ->assertSeeHtml('wire:confirm="'.__('Dismiss :name from the medication list?', ['name' => $patient->name]).'"')
+        ->assertDontSeeHtml('wire:confirm')
         ->call('dismissFromQueue', $token->id)
         ->assertDontSee($patient->name)
         ->call('selectToken', $token->id)

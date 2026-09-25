@@ -633,7 +633,7 @@ new #[Title('Medication')] class extends Component
 
         unset($this->queue);
 
-        Flux::toast(text: __(':name dismissed.', ['name' => $token->patient?->name ?? __('Patient')]));
+        Flux::toast(variant: 'success', text: __(':name dismissed.', ['name' => $token->patient?->name ?? __('Patient')]));
     }
 
     /**
@@ -2226,7 +2226,6 @@ new #[Title('Medication')] class extends Component
                         aria-label="{{ __('Dismiss :name', ['name' => $token->patient?->name ?? __('patient')]) }}"
                         title="{{ __('Dismiss') }}"
                         wire:click="dismissFromQueue({{ $token->id }})"
-                        wire:confirm="{{ __('Dismiss :name from the medication list?', ['name' => $token->patient?->name ?? __('this patient')]) }}"
                     >
                         <flux:icon name="x-mark" variant="mini" class="size-5" />
                     </button>
