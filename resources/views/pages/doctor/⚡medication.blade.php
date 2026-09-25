@@ -2467,15 +2467,15 @@ new #[Title('Medication')] class extends Component
                                 </flux:select>
                             </div>
                         @endif
-                        <div class="w-36" data-nav-field>
+                        <div class="w-16" data-nav-field>
                             <flux:input
                                 wire:model.live.blur="suggestedPrice"
                                 type="text"
                                 inputmode="text"
                                 autocomplete="off"
-                                size="sm"
+                                size="xs"
+                                class:input="px-1.5! text-xs"
                                 aria-label="{{ __('Drip charge') }}"
-                                placeholder="{{ __('Drip charge') }}"
                                 title="{{ __('z = 100, y = 50. 12z = 1200, 12zy = 1250') }}"
                             />
                         </div>
