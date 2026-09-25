@@ -927,6 +927,64 @@ test('typed drip input builds drips with additives as badges', function () {
         ->and($drips[0]['drip_base_id'])->toBe($provas->id);
 });
 
+test('doctor can set child doses for a drip and its injections', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);
+    $ceftriaxone = Injection::factory()->create(['name' => 'Inj. Ceftriaxone 1g']);
+    $onset = Injection::factory()->create(['name' => 'Inj. Onset']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('addDripFromInput', $ringer->id)
+        ->call('addDripAdditiveFromInput', (string) $ceftriaxone->id)
+        ->call('addDripAdditiveFromInput', (string) $onset->id)
+        ->assertSeeHtml('wire:click="openDoseModal(0)"')
+        ->call('openDoseModal', 0)
+        ->assertSet('showDoseModal', true)
+        ->assertSet('doseDripIndex', 0)
+        ->assertSeeHtml('wire:model="dripLines.0.dose"')
+        ->assertSeeHtml('wire:model="dripLines.0.additives.0.dose"')
+        ->set('dripLines.0.dose', ' 330ml ')
+        ->set('dripLines.0.additives.0.dose', '550mg')
+        ->call('closeDoseModal')
+        ->assertSet('showDoseModal', false)
+        ->assertSee('· 330ml')
+        ->assertSee('· 550mg')
+        ->set('complaintOrDiagnosis', 'Gastroenteritis')
+        ->call('previewOrder')
+        ->assertHasNoErrors();
+
+    expect($component->get('orderPreview.drips'))->toBe([[
+        'name' => 'R/L - 500 — 330ml',
+        'additives' => [['name' => 'Inj. Ceftriaxone 1g — 550mg'], ['name' => 'Inj. Onset']],
+    ]]);
+
+    $component->call('save')->assertHasNoErrors();
+
+    $drip = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail()->drips()->with('additives')->sole();
+
+    expect($drip->dose)->toBe('330ml')
+        ->and($drip->displayName())->toBe('R/L - 500 — 330ml')
+        ->and($drip->additives->pluck('dose')->all())->toBe(['550mg', null])
+        ->and($drip->additives->first()->displayName())->toBe('Inj. Ceftriaxone 1g — 550mg');
+
+    $nextToken = QueueToken::factory()->create([
+        'service_queue_id' => $token->service_queue_id,
+        'patient_id' => $patient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $nextToken->id)
+        ->call('repeatOrder', $drip->medication_order_id)
+        ->assertSet('dripLines.0.dose', '330ml')
+        ->assertSet('dripLines.0.additives.0.dose', '550mg');
+});
+
 test('typed drip input accepts a drip that is not in the catalog', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);

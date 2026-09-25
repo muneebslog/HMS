@@ -16,7 +16,16 @@ class MedicationOrderDripAdditive extends Model
         'medication_order_drip_id',
         'injection_id',
         'name',
+        'dose',
     ];
+
+    /**
+     * The additive name with its dose, when the doctor gave one (usually for children).
+     */
+    public function displayName(): string
+    {
+        return filled($this->dose) ? $this->name.' — '.$this->dose : $this->name;
+    }
 
     /**
      * @return BelongsTo<MedicationOrderDrip, $this>

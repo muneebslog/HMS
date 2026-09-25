@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\MedicationOrderStatus;
 use App\Models\MedicationOrder;
 use App\Models\MedicationOrderDrip;
+use App\Models\MedicationOrderDripAdditive;
 use App\Models\MedicationOrderInjection;
 use App\Models\MedicationOrderMedicine;
 use App\Models\Shift;
@@ -176,10 +177,12 @@ class ShiftOrdersExportService
 
     private function formatDrip(MedicationOrderDrip $drip): string
     {
-        $label = $drip->name;
+        $label = $drip->displayName();
 
         if ($drip->additives->isNotEmpty()) {
-            $additives = $drip->additives->pluck('name')->implode(', ');
+            $additives = $drip->additives
+                ->map(fn (MedicationOrderDripAdditive $additive): string => $additive->displayName())
+                ->implode(', ');
             $label .= ' (+'.$additives.')';
         }
 

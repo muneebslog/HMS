@@ -410,9 +410,9 @@ new #[Title('MR Lookup')] class extends Component
 
                                             @foreach ($order->drips as $drip)
                                                 <div>
-                                                    <p class="text-sm text-zinc-800">{{ $drip->name }}</p>
+                                                    <p class="text-sm text-zinc-800">{{ $drip->displayName() }}</p>
                                                     @foreach ($drip->additives as $additive)
-                                                        <p class="ms-3 text-xs text-zinc-500">+ {{ $additive->name }}</p>
+                                                        <p class="ms-3 text-xs text-zinc-500">+ {{ $additive->displayName() }}</p>
                                                     @endforeach
                                                 </div>
                                             @endforeach

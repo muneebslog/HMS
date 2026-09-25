@@ -89,7 +89,7 @@ test('drip charge box sits beside the drips heading', function () {
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertSeeHtml('wire:model="suggestedPrice"')
+        ->assertSeeHtml('wire:model.live.blur="suggestedPrice"')
         ->assertSee(__('Drip charge'));
 });
 
@@ -129,6 +129,37 @@ test('doctor medication can suggest a drip price using logged-in doctor share', 
         'doctor_share' => 30,
         'status' => DripChargeStatus::Pending->value,
         'suggested_by' => $user->id,
+    ]);
+});
+
+test('drip charge accepts z and y price codes', function () {
+    [$user, , , , $dripService, , , $token] = createDripMedicationContext();
+    $dripBase = DripBase::factory()->create(['name' => 'Coded Saline']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('suggestedPrice', '12z')
+        ->assertSet('suggestedPrice', '1200')
+        ->set('suggestedPrice', 'zy')
+        ->assertSet('suggestedPrice', '150')
+        ->set('suggestedPrice', '12x')
+        ->assertSet('suggestedPrice', '12x')
+        ->set('complaintOrDiagnosis', 'Dehydration')
+        ->call('addDripFromInput', $dripBase->id)
+        ->set('dripServiceId', $dripService->id)
+        ->call('save')
+        ->assertHasErrors(['suggestedPrice']);
+
+    $component
+        ->set('suggestedPrice', '12zy')
+        ->assertSet('suggestedPrice', '1250')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('drip_charges', [
+        'queue_token_id' => $token->id,
+        'suggested_price' => 1250,
     ]);
 });
 

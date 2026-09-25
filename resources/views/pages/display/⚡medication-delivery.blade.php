@@ -944,11 +944,11 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                             @foreach ($erDrips as $drip)
                                 <div wire:key="er-drip-{{ $drip->id }}" class="mb-2">
                                     <p class="text-sm font-medium text-zinc-800">
-                                        {{ $drip->name }}
+                                        {{ $drip->displayName() }}
                                     </p>
                                     @foreach ($drip->additives as $additive)
                                         <p class="ms-3 text-sm text-zinc-600">
-                                            + {{ $additive->name }}
+                                            + {{ $additive->displayName() }}
                                         </p>
                                     @endforeach
                                 </div>

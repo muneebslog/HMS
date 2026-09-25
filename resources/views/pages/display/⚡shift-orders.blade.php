@@ -361,12 +361,12 @@ new #[Layout('layouts.display')] #[Title('Shift Orders')] class extends Componen
                                 <div wire:key="shift-drip-{{ $drip->id }}" class="mb-2">
                                     <div class="flex items-start justify-between gap-3">
                                         <p @class(['text-sm font-medium text-zinc-800', 'text-zinc-400 line-through' => $status === 'given'])>
-                                            {{ $drip->name }}
+                                            {{ $drip->displayName() }}
                                         </p>
                                         <x-shift-order-status :status="$status" :label="$this->statusLabel($status)" />
                                     </div>
                                     @foreach ($drip->additives as $additive)
-                                        <p class="ms-3 text-sm text-zinc-600">+ {{ $additive->name }}</p>
+                                        <p class="ms-3 text-sm text-zinc-600">+ {{ $additive->displayName() }}</p>
                                     @endforeach
                                 </div>
                             @endforeach

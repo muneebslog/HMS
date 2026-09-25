@@ -21,6 +21,7 @@ class MedicationOrderDrip extends Model
         'medication_order_id',
         'drip_base_id',
         'name',
+        'dose',
         'status',
         'started_at',
         'started_by_health_aide_id',
@@ -120,5 +121,13 @@ class MedicationOrderDrip extends Model
         return $this->status === DripLineStatus::Started
             && $this->check_due_at !== null
             && $this->check_due_at->isPast();
+    }
+
+    /**
+     * The drip name with its dose or volume, when the doctor gave one (usually for children).
+     */
+    public function displayName(): string
+    {
+        return filled($this->dose) ? $this->name.' — '.$this->dose : $this->name;
     }
 }

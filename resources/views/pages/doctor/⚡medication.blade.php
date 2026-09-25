@@ -17,6 +17,7 @@ use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\TokenDisplayService;
+use App\Support\PriceShorthand;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -38,6 +39,10 @@ new #[Title('Medication')] class extends Component
     public bool $showRepeatConflictModal = false;
 
     public bool $showOrderPreviewModal = false;
+
+    public bool $showDoseModal = false;
+
+    public ?int $doseDripIndex = null;
 
     public bool $showRecallModal = false;
 
@@ -99,7 +104,8 @@ new #[Title('Medication')] class extends Component
     /**
      * @var list<array{
      *     drip_base_id: int|string|null,
-     *     additives: list<array{injection_id: int|string|null}>
+     *     dose: string,
+     *     additives: list<array{injection_id: int|string|null, dose: string}>
      * }>
      */
     public array $dripLines = [];
@@ -907,6 +913,8 @@ new #[Title('Medication')] class extends Component
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
         $this->showFulfilledRecallOptions = false;
+        $this->showDoseModal = false;
+        $this->doseDripIndex = null;
         $this->selectedRecallOrderId = null;
         $this->pendingRepeatOrderId = null;
         $this->selectedBrowseOrderId = null;
@@ -921,6 +929,21 @@ new #[Title('Medication')] class extends Component
         $this->medicationLines = [];
         $this->dripLines = [];
         $this->resetValidation();
+    }
+
+    /**
+     * Turn a price code such as 12z or 12zy into the amount, leaving anything unreadable for validation to flag.
+     */
+    public function updatedSuggestedPrice(): void
+    {
+        $amount = PriceShorthand::parse($this->suggestedPrice);
+
+        if ($amount === null) {
+            return;
+        }
+
+        $this->suggestedPrice = rtrim(rtrim(number_format($amount, 2, '.', ''), '0'), '.');
+        $this->resetValidation('suggestedPrice');
     }
 
     /**
@@ -1081,12 +1104,15 @@ new #[Title('Medication')] class extends Component
     {
         $this->dripLines[] = [
             'drip_base_id' => null,
+            'dose' => '',
             'additives' => [
                 [
                     'injection_id' => null,
+                    'dose' => '',
                 ],
                 [
                     'injection_id' => null,
+                    'dose' => '',
                 ],
             ],
         ];
@@ -1096,6 +1122,26 @@ new #[Title('Medication')] class extends Component
     {
         unset($this->dripLines[$index]);
         $this->dripLines = array_values($this->dripLines);
+        $this->closeDoseModal();
+    }
+
+    /**
+     * Open the dose popup for one drip and its injections, used when a child needs set doses.
+     */
+    public function openDoseModal(int $dripIndex): void
+    {
+        if (! filled($this->dripLines[$dripIndex]['drip_base_id'] ?? null)) {
+            return;
+        }
+
+        $this->doseDripIndex = $dripIndex;
+        $this->showDoseModal = true;
+    }
+
+    public function closeDoseModal(): void
+    {
+        $this->showDoseModal = false;
+        $this->doseDripIndex = null;
     }
 
     /**
@@ -1223,6 +1269,7 @@ new #[Title('Medication')] class extends Component
 
         $this->dripLines[$dripIndex]['additives'][] = [
             'injection_id' => null,
+            'dose' => '',
         ];
     }
 
@@ -1249,6 +1296,7 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->dripLines[$dripIndex]['additives'][$index]['injection_id'] = $injectionId;
+        $this->dripLines[$dripIndex]['additives'][$index]['dose'] = '';
     }
 
     /**
@@ -1342,7 +1390,7 @@ new #[Title('Medication')] class extends Component
                     }
 
                     return [
-                        'name' => $dripBase['name'],
+                        'name' => $this->nameWithDose($dripBase['name'], $line['dose'] ?? null),
                         'additives' => collect($line['additives'] ?? [])
                             ->map(function (array $additive) use ($injectionsById): ?array {
                                 $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
@@ -1352,7 +1400,7 @@ new #[Title('Medication')] class extends Component
                                 }
 
                                 return [
-                                    'name' => $resolved['name'],
+                                    'name' => $this->nameWithDose($resolved['name'], $additive['dose'] ?? null),
                                 ];
                             })
                             ->filter()
@@ -1386,6 +1434,8 @@ new #[Title('Medication')] class extends Component
         $this->showOrderPreviewModal = false;
         $this->showRecallModal = false;
         $this->showFulfilledRecallOptions = false;
+        $this->showDoseModal = false;
+        $this->doseDripIndex = null;
         $this->selectedRecallOrderId = null;
         $this->pendingRepeatOrderId = null;
         $this->selectedBrowseOrderId = null;
@@ -1525,7 +1575,10 @@ new #[Title('Medication')] class extends Component
                     continue;
                 }
 
-                $drip = $order->drips()->create($dripBase);
+                $drip = $order->drips()->create([
+                    ...$dripBase,
+                    'dose' => $this->cleanDose($line['dose'] ?? null),
+                ]);
 
                 foreach ($line['additives'] ?? [] as $additive) {
                     $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
@@ -1537,6 +1590,7 @@ new #[Title('Medication')] class extends Component
                     $drip->additives()->create([
                         'injection_id' => $resolved['injection_id'],
                         'name' => $resolved['name'],
+                        'dose' => $this->cleanDose($additive['dose'] ?? null),
                     ]);
                 }
             }
@@ -1583,7 +1637,11 @@ new #[Title('Medication')] class extends Component
      */
     private function validatedOrderData(): ?array
     {
-        $validated = $this->validate($this->orderRules());
+        $this->updatedSuggestedPrice();
+
+        $validated = $this->validate($this->orderRules(), [
+            'suggestedPrice.numeric' => __('Enter an amount like 1200, or a code like 12z or 12zy.'),
+        ]);
 
         $medicationLines = collect($validated['medicationLines'] ?? [])
             ->filter(fn (array $line): bool => filled($line['selection'] ?? null))
@@ -1804,6 +1862,8 @@ new #[Title('Medication')] class extends Component
             }],
             'dripLines.*.additives' => ['array'],
             'dripLines.*.additives.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
+            'dripLines.*.dose' => ['nullable', 'string', 'max:50'],
+            'dripLines.*.additives.*.dose' => ['nullable', 'string', 'max:50'],
         ];
     }
 
@@ -1929,6 +1989,26 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * A trimmed dose, or null when the doctor left it blank.
+     */
+    private function cleanDose(mixed $dose): ?string
+    {
+        $dose = is_string($dose) ? trim($dose) : '';
+
+        return $dose === '' ? null : $dose;
+    }
+
+    /**
+     * A drip or injection name followed by its dose, when one was given.
+     */
+    private function nameWithDose(string $name, mixed $dose): string
+    {
+        $dose = $this->cleanDose($dose);
+
+        return $dose === null ? $name : $name.' — '.$dose;
+    }
+
+    /**
      * Turn a drip selection into a catalog drip base id and display name.
      *
      * @param  Collection<int, DripBase>  $dripBasesById
@@ -2046,7 +2126,7 @@ new #[Title('Medication')] class extends Component
      *
      * @return array{
      *     medicationLines: list<array{selection: string|null, dose: string, administration_type: string, comment: string}>,
-     *     dripLines: list<array{drip_base_id: int|string|null, additives: list<array{injection_id: int|string|null}>}>
+     *     dripLines: list<array{drip_base_id: int|string|null, dose: string, additives: list<array{injection_id: int|string|null, dose: string}>}>
      * }
      */
     private function mapOrderToFormLines(MedicationOrder $order): array
@@ -2075,8 +2155,10 @@ new #[Title('Medication')] class extends Component
         $dripLines = $order->drips
             ->map(fn ($drip) => [
                 'drip_base_id' => $drip->drip_base_id ?? 'custom:'.$drip->name,
+                'dose' => $drip->dose ?? '',
                 'additives' => $drip->additives->map(fn ($additive) => [
                     'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
+                    'dose' => $additive->dose ?? '',
                 ])->values()->all(),
             ])->values()->all();
 
@@ -2115,6 +2197,7 @@ new #[Title('Medication')] class extends Component
 
                     return [
                         'drip_base_id' => $line['drip_base_id'],
+                        'dose' => $line['dose'] ?? '',
                         'additives' => $additives,
                     ];
                 })
@@ -2386,13 +2469,14 @@ new #[Title('Medication')] class extends Component
                         @endif
                         <div class="w-36" data-nav-field>
                             <flux:input
-                                wire:model="suggestedPrice"
-                                type="number"
-                                step="0.01"
-                                min="0"
+                                wire:model.live.blur="suggestedPrice"
+                                type="text"
+                                inputmode="text"
+                                autocomplete="off"
                                 size="sm"
                                 aria-label="{{ __('Drip charge') }}"
                                 placeholder="{{ __('Drip charge') }}"
+                                title="{{ __('z = 100, y = 50. 12z = 1200, 12zy = 1250') }}"
                             />
                         </div>
                     @endif
@@ -2540,14 +2624,18 @@ new #[Title('Medication')] class extends Component
                             @foreach ($filledDrips as $dripIndex => $drip)
                                 <div wire:key="drip-token-{{ $dripIndex }}" class="flex flex-wrap items-center gap-1 {{ $loop->first ? '' : 'border-s border-zinc-200 ps-3 dark:border-zinc-600' }}">
                                     <flux:badge size="sm" color="teal" icon="droplets">
-                                        {{ $this->dripLineNames[$dripIndex] ?? '' }}
+                                        <button type="button" class="cursor-pointer" title="{{ __('Set dose') }}" @click.stop="open = false" wire:click="openDoseModal({{ $dripIndex }})">
+                                            {{ $this->dripLineNames[$dripIndex] ?? '' }}@if (filled($drip['dose'] ?? null)) <span class="font-semibold">· {{ trim($drip['dose']) }}</span>@endif
+                                        </button>
                                         <flux:badge.close wire:click="removeDripLine({{ $dripIndex }})" aria-label="{{ __('Remove drip') }}" />
                                     </flux:badge>
                                     @foreach (array_filter($drip['additives'] ?? [], fn (array $additive): bool => filled($additive['injection_id'] ?? null)) as $additiveIndex => $additive)
                                         <span wire:key="drip-token-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="flex items-center gap-1">
                                             <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
                                             <flux:badge size="sm" color="blue">
-                                                {{ $this->dripAdditiveName($additive['injection_id']) }}
+                                                <button type="button" class="cursor-pointer" title="{{ __('Set dose') }}" @click.stop="open = false" wire:click="openDoseModal({{ $dripIndex }})">
+                                                    {{ $this->dripAdditiveName($additive['injection_id']) }}@if (filled($additive['dose'] ?? null)) <span class="font-semibold">· {{ trim($additive['dose']) }}</span>@endif
+                                                </button>
                                                 <flux:badge.close wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" aria-label="{{ __('Remove additive') }}" />
                                             </flux:badge>
                                         </span>
@@ -2917,6 +3005,56 @@ new #[Title('Medication')] class extends Component
         </div>
     </flux:modal>
 
+    <flux:modal name="drip-dose" wire:model="showDoseModal" @close="$wire.closeDoseModal()" class="w-full max-w-md">
+        @php($doseDrip = $doseDripIndex !== null ? ($dripLines[$doseDripIndex] ?? null) : null)
+        <div class="space-y-4">
+            <div>
+                <flux:heading level="2">{{ __('Dose') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('For children. Leave blank to give the usual dose.') }}</flux:text>
+            </div>
+
+            @if ($doseDrip !== null)
+                <div class="space-y-3">
+                    <div class="grid grid-cols-5 items-center gap-3">
+                        <p class="col-span-3 truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                            {{ $this->dripLineNames[$doseDripIndex] ?? '' }}
+                        </p>
+                        <div class="col-span-2">
+                            <flux:input
+                                wire:model="dripLines.{{ $doseDripIndex }}.dose"
+                                size="sm"
+                                maxlength="50"
+                                placeholder="{{ __('e.g. 330ml') }}"
+                                aria-label="{{ __('Dose for :name', ['name' => $this->dripLineNames[$doseDripIndex] ?? '']) }}"
+                            />
+                        </div>
+                    </div>
+                    @foreach (array_filter($doseDrip['additives'] ?? [], fn (array $additive): bool => filled($additive['injection_id'] ?? null)) as $additiveIndex => $additive)
+                        <div wire:key="dose-additive-{{ $doseDripIndex }}-{{ $additiveIndex }}" class="grid grid-cols-5 items-center gap-3">
+                            <p class="col-span-3 truncate text-sm text-zinc-700 dark:text-zinc-200">
+                                + {{ $this->dripAdditiveName($additive['injection_id']) }}
+                            </p>
+                            <div class="col-span-2">
+                                <flux:input
+                                    wire:model="dripLines.{{ $doseDripIndex }}.additives.{{ $additiveIndex }}.dose"
+                                    size="sm"
+                                    maxlength="50"
+                                    placeholder="{{ __('e.g. 550mg') }}"
+                                    aria-label="{{ __('Dose for :name', ['name' => $this->dripAdditiveName($additive['injection_id'])]) }}"
+                                />
+                            </div>
+                        </div>
+                    @endforeach
+                    <flux:error name="dripLines.{{ $doseDripIndex }}.dose" />
+                </div>
+            @endif
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="primary" wire:click="closeDoseModal">{{ __('Done') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
     <flux:modal name="medication-order-preview" wire:model="showOrderPreviewModal" class="w-full max-w-xl">
         <div class="space-y-4">
             <div>
@@ -3093,11 +3231,11 @@ new #[Title('Medication')] class extends Component
                                 <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drips') }}</p>
                                 @foreach ($order->drips as $drip)
                                     <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                                        {{ $drip->name }}
+                                        {{ $drip->displayName() }}
                                     </p>
                                     @foreach ($drip->additives as $additive)
                                         <p class="ms-3 text-sm text-zinc-500">
-                                            + {{ $additive->name }}
+                                            + {{ $additive->displayName() }}
                                         </p>
                                     @endforeach
                                 @endforeach
@@ -3209,9 +3347,9 @@ new #[Title('Medication')] class extends Component
                         <div class="mb-2">
                             <p class="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Drips') }}</p>
                             @foreach ($browseOrder->drips as $drip)
-                                <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ $drip->name }}</p>
+                                <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ $drip->displayName() }}</p>
                                 @foreach ($drip->additives as $additive)
-                                    <p class="ms-3 text-sm text-zinc-500">+ {{ $additive->name }}</p>
+                                    <p class="ms-3 text-sm text-zinc-500">+ {{ $additive->displayName() }}</p>
                                 @endforeach
                             @endforeach
                         </div>

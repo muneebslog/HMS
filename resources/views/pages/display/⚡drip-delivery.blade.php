@@ -307,11 +307,11 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                         <div wire:key="drip-delivery-line-{{ $drip->id }}" class="space-y-2 border-t border-dashed border-zinc-400/70 pt-2">
                             <div>
                                 <p class="font-medium text-zinc-900">
-                                    {{ $drip->name }}
+                                    {{ $drip->displayName() }}
                                 </p>
                                 @foreach ($drip->additives as $additive)
                                     <p class="ms-1 text-sm text-zinc-600">
-                                        + {{ $additive->name }}
+                                        + {{ $additive->displayName() }}
                                     </p>
                                 @endforeach
                             </div>
