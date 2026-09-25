@@ -2323,7 +2323,7 @@ new #[Title('Medication')] class extends Component
             <div class="space-y-1">
                 <div class="flex flex-wrap items-center gap-3" data-nav-row>
                     <flux:heading size="sm">{{ __('Drips') }}</flux:heading>
-                    @if ($filledDrips !== [] && $this->dripServices->isNotEmpty())
+                    @if ($this->dripServices->isNotEmpty())
                         @if ($this->dripServices->count() > 1)
                             <div class="w-44" data-nav-field>
                                 <flux:select wire:model="dripServiceId" size="sm" aria-label="{{ __('Drip service') }}">

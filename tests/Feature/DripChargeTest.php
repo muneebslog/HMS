@@ -83,15 +83,12 @@ test('authenticated users can create a drip service', function () {
     ]);
 });
 
-test('drip charge section only appears once a drip is added', function () {
+test('drip charge box sits beside the drips heading', function () {
     [$user, , , , , , , $token] = createDripMedicationContext();
-    $dripBase = DripBase::factory()->create(['name' => 'Charged Saline']);
 
     Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
-        ->assertDontSeeHtml('wire:model="suggestedPrice"')
-        ->call('addDripFromInput', $dripBase->id)
         ->assertSeeHtml('wire:model="suggestedPrice"')
         ->assertSee(__('Drip charge'));
 });
