@@ -33,6 +33,8 @@ class QueueToken extends Model
         'origin',
         'arrived_at',
         'displayed_at',
+        'medication_dismissed_at',
+        'medication_dismissed_by',
     ];
 
     /**
@@ -45,6 +47,7 @@ class QueueToken extends Model
         return [
             'arrived_at' => 'datetime',
             'displayed_at' => 'datetime',
+            'medication_dismissed_at' => 'datetime',
         ];
     }
 

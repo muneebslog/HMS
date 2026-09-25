@@ -65,8 +65,6 @@ new #[Title('Medication')] class extends Component
         'notes' => null,
     ];
 
-    public string $activeOrderTab = 'medicines';
-
     /**
      * Whether medications are picked with searchable selects (`typing`) or catalog badges (`visual`).
      */
@@ -97,7 +95,7 @@ new #[Title('Medication')] class extends Component
 
     /**
      * @var list<array{
-     *     drip_base_id: int|null,
+     *     drip_base_id: int|string|null,
      *     additives: list<array{injection_id: int|string|null}>
      * }>
      */
@@ -119,6 +117,7 @@ new #[Title('Medication')] class extends Component
 
         return QueueToken::query()
             ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder'])
+            ->whereNull('medication_dismissed_at')
             ->where(function ($query): void {
                 $query->whereIn('status', ['waiting', 'serving'])
                     ->orWhere(function ($servedQuery): void {
@@ -415,7 +414,9 @@ new #[Title('Medication')] class extends Component
                 continue;
             }
 
-            $names[$index] = $this->dripBases->firstWhere('id', (int) $dripBaseId)?->name ?? '';
+            $names[$index] = is_numeric($dripBaseId)
+                ? ($this->dripBases->firstWhere('id', (int) $dripBaseId)?->name ?? '')
+                : $this->customLineName($dripBaseId);
         }
 
         return $names;
@@ -548,11 +549,39 @@ new #[Title('Medication')] class extends Component
         $this->showRepeatConflictModal = false;
         $this->pendingRepeatOrderId = null;
         $this->selectedBrowseOrderId = null;
-        $this->activeOrderTab = 'medicines';
         $this->showWrittenMedicationInput = false;
         $this->writtenMedicationName = '';
         $this->resetValidation();
         $this->loadOrderForm($token);
+    }
+
+    /**
+     * Remove a patient who needs no medication from the list, leaving their token untouched.
+     */
+    public function dismissFromQueue(int $tokenId): void
+    {
+        $token = $this->queue->firstWhere('id', $tokenId);
+
+        if ($token === null) {
+            Flux::toast(variant: 'danger', text: __('Patient is no longer in the medication queue.'));
+
+            return;
+        }
+
+        if ($token->medicationOrder !== null) {
+            Flux::toast(variant: 'danger', text: __('This patient has a recalled order. Open it and save it instead.'));
+
+            return;
+        }
+
+        $token->update([
+            'medication_dismissed_at' => now(),
+            'medication_dismissed_by' => auth()->id(),
+        ]);
+
+        unset($this->queue);
+
+        Flux::toast(text: __(':name dismissed.', ['name' => $token->patient?->name ?? __('Patient')]));
     }
 
     /**
@@ -858,37 +887,14 @@ new #[Title('Medication')] class extends Component
         }
     }
 
-    public function switchOrderTab(string $tab): void
+    /**
+     * Add a blank medication row for the Shift+Enter shortcut in typing mode.
+     */
+    public function addMedicationRowFromShortcut(): void
     {
-        if (! in_array($tab, ['medicines', 'drips'], true)) {
-            return;
+        if ($this->orderInputMode === 'typing') {
+            $this->addMedicationLine();
         }
-
-        $this->activeOrderTab = $tab;
-        $this->ensureFirstRowForTab($tab);
-    }
-
-    /**
-     * Add a blank row for the currently active order tab.
-     */
-    public function addRowForActiveTab(): void
-    {
-        match ($this->activeOrderTab) {
-            'medicines' => $this->orderInputMode === 'visual' ? null : $this->addMedicationLine(),
-            default => null,
-        };
-    }
-
-    /**
-     * Ensure the active tab has at least one blank row to fill.
-     */
-    private function ensureFirstRowForTab(string $tab): void
-    {
-        match ($tab) {
-            'medicines' => $this->medicationLines === [] ? $this->addMedicationLine() : null,
-            'drips' => $this->dripLines === [] ? $this->addDripLine() : null,
-            default => null,
-        };
     }
 
     public function addMedicationLine(): void
@@ -1047,20 +1053,26 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * Add or remove a catalog drip base picked from the visual badges.
+     * Start a new drip from the typed drip input, from a catalog drip base id or a written name.
      */
-    public function toggleDripSelection(int $dripBaseId): void
+    public function addDripFromInput(int|string $dripBase): void
     {
-        if ($this->dripBases->firstWhere('id', $dripBaseId) === null) {
-            return;
-        }
+        if (is_numeric($dripBase)) {
+            if ($this->dripBases->firstWhere('id', (int) $dripBase) === null) {
+                return;
+            }
 
-        foreach ($this->dripLines as $index => $line) {
-            if ((int) ($line['drip_base_id'] ?? 0) === $dripBaseId) {
-                $this->removeDripLine($index);
+            $selection = (int) $dripBase;
+        } else {
+            $name = trim($dripBase);
+
+            if ($name === '' || mb_strlen($name) > 255) {
+                $this->addError('dripLines', __('Drip name must be 255 characters or fewer.'));
 
                 return;
             }
+
+            $selection = 'custom:'.$name;
         }
 
         $index = $this->firstBlankDripLineIndex();
@@ -1070,26 +1082,7 @@ new #[Title('Medication')] class extends Component
             $index = array_key_last($this->dripLines);
         }
 
-        $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
-    }
-
-    /**
-     * Start a new drip from the typed drip input.
-     */
-    public function addDripFromInput(int $dripBaseId): void
-    {
-        if ($this->dripBases->firstWhere('id', $dripBaseId) === null) {
-            return;
-        }
-
-        $index = $this->firstBlankDripLineIndex();
-
-        if ($index === null) {
-            $this->addDripLine();
-            $index = array_key_last($this->dripLines);
-        }
-
-        $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
+        $this->dripLines[$index]['drip_base_id'] = $selection;
         $this->resetValidation('dripLines');
     }
 
@@ -1296,14 +1289,14 @@ new #[Title('Medication')] class extends Component
                 ->all(),
             'drips' => $dripLines
                 ->map(function (array $line) use ($dripBasesById, $injectionsById): ?array {
-                    $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
+                    $dripBase = $this->resolveDripBase($line['drip_base_id'] ?? null, $dripBasesById);
 
                     if ($dripBase === null) {
                         return null;
                     }
 
                     return [
-                        'name' => $dripBase->name,
+                        'name' => $dripBase['name'],
                         'additives' => collect($line['additives'] ?? [])
                             ->map(function (array $additive) use ($injectionsById): ?array {
                                 $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
@@ -1480,16 +1473,13 @@ new #[Title('Medication')] class extends Component
             }
 
             foreach ($dripLines as $line) {
-                $dripBase = $dripBasesById->get((int) $line['drip_base_id']);
+                $dripBase = $this->resolveDripBase($line['drip_base_id'] ?? null, $dripBasesById);
 
                 if ($dripBase === null) {
                     continue;
                 }
 
-                $drip = $order->drips()->create([
-                    'drip_base_id' => $dripBase->id,
-                    'name' => $dripBase->name,
-                ]);
+                $drip = $order->drips()->create($dripBase);
 
                 foreach ($line['additives'] ?? [] as $additive) {
                     $resolved = $this->resolveInjection($additive['injection_id'] ?? null, $injectionsById);
@@ -1603,7 +1593,13 @@ new #[Title('Medication')] class extends Component
             ->get()
             ->keyBy('id');
         $dripBasesById = DripBase::query()
-            ->whereIn('id', $dripLines->pluck('drip_base_id')->filter()->all())
+            ->whereIn(
+                'id',
+                $dripLines->pluck('drip_base_id')
+                    ->filter(fn (mixed $id): bool => is_numeric($id))
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all()
+            )
             ->get()
             ->keyBy('id');
 
@@ -1741,7 +1737,25 @@ new #[Title('Medication')] class extends Component
             'medicationLines.*.administration_type' => ['required', 'string', Rule::enum(InjectionAdministrationType::class)],
             'medicationLines.*.comment' => ['nullable', 'string', 'max:255'],
             'dripLines' => ['array'],
-            'dripLines.*.drip_base_id' => ['nullable', 'integer', 'exists:drip_bases,id'],
+            'dripLines.*.drip_base_id' => ['nullable', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! filled($value)) {
+                    return;
+                }
+
+                if (is_numeric($value)) {
+                    if (! DripBase::query()->whereKey((int) $value)->exists()) {
+                        $fail(__('The selected drip is invalid.'));
+                    }
+
+                    return;
+                }
+
+                $name = $this->customLineName($value);
+
+                if ($name === '' || mb_strlen($name) > 255) {
+                    $fail(__('Drip name must be 255 characters or fewer.'));
+                }
+            }],
             'dripLines.*.additives' => ['array'],
             'dripLines.*.additives.*.injection_id' => ['nullable', $this->injectionSelectionRule()],
         ];
@@ -1869,6 +1883,31 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Turn a drip selection into a catalog drip base id and display name.
+     *
+     * @param  Collection<int, DripBase>  $dripBasesById
+     * @return array{drip_base_id: int|null, name: string}|null
+     */
+    private function resolveDripBase(mixed $raw, Collection $dripBasesById): ?array
+    {
+        if (is_numeric($raw)) {
+            $dripBase = $dripBasesById->get((int) $raw);
+
+            return $dripBase === null ? null : [
+                'drip_base_id' => $dripBase->id,
+                'name' => $dripBase->name,
+            ];
+        }
+
+        $name = $this->customLineName($raw);
+
+        return $name === '' ? null : [
+            'drip_base_id' => null,
+            'name' => $name,
+        ];
+    }
+
+    /**
      * Turn an injection or drip additive selection into a catalog id and display name.
      *
      * @param  Collection<int, Injection>  $injectionsById
@@ -1961,7 +2000,7 @@ new #[Title('Medication')] class extends Component
      *
      * @return array{
      *     medicationLines: list<array{selection: string|null, dose: string, administration_type: string, comment: string}>,
-     *     dripLines: list<array{drip_base_id: int|null, additives: list<array{injection_id: int|string|null}>}>
+     *     dripLines: list<array{drip_base_id: int|string|null, additives: list<array{injection_id: int|string|null}>}>
      * }
      */
     private function mapOrderToFormLines(MedicationOrder $order): array
@@ -1988,9 +2027,8 @@ new #[Title('Medication')] class extends Component
             ->all();
 
         $dripLines = $order->drips
-            ->filter(fn ($drip): bool => $drip->drip_base_id !== null)
             ->map(fn ($drip) => [
-                'drip_base_id' => $drip->drip_base_id,
+                'drip_base_id' => $drip->drip_base_id ?? 'custom:'.$drip->name,
                 'additives' => $drip->additives->map(fn ($additive) => [
                     'injection_id' => $additive->injection_id ?? 'custom:'.$additive->name,
                 ])->values()->all(),
@@ -2101,11 +2139,11 @@ new #[Title('Medication')] class extends Component
     @if ($selectedTokenId === null)
         <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @forelse ($this->queue as $token)
+                <div wire:key="medication-token-{{ $token->id }}" class="relative">
                 <x-paper-slip
                     as="button"
                     type="button"
                     :token="$token->token_number"
-                    wire:key="medication-token-{{ $token->id }}"
                     wire:click="selectToken({{ $token->id }})"
                     class="min-h-48 active:scale-[0.99] hover:-translate-y-0.5"
                 >
@@ -2130,6 +2168,19 @@ new #[Title('Medication')] class extends Component
                         {{ __('Tap to prescribe') }}
                     </p>
                 </x-paper-slip>
+                @if ($token->medicationOrder === null)
+                    <button
+                        type="button"
+                        class="absolute end-2 top-4 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-900/10 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-zinc-900"
+                        aria-label="{{ __('Dismiss :name', ['name' => $token->patient?->name ?? __('patient')]) }}"
+                        title="{{ __('Dismiss') }}"
+                        wire:click="dismissFromQueue({{ $token->id }})"
+                        wire:confirm="{{ __('Dismiss :name from the medication list?', ['name' => $token->patient?->name ?? __('this patient')]) }}"
+                    >
+                        <flux:icon name="x-mark" variant="mini" class="size-5" />
+                    </button>
+                @endif
+                </div>
             @empty
                 <div class="col-span-full flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">
                     <flux:icon name="beaker" class="size-10 text-zinc-400" />
@@ -2218,20 +2269,6 @@ new #[Title('Medication')] class extends Component
             <flux:error name="complaintOrDiagnosis" />
         </flux:field>
 
-        <div class="border-b border-zinc-200 dark:border-zinc-700">
-            <nav class="-mb-px flex gap-4">
-                @foreach (['medicines' => __('Medications'), 'drips' => __('Drips')] as $tab => $label)
-                    <button
-                        type="button"
-                        wire:click="switchOrderTab('{{ $tab }}')"
-                        class="cursor-pointer border-b-2 px-1 pb-2 text-sm font-medium transition-colors {{ $activeOrderTab === $tab ? 'border-zinc-900 text-zinc-900 dark:border-white dark:text-white' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400' }}"
-                    >
-                        {{ $label }}
-                    </button>
-                @endforeach
-            </nav>
-        </div>
-
         <form
             wire:submit="previewOrder"
             class="flex flex-1 flex-col gap-4"
@@ -2276,13 +2313,262 @@ new #[Title('Medication')] class extends Component
                     field?.querySelector('input:not([type=hidden]), select, textarea, button')?.focus();
                 },
             }"
-            @keydown.shift.enter.prevent="$wire.addRowForActiveTab()"
+            @keydown.shift.enter.prevent="$wire.addMedicationRowFromShortcut()"
             @keydown.alt.arrow-up.prevent="navigate('up')"
             @keydown.alt.arrow-down.prevent="navigate('down')"
             @keydown.alt.arrow-left.prevent="navigate('left')"
             @keydown.alt.arrow-right.prevent="navigate('right')"
         >
-            @if ($activeOrderTab === 'medicines' && $orderInputMode === 'visual')
+            @php($filledDrips = array_filter($dripLines, fn (array $line): bool => filled($line['drip_base_id'] ?? null)))
+            <div class="space-y-1">
+                <div class="flex flex-wrap items-center gap-3" data-nav-row>
+                    <flux:heading size="sm">{{ __('Drips') }}</flux:heading>
+                    @if ($filledDrips !== [] && $this->dripServices->isNotEmpty())
+                        @if ($this->dripServices->count() > 1)
+                            <div class="w-44" data-nav-field>
+                                <flux:select wire:model="dripServiceId" size="sm" aria-label="{{ __('Drip service') }}">
+                                    <option value="">{{ __('Select drip service') }}</option>
+                                    @foreach ($this->dripServices as $dripService)
+                                        <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
+                                    @endforeach
+                                </flux:select>
+                            </div>
+                        @endif
+                        <div class="w-36" data-nav-field>
+                            <flux:input
+                                wire:model="suggestedPrice"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                size="sm"
+                                aria-label="{{ __('Drip charge') }}"
+                                placeholder="{{ __('Drip charge') }}"
+                            />
+                        </div>
+                    @endif
+                </div>
+                <flux:error name="dripServiceId" />
+                <flux:error name="suggestedPrice" />
+            </div>
+                <div class="space-y-2" data-nav-row>
+                    <div
+                        data-nav-field
+                        x-data="{
+                            search: '',
+                            open: false,
+                            highlight: 0,
+                            pending: Promise.resolve(),
+                            pendingDrip: false,
+                            startingNew: false,
+                            drips: {{ \Illuminate\Support\Js::from($this->dripBaseOptions) }},
+                            additives: {{ \Illuminate\Support\Js::from($this->injectionOptions) }},
+                            get hasDrip() {
+                                return this.pendingDrip || this.$refs.input?.dataset.hasDrip === '1';
+                            },
+                            get wantsDrip() {
+                                return ! this.hasDrip || this.startingNew;
+                            },
+                            clean(text) {
+                                return String(text).toLowerCase().replace(/\binj(ection)?[.,]?\s+/g, '');
+                            },
+                            rank(option, query) {
+                                const label = this.clean(option.label);
+                                const haystack = label + ' ' + this.clean(option.keywords ?? '');
+
+                                if (label.startsWith(query)) {
+                                    return 0;
+                                }
+
+                                if (haystack.split(/[\s\/—-]+/).some((word) => word.startsWith(query))) {
+                                    return 1;
+                                }
+
+                                return haystack.includes(query) ? 2 : null;
+                            },
+                            matches(options, kind) {
+                                const query = this.clean(this.search.trim());
+
+                                return options
+                                    .map((option) => ({ ...option, kind, score: query === '' ? 0 : this.rank(option, query) }))
+                                    .filter((option) => option.score !== null)
+                                    .sort((a, b) => a.score - b.score);
+                            },
+                            get suggestions() {
+                                const drips = this.matches(this.drips, 'drip');
+
+                                if (this.wantsDrip) {
+                                    return drips.slice(0, 8);
+                                }
+
+                                const additives = this.search.trim() === '' ? [] : this.matches(this.additives, 'additive');
+
+                                return [...additives, ...drips].slice(0, 8);
+                            },
+                            get canWrite() {
+                                const query = this.search.trim();
+
+                                const known = this.wantsDrip ? this.drips : [...this.additives, ...this.drips];
+
+                                return query !== ''
+                                    && ! known.some((option) => this.clean(option.label) === this.clean(query));
+                            },
+                            get items() {
+                                return this.canWrite
+                                    ? [...this.suggestions, { kind: this.wantsDrip ? 'custom-drip' : 'custom', value: this.search.trim(), label: this.search.trim() }]
+                                    : this.suggestions;
+                            },
+                            onType() {
+                                this.open = true;
+                                this.highlight = 0;
+                            },
+                            move(delta) {
+                                const length = this.items.length;
+
+                                if (length === 0) {
+                                    return;
+                                }
+
+                                this.open = true;
+                                this.highlight = (this.highlight + delta + length) % length;
+                            },
+                            send(call) {
+                                this.pending = this.pending
+                                    .then(call)
+                                    .catch(() => {})
+                                    .finally(() => this.$nextTick(() => this.$refs.input?.focus()));
+                            },
+                            choose(item) {
+                                if (! item) {
+                                    return;
+                                }
+
+                                this.search = '';
+                                this.highlight = 0;
+                                this.open = false;
+
+                                this.startingNew = false;
+
+                                if (item.kind === 'drip' || item.kind === 'custom-drip') {
+                                    this.pendingDrip = true;
+                                    this.send(() => $wire.addDripFromInput(item.value).finally(() => this.pendingDrip = false));
+
+                                    return;
+                                }
+
+                                this.send(() => $wire.addDripAdditiveFromInput(String(item.value)));
+                            },
+                            commit() {
+                                if (this.search.trim() === '') {
+                                    this.startingNew = this.hasDrip;
+
+                                    return;
+                                }
+
+                                this.choose(this.items[Math.min(this.highlight, this.items.length - 1)]);
+                            },
+                            removeLast() {
+                                if (this.search !== '') {
+                                    return;
+                                }
+
+                                if (this.startingNew) {
+                                    this.startingNew = false;
+
+                                    return;
+                                }
+
+                                this.send(() => $wire.removeLastDripToken());
+                            },
+                        }"
+                        @click.outside="open = false"
+                        class="relative"
+                    >
+                        <div
+                            class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-zinc-200 bg-white px-2 py-2 shadow-xs focus-within:ring-2 focus-within:ring-accent dark:border-white/10 dark:bg-white/10"
+                            @click="$refs.input.focus()"
+                        >
+                            @foreach ($filledDrips as $dripIndex => $drip)
+                                <div wire:key="drip-token-{{ $dripIndex }}" class="flex flex-wrap items-center gap-1 {{ $loop->first ? '' : 'border-s border-zinc-200 ps-3 dark:border-zinc-600' }}">
+                                    <flux:badge size="sm" color="teal" icon="droplets">
+                                        {{ $this->dripLineNames[$dripIndex] ?? '' }}
+                                        <flux:badge.close wire:click="removeDripLine({{ $dripIndex }})" aria-label="{{ __('Remove drip') }}" />
+                                    </flux:badge>
+                                    @foreach (array_filter($drip['additives'] ?? [], fn (array $additive): bool => filled($additive['injection_id'] ?? null)) as $additiveIndex => $additive)
+                                        <span wire:key="drip-token-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="flex items-center gap-1">
+                                            <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
+                                            <flux:badge size="sm" color="blue">
+                                                {{ $this->dripAdditiveName($additive['injection_id']) }}
+                                                <flux:badge.close wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" aria-label="{{ __('Remove additive') }}" />
+                                            </flux:badge>
+                                        </span>
+                                    @endforeach
+                                    @if ($loop->last)
+                                        <span x-show="! startingNew" class="text-sm text-zinc-400" aria-hidden="true">+</span>
+                                    @endif
+                                </div>
+                            @endforeach
+                            <span x-show="startingNew" x-cloak class="border-s border-zinc-200 ps-3 text-xs font-medium uppercase tracking-wide text-teal-600 dark:border-zinc-600 dark:text-teal-400">{{ __('New drip') }}</span>
+                            <input
+                                x-ref="input"
+                                data-has-drip="{{ $filledDrips === [] ? '0' : '1' }}"
+                                x-model="search"
+                                type="text"
+                                role="combobox"
+                                aria-autocomplete="list"
+                                aria-controls="drip-composer-list"
+                                :aria-expanded="open && items.length > 0"
+                                aria-label="{{ __('Drips') }}"
+                                autocomplete="off"
+                                placeholder="{{ $filledDrips === [] ? __('Type a drip, e.g. Provas') : __('Add an injection, or press Enter again for a new drip') }}"
+                                data-placeholder="{{ $filledDrips === [] ? __('Type a drip, e.g. Provas') : __('Add an injection, or press Enter again for a new drip') }}"
+                                :placeholder="startingNew ? {{ \Illuminate\Support\Js::from(__('Type the new drip')) }} : $el.dataset.placeholder"
+                                @input="onType()"
+                                @focus="open = search.trim() !== ''"
+                                @keydown.arrow-down.prevent="if (! $event.altKey) move(1)"
+                                @keydown.arrow-up.prevent="if (! $event.altKey) move(-1)"
+                                @keydown.enter.prevent.stop="commit()"
+                                @keydown.tab="if (open && search.trim() !== '') { $event.preventDefault(); commit() }"
+                                @keydown.backspace="removeLast()"
+                                @keydown.escape="if (open) { $event.stopPropagation(); open = false } else if (startingNew) { $event.stopPropagation(); startingNew = false }"
+                                class="h-8 min-w-40 flex-1 border-0 bg-transparent px-1 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+                            >
+                        </div>
+
+                        <div
+                            x-show="open && items.length > 0"
+                            x-cloak
+                            class="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+                        >
+                            <ul id="drip-composer-list" wire:ignore class="max-h-72 overflow-y-auto py-1" role="listbox">
+                                <template x-for="(item, index) in items" :key="item.kind + ':' + item.value">
+                                    <li role="option" :aria-selected="index === highlight">
+                                        <button
+                                            type="button"
+                                            tabindex="-1"
+                                            class="flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200"
+                                            :class="index === highlight ? 'bg-zinc-100 dark:bg-white/10' : 'hover:bg-zinc-50 dark:hover:bg-white/5'"
+                                            @mouseenter="highlight = index"
+                                            @mousedown.prevent
+                                            @click="choose(item)"
+                                        >
+                                            <span x-text="item.kind.startsWith('custom') ? {{ \Illuminate\Support\Js::from(__('Write')) }} + ' “' + item.label + '”' : item.label"></span>
+                                            <span
+                                                class="shrink-0 text-xs"
+                                                :class="item.kind === 'drip' || item.kind === 'custom-drip' ? 'text-teal-600 dark:text-teal-400' : 'text-zinc-400'"
+                                                x-text="item.kind === 'drip' || item.kind === 'custom-drip' ? {{ \Illuminate\Support\Js::from(__('New drip')) }} : {{ \Illuminate\Support\Js::from(__('Add to drip')) }}"
+                                            ></span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                    <flux:error name="dripLines" />
+                </div>
+
+            <flux:heading size="sm">{{ __('Medications') }}</flux:heading>
+
+            @if ($orderInputMode === 'visual')
                 @php($selectedMedications = collect($medicationLines)->pluck('selection')->filter()->all())
                 <div class="space-y-3">
                     @foreach ([
@@ -2394,7 +2680,7 @@ new #[Title('Medication')] class extends Component
                     </div>
                     <flux:error name="medicationLines" />
                 </div>
-            @elseif ($activeOrderTab === 'medicines')
+            @else
                 <div class="space-y-3">
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         @foreach ($medicationLines as $index => $line)
@@ -2443,300 +2729,6 @@ new #[Title('Medication')] class extends Component
                     <flux:tooltip :content="__('Shift+Enter')" position="top">
                         <flux:button type="button" variant="ghost" icon="plus" wire:click="addMedicationLine">{{ __('Add medication') }}</flux:button>
                     </flux:tooltip>
-                </div>
-            @else
-                @php($filledDrips = array_filter($dripLines, fn (array $line): bool => filled($line['drip_base_id'] ?? null)))
-                <div class="space-y-2" data-nav-row>
-                    <div
-                        data-nav-field
-                        x-data="{
-                            search: '',
-                            open: false,
-                            highlight: 0,
-                            pending: Promise.resolve(),
-                            pendingDrip: false,
-                            drips:{{ \Illuminate\Support\Js::from($this->dripBaseOptions) }},
-                            additives: {{ \Illuminate\Support\Js::from($this->injectionOptions) }},
-                            get hasDrip() {
-                                return this.pendingDrip || this.$refs.input?.dataset.hasDrip === '1';
-                            },
-                            clean(text) {
-                                return String(text).toLowerCase().replace(/\binj(ection)?[.,]?\s+/g, '');
-                            },
-                            rank(option, query) {
-                                const label = this.clean(option.label);
-                                const haystack = label + ' ' + this.clean(option.keywords ?? '');
-
-                                if (label.startsWith(query)) {
-                                    return 0;
-                                }
-
-                                if (haystack.split(/[\s\/—-]+/).some((word) => word.startsWith(query))) {
-                                    return 1;
-                                }
-
-                                return haystack.includes(query) ? 2 : null;
-                            },
-                            matches(options, kind) {
-                                const query = this.clean(this.search.trim());
-
-                                return options
-                                    .map((option) => ({ ...option, kind, score: query === '' ? 0 : this.rank(option, query) }))
-                                    .filter((option) => option.score !== null)
-                                    .sort((a, b) => a.score - b.score);
-                            },
-                            get suggestions() {
-                                const drips = this.matches(this.drips, 'drip');
-
-                                if (! this.hasDrip) {
-                                    return drips.slice(0, 8);
-                                }
-
-                                const additives = this.search.trim() === '' ? [] : this.matches(this.additives, 'additive');
-
-                                return [...additives, ...drips].slice(0, 8);
-                            },
-                            get canWrite() {
-                                const query = this.search.trim();
-
-                                return this.hasDrip
-                                    && query !== ''
-                                    && ! [...this.additives, ...this.drips].some((option) => this.clean(option.label) === this.clean(query));
-                            },
-                            get items() {
-                                return this.canWrite
-                                    ? [...this.suggestions, { kind: 'custom', value: this.search.trim(), label: this.search.trim() }]
-                                    : this.suggestions;
-                            },
-                            onType() {
-                                this.open = true;
-                                this.highlight = 0;
-                            },
-                            move(delta) {
-                                const length = this.items.length;
-
-                                if (length === 0) {
-                                    return;
-                                }
-
-                                this.open = true;
-                                this.highlight = (this.highlight + delta + length) % length;
-                            },
-                            send(call) {
-                                this.pending = this.pending
-                                    .then(call)
-                                    .catch(() => {})
-                                    .finally(() => this.$nextTick(() => this.$refs.input?.focus()));
-                            },
-                            choose(item) {
-                                if (! item) {
-                                    return;
-                                }
-
-                                this.search = '';
-                                this.highlight = 0;
-                                this.open = false;
-
-                                if (item.kind === 'drip') {
-                                    this.pendingDrip = true;
-                                    this.send(() => $wire.addDripFromInput(item.value).finally(() => this.pendingDrip = false));
-
-                                    return;
-                                }
-
-                                this.send(() => $wire.addDripAdditiveFromInput(String(item.value)));
-                            },
-                            commit() {
-                                if (this.search.trim() === '') {
-                                    return;
-                                }
-
-                                this.choose(this.items[Math.min(this.highlight, this.items.length - 1)]);
-                            },
-                            removeLast() {
-                                if (this.search !== '') {
-                                    return;
-                                }
-
-                                this.send(() => $wire.removeLastDripToken());
-                            },
-                        }"
-                        @click.outside="open = false"
-                        class="relative"
-                    >
-                        <div
-                            class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-zinc-200 bg-white px-2 py-2 shadow-xs focus-within:ring-2 focus-within:ring-accent dark:border-white/10 dark:bg-white/10"
-                            @click="$refs.input.focus()"
-                        >
-                            @foreach ($filledDrips as $dripIndex => $drip)
-                                <div wire:key="drip-token-{{ $dripIndex }}" class="flex flex-wrap items-center gap-1 {{ $loop->first ? '' : 'border-s border-zinc-200 ps-3 dark:border-zinc-600' }}">
-                                    <flux:badge size="sm" color="teal" icon="droplets">
-                                        {{ $this->dripLineNames[$dripIndex] ?? '' }}
-                                        <flux:badge.close wire:click="removeDripLine({{ $dripIndex }})" aria-label="{{ __('Remove drip') }}" />
-                                    </flux:badge>
-                                    @foreach (array_filter($drip['additives'] ?? [], fn (array $additive): bool => filled($additive['injection_id'] ?? null)) as $additiveIndex => $additive)
-                                        <span wire:key="drip-token-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="flex items-center gap-1">
-                                            <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
-                                            <flux:badge size="sm" color="blue">
-                                                {{ $this->dripAdditiveName($additive['injection_id']) }}
-                                                <flux:badge.close wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" aria-label="{{ __('Remove additive') }}" />
-                                            </flux:badge>
-                                        </span>
-                                    @endforeach
-                                    @if ($loop->last)
-                                        <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
-                                    @endif
-                                </div>
-                            @endforeach
-                            <input
-                                x-ref="input"
-                                data-has-drip="{{ $filledDrips === [] ? '0' : '1' }}"
-                                x-model="search"
-                                type="text"
-                                role="combobox"
-                                aria-autocomplete="list"
-                                aria-controls="drip-composer-list"
-                                :aria-expanded="open && items.length > 0"
-                                aria-label="{{ __('Drips') }}"
-                                autocomplete="off"
-                                placeholder="{{ $filledDrips === [] ? __('Type a drip, e.g. Provas') : __('Add an injection or another drip') }}"
-                                @input="onType()"
-                                @focus="open = search.trim() !== ''"
-                                @keydown.arrow-down.prevent="if (! $event.altKey) move(1)"
-                                @keydown.arrow-up.prevent="if (! $event.altKey) move(-1)"
-                                @keydown.enter.prevent.stop="commit()"
-                                @keydown.tab="if (open && search.trim() !== '') { $event.preventDefault(); commit() }"
-                                @keydown.backspace="removeLast()"
-                                @keydown.escape="if (open) { $event.stopPropagation(); open = false }"
-                                class="h-8 min-w-40 flex-1 border-0 bg-transparent px-1 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 dark:text-zinc-200 dark:placeholder:text-zinc-500"
-                            >
-                        </div>
-
-                        <div
-                            x-show="open && items.length > 0"
-                            x-cloak
-                            class="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
-                        >
-                            <ul id="drip-composer-list" wire:ignore class="max-h-72 overflow-y-auto py-1" role="listbox">
-                                <template x-for="(item, index) in items" :key="item.kind + ':' + item.value">
-                                    <li role="option" :aria-selected="index === highlight">
-                                        <button
-                                            type="button"
-                                            tabindex="-1"
-                                            class="flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200"
-                                            :class="index === highlight ? 'bg-zinc-100 dark:bg-white/10' : 'hover:bg-zinc-50 dark:hover:bg-white/5'"
-                                            @mouseenter="highlight = index"
-                                            @mousedown.prevent
-                                            @click="choose(item)"
-                                        >
-                                            <span x-text="item.kind === 'custom' ? {{ \Illuminate\Support\Js::from(__('Write')) }} + ' “' + item.label + '”' : item.label"></span>
-                                            <span
-                                                class="shrink-0 text-xs"
-                                                :class="item.kind === 'drip' ? 'text-teal-600 dark:text-teal-400' : 'text-zinc-400'"
-                                                x-text="item.kind === 'drip' ? {{ \Illuminate\Support\Js::from(__('New drip')) }} : {{ \Illuminate\Support\Js::from(__('Add to drip')) }}"
-                                            ></span>
-                                        </button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </div>
-                    </div>
-                    <flux:error name="dripLines" />
-                    <p class="text-xs text-zinc-500">{{ __('Type a drip and press Enter. Keep typing to add injections to it. Choose another drip to start a new one. Backspace removes the last item.') }}</p>
-                </div>
-
-                @if ($orderInputMode === 'visual')
-                    @php($selectedDripBaseIds = collect($filledDrips)->pluck('drip_base_id')->map(fn (mixed $id): int => (int) $id)->all())
-                    @php($lastDripIndex = array_key_last($filledDrips))
-                    <div class="space-y-3">
-                        <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                <flux:icon name="droplets" variant="mini" class="size-3.5" />
-                                {{ __('Drip bases') }}
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                @forelse ($this->dripBases as $dripBase)
-                                    @php($isSelected = in_array($dripBase->id, $selectedDripBaseIds, true))
-                                    <flux:badge
-                                        as="button"
-                                        type="button"
-                                        size="lg"
-                                        :color="$isSelected ? 'teal' : 'cyan'"
-                                        :icon="$isSelected ? 'check' : 'droplets'"
-                                        class="cursor-pointer"
-                                        wire:key="visual-drip-{{ $dripBase->id }}"
-                                        wire:click="toggleDripSelection({{ $dripBase->id }})"
-                                    >
-                                        {{ $dripBase->name }}
-                                    </flux:badge>
-                                @empty
-                                    <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
-                                @endforelse
-                            </div>
-                        </div>
-
-                        <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700 {{ $lastDripIndex === null ? 'opacity-60' : '' }}">
-                            <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                <flux:icon name="syringe" variant="mini" class="size-3.5" />
-                                @if ($lastDripIndex === null)
-                                    {{ __('Injections — choose a drip first') }}
-                                @else
-                                    {{ __('Injections — tap to add to :drip', ['drip' => $this->dripLineNames[$lastDripIndex] ?? '']) }}
-                                @endif
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                @forelse ($this->injections as $injection)
-                                    <flux:badge
-                                        as="button"
-                                        type="button"
-                                        size="lg"
-                                        color="blue"
-                                        icon="syringe"
-                                        class="{{ $lastDripIndex === null ? 'pointer-events-none' : 'cursor-pointer' }}"
-                                        :disabled="$lastDripIndex === null"
-                                        wire:key="visual-additive-{{ $injection->id }}"
-                                        wire:click="addDripAdditiveFromInput('{{ $injection->id }}')"
-                                    >
-                                        {{ $injection->name }}
-                                    </flux:badge>
-                                @empty
-                                    <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
-                                @endforelse
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            @endif
-
-            @if ($activeOrderTab === 'drips' && $this->dripServices->isNotEmpty())
-                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-                    <flux:heading size="sm" class="mb-3">{{ __('Drip charge') }}</flux:heading>
-                    <div class="grid gap-3 sm:grid-cols-2" data-nav-row>
-                        @if ($this->dripServices->count() > 1)
-                            <flux:field data-nav-field>
-                                <flux:label>{{ __('Drip service') }}</flux:label>
-                                <flux:select wire:model="dripServiceId">
-                                    <option value="">{{ __('Select drip service') }}</option>
-                                    @foreach ($this->dripServices as $dripService)
-                                        <option value="{{ $dripService->id }}">{{ $dripService->name }}</option>
-                                    @endforeach
-                                </flux:select>
-                                <flux:error name="dripServiceId" />
-                            </flux:field>
-                        @endif
-
-                        <flux:field data-nav-field class="{{ $this->dripServices->count() > 1 ? '' : 'sm:col-span-2' }}">
-                            <flux:label>{{ __('Suggested price') }}</flux:label>
-                            <flux:input
-                                wire:model="suggestedPrice"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="{{ __('Optional') }}"
-                            />
-                            <flux:error name="suggestedPrice" />
-                        </flux:field>
-                    </div>
                 </div>
             @endif
 

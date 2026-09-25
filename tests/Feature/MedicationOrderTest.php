@@ -69,6 +69,45 @@ function createMedicationQueuePatient(
     return [$user, $doctor, $shift, $service, $queue, $patient, $token];
 }
 
+test('doctor can dismiss a patient from the medication list without touching the token', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertSeeHtml('wire:click="dismissFromQueue('.$token->id.')"')
+        ->assertSeeHtml('wire:confirm="'.__('Dismiss :name from the medication list?', ['name' => $patient->name]).'"')
+        ->call('dismissFromQueue', $token->id)
+        ->assertDontSee($patient->name)
+        ->call('selectToken', $token->id)
+        ->assertSet('selectedTokenId', null);
+
+    $token->refresh();
+
+    expect($token->status)->toBe('waiting')
+        ->and($token->medication_dismissed_at)->not->toBeNull()
+        ->and($token->medication_dismissed_by)->toBe($user->id);
+});
+
+test('a patient with a recalled order cannot be dismissed', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    MedicationOrder::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Draft,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertDontSeeHtml('wire:click="dismissFromQueue('.$token->id.')"')
+        ->call('dismissFromQueue', $token->id)
+        ->assertSee($patient->name);
+
+    expect($token->refresh()->medication_dismissed_at)->toBeNull();
+});
+
 test('doctors can visit the medication page', function () {
     $user = User::factory()->doctor()->create();
 
@@ -723,7 +762,6 @@ test('drips tab does not offer ready-made drips', function () {
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'typing')
-        ->call('switchOrderTab', 'drips')
         ->assertSee(__('Type a drip, e.g. Provas'))
         ->assertDontSee(__('Ready-made drip'))
         ->assertDontSee(__('With base'))
@@ -767,7 +805,6 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee(__('Search medicine or injection'))
         ->assertSee(__('Medicine').' — PCM — Searchable Paracetamol')
         ->assertSee(__('Injection').' — DIC — Searchable Diclofenac')
-        ->call('switchOrderTab', 'drips')
         ->assertSee(__('Type a drip, e.g. Provas'))
         ->assertSee('Searchable Saline');
 });
@@ -783,7 +820,6 @@ test('typed drip input builds drips with additives as badges', function () {
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'typing')
-        ->call('switchOrderTab', 'drips')
         ->call('addDripFromInput', $provas->id)
         ->call('addDripFromInput', $ringer->id)
         ->call('addDripAdditiveFromInput', (string) $ceftriaxone->id)
@@ -793,7 +829,7 @@ test('typed drip input builds drips with additives as badges', function () {
         ->assertHasNoErrors()
         ->assertSee('Provas')
         ->assertSee('Inj. Omeprazole 40mg')
-        ->assertSee(__('Add an injection or another drip'));
+        ->assertSee(__('Add an injection, or press Enter again for a new drip'));
 
     $drips = collect($component->get('dripLines'))->filter(fn (array $line): bool => filled($line['drip_base_id']))->values();
 
@@ -817,6 +853,66 @@ test('typed drip input builds drips with additives as badges', function () {
         ->and($drips[0]['drip_base_id'])->toBe($provas->id);
 });
 
+test('typed drip input accepts a drip that is not in the catalog', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);
+    $onset = Injection::factory()->create(['name' => 'Inj. Onset']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('addDripFromInput', $ringer->id)
+        ->call('addDripFromInput', 'Dextrose 10% 500ml')
+        ->call('addDripAdditiveFromInput', (string) $onset->id)
+        ->assertHasNoErrors()
+        ->assertSee('Dextrose 10% 500ml')
+        ->set('complaintOrDiagnosis', 'Hypoglycaemia')
+        ->call('previewOrder')
+        ->assertHasNoErrors();
+
+    expect($component->get('orderPreview.drips'))->toBe([
+        ['name' => 'R/L - 500', 'additives' => []],
+        ['name' => 'Dextrose 10% 500ml', 'additives' => [['name' => 'Inj. Onset']]],
+    ]);
+
+    $component->call('save')->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+    $drips = $order->drips()->with('additives')->orderBy('id')->get();
+
+    expect($drips)->toHaveCount(2)
+        ->and($drips[1]->drip_base_id)->toBeNull()
+        ->and($drips[1]->name)->toBe('Dextrose 10% 500ml')
+        ->and($drips[1]->additives->pluck('name')->all())->toBe(['Inj. Onset']);
+
+    $component
+        ->call('addDripFromInput', str_repeat('x', 256))
+        ->assertHasErrors('dripLines');
+});
+
+test('a written drip is kept when a previous order is repeated', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+    $previousToken = QueueToken::factory()->create([
+        'service_queue_id' => $token->service_queue_id,
+        'patient_id' => $patient->id,
+        'token_number' => 2,
+        'status' => 'served',
+    ]);
+    $previous = MedicationOrder::factory()->create([
+        'queue_token_id' => $previousToken->id,
+        'patient_id' => $patient->id,
+        'prescribed_by' => $user->id,
+    ]);
+    $previous->drips()->create(['drip_base_id' => null, 'name' => 'Dextrose 10% 500ml']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('repeatOrder', $previous->id)
+        ->assertSet('dripLines.0.drip_base_id', 'custom:Dextrose 10% 500ml')
+        ->assertSee('Dextrose 10% 500ml');
+});
+
 test('typed drip input needs a drip before injections and saves the order', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);
@@ -826,7 +922,6 @@ test('typed drip input needs a drip before injections and saves the order', func
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'typing')
-        ->call('switchOrderTab', 'drips')
         ->call('addDripAdditiveFromInput', (string) $onset->id)
         ->assertHasErrors('dripLines')
         ->call('addDripFromInput', $ringer->id)
@@ -984,7 +1079,7 @@ test('doctor can write and select tab or inj medications from the visual badges'
     ]);
 });
 
-test('visual badges toggle drip bases on the drips tab', function () {
+test('visual mode shows the drip input under medications without drip badge rows', function () {
     [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
     $dripBase = DripBase::factory()->create(['name' => 'Visual Saline']);
     $additive = Injection::factory()->create(['name' => 'Visual Vitamin B12']);
@@ -993,28 +1088,24 @@ test('visual badges toggle drip bases on the drips tab', function () {
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'visual')
-        ->call('switchOrderTab', 'drips')
-        ->assertDontSee(__('Add drip'))
-        ->assertSee('Visual Saline')
+        ->assertSee(__('Medications'))
+        ->assertSee(__('Drips'))
         ->assertSee(__('Type a drip, e.g. Provas'))
-        ->assertSee(__('Injections — choose a drip first'))
-        ->assertSeeHtml('wire:click="toggleDripSelection('.$dripBase->id.')"')
-        ->call('addRowForActiveTab')
-        ->assertCount('dripLines', 1)
-        ->call('toggleDripSelection', $dripBase->id)
+        ->assertDontSee(__('Add drip'))
+        ->assertDontSee(__('Drip bases'))
+        ->assertDontSeeHtml('switchOrderTab')
+        ->call('addDripFromInput', $dripBase->id)
         ->assertSet('dripLines.0.drip_base_id', $dripBase->id)
-        ->assertSee(__('Injections — tap to add to :drip', ['drip' => 'Visual Saline']))
-        ->assertSeeHtml('wire:click="addDripAdditiveFromInput(\''.$additive->id.'\')"')
         ->call('addDripAdditiveFromInput', (string) $additive->id)
         ->call('addDripAdditiveFromInput', (string) $additive->id)
         ->assertSet('dripLines.0.additives.0.injection_id', $additive->id)
         ->assertSet('dripLines.0.additives.1.injection_id', $additive->id)
-        ->call('toggleDripSelection', $dripBase->id);
+        ->call('removeDripLine', 0);
 
     expect($component->get('dripLines'))->toBe([]);
 
     $component
-        ->call('toggleDripSelection', $dripBase->id)
+        ->call('addDripFromInput', $dripBase->id)
         ->call('addDripAdditiveFromInput', (string) $additive->id)
         ->set('complaintOrDiagnosis', 'General')
         ->call('save')
@@ -1045,9 +1136,8 @@ test('doctor can write a custom drip additive from the visual badges', function 
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'visual')
-        ->call('switchOrderTab', 'drips')
-        ->call('toggleDripSelection', $dripBase->id)
-        ->assertSee(__('Add an injection or another drip'))
+        ->call('addDripFromInput', $dripBase->id)
+        ->assertSee(__('Add an injection, or press Enter again for a new drip'))
         ->call('addDripAdditiveFromInput', 'Vitamin C 500mg')
         ->assertHasNoErrors()
         ->assertSet('dripLines.0.additives.0.injection_id', 'custom:Vitamin C 500mg')
@@ -1140,12 +1230,11 @@ test('medication form starts with common blank order rows', function () {
         ->assertCount('dripLines', 1)
         ->assertCount('dripLines.0.additives', 2)
         ->assertSee(__('Medications'))
-        ->call('switchOrderTab', 'drips')
+        ->call('addMedicationRowFromShortcut')
+        ->assertCount('medicationLines', 7)
         ->assertCount('dripLines', 1)
-        ->call('addRowForActiveTab')
-        ->assertCount('dripLines', 1)
-        ->call('switchOrderTab', 'medicines')
-        ->call('addRowForActiveTab')
+        ->set('orderInputMode', 'visual')
+        ->call('addMedicationRowFromShortcut')
         ->assertCount('medicationLines', 7);
 });
 
