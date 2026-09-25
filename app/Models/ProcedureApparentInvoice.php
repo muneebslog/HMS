@@ -35,6 +35,9 @@ class ProcedureApparentInvoice extends Model
     protected $fillable = [
         'procedure_id',
         'total',
+        'admission_date',
+        'discharge_date',
+        'issued_date',
         'created_by',
         'updated_by',
     ];
@@ -48,6 +51,9 @@ class ProcedureApparentInvoice extends Model
     {
         return [
             'total' => 'float',
+            'admission_date' => 'date',
+            'discharge_date' => 'date',
+            'issued_date' => 'date',
         ];
     }
 

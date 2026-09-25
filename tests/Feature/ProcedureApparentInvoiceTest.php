@@ -89,8 +89,8 @@ test('a receptionist can save and print an apparent invoice with custom fees', f
         ->assertSee(config('hospital.name'))
         ->assertSee(__('Payment Receipt'))
         ->assertSee('APP-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT))
-        ->assertSee('Saba Amir')
-        ->assertSee('Amir Sohail')
+        ->assertSee('SABA AMIR')
+        ->assertSee('AMIR SOHAIL')
         ->assertSee('Dr. Sadia Sohail')
         ->assertSee('LSCS')
         ->assertSee('Surgeon Fee')
@@ -160,4 +160,82 @@ test('the apparent invoice modal shows a live total as fee amounts change', func
         ->assertSet('apparentInvoiceLiveTotal', 100000.0)
         ->assertSee(__('Live total'))
         ->assertSee('100,000.00');
+});
+
+test('the apparent invoice modal prefills admission, discharge and issued dates', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->create([
+        'created_by' => $user->id,
+        'admitted_at' => '2026-09-01 10:00:00',
+        'discharged_at' => '2026-09-04 12:00:00',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('openApparentInvoice', $procedure->id)
+        ->assertSet('apparentAdmissionDate', '2026-09-01')
+        ->assertSet('apparentDischargeDate', '2026-09-04')
+        ->assertSet('apparentIssuedDate', now()->format('Y-m-d'))
+        ->assertSee(__('Date of Admission'))
+        ->assertSee(__('Date of Discharge'))
+        ->assertSee(__('Date Issued'));
+});
+
+test('apparent invoice saves entered dates and prints them', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->discharged()->create(['created_by' => $user->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('openApparentInvoice', $procedure->id)
+        ->set('apparentInvoiceItems', [['name' => 'Surgeon Fee', 'amount' => '50000']])
+        ->set('apparentAdmissionDate', '2026-08-10')
+        ->set('apparentDischargeDate', '2026-08-13')
+        ->set('apparentIssuedDate', '2026-08-15')
+        ->call('saveApparentInvoice', false)
+        ->assertHasNoErrors();
+
+    $invoice = $procedure->fresh()->apparentInvoice;
+
+    expect($invoice->admission_date->format('Y-m-d'))->toBe('2026-08-10')
+        ->and($invoice->discharge_date->format('Y-m-d'))->toBe('2026-08-13')
+        ->and($invoice->issued_date->format('Y-m-d'))->toBe('2026-08-15');
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('openApparentInvoice', $procedure->id)
+        ->assertSet('apparentAdmissionDate', '2026-08-10')
+        ->assertSet('apparentIssuedDate', '2026-08-15');
+
+    $this->actingAs($user)
+        ->get(route('reception.procedures.apparent-invoice', $procedure))
+        ->assertOk()
+        ->assertSee('10-08-2026')
+        ->assertSee('13-08-2026')
+        ->assertSee('15-08-2026')
+        ->assertSee('15 Aug 2026');
+});
+
+test('apparent invoice requires admission and issued dates and a discharge not before admission', function () {
+    $user = User::factory()->receptionist()->create();
+    Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->create(['created_by' => $user->id]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('openApparentInvoice', $procedure->id)
+        ->set('apparentInvoiceItems', [['name' => 'Surgeon Fee', 'amount' => '50000']])
+        ->set('apparentAdmissionDate', '')
+        ->set('apparentIssuedDate', '')
+        ->call('saveApparentInvoice', false)
+        ->assertHasErrors(['apparentAdmissionDate' => 'required', 'apparentIssuedDate' => 'required'])
+        ->set('apparentAdmissionDate', '2026-08-10')
+        ->set('apparentDischargeDate', '2026-08-05')
+        ->set('apparentIssuedDate', '2026-08-15')
+        ->call('saveApparentInvoice', false)
+        ->assertHasErrors(['apparentDischargeDate' => 'after_or_equal']);
+
+    expect($procedure->fresh()->apparentInvoice)->toBeNull();
 });

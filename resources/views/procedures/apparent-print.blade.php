@@ -226,6 +226,9 @@
             @php
                 $regNumber = $procedure->patient->mrn ?? ('R-'.str_pad((string) $procedure->id, 5, '0', STR_PAD_LEFT));
                 $docNumber = 'APP-'.str_pad((string) $procedure->id, 6, '0', STR_PAD_LEFT);
+                $issuedDate = $invoice->issued_date ?? now();
+                $admissionDate = $invoice->admission_date ?? $procedure->admitted_at;
+                $dischargeDate = $invoice->discharge_date ?? $procedure->discharged_at;
             @endphp
 
             <div class="header">
@@ -236,7 +239,7 @@
                     @endif
                 </div>
                 <div class="header-right">
-                    <p class="issued">{{ __('Issued') }} {{ now()->format('d M Y') }}</p>
+                    <p class="issued">{{ __('Issued') }} {{ $issuedDate->format('d M Y') }}</p>
                     <div class="barcode">
                         {!! \App\Support\Code39Barcode::svg($docNumber, 36, 1.2) !!}
                         <p class="barcode-label">{{ $docNumber }}</p>
@@ -246,7 +249,7 @@
 
             <div class="top-meta">
                 <div>{{ __('PHC REG #') }} {{ $regNumber }}</div>
-                <div>{{ __('Date') }}: {{ now()->format('d-m-Y') }}</div>
+                <div>{{ __('Date') }}: {{ $issuedDate->format('d-m-Y') }}</div>
             </div>
 
             <h1 class="doc-title">{{ __('Payment Receipt') }}</h1>
@@ -270,11 +273,11 @@
                 </div>
                 <div class="info-row">
                     <span class="label">{{ __('Date of Admission') }} :</span>
-                    <span class="value">{{ $procedure->admitted_at?->format('d-m-Y') ?? '-' }}</span>
+                    <span class="value">{{ $admissionDate?->format('d-m-Y') ?? '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="label">{{ __('Date of Discharge') }} :</span>
-                    <span class="value">{{ $procedure->discharged_at?->format('d-m-Y') ?? '-' }}</span>
+                    <span class="value">{{ $dischargeDate?->format('d-m-Y') ?? '-' }}</span>
                 </div>
             </div>
 

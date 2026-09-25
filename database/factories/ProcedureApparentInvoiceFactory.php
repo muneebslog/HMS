@@ -22,6 +22,9 @@ class ProcedureApparentInvoiceFactory extends Factory
         return [
             'procedure_id' => Procedure::factory(),
             'total' => $this->faker->randomFloat(2, 10000, 200000),
+            'admission_date' => now()->subDays(3)->toDateString(),
+            'discharge_date' => now()->subDay()->toDateString(),
+            'issued_date' => now()->toDateString(),
             'created_by' => User::factory(),
             'updated_by' => null,
         ];

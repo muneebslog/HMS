@@ -127,6 +127,12 @@ new #[Title('Procedures')] class extends Component
 
     public string $newApparentFeeAmount = '';
 
+    public string $apparentAdmissionDate = '';
+
+    public string $apparentDischargeDate = '';
+
+    public string $apparentIssuedDate = '';
+
     #[Validate]
     public string $patientName = '';
 
@@ -712,6 +718,10 @@ new #[Title('Procedures')] class extends Component
             $this->apparentInvoiceItems = ProcedureApparentInvoice::defaultFeeRows();
         }
 
+        $this->apparentAdmissionDate = ($invoice?->admission_date ?? $procedure->admitted_at)?->format('Y-m-d') ?? '';
+        $this->apparentDischargeDate = ($invoice?->discharge_date ?? $procedure->discharged_at)?->format('Y-m-d') ?? '';
+        $this->apparentIssuedDate = ($invoice?->issued_date ?? now())->format('Y-m-d');
+
         $this->showViewModal = false;
         $this->showApparentInvoiceModal = true;
     }
@@ -746,6 +756,9 @@ new #[Title('Procedures')] class extends Component
         $this->apparentInvoiceItems = [];
         $this->newApparentFeeName = '';
         $this->newApparentFeeAmount = '';
+        $this->apparentAdmissionDate = '';
+        $this->apparentDischargeDate = '';
+        $this->apparentIssuedDate = '';
         $this->resetErrorBag();
         unset($this->apparentInvoiceLiveTotal);
     }
@@ -801,24 +814,39 @@ new #[Title('Procedures')] class extends Component
             'apparentInvoiceItems' => ['required', 'array', 'min:1'],
             'apparentInvoiceItems.*.name' => ['required', 'string', 'max:255'],
             'apparentInvoiceItems.*.amount' => ['required', 'numeric', 'min:0'],
+            'apparentAdmissionDate' => ['required', 'date'],
+            'apparentDischargeDate' => ['nullable', 'date', 'after_or_equal:apparentAdmissionDate'],
+            'apparentIssuedDate' => ['required', 'date'],
+        ], attributes: [
+            'apparentAdmissionDate' => __('date of admission'),
+            'apparentDischargeDate' => __('date of discharge'),
+            'apparentIssuedDate' => __('date issued'),
         ]);
+
+        $dates = [
+            'admission_date' => $validated['apparentAdmissionDate'],
+            'discharge_date' => filled($validated['apparentDischargeDate'] ?? null) ? $validated['apparentDischargeDate'] : null,
+            'issued_date' => $validated['apparentIssuedDate'],
+        ];
 
         $procedure = Procedure::with('apparentInvoice.items')->findOrFail($this->apparentInvoiceProcedureId);
         $total = collect($validated['apparentInvoiceItems'])->sum(fn (array $item): float => (float) $item['amount']);
 
-        DB::transaction(function () use ($procedure, $validated, $total): void {
+        DB::transaction(function () use ($procedure, $validated, $total, $dates): void {
             $invoice = $procedure->apparentInvoice;
 
             if ($invoice === null) {
                 $invoice = ProcedureApparentInvoice::query()->create([
                     'procedure_id' => $procedure->id,
                     'total' => $total,
+                    ...$dates,
                     'created_by' => auth()->id(),
                     'updated_by' => auth()->id(),
                 ]);
             } else {
                 $invoice->update([
                     'total' => $total,
+                    ...$dates,
                     'updated_by' => auth()->id(),
                 ]);
                 $invoice->items()->delete();
@@ -2364,6 +2392,24 @@ new #[Title('Procedures')] class extends Component
             <flux:text class="text-zinc-500">
                 {{ __('Enter fee amounts for the company receipt. This does not change the actual package bill.') }}
             </flux:text>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <flux:field>
+                    <flux:label>{{ __('Date of Admission') }}</flux:label>
+                    <flux:input type="date" wire:model="apparentAdmissionDate" />
+                    <flux:error name="apparentAdmissionDate" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>{{ __('Date of Discharge') }}</flux:label>
+                    <flux:input type="date" wire:model="apparentDischargeDate" />
+                    <flux:error name="apparentDischargeDate" />
+                </flux:field>
+                <flux:field>
+                    <flux:label>{{ __('Date Issued') }}</flux:label>
+                    <flux:input type="date" wire:model="apparentIssuedDate" />
+                    <flux:error name="apparentIssuedDate" />
+                </flux:field>
+            </div>
 
             <div class="space-y-3">
                 @foreach ($apparentInvoiceItems as $index => $item)
