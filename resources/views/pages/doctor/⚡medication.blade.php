@@ -6,6 +6,7 @@ use App\Enums\DripChargeStatus;
 use App\Enums\InjectionAdministrationType;
 use App\Enums\MedicationOrderStatus;
 use App\Enums\MedicineDose;
+use App\Enums\TokenResetType;
 use App\Models\DripBase;
 use App\Models\DripCharge;
 use App\Models\Injection;
@@ -13,9 +14,11 @@ use App\Models\MedicationOrder;
 use App\Models\Medicine;
 use App\Models\QueueToken;
 use App\Models\Service;
+use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\TokenDisplayService;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -102,16 +105,71 @@ new #[Title('Medication')] class extends Component
     public array $dripLines = [];
 
     /**
-     * Waiting/serving tokens that need medication for the current open shift.
+     * The latest shift (open, or just closed between shifts) and the one before it.
+     * Patients stay on the list across one shift change so closing a shift does not drop them.
+     *
+     * @return Collection<int, Shift>
+     */
+    #[Computed]
+    public function recentShifts(): Collection
+    {
+        $latestShift = Shift::current() ?? Shift::query()->latest('opened_at')->first();
+
+        if ($latestShift === null) {
+            return new Collection;
+        }
+
+        $previousShift = Shift::query()
+            ->whereKeyNot($latestShift->id)
+            ->where('opened_at', '<', $latestShift->opened_at)
+            ->latest('opened_at')
+            ->first();
+
+        return new Collection(array_values(array_filter([$latestShift, $previousShift])));
+    }
+
+    /**
+     * Limit a service queue query to queues from the recent shifts, open or closed.
+     *
+     * @param  Builder<ServiceQueue>  $query
+     */
+    private function whereInRecentShifts(Builder $query): void
+    {
+        $query->where(function (Builder $shiftQuery): void {
+            foreach ($this->recentShifts as $shift) {
+                $shiftQuery->orWhere(fn (Builder $inner) => $inner->forShift($shift));
+            }
+        });
+    }
+
+    /**
+     * Whether a listed token came from the shift before the latest one, where token numbers restarted.
+     */
+    public function isFromPreviousShift(QueueToken $token): bool
+    {
+        $latestShift = $this->recentShifts->first();
+        $queue = $token->serviceQueue;
+
+        if ($latestShift === null || $queue === null || $this->recentShifts->count() < 2) {
+            return false;
+        }
+
+        $belongsToLatest = $queue->shift_id === $latestShift->id
+            || ($queue->reset_type === TokenResetType::Daily
+                && $queue->date?->toDateString() === $latestShift->opened_at->toDateString());
+
+        return ! $belongsToLatest;
+    }
+
+    /**
+     * Waiting/serving tokens that need medication from the latest shift and the one before it.
      *
      * @return Collection<int, QueueToken>
      */
     #[Computed]
     public function queue(): Collection
     {
-        $shift = Shift::current();
-
-        if ($shift === null) {
+        if ($this->recentShifts->isEmpty()) {
             return new Collection;
         }
 
@@ -135,10 +193,9 @@ new #[Title('Medication')] class extends Component
                         fn ($orderQuery) => $orderQuery->where('status', MedicationOrderStatus::Draft)
                     );
             })
-            ->whereHas('serviceQueue', function ($query) use ($shift): void {
-                $query->where('status', 'open')
-                    ->forShift($shift)
-                    ->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
+            ->whereHas('serviceQueue', function (Builder $query): void {
+                $this->whereInRecentShifts($query);
+                $query->whereHas('service', fn ($serviceQuery) => $serviceQuery->where('needs_medication', true));
             })
             ->orderByRaw('arrived_at is null')
             ->orderBy('arrived_at')
@@ -147,20 +204,14 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * Latest submitted medication orders that can be recalled from the current shift.
+     * Latest submitted medication orders that can be recalled from the recent shifts.
      *
      * @return Collection<int, MedicationOrder>
      */
     #[Computed]
     public function recallableOrders(): Collection
     {
-        if (! $this->showRecallModal) {
-            return new Collection;
-        }
-
-        $shift = Shift::current();
-
-        if ($shift === null) {
+        if (! $this->showRecallModal || $this->recentShifts->isEmpty()) {
             return new Collection;
         }
 
@@ -169,7 +220,7 @@ new #[Title('Medication')] class extends Component
             ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
             ->whereHas(
                 'queueToken.serviceQueue',
-                fn ($query) => $query->where('status', 'open')->forShift($shift)
+                fn (Builder $query) => $this->whereInRecentShifts($query)
             )
             ->latest('id')
             ->get()
@@ -216,6 +267,7 @@ new #[Title('Medication')] class extends Component
         $queue = $this->selectedToken?->serviceQueue;
 
         return $queue !== null
+            && $queue->status === 'open'
             && app(TokenDisplayService::class)->followsDoctorToken($queue);
     }
 
@@ -747,13 +799,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function selectedRecallOrder(): ?MedicationOrder
     {
-        if ($this->selectedRecallOrderId === null) {
-            return null;
-        }
-
-        $shift = Shift::current();
-
-        if ($shift === null) {
+        if ($this->selectedRecallOrderId === null || $this->recentShifts->isEmpty()) {
             return null;
         }
 
@@ -763,7 +809,7 @@ new #[Title('Medication')] class extends Component
             ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
             ->whereHas(
                 'queueToken.serviceQueue',
-                fn ($query) => $query->where('status', 'open')->forShift($shift)
+                fn (Builder $query) => $this->whereInRecentShifts($query)
             )
             ->first();
     }
@@ -1395,7 +1441,7 @@ new #[Title('Medication')] class extends Component
             return;
         }
 
-        if ($advanceQueue && ! app(TokenDisplayService::class)->followsDoctorToken($token->serviceQueue)) {
+        if ($advanceQueue && ($token->serviceQueue->status !== 'open' || ! app(TokenDisplayService::class)->followsDoctorToken($token->serviceQueue))) {
             abort(403);
         }
 
@@ -2159,6 +2205,11 @@ new #[Title('Medication')] class extends Component
                         {{ $token->patient?->mrn ?? __('No MRN') }}
                         · {{ $token->serviceQueue?->service?->name }}
                     </p>
+                    @if ($this->isFromPreviousShift($token))
+                        <p class="w-fit rounded-sm bg-amber-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                            {{ __('Previous shift') }}
+                        </p>
+                    @endif
                     @if ($token->medicationOrder)
                         <div class="mt-1 border-t border-dashed border-zinc-400/70 pt-2 text-xs text-zinc-600">
                             {{ $token->medicationOrder->status->label() }}

@@ -40,7 +40,7 @@ function createMedicationQueuePatient(
 ): array {
     $user = User::factory()->doctor()->create();
     $doctor = $withDoctor ? ($doctor ?? Doctor::factory()->create()) : null;
-    $shift = Shift::factory()->open()->create();
+    $shift = Shift::factory()->open()->create(['opened_at' => now()->subHour()]);
     $service = Service::factory()->create([
         'name' => 'General Checkup',
         'is_standalone' => ! $withDoctor,
@@ -206,6 +206,80 @@ test('medication queue includes overnight daily queues after midnight', function
         ->assertSee($patient->name)
         ->assertSee((string) $token->token_number)
         ->assertDontSee(__('No patients need medication'));
+});
+
+test('closing the shift keeps waiting patients on the medication list', function () {
+    [$user, , $shift, , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $shift->update(['status' => 'closed', 'closed_at' => now()]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertDontSee(__('Previous shift'))
+        ->call('selectToken', $token->id)
+        ->assertSet('selectedTokenId', $token->id);
+});
+
+test('patients from the previous shift stay listed after a new shift opens, but not older ones', function () {
+    [$user, , $previousShift, $service, $previousQueue, $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $olderShift = Shift::factory()->closed()->create([
+        'opened_at' => now()->subDays(2),
+        'closed_at' => now()->subDays(2)->addHours(8),
+    ]);
+    $olderQueue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $olderShift->id,
+        'date' => today()->subDays(2),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'closed',
+        'opened_at' => now()->subDays(2),
+    ]);
+    $olderPatient = Patient::factory()->create(['name' => 'Two Shifts Ago']);
+    QueueToken::factory()->create([
+        'service_queue_id' => $olderQueue->id,
+        'patient_id' => $olderPatient->id,
+        'token_number' => 9,
+        'status' => 'waiting',
+        'arrived_at' => now()->subDays(2),
+    ]);
+
+    $previousShift->update(['status' => 'closed', 'closed_at' => now()->subMinute()]);
+    $previousQueue->update(['status' => 'closed', 'closed_at' => now()->subMinute()]);
+    $newShift = Shift::factory()->open()->create(['opened_at' => now()]);
+    $newQueue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $newShift->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+        'opened_at' => now(),
+    ]);
+    $newPatient = Patient::factory()->create(['name' => 'New Shift Patient']);
+    QueueToken::factory()->create([
+        'service_queue_id' => $newQueue->id,
+        'patient_id' => $newPatient->id,
+        'token_number' => 1,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSee($patient->name)
+        ->assertSee($newPatient->name)
+        ->assertDontSee($olderPatient->name)
+        ->assertSee(__('Previous shift'));
+
+    expect($component->instance()->isFromPreviousShift($token->fresh('serviceQueue')))->toBeTrue();
+
+    $component
+        ->call('selectToken', $token->id)
+        ->assertSet('selectedTokenId', $token->id)
+        ->assertDontSee(__('Save & Next Patient'));
 });
 
 test('any doctor login can prescribe for patients in the medication queue', function () {
