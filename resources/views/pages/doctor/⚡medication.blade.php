@@ -2640,6 +2640,16 @@ new #[Title('Medication')] class extends Component
                                             </flux:badge>
                                         </span>
                                     @endforeach
+                                    <button
+                                        type="button"
+                                        class="ms-1 flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-zinc-300 px-1.5 py-0.5 text-xs font-medium text-zinc-600 hover:border-teal-500 hover:text-teal-700 dark:border-zinc-600 dark:text-zinc-300 dark:hover:text-teal-300"
+                                        aria-label="{{ __('Set dose for :name', ['name' => $this->dripLineNames[$dripIndex] ?? '']) }}"
+                                        @click.stop="open = false"
+                                        wire:click="openDoseModal({{ $dripIndex }})"
+                                    >
+                                        <flux:icon name="beaker" variant="micro" class="size-3.5" />
+                                        {{ __('Dose') }}
+                                    </button>
                                     @if ($loop->last)
                                         <span x-show="! startingNew" class="text-sm text-zinc-400" aria-hidden="true">+</span>
                                     @endif
