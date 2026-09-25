@@ -884,7 +884,6 @@ new #[Title('Medication')] class extends Component
     {
         match ($this->activeOrderTab) {
             'medicines' => $this->orderInputMode === 'visual' ? null : $this->addMedicationLine(),
-            'drips' => $this->orderInputMode === 'visual' ? null : $this->addDripLine(),
             default => null,
         };
     }
@@ -1089,6 +1088,95 @@ new #[Title('Medication')] class extends Component
         }
 
         $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
+    }
+
+    /**
+     * Start a new drip from the typed drip input.
+     */
+    public function addDripFromInput(int $dripBaseId): void
+    {
+        if ($this->dripBases->firstWhere('id', $dripBaseId) === null) {
+            return;
+        }
+
+        $index = $this->firstBlankDripLineIndex();
+
+        if ($index === null) {
+            $this->addDripLine();
+            $index = array_key_last($this->dripLines);
+        }
+
+        $this->dripLines[$index]['drip_base_id'] = $dripBaseId;
+        $this->resetValidation('dripLines');
+    }
+
+    /**
+     * Add a catalog injection id or a written name to the last drip from the typed drip input.
+     */
+    public function addDripAdditiveFromInput(string $selection): void
+    {
+        $dripIndex = $this->lastFilledDripLineIndex();
+
+        if ($dripIndex === null) {
+            $this->addError('dripLines', __('Choose a drip first, then add injections to it.'));
+
+            return;
+        }
+
+        $selection = trim($selection);
+
+        if (is_numeric($selection)) {
+            if ($this->injections->firstWhere('id', (int) $selection) === null) {
+                return;
+            }
+
+            $this->assignDripAdditive($dripIndex, (int) $selection);
+
+            return;
+        }
+
+        if ($selection === '' || mb_strlen($selection) > 255) {
+            $this->addError('dripLines', __('Injection name must be 255 characters or fewer.'));
+
+            return;
+        }
+
+        $this->assignDripAdditive($dripIndex, 'custom:'.$selection);
+    }
+
+    /**
+     * Remove the last additive, or the last drip when it has none, for Backspace in the typed drip input.
+     */
+    public function removeLastDripToken(): void
+    {
+        $dripIndex = $this->lastFilledDripLineIndex();
+
+        if ($dripIndex === null) {
+            return;
+        }
+
+        $filledAdditives = array_filter(
+            $this->dripLines[$dripIndex]['additives'] ?? [],
+            fn (array $additive): bool => filled($additive['injection_id'] ?? null)
+        );
+
+        if ($filledAdditives === []) {
+            $this->removeDripLine($dripIndex);
+
+            return;
+        }
+
+        $this->removeDripAdditive($dripIndex, array_key_last($filledAdditives));
+    }
+
+    /**
+     * Index of the last row with a drip base, which typed additives are added to.
+     */
+    private function lastFilledDripLineIndex(): ?int
+    {
+        $filled = array_filter($this->dripLines, fn (array $line): bool => filled($line['drip_base_id'] ?? null));
+
+        return $filled === [] ? null : array_key_last($filled);
     }
 
     /**
@@ -2551,47 +2639,204 @@ new #[Title('Medication')] class extends Component
                     </div>
                 </div>
             @else
-                <div class="space-y-4">
-                    @foreach ($dripLines as $dripIndex => $drip)
-                        <div wire:key="drip-line-{{ $dripIndex }}" class="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <div class="flex items-start justify-between gap-2" data-nav-row>
-                                <div class="min-w-0 flex-1" data-nav-field>
-                                    <x-searchable-select
-                                        wire:model="dripLines.{{ $dripIndex }}.drip_base_id"
-                                        :options="$this->dripBaseOptions"
-                                        :placeholder="__('Search drip base')"
-                                    />
-                                    <flux:error name="dripLines.{{ $dripIndex }}.drip_base_id" />
-                                </div>
-                                <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripLine({{ $dripIndex }})" />
-                            </div>
+                @php($filledDrips = array_filter($dripLines, fn (array $line): bool => filled($line['drip_base_id'] ?? null)))
+                <div class="space-y-2" data-nav-row>
+                    <div
+                        data-nav-field
+                        x-data="{
+                            search: '',
+                            open: false,
+                            highlight: 0,
+                            pending: Promise.resolve(),
+                            pendingDrip: false,
+                            drips:{{ \Illuminate\Support\Js::from($this->dripBaseOptions) }},
+                            additives: {{ \Illuminate\Support\Js::from($this->injectionOptions) }},
+                            get hasDrip() {
+                                return this.pendingDrip || this.$refs.input?.dataset.hasDrip === '1';
+                            },
+                            clean(text) {
+                                return String(text).toLowerCase().replace(/\binj(ection)?[.,]?\s+/g, '');
+                            },
+                            rank(option, query) {
+                                const label = this.clean(option.label);
+                                const haystack = label + ' ' + this.clean(option.keywords ?? '');
 
-                            <div class="space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
-                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ __('Additives') }}</p>
-                                @foreach ($drip['additives'] ?? [] as $additiveIndex => $additive)
-                                    <div wire:key="drip-{{ $dripIndex }}-additive-{{ $additiveIndex }}" data-nav-row class="grid gap-2 sm:grid-cols-12">
-                                        <div class="sm:col-span-11" data-nav-field>
-                                            <x-searchable-select
-                                                wire:model="dripLines.{{ $dripIndex }}.additives.{{ $additiveIndex }}.injection_id"
-                                                :options="$this->injectionOptions"
-                                                :placeholder="__('Search injection or type a new name')"
-                                                allow-custom
-                                            />
-                                        </div>
-                                        <div class="flex items-start sm:col-span-1">
-                                            <flux:button type="button" size="sm" variant="ghost" icon="trash" wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" />
-                                        </div>
-                                    </div>
-                                @endforeach
-                                <flux:button type="button" size="sm" variant="ghost" icon="plus" wire:click="addDripAdditive({{ $dripIndex }})">
-                                    {{ __('Add additive') }}
-                                </flux:button>
-                            </div>
+                                if (label.startsWith(query)) {
+                                    return 0;
+                                }
+
+                                if (haystack.split(/[\s\/—-]+/).some((word) => word.startsWith(query))) {
+                                    return 1;
+                                }
+
+                                return haystack.includes(query) ? 2 : null;
+                            },
+                            matches(options, kind) {
+                                const query = this.clean(this.search.trim());
+
+                                return options
+                                    .map((option) => ({ ...option, kind, score: query === '' ? 0 : this.rank(option, query) }))
+                                    .filter((option) => option.score !== null)
+                                    .sort((a, b) => a.score - b.score);
+                            },
+                            get suggestions() {
+                                const drips = this.matches(this.drips, 'drip');
+
+                                if (! this.hasDrip) {
+                                    return drips.slice(0, 8);
+                                }
+
+                                const additives = this.search.trim() === '' ? [] : this.matches(this.additives, 'additive');
+
+                                return [...additives, ...drips].slice(0, 8);
+                            },
+                            get canWrite() {
+                                const query = this.search.trim();
+
+                                return this.hasDrip
+                                    && query !== ''
+                                    && ! [...this.additives, ...this.drips].some((option) => this.clean(option.label) === this.clean(query));
+                            },
+                            get items() {
+                                return this.canWrite
+                                    ? [...this.suggestions, { kind: 'custom', value: this.search.trim(), label: this.search.trim() }]
+                                    : this.suggestions;
+                            },
+                            onType() {
+                                this.open = true;
+                                this.highlight = 0;
+                            },
+                            move(delta) {
+                                const length = this.items.length;
+
+                                if (length === 0) {
+                                    return;
+                                }
+
+                                this.open = true;
+                                this.highlight = (this.highlight + delta + length) % length;
+                            },
+                            send(call) {
+                                this.pending = this.pending
+                                    .then(call)
+                                    .catch(() => {})
+                                    .finally(() => this.$nextTick(() => this.$refs.input?.focus()));
+                            },
+                            choose(item) {
+                                if (! item) {
+                                    return;
+                                }
+
+                                this.search = '';
+                                this.highlight = 0;
+                                this.open = false;
+
+                                if (item.kind === 'drip') {
+                                    this.pendingDrip = true;
+                                    this.send(() => $wire.addDripFromInput(item.value).finally(() => this.pendingDrip = false));
+
+                                    return;
+                                }
+
+                                this.send(() => $wire.addDripAdditiveFromInput(String(item.value)));
+                            },
+                            commit() {
+                                if (this.search.trim() === '') {
+                                    return;
+                                }
+
+                                this.choose(this.items[Math.min(this.highlight, this.items.length - 1)]);
+                            },
+                            removeLast() {
+                                if (this.search !== '') {
+                                    return;
+                                }
+
+                                this.send(() => $wire.removeLastDripToken());
+                            },
+                        }"
+                        @click.outside="open = false"
+                        class="relative"
+                    >
+                        <div
+                            class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-zinc-200 bg-white px-2 py-2 shadow-xs focus-within:ring-2 focus-within:ring-accent dark:border-white/10 dark:bg-white/10"
+                            @click="$refs.input.focus()"
+                        >
+                            @foreach ($filledDrips as $dripIndex => $drip)
+                                <div wire:key="drip-token-{{ $dripIndex }}" class="flex flex-wrap items-center gap-1 {{ $loop->first ? '' : 'border-s border-zinc-200 ps-3 dark:border-zinc-600' }}">
+                                    <flux:badge size="sm" color="teal" icon="droplets">
+                                        {{ $this->dripLineNames[$dripIndex] ?? '' }}
+                                        <flux:badge.close wire:click="removeDripLine({{ $dripIndex }})" aria-label="{{ __('Remove drip') }}" />
+                                    </flux:badge>
+                                    @foreach (array_filter($drip['additives'] ?? [], fn (array $additive): bool => filled($additive['injection_id'] ?? null)) as $additiveIndex => $additive)
+                                        <span wire:key="drip-token-{{ $dripIndex }}-additive-{{ $additiveIndex }}" class="flex items-center gap-1">
+                                            <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
+                                            <flux:badge size="sm" color="blue">
+                                                {{ $this->dripAdditiveName($additive['injection_id']) }}
+                                                <flux:badge.close wire:click="removeDripAdditive({{ $dripIndex }}, {{ $additiveIndex }})" aria-label="{{ __('Remove additive') }}" />
+                                            </flux:badge>
+                                        </span>
+                                    @endforeach
+                                    @if ($loop->last)
+                                        <span class="text-sm text-zinc-400" aria-hidden="true">+</span>
+                                    @endif
+                                </div>
+                            @endforeach
+                            <input
+                                x-ref="input"
+                                data-has-drip="{{ $filledDrips === [] ? '0' : '1' }}"
+                                x-model="search"
+                                type="text"
+                                role="combobox"
+                                aria-autocomplete="list"
+                                aria-controls="drip-composer-list"
+                                :aria-expanded="open && items.length > 0"
+                                aria-label="{{ __('Drips') }}"
+                                autocomplete="off"
+                                placeholder="{{ $filledDrips === [] ? __('Type a drip, e.g. Provas') : __('Add an injection or another drip') }}"
+                                @input="onType()"
+                                @focus="open = search.trim() !== ''"
+                                @keydown.arrow-down.prevent="if (! $event.altKey) move(1)"
+                                @keydown.arrow-up.prevent="if (! $event.altKey) move(-1)"
+                                @keydown.enter.prevent.stop="commit()"
+                                @keydown.tab="if (open && search.trim() !== '') { $event.preventDefault(); commit() }"
+                                @keydown.backspace="removeLast()"
+                                @keydown.escape="if (open) { $event.stopPropagation(); open = false }"
+                                class="h-8 min-w-40 flex-1 border-0 bg-transparent px-1 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 dark:text-zinc-200 dark:placeholder:text-zinc-500"
+                            >
                         </div>
-                    @endforeach
-                    <flux:tooltip :content="__('Shift+Enter')" position="top">
-                        <flux:button type="button" variant="ghost" icon="plus" wire:click="addDripLine">{{ __('Add drip') }}</flux:button>
-                    </flux:tooltip>
+
+                        <div
+                            x-show="open && items.length > 0"
+                            x-cloak
+                            class="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800"
+                        >
+                            <ul id="drip-composer-list" wire:ignore class="max-h-72 overflow-y-auto py-1" role="listbox">
+                                <template x-for="(item, index) in items" :key="item.kind + ':' + item.value">
+                                    <li role="option" :aria-selected="index === highlight">
+                                        <button
+                                            type="button"
+                                            tabindex="-1"
+                                            class="flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-sm text-zinc-700 dark:text-zinc-200"
+                                            :class="index === highlight ? 'bg-zinc-100 dark:bg-white/10' : 'hover:bg-zinc-50 dark:hover:bg-white/5'"
+                                            @mouseenter="highlight = index"
+                                            @mousedown.prevent
+                                            @click="choose(item)"
+                                        >
+                                            <span x-text="item.kind === 'custom' ? {{ \Illuminate\Support\Js::from(__('Write')) }} + ' “' + item.label + '”' : item.label"></span>
+                                            <span
+                                                class="shrink-0 text-xs"
+                                                :class="item.kind === 'drip' ? 'text-teal-600 dark:text-teal-400' : 'text-zinc-400'"
+                                                x-text="item.kind === 'drip' ? {{ \Illuminate\Support\Js::from(__('New drip')) }} : {{ \Illuminate\Support\Js::from(__('Add to drip')) }}"
+                                            ></span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                    <flux:error name="dripLines" />
+                    <p class="text-xs text-zinc-500">{{ __('Type a drip and press Enter. Keep typing to add injections to it. Choose another drip to start a new one. Backspace removes the last item.') }}</p>
                 </div>
             @endif
 

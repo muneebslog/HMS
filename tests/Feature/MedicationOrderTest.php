@@ -724,7 +724,7 @@ test('drips tab does not offer ready-made drips', function () {
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'typing')
         ->call('switchOrderTab', 'drips')
-        ->assertSee(__('Search drip base'))
+        ->assertSee(__('Type a drip, e.g. Provas'))
         ->assertDontSee(__('Ready-made drip'))
         ->assertDontSee(__('With base'))
         ->assertDontSee(__('Search ready-made drip or type a new name'));
@@ -768,8 +768,81 @@ test('medication form uses searchable selects for catalog fields', function () {
         ->assertSee(__('Medicine').' — PCM — Searchable Paracetamol')
         ->assertSee(__('Injection').' — DIC — Searchable Diclofenac')
         ->call('switchOrderTab', 'drips')
-        ->assertSee(__('Search drip base'))
+        ->assertSee(__('Type a drip, e.g. Provas'))
         ->assertSee('Searchable Saline');
+});
+
+test('typed drip input builds drips with additives as badges', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $provas = DripBase::factory()->create(['name' => 'Provas']);
+    $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);
+    $ceftriaxone = Injection::factory()->create(['name' => 'Inj. Ceftriaxone 1g']);
+    $neurobion = Injection::factory()->create(['name' => 'Inj. Neurobion']);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
+        ->call('switchOrderTab', 'drips')
+        ->call('addDripFromInput', $provas->id)
+        ->call('addDripFromInput', $ringer->id)
+        ->call('addDripAdditiveFromInput', (string) $ceftriaxone->id)
+        ->call('addDripAdditiveFromInput', (string) $neurobion->id)
+        ->call('addDripAdditiveFromInput', (string) $neurobion->id)
+        ->call('addDripAdditiveFromInput', 'Inj. Omeprazole 40mg')
+        ->assertHasNoErrors()
+        ->assertSee('Provas')
+        ->assertSee('Inj. Omeprazole 40mg')
+        ->assertSee(__('Add an injection or another drip'));
+
+    $drips = collect($component->get('dripLines'))->filter(fn (array $line): bool => filled($line['drip_base_id']))->values();
+
+    expect($drips)->toHaveCount(2)
+        ->and($drips[0]['drip_base_id'])->toBe($provas->id)
+        ->and(collect($drips[0]['additives'])->pluck('injection_id')->filter()->all())->toBe([])
+        ->and($drips[1]['drip_base_id'])->toBe($ringer->id)
+        ->and(collect($drips[1]['additives'])->pluck('injection_id')->filter()->values()->all())
+        ->toBe([$ceftriaxone->id, $neurobion->id, $neurobion->id, 'custom:Inj. Omeprazole 40mg']);
+
+    $component
+        ->call('removeLastDripToken')
+        ->call('removeLastDripToken')
+        ->call('removeLastDripToken')
+        ->call('removeLastDripToken')
+        ->call('removeLastDripToken');
+
+    $drips = collect($component->get('dripLines'))->filter(fn (array $line): bool => filled($line['drip_base_id']))->values();
+
+    expect($drips)->toHaveCount(1)
+        ->and($drips[0]['drip_base_id'])->toBe($provas->id);
+});
+
+test('typed drip input needs a drip before injections and saves the order', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $ringer = DripBase::factory()->create(['name' => 'R/L - 500']);
+    $onset = Injection::factory()->create(['name' => 'Inj. Onset']);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'typing')
+        ->call('switchOrderTab', 'drips')
+        ->call('addDripAdditiveFromInput', (string) $onset->id)
+        ->assertHasErrors('dripLines')
+        ->call('addDripFromInput', $ringer->id)
+        ->assertHasNoErrors()
+        ->call('addDripAdditiveFromInput', (string) $onset->id)
+        ->call('addDripAdditiveFromInput', 'Inj. Ceftriaxone 1g')
+        ->set('complaintOrDiagnosis', 'Gastroenteritis')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $order = MedicationOrder::query()->where('queue_token_id', $token->id)->firstOrFail();
+    $drip = $order->drips()->with('additives')->sole();
+
+    expect($drip->drip_base_id)->toBe($ringer->id)
+        ->and($drip->additives->pluck('name')->all())->toBe(['Inj. Onset', 'Inj. Ceftriaxone 1g'])
+        ->and($drip->additives->pluck('injection_id')->all())->toBe([$onset->id, null]);
 });
 
 test('medicines and injections are listed alphabetically', function () {
@@ -1078,8 +1151,7 @@ test('medication form starts with common blank order rows', function () {
         ->call('switchOrderTab', 'drips')
         ->assertCount('dripLines', 1)
         ->call('addRowForActiveTab')
-        ->assertCount('dripLines', 2)
-        ->assertCount('dripLines.1.additives', 2)
+        ->assertCount('dripLines', 1)
         ->call('switchOrderTab', 'medicines')
         ->call('addRowForActiveTab')
         ->assertCount('medicationLines', 7);
