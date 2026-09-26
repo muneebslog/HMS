@@ -24,6 +24,8 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
 
     public ?int $pendingDripId = null;
 
+    public bool $showAdministered = false;
+
     public function mount(HealthAidePinSession $pinSession): void
     {
         if (! $pinSession->check()) {
@@ -55,6 +57,37 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             ->orderBy('check_due_at')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Drip lines already administered in the last 48 hours, most recent first.
+     *
+     * @return Collection<int, MedicationOrderDrip>
+     */
+    #[Computed]
+    public function administeredDrips(): Collection
+    {
+        return MedicationOrderDrip::query()
+            ->with([
+                'additives',
+                'startedByHealthAide',
+                'doneByHealthAide',
+                'doneByUser',
+                'medicationOrder.patient',
+                'medicationOrder.queueToken',
+            ])
+            ->where('status', DripLineStatus::Done)
+            ->where('done_at', '>=', now()->subHours(48))
+            ->latest('done_at')
+            ->latest('id')
+            ->limit(100)
+            ->get();
+    }
+
+    public function toggleAdministered(): void
+    {
+        $this->showAdministered = ! $this->showAdministered;
+        unset($this->administeredDrips);
     }
 
     #[Computed]
@@ -261,9 +294,14 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
                 <flux:text class="text-zinc-400">{{ __('Signed in as') }} {{ $this->currentAideName }}</flux:text>
             @endif
         </div>
-        <flux:button type="button" variant="ghost" icon="lock-closed" wire:click="lock">
-            {{ __('Lock') }}
-        </flux:button>
+        <div class="flex items-center gap-2">
+            <flux:button type="button" variant="ghost" icon="clock" wire:click="toggleAdministered">
+                {{ __('Previous drips') }}
+            </flux:button>
+            <flux:button type="button" variant="ghost" icon="lock-closed" wire:click="lock">
+                {{ __('Lock') }}
+            </flux:button>
+        </div>
     </div>
 
     <div class="flex flex-1 flex-col gap-4 p-4">
@@ -430,6 +468,64 @@ new #[Layout('layouts.display')] #[Title('Drip Delivery')] class extends Compone
             @endforelse
         </div>
     </div>
+
+    @if ($showAdministered)
+        <div class="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-zinc-950/90 p-4" wire:click.self="toggleAdministered">
+            <div class="w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-xl sm:p-6">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <flux:heading level="2" size="lg">{{ __('Previous drips') }}</flux:heading>
+                        <flux:text class="text-zinc-400">{{ __('Drips administered in the last 48 hours.') }}</flux:text>
+                    </div>
+                    <flux:button type="button" variant="ghost" icon="x-mark" wire:click="toggleAdministered">
+                        {{ __('Close') }}
+                    </flux:button>
+                </div>
+
+                <div class="mt-4 divide-y divide-zinc-800">
+                    @forelse ($this->administeredDrips as $drip)
+                        @php($order = $drip->medicationOrder)
+                        <div wire:key="administered-drip-{{ $drip->id }}" class="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0 space-y-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    @if ($order?->queueToken?->token_number)
+                                        <flux:badge size="sm" color="zinc">{{ $order->queueToken->token_number }}</flux:badge>
+                                    @endif
+                                    <p class="truncate font-semibold">{{ $order?->patient?->name ?? __('Unknown') }}</p>
+                                    <span class="text-xs uppercase tracking-wide text-zinc-500">{{ $order?->patient?->mrn ?? __('No MRN') }}</span>
+                                </div>
+                                <p class="text-sm font-medium text-zinc-200">{{ $drip->displayName() }}</p>
+                                @foreach ($drip->additives as $additive)
+                                    <p class="ms-1 text-xs text-zinc-400">+ {{ $additive->displayName() }}</p>
+                                @endforeach
+                            </div>
+                            <div class="shrink-0 space-y-0.5 text-xs text-zinc-400 sm:text-end">
+                                @if ($drip->started_at)
+                                    <p>
+                                        {{ __('Started') }} {{ $drip->started_at->timezone(config('app.timezone'))->format('d M, h:i A') }}
+                                        @if ($drip->startedByHealthAide)
+                                            · {{ $drip->startedByHealthAide->name }}
+                                        @endif
+                                    </p>
+                                @endif
+                                <p class="text-zinc-200">
+                                    {{ __('Ended') }} {{ $drip->done_at?->timezone(config('app.timezone'))->format('d M, h:i A') }}
+                                    @if ($drip->doneByHealthAide ?? $drip->doneByUser)
+                                        · {{ ($drip->doneByHealthAide ?? $drip->doneByUser)->name }}
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                            <flux:icon name="beaker" class="size-8 text-zinc-500" />
+                            <p class="text-sm text-zinc-400">{{ __('No drips administered in the last 48 hours.') }}</p>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+    @endif
 
     @if ($showPinModal)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/95 p-4">

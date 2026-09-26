@@ -14,6 +14,7 @@ use App\Models\MedicationOrderMedicine;
 use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 class MedicationDeliveryLogService
 {
     /**
-     * Paginate delivered medicines, injections, and started drips for a date range.
+     * Paginate delivered medicines, injections, and started drips between two moments.
      *
      * @return LengthAwarePaginator<int, object{
      *     type: string,
@@ -42,18 +43,15 @@ class MedicationDeliveryLogService
      * }>
      */
     public function paginate(
-        Carbon $dateFrom,
-        Carbon $dateTo,
+        CarbonInterface $from,
+        CarbonInterface $to,
         string $type = 'all',
         string $keyword = '',
         int $perPage = 20,
     ): LengthAwarePaginator {
         $query = $this->baseQuery($type);
 
-        $query->whereBetween('occurred_at', [
-            $dateFrom->copy()->startOfDay(),
-            $dateTo->copy()->endOfDay(),
-        ]);
+        $query->whereBetween('occurred_at', [$from, $to]);
 
         if (filled($keyword)) {
             $term = '%'.$keyword.'%';

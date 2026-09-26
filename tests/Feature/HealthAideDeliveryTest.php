@@ -280,6 +280,37 @@ test('drip delivery shows all active drips for an order on one slip', function (
         ->assertSeeHtml('wire:key="drip-delivery-'.$order->id.'"');
 });
 
+test('previous drips button lists recently administered drips', function () {
+    [$order, , $patient] = createDeliveryOrderContext(withMedicine: false, withDrip: true);
+    $aide = HealthAide::factory()->create(['name' => 'Aide Done']);
+    $order->drips->first()->update([
+        'status' => DripLineStatus::Done,
+        'started_at' => now()->subHour(),
+        'done_at' => now()->subMinutes(10),
+        'done_by_health_aide_id' => $aide->id,
+    ]);
+
+    $oldDrip = $order->drips()->create([
+        'drip_base_id' => DripBase::factory()->create()->id,
+        'name' => 'Old Dextrose',
+        'status' => DripLineStatus::Done,
+        'done_at' => now()->subDays(3),
+    ]);
+
+    Livewire::test('pages::display.drip-delivery')
+        ->assertSee(__('Previous drips'))
+        ->assertDontSee('Aide Done')
+        ->call('toggleAdministered')
+        ->assertSet('showAdministered', true)
+        ->assertSee($patient->name)
+        ->assertSee('Normal Saline')
+        ->assertSee('Aide Done')
+        ->assertDontSee($oldDrip->name)
+        ->call('toggleAdministered')
+        ->assertSet('showAdministered', false)
+        ->assertDontSee('Aide Done');
+});
+
 test('drip slip shows faded notes medicines and injections for context', function () {
     [$order, , $patient] = createDeliveryOrderContext(withMedicine: true, withInjection: true, withDrip: true);
     $order->update([

@@ -68,6 +68,11 @@
                             {{ __('Lab Overview') }}
                         </flux:sidebar.item>
                     @endpageAccess
+                    @if ($user->isInchargeNurse() && $pageAccess->canAccess($user, 'admin.medication-deliveries'))
+                        <flux:sidebar.item icon="clipboard-document-list" :href="route('admin.medication-deliveries')" :current="request()->routeIs('admin.medication-deliveries')" wire:navigate>
+                            {{ __('Medication Deliveries') }}
+                        </flux:sidebar.item>
+                    @endif
                     @if ($user->isCeo() && $pageAccess->canAccess($user, 'lab.dashboard'))
                         <flux:sidebar.item icon="chart-bar" :href="route('lab.dashboard')" :current="request()->routeIs('lab.dashboard')" wire:navigate>
                             {{ __('Lab Dashboard') }}

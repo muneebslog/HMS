@@ -190,6 +190,7 @@ return [
 
         UserRole::InchargeNurse->value => [
             'indoor.procedures.birth-certificate',
+            'admin.medication-deliveries',
         ],
 
         UserRole::LabTechnician->value => [
