@@ -86,6 +86,7 @@ return [
         'lab.dashboard' => ['label' => 'Lab Dashboard', 'group' => 'Management'],
         'ceo.lab' => ['label' => 'CEO Lab Overview', 'group' => 'Management'],
         'lab.samples' => ['label' => 'Sample Receiving', 'group' => 'Management'],
+        'lab.outsourced' => ['label' => 'Outsourced Tests', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report-file' => ['label' => 'Partner Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
@@ -163,7 +164,7 @@ return [
             'reception.token-flow', 'payout.daily', 'supervisor.checklist',
             'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
-            'lab.cases',
+            'lab.cases', 'lab.outsourced',
             'reception.lab-samples',
         ],
 
@@ -198,6 +199,7 @@ return [
             'lab-api-and-info',
             'lab.dashboard',
             'lab.cases',
+            'lab.outsourced',
             'lab.results.entry',
             'lab.samples',
             'lab.tests',
@@ -208,6 +210,7 @@ return [
             'ceo.lab',
             'lab.dashboard',
             'lab.cases',
+            'lab.outsourced',
             'reception.mr-lookup',
         ],
 

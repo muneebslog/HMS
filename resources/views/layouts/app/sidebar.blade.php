@@ -16,7 +16,7 @@
             $managementRoutes = [
                 'reception.mr-lookup',
                 'reception.invoices', 'payout.doctor', 'management.shift-history', 'management.approvals',
-                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests', 'lab.cases', 'lab.samples', 'lab.dashboard',
+                'admin.drive', 'admin.pdf-print', 'admin.notifications', 'lab.tests', 'lab.cases', 'lab.samples', 'lab.outsourced', 'lab.dashboard',
             ];
             $financeRoutes = [
                 'admin.finance',
@@ -205,6 +205,12 @@
                             @php($samplesToReceiveCount = \App\Models\LabInvoiceItem::query()->awaitingSample()->count())
                             <flux:sidebar.item icon="inbox-arrow-down" :href="route('lab.samples')" :current="request()->routeIs('lab.samples')" :badge="$samplesToReceiveCount ?: null" badge:color="amber" wire:navigate>
                                 {{ __('Sample Receiving') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('lab.outsourced')
+                            @php($lateOutsourcedCount = \App\Models\LabInvoiceItem::query()->lateAtPartnerLab()->where('created_at', '>=', today()->subDays(\App\Services\CeoLabOverview::OUTSOURCED_OPEN_DAYS - 1))->count())
+                            <flux:sidebar.item icon="truck" :href="route('lab.outsourced')" :current="request()->routeIs('lab.outsourced')" :badge="$lateOutsourcedCount ?: null" badge:color="red" wire:navigate>
+                                {{ __('Outsourced Tests') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @if (! $isLabTechnician && $pageAccess->canAccess($user, 'lab.tests'))

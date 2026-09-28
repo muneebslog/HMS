@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OutgoingSampleStatus;
+use App\Services\CeoLabOverview;
 use Carbon\CarbonImmutable;
 use Database\Factories\LabInvoiceItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -304,6 +305,24 @@ class LabInvoiceItem extends Model
         return $query
             ->where('is_in_house', false)
             ->whereIn('outgoing_status', [OutgoingSampleStatus::Pending->value, OutgoingSampleStatus::Asked->value])
+            ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
+    }
+
+    /**
+     * Scope the query to send-out tests handed to the rider more than the allowed days ago
+     * whose result has not come back, on cases that were not returned.
+     */
+    public function scopeLateAtPartnerLab($query)
+    {
+        $lateBefore = now()->subDays(CeoLabOverview::PARTNER_LAB_DAYS);
+
+        return $query
+            ->pending()
+            ->where('is_in_house', false)
+            ->where('outgoing_status', OutgoingSampleStatus::Given->value)
+            ->where(fn ($late) => $late
+                ->where('given_at', '<', $lateBefore)
+                ->orWhere(fn ($noTime) => $noTime->whereNull('given_at')->where('created_at', '<', $lateBefore)))
             ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
     }
 

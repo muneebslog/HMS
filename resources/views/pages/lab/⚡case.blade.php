@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\RequestSampleRetake;
+use App\Actions\StorePartnerLabReport;
 use App\Enums\LabFieldType;
 use App\Enums\OutgoingSampleStatus;
 use App\Models\LabField;
@@ -10,7 +11,6 @@ use App\Models\LabSampleRetake;
 use App\Services\LabReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -53,6 +53,12 @@ new #[Title('Lab Case')] class extends Component
     public function mount(): void
     {
         $this->labInvoice->load(['patient.family', 'referredByDoctor']);
+
+        $resultsItemId = request()->integer('results');
+
+        if ($resultsItemId > 0 && $this->canManageResults) {
+            $this->openResults($resultsItemId);
+        }
     }
 
     /**
@@ -273,29 +279,9 @@ new #[Title('Lab Case')] class extends Component
             return;
         }
 
-        $this->validate(
-            ['reportUpload' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480']],
-            [],
-            ['reportUpload' => __('report')],
-        );
+        $this->validate(['reportUpload' => StorePartnerLabReport::RULES], [], ['reportUpload' => __('report')]);
 
-        $previousPath = $item->report_path;
-        $path = $this->reportUpload->store("lab-reports/{$this->labInvoice->id}", 'local');
-
-        DB::transaction(function () use ($item, $path) {
-            $item->update([
-                'report_path' => $path,
-                'report_original_name' => $this->reportUpload->getClientOriginalName(),
-                'report_uploaded_at' => now(),
-                'report_uploaded_by' => auth()->id(),
-            ]);
-
-            $item->markOutgoingReceived(auth()->id());
-        });
-
-        if (filled($previousPath) && $previousPath !== $path) {
-            Storage::disk('local')->delete($previousPath);
-        }
+        app(StorePartnerLabReport::class)->handle(auth()->user(), $item, $this->reportUpload);
 
         $this->showUploadModal = false;
         $this->uploadItemId = null;
@@ -318,20 +304,7 @@ new #[Title('Lab Case')] class extends Component
             return;
         }
 
-        $path = $item->report_path;
-
-        DB::transaction(function () use ($item) {
-            $item->update([
-                'report_path' => null,
-                'report_original_name' => null,
-                'report_uploaded_at' => null,
-                'report_uploaded_by' => null,
-            ]);
-
-            $item->reopenOutgoing();
-        });
-
-        Storage::disk('local')->delete($path);
+        app(StorePartnerLabReport::class)->remove($item);
         unset($this->items);
 
         Flux::toast(variant: 'success', text: __('Report removed.'));

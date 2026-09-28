@@ -316,7 +316,7 @@ new #[Title('Lab Dashboard')] class extends Component
                 ['label' => __('Samples to receive'), 'value' => $headline['to_receive'], 'hint' => __('from reception'), 'icon' => 'inbox-arrow-down', 'href' => route('lab.samples'), 'accent' => 'amber'],
                 ['label' => __('Awaiting results'), 'value' => $headline['awaiting_results'], 'hint' => __('sample in lab'), 'icon' => 'pencil-square', 'href' => route('lab.cases', ['pendingOnly' => 1]), 'accent' => 'violet'],
                 ['label' => __('Retakes open'), 'value' => $headline['open_retakes'], 'hint' => __('waiting on patient'), 'icon' => 'arrow-path', 'href' => route('lab.samples', ['tab' => 'retakes']), 'accent' => 'rose'],
-                ['label' => __('Outsourced pending'), 'value' => $headline['with_rider'], 'hint' => __('partner lab, last 7 days'), 'icon' => 'truck', 'href' => route('lab.cases', ['pendingOnly' => 1]), 'accent' => 'sky'],
+                ['label' => __('Outsourced pending'), 'value' => $headline['with_rider'], 'hint' => __('partner lab, last 7 days'), 'icon' => 'truck', 'href' => route('lab.outsourced'), 'accent' => 'sky'],
             ];
             $accents = [
                 'amber' => ['ring' => 'hover:ring-amber-300 dark:hover:ring-amber-700', 'icon' => 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400', 'bar' => 'bg-amber-500'],

@@ -154,6 +154,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('lab/dashboard', 'pages::lab.dashboard')->name('lab.dashboard');
         Route::livewire('ceo/lab', 'pages::ceo.lab')->name('ceo.lab');
         Route::livewire('lab/samples', 'pages::lab.samples')->name('lab.samples');
+        Route::livewire('lab/outsourced', 'pages::lab.outsourced')->name('lab.outsourced');
         Route::livewire('lab/cases/{labInvoice}', 'pages::lab.case')->name('lab.cases.show');
         Route::get('lab/cases/{labInvoice}/report', LabCaseReportController::class)->name('lab.cases.report');
         Route::get('lab/cases/{labInvoice}/items/{item}/report-file', LabCaseReportFileController::class)->scopeBindings()->name('lab.cases.report-file');
