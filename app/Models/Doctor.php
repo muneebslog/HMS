@@ -23,6 +23,7 @@ class Doctor extends Model
     protected $fillable = [
         'name',
         'specialization',
+        'is_gynecologist',
         'payout_daily',
         'get_full_slips',
         'full_slips_count',
@@ -38,6 +39,7 @@ class Doctor extends Model
      */
     protected $attributes = [
         'is_active' => true,
+        'is_gynecologist' => false,
     ];
 
     /**
@@ -48,6 +50,7 @@ class Doctor extends Model
     protected function casts(): array
     {
         return [
+            'is_gynecologist' => 'boolean',
             'payout_daily' => 'boolean',
             'get_full_slips' => 'boolean',
             'full_slips_count' => 'integer',
@@ -62,6 +65,22 @@ class Doctor extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope the query to only doctors flagged as gynecologists.
+     */
+    public function scopeGynecologists($query)
+    {
+        return $query->where('is_gynecologist', true);
+    }
+
+    /**
+     * Determine whether this doctor may use the gynecology pages.
+     */
+    public function isGynecologist(): bool
+    {
+        return $this->is_gynecologist && $this->is_active;
     }
 
     /**

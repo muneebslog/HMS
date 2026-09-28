@@ -11,7 +11,7 @@ use Illuminate\View\View;
 class LabCaseReportController extends Controller
 {
     /**
-     * Show the printable report for a case's completed in-house tests, or for
+     * Show the printable report for a case's tests completed in the HMS, or for
      * a single test when `?item=` is given. Each test prints on its own A4 page.
      */
     public function __invoke(Request $request, LabInvoice $labInvoice, LabReportBuilder $builder): View

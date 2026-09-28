@@ -88,6 +88,7 @@ return [
         'lab.samples' => ['label' => 'Sample Receiving', 'group' => 'Management'],
         'lab.cases.show' => ['label' => 'Lab Case', 'group' => 'Management', 'parent' => 'lab.cases'],
         'lab.cases.report' => ['label' => 'Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
+        'lab.cases.report-file' => ['label' => 'Partner Lab Report', 'group' => 'Management', 'parent' => 'lab.cases'],
         // Not a route: allows adding/editing/discarding results and editing patient details on Lab Cases.
         'lab.results.entry' => ['label' => 'Lab Results Entry', 'group' => 'Management'],
         'lab.tests' => ['label' => 'Lab Fields', 'group' => 'Management'],

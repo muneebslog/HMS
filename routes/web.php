@@ -10,6 +10,7 @@ use App\Http\Controllers\Indoor\ProcedureAttachmentController;
 use App\Http\Controllers\Indoor\ProcedureBirthCertificateController;
 use App\Http\Controllers\Indoor\ProcedureDischargeCertificateController;
 use App\Http\Controllers\Lab\LabCaseReportController;
+use App\Http\Controllers\Lab\LabCaseReportFileController;
 use App\Http\Controllers\Lab\LabTestReportPreviewController;
 use App\Http\Controllers\Lab\PublicLabResultsController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
@@ -79,6 +80,7 @@ Route::get('display/shift-orders/export', function (Request $request, ShiftOrder
 Route::middleware('throttle:30,1')->group(function () {
     Route::get('lab/r/{token}', [PublicLabResultsController::class, 'show'])->name('lab.public.show');
     Route::get('lab/r/{token}/report', [PublicLabResultsController::class, 'report'])->name('lab.public.report');
+    Route::get('lab/r/{token}/files/{item}', [PublicLabResultsController::class, 'file'])->whereNumber('item')->name('lab.public.file');
 });
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
@@ -154,6 +156,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('lab/samples', 'pages::lab.samples')->name('lab.samples');
         Route::livewire('lab/cases/{labInvoice}', 'pages::lab.case')->name('lab.cases.show');
         Route::get('lab/cases/{labInvoice}/report', LabCaseReportController::class)->name('lab.cases.report');
+        Route::get('lab/cases/{labInvoice}/items/{item}/report-file', LabCaseReportFileController::class)->scopeBindings()->name('lab.cases.report-file');
         Route::livewire('lab/tests', 'pages::lab.tests')->name('lab.tests');
         Route::livewire('lab/tests/{labTest}/fields', 'pages::lab.test-fields')->name('lab.tests.fields');
         Route::livewire('lab/fields', 'pages::lab.fields')->name('lab.fields');

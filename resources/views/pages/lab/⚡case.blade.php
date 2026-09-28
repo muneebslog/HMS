@@ -10,14 +10,25 @@ use App\Models\LabSampleRetake;
 use App\Services\LabReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 new #[Title('Lab Case')] class extends Component
 {
+    use WithFileUploads;
+
     public LabInvoice $labInvoice;
+
+    public bool $showUploadModal = false;
+
+    public ?int $uploadItemId = null;
+
+    public ?TemporaryUploadedFile $reportUpload = null;
 
     public bool $showResultsModal = false;
 
@@ -53,7 +64,7 @@ new #[Title('Lab Case')] class extends Component
     public function items()
     {
         return $this->labInvoice->items()
-            ->with(['labTest.fields', 'results', 'resultsCompletedByUser', 'latestRetake'])
+            ->with(['labTest.fields', 'results', 'resultsCompletedByUser', 'reportUploadedByUser', 'latestRetake'])
             ->get()
             ->sortBy([['is_in_house', 'desc'], ['id', 'asc']])
             ->values();
@@ -102,8 +113,16 @@ new #[Title('Lab Case')] class extends Component
                 : ['label' => __('Awaiting results'), 'color' => 'amber'];
         }
 
+        if ($item->results_completed_at !== null) {
+            return ['label' => __('Results complete'), 'color' => 'green'];
+        }
+
         if (filled($item->report_path)) {
             return ['label' => __('Report uploaded'), 'color' => 'green'];
+        }
+
+        if ($item->results->isNotEmpty()) {
+            return ['label' => __('Results pending'), 'color' => 'sky'];
         }
 
         $status = $item->outgoing_status ?? OutgoingSampleStatus::Pending;
@@ -202,15 +221,124 @@ new #[Title('Lab Case')] class extends Component
 
     /**
      * Whether results can be entered for a test: the user may manage results,
-     * and the test is in-house with fields set up.
+     * and the test has fields set up. Outsourced tests can be typed in from the partner lab's report.
      */
     public function canEnterResults(LabInvoiceItem $item): bool
     {
-        return $this->canManageResults && $item->is_in_house && ($item->labTest?->fields->isNotEmpty() ?? false);
+        return $this->canManageResults && ($item->labTest?->fields->isNotEmpty() ?? false);
     }
 
     /**
-     * Open the results modal for one of this case's in-house tests.
+     * Whether the partner lab's report can be uploaded (or replaced) for a test.
+     */
+    public function canUploadReport(LabInvoiceItem $item): bool
+    {
+        return $this->canManageResults && ! $item->is_in_house && ! $this->labInvoice->isReturned();
+    }
+
+    /**
+     * Open the upload form for one of this case's outsourced tests.
+     */
+    public function openUpload(int $itemId): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $item = $this->labInvoice->items()->find($itemId);
+
+        if (! $item || ! $this->canUploadReport($item)) {
+            Flux::toast(variant: 'danger', text: __('A report cannot be uploaded for this test.'));
+
+            return;
+        }
+
+        $this->uploadItemId = $item->id;
+        $this->reset('reportUpload');
+        $this->resetValidation();
+        $this->showUploadModal = true;
+    }
+
+    /**
+     * Store the partner lab's report for the open test and mark its result received.
+     * A new upload replaces the previous file.
+     */
+    public function uploadReport(): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $item = $this->uploadItemId ? $this->labInvoice->items()->find($this->uploadItemId) : null;
+
+        if (! $item || ! $this->canUploadReport($item)) {
+            Flux::toast(variant: 'danger', text: __('A report cannot be uploaded for this test.'));
+
+            return;
+        }
+
+        $this->validate(
+            ['reportUpload' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:20480']],
+            [],
+            ['reportUpload' => __('report')],
+        );
+
+        $previousPath = $item->report_path;
+        $path = $this->reportUpload->store("lab-reports/{$this->labInvoice->id}", 'local');
+
+        DB::transaction(function () use ($item, $path) {
+            $item->update([
+                'report_path' => $path,
+                'report_original_name' => $this->reportUpload->getClientOriginalName(),
+                'report_uploaded_at' => now(),
+                'report_uploaded_by' => auth()->id(),
+            ]);
+
+            $item->markOutgoingReceived(auth()->id());
+        });
+
+        if (filled($previousPath) && $previousPath !== $path) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        $this->showUploadModal = false;
+        $this->uploadItemId = null;
+        $this->reset('reportUpload');
+        unset($this->items);
+
+        Flux::toast(variant: 'success', text: __('Report uploaded.'));
+    }
+
+    /**
+     * Delete the uploaded partner lab report for a test.
+     */
+    public function removeReport(int $itemId): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $item = $this->labInvoice->items()->find($itemId);
+
+        if (! $item || $item->is_in_house || blank($item->report_path)) {
+            return;
+        }
+
+        $path = $item->report_path;
+
+        DB::transaction(function () use ($item) {
+            $item->update([
+                'report_path' => null,
+                'report_original_name' => null,
+                'report_uploaded_at' => null,
+                'report_uploaded_by' => null,
+            ]);
+
+            $item->reopenOutgoing();
+        });
+
+        Storage::disk('local')->delete($path);
+        unset($this->items);
+
+        Flux::toast(variant: 'success', text: __('Report removed.'));
+    }
+
+    /**
+     * Open the results modal for one of this case's tests.
      */
     public function openResults(int $itemId): void
     {
@@ -221,7 +349,7 @@ new #[Title('Lab Case')] class extends Component
 
         $item = $this->editingItem;
 
-        if (! $item || ! $item->is_in_house || $item->labTest === null || $item->labTest->fields->isEmpty()) {
+        if (! $item || $item->labTest === null || $item->labTest->fields->isEmpty()) {
             $this->editingItemId = null;
             Flux::toast(variant: 'danger', text: __('Results cannot be entered for this test.'));
 
@@ -374,9 +502,17 @@ new #[Title('Lab Case')] class extends Component
                 'results_completed_at' => $complete ? now() : null,
                 'results_completed_by' => $complete ? auth()->id() : null,
                 'results_imported_at' => null,
-                'sample_received_at' => $item->sample_received_at ?? now(),
-                'sample_received_by' => $item->sample_received_at ? $item->sample_received_by : auth()->id(),
+                ...($item->is_in_house ? [
+                    'sample_received_at' => $item->sample_received_at ?? now(),
+                    'sample_received_by' => $item->sample_received_at ? $item->sample_received_by : auth()->id(),
+                ] : []),
             ]);
+
+            if ($complete) {
+                $item->markOutgoingReceived(auth()->id());
+            } else {
+                $item->reopenOutgoing();
+            }
         });
 
         $this->showResultsModal = false;
@@ -396,7 +532,7 @@ new #[Title('Lab Case')] class extends Component
 
         $item = $this->editingItem;
 
-        if (! $item || ! $item->is_in_house) {
+        if (! $item) {
             Flux::toast(variant: 'danger', text: __('Results cannot be discarded for this test.'));
 
             return;
@@ -411,6 +547,8 @@ new #[Title('Lab Case')] class extends Component
                 'results_completed_by' => null,
                 'results_imported_at' => null,
             ]);
+
+            $item->reopenOutgoing();
         });
 
         $this->showResultsModal = false;
@@ -451,7 +589,7 @@ new #[Title('Lab Case')] class extends Component
                 @else
                     <flux:badge color="amber" icon="clock">{{ __('Awaiting results') }}</flux:badge>
                 @endif
-                @if ($items->contains(fn ($item) => $item->is_in_house && $item->isDone()))
+                @if ($items->contains(fn ($item) => $item->results_completed_at !== null))
                     <flux:button size="sm" icon="document-text" :href="route('lab.cases.report', $labInvoice)" target="_blank">
                         {{ __('Show report') }}
                     </flux:button>
@@ -505,7 +643,7 @@ new #[Title('Lab Case')] class extends Component
                             $status = $this->itemStatus($item);
                             $rowAction = match (true) {
                                 $this->canEnterResults($item) => '$wire.openResults('.$item->id.')',
-                                $item->is_in_house && $item->isDone() => "window.open('".route('lab.cases.report', ['labInvoice' => $labInvoice, 'item' => $item->id])."', '_blank')",
+                                $item->results_completed_at !== null => "window.open('".route('lab.cases.report', ['labInvoice' => $labInvoice, 'item' => $item->id])."', '_blank')",
                                 default => null,
                             };
                         @endphp
@@ -534,14 +672,43 @@ new #[Title('Lab Case')] class extends Component
                                         @endif
                                     </div>
                                 @endif
+                                @if ($item->report_uploaded_at)
+                                    <div class="text-xs text-zinc-500">
+                                        {{ __('Partner report uploaded :date by :name', ['date' => $item->report_uploaded_at->format('d M, g:i A'), 'name' => $item->reportUploadedByUser?->name ?? __('unknown')]) }}
+                                    </div>
+                                @endif
                             </flux:table.cell>
                             <flux:table.cell>{{ $item->sample ?: '—' }}</flux:table.cell>
                             <flux:table.cell>
                                 <flux:badge size="sm" :color="$status['color']">{{ $status['label'] }}</flux:badge>
                             </flux:table.cell>
                             <flux:table.cell class="text-right">
-                                @php($showReport = $item->is_in_house && $item->isDone())
-                                <div class="flex items-center justify-end gap-2">
+                                @php($showReport = $item->results_completed_at !== null)
+                                @php($hasFile = ! $item->is_in_house && filled($item->report_path))
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    @if ($hasFile)
+                                        <flux:button.group>
+                                            <flux:button
+                                                size="sm"
+                                                :variant="$showReport ? 'filled' : 'primary'"
+                                                icon="paper-clip"
+                                                :href="route('lab.cases.report-file', ['labInvoice' => $labInvoice, 'item' => $item])"
+                                                target="_blank"
+                                            >
+                                                {{ __('Partner report') }}
+                                            </flux:button>
+                                            @if ($this->canManageResults)
+                                                <flux:button
+                                                    size="sm"
+                                                    icon="trash"
+                                                    :tooltip="__('Remove uploaded report')"
+                                                    wire:click="removeReport({{ $item->id }})"
+                                                    wire:confirm="{{ __('Remove the uploaded report for this test?') }}"
+                                                />
+                                            @endif
+                                        </flux:button.group>
+                                    @endif
+
                                     @if ($showReport)
                                         <flux:button
                                             size="sm"
@@ -557,6 +724,17 @@ new #[Title('Lab Case')] class extends Component
                                     @if ($this->retakeAllowedFor($item))
                                         <flux:button size="sm" variant="ghost" icon="arrow-path" wire:click="openRetake({{ $item->id }})">
                                             {{ __('Retake') }}
+                                        </flux:button>
+                                    @endif
+
+                                    @if ($this->canUploadReport($item))
+                                        <flux:button
+                                            size="sm"
+                                            :variant="$hasFile || $showReport ? 'ghost' : 'filled'"
+                                            icon="arrow-up-tray"
+                                            wire:click="openUpload({{ $item->id }})"
+                                        >
+                                            {{ $hasFile ? __('Replace report') : __('Upload report') }}
                                         </flux:button>
                                     @endif
 
@@ -687,6 +865,24 @@ new #[Title('Lab Case')] class extends Component
                 </div>
             </form>
         @endif
+    </flux:modal>
+
+    <flux:modal wire:model="showUploadModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('Upload partner lab report') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">{{ __('Attach the PDF or a photo of the report. The test is marked as result received.') }}</flux:text>
+
+        <form wire:submit="uploadReport" class="mt-6 space-y-4">
+            <flux:field>
+                <flux:input type="file" wire:model="reportUpload" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" />
+                <flux:error name="reportUpload" />
+                <div wire:loading wire:target="reportUpload" class="mt-1 text-sm text-zinc-500">{{ __('Uploading...') }}</div>
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showUploadModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button type="submit" variant="primary" icon="arrow-up-tray" wire:loading.attr="disabled" wire:target="uploadReport,reportUpload">{{ __('Upload') }}</flux:button>
+            </div>
+        </form>
     </flux:modal>
 
     <flux:modal wire:model="showRetakeModal" class="w-full max-w-md">

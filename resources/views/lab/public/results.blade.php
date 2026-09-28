@@ -2,8 +2,9 @@
     Public lab results page (QR on the lab slip). No login; found only by the invoice's random code.
 
     @var \App\Models\LabInvoice $labInvoice
-    @var \Illuminate\Support\Collection<int, array{id: int, name: string, status: array{label: string, tone: string}, has_report: bool}> $items
+    @var \Illuminate\Support\Collection<int, array{id: int, name: string, status: array{label: string, tone: string}, has_report: bool, has_file: bool}> $items
     @var int $readyCount
+    @var int $printableCount
 --}}
 @php
     $lab = config('hospital.lab');
@@ -196,7 +197,7 @@
                     <div class="summary">{{ __('Your tests are in process. Please check again later.') }}</div>
                 @endif
 
-                @if ($readyCount > 1)
+                @if ($printableCount > 1)
                     <a class="btn block" href="{{ route('lab.public.report', $labInvoice->public_token) }}" target="_blank" rel="noopener">
                         {{ __('View all ready reports') }}
                     </a>
@@ -215,6 +216,10 @@
 
                         @if ($item['has_report'])
                             <a class="btn" href="{{ route('lab.public.report', ['token' => $labInvoice->public_token, 'item' => $item['id']]) }}" target="_blank" rel="noopener">
+                                {{ __('View report') }}
+                            </a>
+                        @elseif ($item['has_file'])
+                            <a class="btn" href="{{ route('lab.public.file', ['token' => $labInvoice->public_token, 'item' => $item['id']]) }}" target="_blank" rel="noopener">
                                 {{ __('View report') }}
                             </a>
                         @endif

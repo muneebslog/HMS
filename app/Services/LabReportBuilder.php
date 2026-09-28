@@ -92,8 +92,8 @@ class LabReportBuilder
     }
 
     /**
-     * Build the full printable report (header + one section per completed in-house
-     * test) for a lab case, optionally for one test only. Null when nothing is completed.
+     * Build the full printable report (header + one section per test completed in the
+     * HMS, in-house or outsourced) for a lab case, optionally for one test only. Null when nothing is completed.
      *
      * @return array{header: array<string, ?string>, sections: list<ReportSection>, remarks: null}|null
      */
@@ -103,7 +103,6 @@ class LabReportBuilder
 
         $items = $labInvoice->items()
             ->with(['labTest.fields.ranges', 'results'])
-            ->where('is_in_house', true)
             ->whereNotNull('results_completed_at')
             ->when($itemId !== null, fn ($query) => $query->whereKey($itemId))
             ->orderBy('id')

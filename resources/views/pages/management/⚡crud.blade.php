@@ -70,6 +70,9 @@ new #[Title('Management')] class extends Component
     public string $doctorSpecialization = '';
 
     #[Validate]
+    public bool $doctorIsGynecologist = false;
+
+    #[Validate]
     public bool $doctorPayoutDaily = false;
 
     #[Validate]
@@ -283,6 +286,7 @@ new #[Title('Management')] class extends Component
             'doctors' => [
                 'doctorName' => ['required', 'string', 'max:255'],
                 'doctorSpecialization' => ['required', 'string', 'max:255'],
+                'doctorIsGynecologist' => ['boolean'],
                 'doctorPayoutDaily' => ['boolean'],
                 'doctorGetFullSlips' => ['boolean'],
                 'doctorFullSlipsCount' => ['required', 'integer', 'min:0'],
@@ -554,6 +558,7 @@ new #[Title('Management')] class extends Component
 
         $this->doctorName = $doctor->name;
         $this->doctorSpecialization = $doctor->specialization;
+        $this->doctorIsGynecologist = $doctor->is_gynecologist;
         $this->doctorPayoutDaily = $doctor->payout_daily;
         $this->doctorGetFullSlips = $doctor->get_full_slips;
         $this->doctorFullSlipsCount = (string) $doctor->full_slips_count;
@@ -725,6 +730,7 @@ new #[Title('Management')] class extends Component
         $this->reset([
             'doctorName',
             'doctorSpecialization',
+            'doctorIsGynecologist',
             'doctorPayoutDaily',
             'doctorGetFullSlips',
             'doctorFullSlipsCount',
@@ -924,6 +930,7 @@ new #[Title('Management')] class extends Component
         $data = [
             'name' => $validated['doctorName'],
             'specialization' => $validated['doctorSpecialization'],
+            'is_gynecologist' => $validated['doctorIsGynecologist'],
             'payout_daily' => $validated['doctorPayoutDaily'],
             'get_full_slips' => $validated['doctorGetFullSlips'],
             'full_slips_count' => $validated['doctorFullSlipsCount'],
@@ -2067,7 +2074,12 @@ new #[Title('Management')] class extends Component
                             @forelse ($this->doctors as $doctor)
                                 <flux:table.row wire:key="doctor-{{ $doctor->id }}">
                                     <flux:table.cell>{{ $doctor->name }}</flux:table.cell>
-                                    <flux:table.cell>{{ $doctor->specialization }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        {{ $doctor->specialization }}
+                                        @if ($doctor->is_gynecologist)
+                                            <flux:badge size="sm" color="pink" class="ml-1">{{ __('Gynae') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
                                     <flux:table.cell>
                                         @if ($doctor->payout_daily)
                                             <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
@@ -2519,6 +2531,12 @@ new #[Title('Management')] class extends Component
                     <flux:label>{{ __('Specialization') }}</flux:label>
                     <flux:input wire:model="doctorSpecialization" type="text" required />
                     <flux:error name="doctorSpecialization" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="doctorIsGynecologist" :label="__('Gynecologist')" />
+                    <flux:description>{{ __('Gives this doctor access to the gynecology pages.') }}</flux:description>
+                    <flux:error name="doctorIsGynecologist" />
                 </flux:field>
 
                 <flux:field>

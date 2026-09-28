@@ -21,6 +21,7 @@ class DoctorFactory extends Factory
         return [
             'name' => fake()->name(),
             'specialization' => fake()->jobTitle(),
+            'is_gynecologist' => false,
             'payout_daily' => false,
             'duty_start_time' => null,
             'is_active' => true,
@@ -34,6 +35,16 @@ class DoctorFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    /**
+     * Indicate that the doctor is a gynecologist.
+     */
+    public function gynecologist(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_gynecologist' => true,
         ]);
     }
 

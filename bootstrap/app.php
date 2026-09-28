@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureDisplayKioskSession;
+use App\Http\Middleware\EnsureGynecologist;
 use App\Http\Middleware\EnsureOpenShift;
 use App\Http\Middleware\EnsurePageAccess;
 use App\Http\Middleware\EnsurePdfPrintAgentToken;
@@ -31,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(EnsureDisplayKioskSession::class);
 
         $middleware->alias([
+            'gynecologist' => EnsureGynecologist::class,
             'open.shift' => EnsureOpenShift::class,
             'page.access' => EnsurePageAccess::class,
             'print.agent' => EnsurePrintAgentToken::class,

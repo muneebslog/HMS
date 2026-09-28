@@ -308,6 +308,42 @@ class LabInvoiceItem extends Model
     }
 
     /**
+     * Mark a send-out test's result as back from the partner lab, if it is not already.
+     */
+    public function markOutgoingReceived(?int $userId): void
+    {
+        if ($this->is_in_house || $this->outgoing_status === OutgoingSampleStatus::Received) {
+            return;
+        }
+
+        $this->update([
+            'outgoing_status' => OutgoingSampleStatus::Received,
+            'received_at' => now(),
+            'received_by' => $userId,
+        ]);
+    }
+
+    /**
+     * Put a send-out test back with the partner lab once nothing it came back with is kept:
+     * no uploaded report and no completed results.
+     */
+    public function reopenOutgoing(): void
+    {
+        if ($this->is_in_house
+            || $this->outgoing_status !== OutgoingSampleStatus::Received
+            || filled($this->report_path)
+            || $this->results_completed_at !== null) {
+            return;
+        }
+
+        $this->update([
+            'outgoing_status' => OutgoingSampleStatus::Given,
+            'received_at' => null,
+            'received_by' => null,
+        ]);
+    }
+
+    /**
      * Determine whether a report PDF is stored for this item.
      */
     public function hasReport(): bool

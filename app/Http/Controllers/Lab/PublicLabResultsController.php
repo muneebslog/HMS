@@ -9,6 +9,8 @@ use App\Models\LabInvoiceItem;
 use App\Services\LabReportBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Public (no login) results page the patient reaches by scanning the QR on their lab slip.
@@ -31,14 +33,33 @@ class PublicLabResultsController extends Controller
                 'id' => $item->id,
                 'name' => $item->labTest?->reportTitle() ?? trim((string) $item->test_name),
                 'status' => $this->status($item),
-                'has_report' => $item->is_in_house && $item->isDone(),
+                'has_report' => $item->results_completed_at !== null,
+                'has_file' => ! $item->is_in_house && $item->hasReport(),
             ]);
 
         return $this->noIndex(response()->view('lab.public.results', [
             'labInvoice' => $labInvoice,
             'items' => $items,
-            'readyCount' => $items->where('has_report', true)->count(),
+            'readyCount' => $items->filter(fn (array $item) => $item['has_report'] || $item['has_file'])->count(),
+            'printableCount' => $items->where('has_report', true)->count(),
         ]));
+    }
+
+    /**
+     * Stream the partner lab's uploaded report for one of the patient's outsourced tests.
+     */
+    public function file(string $token, int $item): StreamedResponse
+    {
+        $labInvoice = $this->findInvoice($token);
+        $labInvoiceItem = $labInvoice->items()->where('is_in_house', false)->findOrFail($item);
+
+        abort_unless($labInvoiceItem->hasReport(), 404);
+
+        $response = Storage::disk('local')->response($labInvoiceItem->report_path, $labInvoiceItem->report_original_name);
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+        $response->headers->set('Cache-Control', 'no-store, private');
+
+        return $response;
     }
 
     /**
@@ -75,7 +96,7 @@ class PublicLabResultsController extends Controller
     private function status(LabInvoiceItem $item): array
     {
         if ($item->isDone()) {
-            return $item->is_in_house
+            return $item->is_in_house || $item->results_completed_at !== null || $item->hasReport()
                 ? ['label' => __('Ready'), 'tone' => 'ready']
                 : ['label' => __('Ready — collect from reception'), 'tone' => 'ready'];
         }

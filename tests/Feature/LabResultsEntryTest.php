@@ -45,7 +45,7 @@ test('in-house tests with fields show an add results button', function () {
         ->assertSee('Add results');
 });
 
-test('in-house tests without fields and send-out tests have no results button', function () {
+test('tests without fields have no results button', function () {
     $invoice = LabInvoice::factory()->paid()->create(['patient_id' => $this->patient->id]);
     $emptyTest = LabTest::factory()->create(['is_in_house' => true]);
     LabInvoiceItem::factory()->inHouse()->create(['lab_invoice_id' => $invoice->id, 'lab_test_id' => $emptyTest->id]);
