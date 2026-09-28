@@ -47,6 +47,13 @@ return [
 
         'website' => env('LAB_WEBSITE', 'mohsinmedicalcomplex.com'),
 
+        /*
+         * The day lab work moved into the HMS (samples, rider, results). Tests billed
+         * earlier with no HMS activity were handled in the old lab software: they count
+         * as done and are left out of lab pending lists, badges and stats. Empty = no cutoff.
+         */
+        'tracking_started_at' => env('LAB_TRACKING_STARTED_AT', '2026-09-24'),
+
         'disclaimer' => env('LAB_DISCLAIMER', 'Electronically verified report. No signature(s) required. Not valid for Court.'),
 
         /*

@@ -230,6 +230,7 @@ class CeoLabOverview
     {
         $completed = fn (CarbonImmutable $since) => LabInvoiceItem::query()
             ->where('is_in_house', true)
+            ->billedSinceTracking()
             ->whereNull('results_imported_at')
             ->where('results_completed_at', '>=', $since)
             ->get();
@@ -242,7 +243,7 @@ class CeoLabOverview
 
         $periodCompleted = $completed($from);
         $retakes = LabSampleRetake::query()->where('created_at', '>=', $from)->get();
-        $inHouseBilled = LabInvoiceItem::query()->where('is_in_house', true)->where('created_at', '>=', $from)->count();
+        $inHouseBilled = LabInvoiceItem::query()->where('is_in_house', true)->billedSinceTracking()->where('created_at', '>=', $from)->count();
 
         return [
             'median_minutes' => $median($periodCompleted),

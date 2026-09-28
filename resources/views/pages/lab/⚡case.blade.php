@@ -99,6 +99,10 @@ new #[Title('Lab Case')] class extends Component
      */
     public function itemStatus(LabInvoiceItem $item): array
     {
+        if ($item->isLegacy() && $item->results_completed_at === null) {
+            return ['label' => __('Done in old lab software'), 'color' => 'zinc'];
+        }
+
         if ($item->is_in_house) {
             if ($item->isDone()) {
                 return ['label' => __('Results complete'), 'color' => 'green'];

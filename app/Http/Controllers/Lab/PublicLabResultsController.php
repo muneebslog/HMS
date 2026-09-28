@@ -96,7 +96,7 @@ class PublicLabResultsController extends Controller
     private function status(LabInvoiceItem $item): array
     {
         if ($item->isDone()) {
-            return $item->is_in_house || $item->results_completed_at !== null || $item->hasReport()
+            return $item->results_completed_at !== null || $item->hasReport()
                 ? ['label' => __('Ready'), 'tone' => 'ready']
                 : ['label' => __('Ready — collect from reception'), 'tone' => 'ready'];
         }

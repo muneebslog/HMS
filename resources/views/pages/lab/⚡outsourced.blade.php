@@ -186,6 +186,10 @@ new #[Title('Outsourced Tests')] class extends Component
      */
     public function itemStatus(LabInvoiceItem $item): array
     {
+        if ($item->isLegacy() && $item->results_completed_at === null) {
+            return ['label' => __('Done in old lab software'), 'color' => 'zinc'];
+        }
+
         if ($item->results_completed_at !== null) {
             return ['label' => __('Results complete'), 'color' => 'green'];
         }

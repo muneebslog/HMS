@@ -26,6 +26,7 @@ new #[Title('Lab Dashboard')] class extends Component
     {
         return LabInvoiceItem::query()
             ->where('created_at', '>=', today()->subDays(self::WINDOW_DAYS - 1))
+            ->billedSinceTracking()
             ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'))
             ->with(['labInvoice.patient'])
             ->withCount('results')

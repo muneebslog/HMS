@@ -19,6 +19,13 @@ class LabInvoiceItem extends Model
     use HasFactory;
 
     /**
+     * The HMS columns that show a test was handled in the new workflow.
+     *
+     * @var list<string>
+     */
+    private const HMS_ACTIVITY_COLUMNS = ['sample_collected_at', 'sample_received_by', 'asked_at', 'given_at', 'report_path', 'results_completed_by'];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -177,10 +184,14 @@ class LabInvoiceItem extends Model
      * Determine whether this test is finished, using HMS data only: an in-house
      * test once its results are completed in the HMS, a send-out test once its
      * report is received or uploaded. The old lab software's `lab_result_ready`
-     * flag is deliberately not used.
+     * flag is deliberately not used. Tests from the old lab software count as done.
      */
     public function isDone(): bool
     {
+        if ($this->isLegacy()) {
+            return true;
+        }
+
         if ($this->is_in_house) {
             return $this->results_completed_at !== null;
         }
@@ -189,11 +200,66 @@ class LabInvoiceItem extends Model
     }
 
     /**
+     * The day lab work moved into the HMS, or null when there is no cutoff.
+     */
+    public static function trackingStartedAt(): ?CarbonImmutable
+    {
+        $date = config('hospital.lab.tracking_started_at');
+
+        return filled($date) ? CarbonImmutable::parse($date)->startOfDay() : null;
+    }
+
+    /**
+     * Determine whether this test was handled in the old lab software: billed before
+     * lab tracking started, with nothing done to it in the HMS since.
+     */
+    public function isLegacy(): bool
+    {
+        $startedAt = self::trackingStartedAt();
+
+        if ($startedAt === null || $this->created_at === null || $this->created_at->gte($startedAt)) {
+            return false;
+        }
+
+        return collect(self::HMS_ACTIVITY_COLUMNS)->every(fn (string $column) => blank($this->getAttribute($column)));
+    }
+
+    /**
+     * Scope the query to tests the HMS tracks (the inverse of isLegacy()).
+     */
+    public function scopeTracked($query)
+    {
+        $startedAt = self::trackingStartedAt();
+
+        if ($startedAt === null) {
+            return $query;
+        }
+
+        return $query->where(function ($tracked) use ($startedAt) {
+            $tracked->where($this->qualifyColumn('created_at'), '>=', $startedAt);
+
+            foreach (self::HMS_ACTIVITY_COLUMNS as $column) {
+                $tracked->orWhereNotNull($this->qualifyColumn($column));
+            }
+        });
+    }
+
+    /**
+     * Scope the query to tests billed since lab tracking started, for lab stats and charts.
+     */
+    public function scopeBilledSinceTracking($query)
+    {
+        $startedAt = self::trackingStartedAt();
+
+        return $startedAt === null ? $query : $query->where($this->qualifyColumn('created_at'), '>=', $startedAt);
+    }
+
+    /**
      * Scope the query to tests that are not finished yet (the inverse of isDone()).
      */
     public function scopePending($query)
     {
-        return $query->where(function ($query) {
+        return $query->tracked()->where(function ($query) {
             $query
                 ->where(function ($inHouse) {
                     $inHouse->where('is_in_house', true)->whereNull('results_completed_at');
@@ -290,6 +356,7 @@ class LabInvoiceItem extends Model
     public function scopeAwaitingSample($query)
     {
         return $query
+            ->tracked()
             ->where('is_in_house', true)
             ->whereNull('sample_received_at')
             ->whereNull('results_completed_at')
@@ -303,6 +370,7 @@ class LabInvoiceItem extends Model
     public function scopeAwaitingRider($query)
     {
         return $query
+            ->tracked()
             ->where('is_in_house', false)
             ->whereIn('outgoing_status', [OutgoingSampleStatus::Pending->value, OutgoingSampleStatus::Asked->value])
             ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
