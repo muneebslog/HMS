@@ -71,6 +71,30 @@ test('saving a lab invoice creates pending patient and lab copy print jobs', fun
     expect($copies)->toContain('patient', 'lab');
 });
 
+test('a lab invoice with a cross match prints an extra lab copy for the second sample', function () {
+    $user = User::factory()->create();
+    Shift::factory()->for($user)->open()->create();
+    $crossMatch = LabTest::factory()->create(['test_name' => 'Cross Match']);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.lab-entry')
+        ->set('patientName', 'Jane Doe')
+        ->set('patientPhone', '03001234567')
+        ->set('patientGender', 'female')
+        ->set('patientAge', 30)
+        ->set('selectedLabTestId', $crossMatch->id)
+        ->call('add')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $copies = PrintJob::where('lab_invoice_id', LabInvoice::first()->id)->get()
+        ->map(fn ($job) => $job->payload['copy_for'])
+        ->countBy()
+        ->all();
+
+    expect($copies)->toBe(['patient' => 1, 'lab' => 2]);
+});
+
 test('the invoices page can queue a print job for a walk-in invoice', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();

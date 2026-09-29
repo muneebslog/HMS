@@ -33,19 +33,27 @@ class CreatePrintJob
     }
 
     /**
-     * Create pending print jobs for a lab invoice receipt: [patient copy, lab copy].
-     * The QR links to the patient's public results page unless a URL is given.
+     * Create pending print jobs for a lab invoice receipt: [patient copy, lab copy, ...].
+     * A cross match takes two samples, and each sample needs its own lab slip attached,
+     * so an extra lab copy is printed. The QR links to the patient's public results page
+     * unless a URL is given.
      *
-     * @return array{0: PrintJob, 1: PrintJob}
+     * @return non-empty-list<PrintJob>
      */
     public function createLabInvoiceReceipts(LabInvoice $invoice, ?string $qrUrl = null): array
     {
         $qrUrl ??= (string) $invoice->publicReportsUrl();
 
-        return [
+        $jobs = [
             $this->createLabCopy($invoice, $qrUrl, 'patient'),
             $this->createLabCopy($invoice, $qrUrl, 'lab'),
         ];
+
+        if ($this->hasCrossMatch($invoice)) {
+            $jobs[] = $this->createLabCopy($invoice, $qrUrl, 'lab');
+        }
+
+        return $jobs;
     }
 
     /**
@@ -84,6 +92,16 @@ class CreatePrintJob
             ],
             'attempts' => 0,
         ]);
+    }
+
+    /**
+     * Whether the invoice includes a cross match test (billed as "Cross Match" or "Crossmatch").
+     */
+    private function hasCrossMatch(LabInvoice $invoice): bool
+    {
+        return $invoice->items()->pluck('test_name')->contains(
+            fn (?string $testName): bool => preg_match('/cross\s*-?\s*match/i', (string) $testName) === 1
+        );
     }
 
     /**
