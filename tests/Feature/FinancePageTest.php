@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\SettleShift;
+use App\Actions\UpdateShiftSettlement;
 use App\Enums\ApprovalStatus;
 use App\Enums\FinanceExpenseCategory;
 use App\Enums\FinanceShiftPeriod;
@@ -260,22 +261,78 @@ test('only admin or management may settle shifts', function () {
         ->toThrow(HttpException::class);
 });
 
-test('month overview totals received cash, shortages and hospital expenses', function () {
+test('day and month totals include settled cash and hospital expenses', function () {
     $admin = User::factory()->admin()->create();
 
     ShiftSettlement::factory()->create(['business_date' => '2026-09-10', 'expected_amount' => 1000, 'received_amount' => 950, 'difference' => -50]);
-    ShiftSettlement::factory()->create(['business_date' => '2026-09-10', 'expected_amount' => 2000, 'received_amount' => 2000, 'difference' => 0]);
+    ShiftSettlement::factory()->create(['business_date' => '2026-09-12', 'expected_amount' => 2000, 'received_amount' => 2000, 'difference' => 0]);
     ShiftSettlement::factory()->create(['business_date' => '2026-08-10', 'expected_amount' => 9999, 'received_amount' => 9999, 'difference' => 0]);
-    FinanceExpense::factory()->create(['expense_date' => '2026-09-15', 'amount' => 500]);
+    FinanceExpense::factory()->create(['expense_date' => '2026-09-12', 'amount' => 500, 'name' => 'Electricity bill']);
+    FinanceExpense::factory()->create(['expense_date' => '2026-09-20', 'amount' => 300]);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.finance')
-        ->set('month', 9)
-        ->set('year', 2026)
+        ->set('date', '2026-09-12')
         ->assertSet('monthOverview.received', 2950.0)
         ->assertSet('monthOverview.difference', -50.0)
-        ->assertSet('monthOverview.hospital_expenses', 500.0)
-        ->assertSet('monthOverview.net', 2450.0);
+        ->assertSet('monthOverview.expenses', 800.0)
+        ->assertSet('monthOverview.net', 2150.0)
+        ->assertSet('dayTotals.expenses', 500.0)
+        ->assertSee('Electricity bill');
+});
+
+test('admin can correct a settled shift but management cannot', function () {
+    $admin = User::factory()->admin()->create();
+    $manager = User::factory()->management()->create();
+    $settlement = ShiftSettlement::factory()->create(['expected_amount' => 1000, 'received_amount' => 900, 'difference' => -100]);
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $settlement->shift_id)
+        ->call('startEditingSettlement')
+        ->assertSet('editingSettlement', false);
+
+    expect(fn () => app(UpdateShiftSettlement::class)->handle($manager, $settlement, 1000))
+        ->toThrow(HttpException::class);
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $settlement->shift_id)
+        ->call('startEditingSettlement')
+        ->assertSet('editingSettlement', true)
+        ->assertSet('editReceivedAmount', '900.00')
+        ->set('editReceivedAmount', '1050')
+        ->set('editSettlementNotes', 'Found 150 in second envelope')
+        ->call('saveSettlementEdit')
+        ->assertHasNoErrors()
+        ->assertSet('editingSettlement', false);
+
+    $settlement->refresh();
+
+    expect($settlement->received_amount)->toBe(1050.0)
+        ->and($settlement->difference)->toBe(50.0)
+        ->and($settlement->previous_received_amount)->toBe(900.0)
+        ->and($settlement->edited_by)->toBe($admin->id)
+        ->and($settlement->wasEdited())->toBeTrue()
+        ->and($settlement->notes)->toBe('Found 150 in second envelope');
+});
+
+test('new expenses default to the picked date', function () {
+    $admin = User::factory()->admin()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::admin.finance')
+        ->set('date', '2026-09-24')
+        ->call('openExpenseModal')
+        ->assertSet('expenseDate', '2026-09-24')
+        ->set('expenseName', 'Generator diesel')
+        ->set('expenseCategory', FinanceExpenseCategory::Other->value)
+        ->set('expenseAmount', '2500')
+        ->call('saveExpense')
+        ->assertHasNoErrors()
+        ->assertSet('dayTotals.expenses', 2500.0);
+
+    expect(FinanceExpense::query()->first()->expense_date->toDateString())->toBe('2026-09-24');
 });
 
 test('admin can create update and delete a finance expense', function () {
@@ -283,7 +340,6 @@ test('admin can create update and delete a finance expense', function () {
 
     Livewire::actingAs($admin)
         ->test('pages::admin.finance')
-        ->call('setTab', 'expenses')
         ->call('openExpenseModal')
         ->set('expenseName', 'Staff Salaries')
         ->set('expenseCategory', FinanceExpenseCategory::Salary->value)

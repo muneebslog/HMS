@@ -33,6 +33,9 @@ class ShiftSettlement extends Model
         'received_amount',
         'difference',
         'notes',
+        'previous_received_amount',
+        'edited_by',
+        'edited_at',
         'settled_at',
     ];
 
@@ -55,6 +58,8 @@ class ShiftSettlement extends Model
             'expected_amount' => 'float',
             'received_amount' => 'float',
             'difference' => 'float',
+            'previous_received_amount' => 'float',
+            'edited_at' => 'datetime',
             'settled_at' => 'datetime',
         ];
     }
@@ -77,6 +82,24 @@ class ShiftSettlement extends Model
     public function settler(): BelongsTo
     {
         return $this->belongsTo(User::class, 'settled_by');
+    }
+
+    /**
+     * Get the admin who last corrected this settlement.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function editor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'edited_by');
+    }
+
+    /**
+     * Determine whether this settlement was corrected after it was locked.
+     */
+    public function wasEdited(): bool
+    {
+        return $this->edited_at !== null;
     }
 
     /**
