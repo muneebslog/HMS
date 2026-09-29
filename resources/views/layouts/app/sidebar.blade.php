@@ -11,7 +11,7 @@
             $receptionRoutes = [
                 'reception.walkin', 'reception.reservation', 'reception.lab-entry', 'reception.lab-samples',
                 'reception.vitals', 'reception.procedures',
-                'reception.token-flow', 'payout.daily',
+                'reception.token-flow', 'payout.daily', 'reception.medical-certificates',
             ];
             $managementRoutes = [
                 'reception.mr-lookup',
@@ -134,6 +134,11 @@
                         @pageAccess('reception.procedures')
                             <flux:sidebar.item icon="clipboard-document-list" :href="route('reception.procedures')" :current="request()->routeIs('reception.procedures')" wire:navigate>
                                 {{ __('Procedures') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('reception.medical-certificates')
+                            <flux:sidebar.item icon="document-check" :href="route('reception.medical-certificates')" :current="request()->routeIs('reception.medical-certificates')" wire:navigate>
+                                {{ __('Medical Certificates') }}
                             </flux:sidebar.item>
                         @endpageAccess
                         @pageAccess('reception.token-flow')

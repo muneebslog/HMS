@@ -79,6 +79,8 @@ return [
         'supervisor.checklist' => ['label' => 'Checklist', 'group' => 'Reception'],
         'reception.shift' => ['label' => 'Shift', 'group' => 'Reception'],
         'reception.print-jobs' => ['label' => 'Print Jobs', 'group' => 'Reception'],
+        'reception.medical-certificates' => ['label' => 'Medical Certificates', 'group' => 'Reception'],
+        'reception.medical-certificates.print' => ['label' => 'Medical Certificate Print', 'group' => 'Reception', 'parent' => 'reception.medical-certificates'],
 
         // Management
         'lab-api-and-info' => ['label' => 'Lab API and Info', 'group' => 'Management'],
@@ -166,6 +168,7 @@ return [
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'lab.cases', 'lab.outsourced',
             'reception.lab-samples',
+            'reception.medical-certificates', 'reception.medical-certificates.print',
         ],
 
         UserRole::Management->value => [
@@ -177,12 +180,14 @@ return [
             'lab-api-and-info', 'reception.shift', 'reception.print-jobs',
             'display.tokens', 'display.er', 'display.drips', 'display.er_drips', 'display.shift_orders',
             'indoor.procedures.birth-certificate',
+            'reception.medical-certificates', 'reception.medical-certificates.print',
         ],
 
         UserRole::Doctor->value => [
             'doctor.portal', 'doctor.medication', 'doctor.procedures',
             'indoor.attachments.show', 'indoor.procedures.discharge-certificate', 'indoor.procedures.birth-certificate', 'indoor.procedures.print',
             'reception.mr-lookup',
+            'reception.medical-certificates', 'reception.medical-certificates.print',
         ],
 
         UserRole::Indoor->value => [

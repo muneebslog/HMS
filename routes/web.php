@@ -14,7 +14,9 @@ use App\Http\Controllers\Lab\LabCaseReportFileController;
 use App\Http\Controllers\Lab\LabTestReportPreviewController;
 use App\Http\Controllers\Lab\PublicLabResultsController;
 use App\Http\Controllers\Management\ProcedureTypeDocumentPreviewController;
+use App\Http\Controllers\MedicalCertificateVerificationController;
 use App\Http\Controllers\PolicyJournalController;
+use App\Http\Controllers\Reception\MedicalCertificatePrintController;
 use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\ProcedurePrintController;
@@ -81,6 +83,7 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::get('lab/r/{token}', [PublicLabResultsController::class, 'show'])->name('lab.public.show');
     Route::get('lab/r/{token}/report', [PublicLabResultsController::class, 'report'])->name('lab.public.report');
     Route::get('lab/r/{token}/files/{item}', [PublicLabResultsController::class, 'file'])->whereNumber('item')->name('lab.public.file');
+    Route::get('certificates/v/{token}', MedicalCertificateVerificationController::class)->name('medical-certificates.verify');
 });
 
 Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
@@ -142,6 +145,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::get('reception/invoices/{invoice}/print', fn (Invoice $invoice) => view('invoices.print', compact('invoice')))->name('invoices.print');
 
         Route::livewire('reception/mr-lookup', 'pages::reception.mr-lookup')->name('reception.mr-lookup');
+        Route::livewire('reception/medical-certificates', 'pages::reception.medical-certificates')->name('reception.medical-certificates');
+        Route::get('reception/medical-certificates/{certificate}/print', MedicalCertificatePrintController::class)->name('reception.medical-certificates.print');
 
         Route::livewire('reception/shift', 'pages::reception.shift')->name('reception.shift');
         Route::livewire('reception/print-jobs', 'pages::reception.print-jobs')->name('reception.print-jobs');
