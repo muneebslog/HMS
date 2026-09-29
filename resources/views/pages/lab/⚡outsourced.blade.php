@@ -1,12 +1,16 @@
 <?php
 
+use App\Actions\AttachPartnerLabReport;
 use App\Actions\StorePartnerLabReport;
 use App\Enums\OutgoingSampleStatus;
 use App\Models\LabInvoiceItem;
+use App\Models\PartnerLabReport;
 use App\Services\CeoLabOverview;
+use App\Services\PartnerLab\PartnerLabMatcher;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -42,6 +46,12 @@ new #[Title('Outsourced Tests')] class extends Component
 
     public ?TemporaryUploadedFile $reportUpload = null;
 
+    public bool $showAttachModal = false;
+
+    public ?int $attachReportId = null;
+
+    public ?int $attachItemId = null;
+
     /**
      * Default the date filter to the window outsourced tests are tracked for.
      */
@@ -50,9 +60,191 @@ new #[Title('Outsourced Tests')] class extends Component
         $this->fromDate = now()->subDays(CeoLabOverview::OUTSOURCED_OPEN_DAYS - 1)->toDateString();
         $this->toDate = now()->toDateString();
 
-        if (! in_array($this->tab, self::TABS, true)) {
+        if (! in_array($this->tab, [...self::TABS, 'partner'], true)) {
             $this->tab = 'open';
         }
+    }
+
+    /**
+     * Ready partner lab reports not attached or ignored yet, newest first.
+     *
+     * @return \Illuminate\Support\Collection<int, PartnerLabReport>
+     */
+    #[Computed]
+    public function partnerReports()
+    {
+        return PartnerLabReport::query()->waiting()->latest('registered_at')->limit(100)->get();
+    }
+
+    /**
+     * The likely outsourced test for each waiting partner report, keyed by report id.
+     *
+     * @return array<int, array{item: LabInvoiceItem, score: int}|null>
+     */
+    #[Computed]
+    public function partnerSuggestions(): array
+    {
+        $matcher = app(PartnerLabMatcher::class);
+
+        return $this->partnerReports
+            ->mapWithKeys(fn (PartnerLabReport $report) => [$report->id => $matcher->suggest($report)])
+            ->all();
+    }
+
+    /**
+     * How many ready partner reports are waiting to be attached.
+     */
+    #[Computed]
+    public function waitingPartnerCount(): int
+    {
+        return PartnerLabReport::query()->waiting()->count();
+    }
+
+    /**
+     * When the partner portal was last read, for the "last checked" note.
+     */
+    #[Computed]
+    public function partnerLastSeenAt(): ?CarbonImmutable
+    {
+        $lastSeen = PartnerLabReport::query()->max('last_seen_at');
+
+        return $lastSeen ? CarbonImmutable::parse($lastSeen) : null;
+    }
+
+    /**
+     * Outsourced tests to offer in the attach form, best match for the chosen report first.
+     *
+     * @return \Illuminate\Support\Collection<int, array{item: LabInvoiceItem, score: ?int}>
+     */
+    #[Computed]
+    public function attachItemOptions()
+    {
+        $report = $this->attachReportId ? PartnerLabReport::find($this->attachReportId) : null;
+        $matcher = app(PartnerLabMatcher::class);
+        $candidates = $matcher->candidateQuery()
+            ->where('created_at', '>=', now()->subDays(CeoLabOverview::OUTSOURCED_OPEN_DAYS))
+            ->latest()
+            ->get();
+
+        return $report
+            ? $matcher->rank($report, $candidates)
+            : $candidates->map(fn (LabInvoiceItem $item) => ['item' => $item, 'score' => null]);
+    }
+
+    /**
+     * Waiting partner reports to offer in the attach form, best match for the chosen test first.
+     *
+     * @return \Illuminate\Support\Collection<int, array{report: PartnerLabReport, score: ?int}>
+     */
+    #[Computed]
+    public function attachReportOptions()
+    {
+        $item = $this->attachItemId ? LabInvoiceItem::query()->with('labInvoice.patient')->find($this->attachItemId) : null;
+        $matcher = app(PartnerLabMatcher::class);
+        $reports = PartnerLabReport::query()->waiting()->latest('registered_at')->limit(100)->get();
+
+        if ($this->attachReportId && ! $reports->contains('id', $this->attachReportId)) {
+            $reports->prepend(PartnerLabReport::findOrFail($this->attachReportId));
+        }
+
+        return $reports
+            ->map(fn (PartnerLabReport $report) => ['report' => $report, 'score' => $item ? $matcher->score($report, $item) : null])
+            ->sortByDesc('score')
+            ->values();
+    }
+
+    /**
+     * Open the attach form for a partner report, with its likely test chosen.
+     */
+    public function openAttachForReport(int $reportId): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $this->attachReportId = PartnerLabReport::query()->findOrFail($reportId)->id;
+        $this->attachItemId = $this->partnerSuggestions[$reportId]['item']->id ?? null;
+        $this->resetValidation();
+        unset($this->attachItemOptions, $this->attachReportOptions);
+        $this->showAttachModal = true;
+    }
+
+    /**
+     * Open the attach form for an outsourced test, with its likely partner report chosen.
+     */
+    public function openAttachForItem(int $itemId): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $this->attachItemId = $this->filteredQuery()->findOrFail($itemId)->id;
+        $this->attachReportId = null;
+        unset($this->attachItemOptions, $this->attachReportOptions);
+
+        $best = $this->attachReportOptions->first();
+        $this->attachReportId = $best && $best['score'] >= PartnerLabMatcher::LIKELY_SCORE ? $best['report']->id : null;
+        unset($this->attachItemOptions);
+
+        $this->resetValidation();
+        $this->showAttachModal = true;
+    }
+
+    /**
+     * Refresh the ranked tests when a different report is picked in the form.
+     */
+    public function updatedAttachReportId(): void
+    {
+        unset($this->attachItemOptions);
+    }
+
+    /**
+     * Download the chosen partner report and attach it to the chosen outsourced test.
+     */
+    public function attachPartnerReport(): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        $this->validate([
+            'attachReportId' => ['required', 'integer', Rule::exists('partner_lab_reports', 'id')],
+            'attachItemId' => ['required', 'integer', Rule::exists('lab_invoice_items', 'id')->where('is_in_house', 0)],
+        ], [], ['attachReportId' => __('partner report'), 'attachItemId' => __('outsourced test')]);
+
+        $report = PartnerLabReport::query()->findOrFail($this->attachReportId);
+        $item = LabInvoiceItem::query()->with('labInvoice')->findOrFail($this->attachItemId);
+
+        try {
+            app(AttachPartnerLabReport::class)->handle(auth()->user(), $report, $item);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $this->addError('attachReportId', $exception instanceof \InvalidArgumentException
+                ? $exception->getMessage()
+                : __('Could not download the report from the partner lab. Try again, or upload it by hand.'));
+
+            return;
+        }
+
+        $this->showAttachModal = false;
+        $this->reset('attachReportId', 'attachItemId');
+        unset($this->items, $this->counts, $this->partnerReports, $this->partnerSuggestions, $this->waitingPartnerCount);
+
+        Flux::toast(variant: 'success', text: __('Partner report attached to :test for :patient.', [
+            'test' => trim($item->test_name),
+            'patient' => $item->labInvoice?->patient?->name ?? __('the patient'),
+        ]));
+    }
+
+    /**
+     * Hide a partner report that does not belong to any of our tests.
+     */
+    public function ignorePartnerReport(int $reportId): void
+    {
+        abort_unless($this->canManageResults, 403);
+
+        PartnerLabReport::query()->whereKey($reportId)->whereNull('lab_invoice_item_id')->update([
+            'ignored_at' => now(),
+            'ignored_by' => auth()->id(),
+        ]);
+
+        unset($this->partnerReports, $this->partnerSuggestions, $this->waitingPartnerCount);
+
+        Flux::toast(text: __('Partner report hidden.'));
     }
 
     /**
@@ -330,8 +522,104 @@ new #[Title('Outsourced Tests')] class extends Component
                     <flux:badge size="sm" :color="$key === 'late' && $counts[$key] > 0 ? 'red' : 'zinc'" class="ms-1">{{ $counts[$key] }}</flux:badge>
                 </flux:button>
             @endforeach
+            <flux:button
+                size="sm"
+                icon="inbox-arrow-down"
+                wire:key="tab-partner"
+                wire:click="$set('tab', 'partner')"
+                :variant="$tab === 'partner' ? 'primary' : 'filled'"
+            >
+                {{ __('Partner reports') }}
+                <flux:badge size="sm" :color="$this->waitingPartnerCount > 0 ? 'sky' : 'zinc'" class="ms-1">{{ $this->waitingPartnerCount }}</flux:badge>
+            </flux:button>
         </div>
 
+        @if ($tab === 'partner')
+            <flux:card>
+                <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <flux:text class="text-sm">
+                        {{ __('Reports that are ready on the Test Zone portal and not attached to one of our tests yet. Check the suggested match, then attach.') }}
+                    </flux:text>
+                    <flux:text class="text-xs text-zinc-500">
+                        {{ $this->partnerLastSeenAt ? __('Portal last checked :time', ['time' => $this->partnerLastSeenAt->diffForHumans()]) : __('Portal not checked yet') }}
+                    </flux:text>
+                </div>
+
+                <flux:table>
+                    <flux:table.columns>
+                        <flux:table.column>{{ __('Partner patient') }}</flux:table.column>
+                        <flux:table.column>{{ __('Test') }}</flux:table.column>
+                        <flux:table.column>{{ __('Registered') }}</flux:table.column>
+                        <flux:table.column>{{ __('Suggested match') }}</flux:table.column>
+                        <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+                    </flux:table.columns>
+
+                    <flux:table.rows>
+                        @forelse ($this->partnerReports as $report)
+                            @php $suggestion = $this->partnerSuggestions[$report->id] ?? null; @endphp
+                            <flux:table.row wire:key="partner-report-{{ $report->id }}">
+                                <flux:table.cell>
+                                    <div class="font-medium uppercase text-zinc-900 dark:text-zinc-100">{{ $report->patient_name ?? __('Unknown') }}</div>
+                                    <div class="text-xs text-zinc-500">
+                                        {{ collect([$report->patient_age, $report->patient_gender])->filter()->implode(' · ') ?: '—' }}
+                                        · <span class="font-mono">{{ $report->partner_case_no }}</span>
+                                    </div>
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $report->test_name }}</div>
+                                    <div class="text-xs text-zinc-500">{{ $report->status }}</div>
+                                </flux:table.cell>
+                                <flux:table.cell class="whitespace-nowrap">
+                                    {{ $report->registered_at?->format('d M, g:i A') ?? '—' }}
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    @if ($suggestion)
+                                        @php $suggestedPatient = $suggestion['item']->labInvoice?->patient; @endphp
+                                        <div class="font-medium uppercase text-zinc-900 dark:text-zinc-100">{{ $suggestedPatient?->name ?? __('Unknown') }}</div>
+                                        <div class="text-xs text-zinc-500">
+                                            {{ trim($suggestion['item']->test_name) }}
+                                            · <span class="font-mono">{{ $suggestion['item']->labInvoice?->invoice_number }}</span>
+                                            · {{ $suggestion['item']->created_at->format('d M') }}
+                                        </div>
+                                        <flux:badge size="sm" class="mt-1" :color="$suggestion['score'] >= 85 ? 'green' : 'amber'">
+                                            {{ __(':score% match', ['score' => $suggestion['score']]) }}
+                                        </flux:badge>
+                                    @else
+                                        <span class="text-sm text-zinc-400">{{ __('No likely match') }}</span>
+                                    @endif
+                                </flux:table.cell>
+                                <flux:table.cell class="text-right">
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square" :href="$report->report_url" target="_blank" rel="noopener noreferrer">
+                                            {{ __('View') }}
+                                        </flux:button>
+                                        @if ($this->canManageResults)
+                                            <flux:button size="sm" :variant="$suggestion ? 'primary' : 'filled'" icon="paper-clip" wire:click="openAttachForReport({{ $report->id }})">
+                                                {{ __('Attach') }}
+                                            </flux:button>
+                                            <flux:button
+                                                size="sm"
+                                                variant="ghost"
+                                                icon="eye-slash"
+                                                :tooltip="__('Not one of our tests: hide it')"
+                                                wire:click="ignorePartnerReport({{ $report->id }})"
+                                                wire:confirm="{{ __('Hide this partner report? Use this only if it is not one of our tests.') }}"
+                                            />
+                                        @endif
+                                    </div>
+                                </flux:table.cell>
+                            </flux:table.row>
+                        @empty
+                            <flux:table.row>
+                                <flux:table.cell colspan="5" class="py-8 text-center text-zinc-500">
+                                    {{ __('No partner reports waiting.') }}
+                                </flux:table.cell>
+                            </flux:table.row>
+                        @endforelse
+                    </flux:table.rows>
+                </flux:table>
+            </flux:card>
+        @else
         <flux:card>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(2,minmax(0,11rem))_minmax(0,1fr)] lg:items-end">
                 <flux:input type="date" wire:model.live="fromDate" :label="__('From')" />
@@ -465,6 +753,12 @@ new #[Title('Outsourced Tests')] class extends Component
                                         </flux:button>
                                     @endif
 
+                                    @if ($this->canManageResults && ! $hasFile && ! $hasResults && $this->waitingPartnerCount > 0)
+                                        <flux:button size="sm" variant="ghost" icon="inbox-arrow-down" wire:click="openAttachForItem({{ $item->id }})">
+                                            {{ __('Attach partner report') }}
+                                        </flux:button>
+                                    @endif
+
                                     @if (! $this->canManageResults && ! $hasFile && ! $hasResults)
                                         <flux:button size="sm" variant="ghost" :href="route('lab.cases.show', $case)" wire:navigate>{{ __('Open case') }}</flux:button>
                                     @endif
@@ -485,7 +779,45 @@ new #[Title('Outsourced Tests')] class extends Component
                 {{ $this->items->links() }}
             </div>
         </flux:card>
+        @endif
     </div>
+
+    <flux:modal wire:model="showAttachModal" class="w-full max-w-2xl">
+        <flux:heading level="2">{{ __('Attach partner lab report') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">{{ __('The report is downloaded from Test Zone and stored with the test, which is marked as result received. Best matches are listed first.') }}</flux:text>
+
+        @if ($showAttachModal)
+        <form wire:submit="attachPartnerReport" class="mt-6 space-y-4">
+            <flux:select wire:model.live="attachReportId" :label="__('Partner report')">
+                <flux:select.option value="">{{ __('Choose a report...') }}</flux:select.option>
+                @foreach ($this->attachReportOptions as $option)
+                    @php $optionReport = $option['report']; @endphp
+                    <flux:select.option value="{{ $optionReport->id }}">
+                        {{ $optionReport->patient_name }} ({{ collect([$optionReport->patient_age, $optionReport->patient_gender])->filter()->implode(', ') ?: '—' }}) · {{ $optionReport->test_name }} · {{ $optionReport->registered_at?->format('d M') }} · {{ $optionReport->partner_case_no }}{{ $option['score'] !== null ? ' · '.$option['score'].'%' : '' }}
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:error name="attachReportId" />
+
+            <flux:select wire:model="attachItemId" :label="__('Our outsourced test')">
+                <flux:select.option value="">{{ __('Choose a test...') }}</flux:select.option>
+                @foreach ($this->attachItemOptions as $option)
+                    @php $optionItem = $option['item']; @endphp
+                    @php $optionPatient = $optionItem->labInvoice?->patient; @endphp
+                    <flux:select.option value="{{ $optionItem->id }}">
+                        {{ $optionPatient?->name ?? __('Unknown') }} ({{ collect([$optionPatient?->age, $optionPatient?->gender])->filter(fn ($value) => $value !== null && $value !== '')->implode(', ') ?: '—' }}) · {{ trim($optionItem->test_name) }} · {{ $optionItem->labInvoice?->invoice_number }} · {{ $optionItem->created_at->format('d M') }}{{ filled($optionItem->report_path) ? ' · '.__('has a report') : '' }}{{ $option['score'] !== null ? ' · '.$option['score'].'%' : '' }}
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:error name="attachItemId" />
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showAttachModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button type="submit" variant="primary" icon="paper-clip" wire:loading.attr="disabled" wire:target="attachPartnerReport">{{ __('Attach report') }}</flux:button>
+            </div>
+        </form>
+        @endif
+    </flux:modal>
 
     <flux:modal wire:model="showUploadModal" class="w-full max-w-md">
         <flux:heading level="2">{{ __('Upload partner lab report') }}</flux:heading>

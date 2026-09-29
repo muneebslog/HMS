@@ -143,6 +143,16 @@ class LabInvoiceItem extends Model
     }
 
     /**
+     * Get the partner lab portal report attached to this outsourced test, if any.
+     *
+     * @return HasOne<PartnerLabReport, $this>
+     */
+    public function partnerLabReport(): HasOne
+    {
+        return $this->hasOne(PartnerLabReport::class);
+    }
+
+    /**
      * Get the user who uploaded the outgoing report PDF.
      *
      * @return BelongsTo<User, $this>

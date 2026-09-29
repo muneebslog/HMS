@@ -55,6 +55,15 @@ return [
         'enabled' => env('LAB_API_ENABLED', true),
     ],
 
+    'testzone' => [
+        'enabled' => env('TESTZONE_ENABLED', false),
+        'base_url' => env('TESTZONE_URL', 'https://testzone.nextstep.pk'),
+        'username' => env('TESTZONE_USERNAME'),
+        'password' => env('TESTZONE_PASSWORD'),
+        'days' => (int) env('TESTZONE_SYNC_DAYS', 7),
+        'timeout' => (int) env('TESTZONE_TIMEOUT', 30),
+    ],
+
     'ntfy' => [
         'base_url' => env('NTFY_BASE_URL', 'https://ntfy.sh'),
         'admin_topic' => env('NTFY_ADMIN_TOPIC', 'mmc-hms'),
