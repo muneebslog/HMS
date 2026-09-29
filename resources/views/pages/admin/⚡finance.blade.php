@@ -639,46 +639,46 @@ new #[Title('Finance')] class extends Component
     @php($overview = $this->monthOverview)
     @php($stat = fn (float $value, bool $signed = false) => ($signed && $value > 0 ? '+' : '').number_format($value, 2))
 
-    <div class="flex items-end gap-2">
-        <flux:button variant="ghost" icon="chevron-left" wire:click="previousDay" :aria-label="__('Previous day')" />
-        <flux:field>
-            <flux:label>{{ __('Date') }}</flux:label>
-            <flux:input type="date" wire:model.live="date" />
-        </flux:field>
-        <flux:button variant="ghost" icon="chevron-right" wire:click="nextDay" :aria-label="__('Next day')" />
-    </div>
+    @foreach ([
+        ['title' => __(':month total', ['month' => $this->monthLabel]), 'data' => $overview, 'meta' => trans_choice(':count shift settled|:count shifts settled', $overview['settled'], ['count' => $overview['settled']])],
+        ['title' => \Illuminate\Support\Carbon::parse($date)->format('D, M j'), 'data' => $totals, 'meta' => __(':settled / :total shifts settled', ['settled' => $totals['settled'], 'total' => $totals['total']])],
+    ] as $block)
+        @if ($loop->last)
+            <div class="flex items-end gap-2">
+                <flux:button variant="ghost" icon="chevron-left" wire:click="previousDay" :aria-label="__('Previous day')" />
+                <flux:field>
+                    <flux:label>{{ __('Date') }}</flux:label>
+                    <flux:input type="date" wire:model.live="date" />
+                </flux:field>
+                <flux:button variant="ghost" icon="chevron-right" wire:click="nextDay" :aria-label="__('Next day')" />
+            </div>
+        @endif
 
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        @foreach ([
-            ['title' => \Illuminate\Support\Carbon::parse($date)->format('D, M j'), 'data' => $totals, 'meta' => __(':settled / :total shifts settled', ['settled' => $totals['settled'], 'total' => $totals['total']])],
-            ['title' => __(':month total', ['month' => $this->monthLabel]), 'data' => $overview, 'meta' => trans_choice(':count shift settled|:count shifts settled', $overview['settled'], ['count' => $overview['settled']])],
-        ] as $block)
-            <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-                <div class="mb-3 flex items-baseline justify-between gap-2">
-                    <flux:heading size="sm">{{ $block['title'] }}</flux:heading>
-                    <flux:text class="text-xs text-zinc-500">{{ $block['meta'] }}</flux:text>
+        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+            <div class="mb-3 flex items-baseline justify-between gap-2">
+                <flux:heading size="sm">{{ $block['title'] }}</flux:heading>
+                <flux:text class="text-xs text-zinc-500">{{ $block['meta'] }}</flux:text>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div>
+                    <div class="text-zinc-500">{{ __('Received') }}</div>
+                    <div class="font-semibold tabular-nums text-green-700 dark:text-green-400">{{ $stat($block['data']['received']) }}</div>
                 </div>
-                <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                    <div>
-                        <div class="text-zinc-500">{{ __('Received') }}</div>
-                        <div class="font-semibold tabular-nums text-green-700 dark:text-green-400">{{ $stat($block['data']['received']) }}</div>
-                    </div>
-                    <div>
-                        <div class="text-zinc-500">{{ __('Short / Over') }}</div>
-                        <div class="font-semibold tabular-nums {{ $block['data']['difference'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['difference'], true) }}</div>
-                    </div>
-                    <div>
-                        <div class="text-zinc-500">{{ __('Expenses') }}</div>
-                        <div class="font-semibold tabular-nums text-red-700 dark:text-red-400">{{ $stat($block['data']['expenses']) }}</div>
-                    </div>
-                    <div>
-                        <div class="text-zinc-500">{{ __('Net') }}</div>
-                        <div class="font-semibold tabular-nums {{ $block['data']['net'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['net']) }}</div>
-                    </div>
+                <div>
+                    <div class="text-zinc-500">{{ __('Short / Over') }}</div>
+                    <div class="font-semibold tabular-nums {{ $block['data']['difference'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['difference'], true) }}</div>
+                </div>
+                <div>
+                    <div class="text-zinc-500">{{ __('Expenses') }}</div>
+                    <div class="font-semibold tabular-nums text-red-700 dark:text-red-400">{{ $stat($block['data']['expenses']) }}</div>
+                </div>
+                <div>
+                    <div class="text-zinc-500">{{ __('Net') }}</div>
+                    <div class="font-semibold tabular-nums {{ $block['data']['net'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['net']) }}</div>
                 </div>
             </div>
-        @endforeach
-    </div>
+        </div>
+    @endforeach
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         @foreach ($this->shiftsByPeriod as $periodValue => $shifts)
