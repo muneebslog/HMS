@@ -135,6 +135,28 @@ test('medication page lists waiting tokens without selecting a doctor profile', 
         ->assertDontSee(__('Change doctor'));
 });
 
+test('medication queue polls for new slips only while no patient is selected', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSeeHtml('wire:poll.10s');
+
+    $newPatient = Patient::factory()->create(['name' => 'Late Arrival']);
+    QueueToken::factory()->create([
+        'service_queue_id' => $token->service_queue_id,
+        'patient_id' => $newPatient->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    $component->call('$refresh')
+        ->assertSee($newPatient->mrn)
+        ->call('selectToken', $token->id)
+        ->assertDontSeeHtml('wire:poll.10s');
+});
+
 test('medication queue excludes tokens for services that do not need medication', function () {
     [$user, , , , , $patient] = createMedicationQueuePatient(needsMedication: false, withDoctor: false);
 

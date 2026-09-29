@@ -82,8 +82,14 @@ test('an inactive gynecologist is forbidden', function () {
     $this->actingAs($user)->get('/_test/gynecology')->assertForbidden();
 });
 
+test('admins can access gynecology pages without a doctor profile', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)->get('/_test/gynecology')->assertOk();
+});
+
 test('users without a doctor profile are forbidden', function () {
-    $user = User::factory()->admin()->create();
+    $user = User::factory()->create();
 
     $this->actingAs($user)->get('/_test/gynecology')->assertForbidden();
 });

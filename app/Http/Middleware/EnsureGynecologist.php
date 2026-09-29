@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureGynecologist
 {
     /**
-     * Allow only users linked to a doctor profile flagged as a gynecologist.
+     * Allow only admins and users linked to a doctor profile flagged as a gynecologist.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -21,7 +21,7 @@ class EnsureGynecologist
             return redirect()->route('login');
         }
 
-        if (! $user->doctor?->isGynecologist()) {
+        if (! $user->isAdmin() && ! $user->doctor?->isGynecologist()) {
             abort(403);
         }
 

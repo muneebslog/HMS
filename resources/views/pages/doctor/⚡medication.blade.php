@@ -2266,7 +2266,7 @@ new #[Title('Medication')] class extends Component
     </div>
 
     @if ($selectedTokenId === null)
-        <div class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div wire:poll.5 class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @forelse ($this->queue as $token)
                 <div wire:key="medication-token-{{ $token->id }}" class="relative">
                 <x-paper-slip
