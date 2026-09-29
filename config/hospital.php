@@ -69,4 +69,14 @@ return [
         ],
     ],
 
+    'finance' => [
+        /*
+         * The first business day whose shifts are reviewed and settled on the Finance page.
+         * A business day starts with the night shift opened the evening before. Shifts from
+         * earlier days are shown as "before tracking" and cannot be approved or settled there.
+         * Empty = no cutoff.
+         */
+        'tracking_started_at' => env('FINANCE_TRACKING_STARTED_AT', '2026-09-22'),
+    ],
+
 ];

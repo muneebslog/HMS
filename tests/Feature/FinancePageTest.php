@@ -1,14 +1,22 @@
 <?php
 
+use App\Actions\SettleShift;
+use App\Enums\ApprovalStatus;
 use App\Enums\FinanceExpenseCategory;
 use App\Enums\FinanceShiftPeriod;
+use App\Enums\PaymentMode;
 use App\Enums\UserRole;
-use App\Models\FinanceCashEntry;
+use App\Models\Expense;
 use App\Models\FinanceExpense;
+use App\Models\Invoice;
+use App\Models\ProcedurePayment;
+use App\Models\Shift;
+use App\Models\ShiftSettlement;
 use App\Models\User;
 use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 uses(RefreshDatabase::class);
 
@@ -67,83 +75,207 @@ test('finance does not appear in the sidebar for receptionists', function () {
     expect(str_contains($html, 'href="'.route('admin.finance').'"'))->toBeFalse();
 });
 
-test('admin can create a cash collection entry', function () {
-    $admin = User::factory()->admin()->create();
+test('shifts are grouped into night, morning and evening for a business date', function () {
+    $night = Shift::factory()->create(['opened_at' => '2026-09-28 20:35:00', 'closed_at' => '2026-09-29 05:55:00']);
+    $morning = Shift::factory()->create(['opened_at' => '2026-09-29 05:57:00', 'closed_at' => '2026-09-29 15:03:00']);
+    $evening = Shift::factory()->create(['opened_at' => '2026-09-29 15:03:30', 'closed_at' => '2026-09-29 20:34:00']);
+    $nextNight = Shift::factory()->open()->create(['opened_at' => '2026-09-29 20:35:00']);
 
-    Livewire::actingAs($admin)
+    expect($night->period())->toBe(FinanceShiftPeriod::Night)
+        ->and($night->businessDate()->toDateString())->toBe('2026-09-29')
+        ->and($morning->period())->toBe(FinanceShiftPeriod::Morning)
+        ->and($evening->period())->toBe(FinanceShiftPeriod::Evening)
+        ->and($nextNight->businessDate()->toDateString())->toBe('2026-09-30');
+
+    $groups = Livewire::actingAs(User::factory()->management()->create())
         ->test('pages::admin.finance')
-        ->call('openCashModal')
-        ->set('cashEntryDate', '2026-09-23')
-        ->set('cashPeriod', FinanceShiftPeriod::Morning->value)
-        ->set('cashAmountCollected', '15000.50')
-        ->set('cashAmountShort', '200')
-        ->set('cashNotes', 'Morning till count')
-        ->call('saveCashEntry')
-        ->assertHasNoErrors();
+        ->set('date', '2026-09-29')
+        ->instance()
+        ->shiftsByPeriod;
 
-    $entry = FinanceCashEntry::query()->first();
-
-    expect($entry)->not->toBeNull()
-        ->and($entry->user_id)->toBe($admin->id)
-        ->and($entry->entry_date->toDateString())->toBe('2026-09-23')
-        ->and($entry->period)->toBe(FinanceShiftPeriod::Morning)
-        ->and($entry->amount_collected)->toBe(15000.50)
-        ->and($entry->amount_short)->toBe(200.0)
-        ->and($entry->notes)->toBe('Morning till count')
-        ->and($entry->netAmount())->toBe(14800.50);
+    expect($groups->keys()->all())->toBe(['night', 'morning', 'evening'])
+        ->and($groups['night']->pluck('id')->all())->toBe([$night->id])
+        ->and($groups['morning']->pluck('id')->all())->toBe([$morning->id])
+        ->and($groups['evening']->pluck('id')->all())->toBe([$evening->id]);
 });
 
-test('admin cannot create duplicate cash entry for same date and period', function () {
-    $admin = User::factory()->admin()->create();
+test('management can approve all pending expenses and returns on a shift', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->closed()->create();
+    $otherShift = Shift::factory()->closed()->create();
 
-    FinanceCashEntry::factory()->create([
-        'user_id' => $admin->id,
-        'entry_date' => '2026-09-23',
-        'period' => FinanceShiftPeriod::Evening,
-    ]);
+    $expenses = Expense::factory()->count(2)->for($shift)->create();
+    $otherExpense = Expense::factory()->for($otherShift)->create();
+    $invoice = Invoice::factory()->returned()->create(['shift_id' => $shift->id]);
+    $payment = ProcedurePayment::factory()->returned()->create(['shift_id' => $shift->id]);
 
-    Livewire::actingAs($admin)
+    Livewire::actingAs($manager)
         ->test('pages::admin.finance')
-        ->call('openCashModal')
-        ->set('cashEntryDate', '2026-09-23')
-        ->set('cashPeriod', FinanceShiftPeriod::Evening->value)
-        ->set('cashAmountCollected', '1000')
-        ->set('cashAmountShort', '0')
-        ->call('saveCashEntry')
-        ->assertHasErrors(['cashPeriod']);
+        ->call('selectShift', $shift->id)
+        ->assertSet('selectedPendingCount', 4)
+        ->call('approveAll')
+        ->assertSet('selectedPendingCount', 0);
 
-    expect(FinanceCashEntry::query()->count())->toBe(1);
+    expect($expenses->every(fn (Expense $expense) => $expense->refresh()->approval_status === ApprovalStatus::Approved))->toBeTrue()
+        ->and($invoice->refresh()->return_approval_status)->toBe(ApprovalStatus::Approved)
+        ->and($payment->refresh()->return_approval_status)->toBe(ApprovalStatus::Approved)
+        ->and($otherExpense->refresh()->approval_status)->toBe(ApprovalStatus::Pending);
 });
 
-test('admin can update and delete a cash entry', function () {
-    $admin = User::factory()->admin()->create();
-    $entry = FinanceCashEntry::factory()->create([
-        'user_id' => $admin->id,
-        'entry_date' => now()->toDateString(),
-        'period' => FinanceShiftPeriod::Night,
-        'amount_collected' => 5000,
-        'amount_short' => 100,
+test('declining an expense removes it from the expected cash', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->closed()->create(['opening_balance' => 5000]);
+    $expense = Expense::factory()->for($shift)->create(['amount' => 300]);
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $shift->id)
+        ->assertSet('shiftSummary.expected', 4700.0)
+        ->call('declineExpense', $expense->id)
+        ->assertSet('shiftSummary.expected', 5000.0);
+
+    expect($expense->refresh()->approval_status)->toBe(ApprovalStatus::Rejected);
+});
+
+test('a shift cannot be settled while items are pending', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->closed()->create();
+    Expense::factory()->for($shift)->create();
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $shift->id)
+        ->set('receivedAmount', '1000')
+        ->call('settle');
+
+    expect(ShiftSettlement::query()->count())->toBe(0);
+});
+
+test('an open shift cannot be settled', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->open()->create();
+
+    expect(fn () => app(SettleShift::class)->handle($manager, $shift, 1000))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+test('receiving cash settles and locks the shift including the float', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->closed()->create([
+        'opened_at' => '2026-09-29 06:00:00',
+        'opening_balance' => 5000,
+        'closing_balance' => 14800,
     ]);
+    Invoice::factory()->paid()->create(['shift_id' => $shift->id, 'total' => 10000]);
+    Invoice::factory()->paid()->create(['shift_id' => $shift->id, 'total' => 700, 'payment_mode' => PaymentMode::Online->value]);
+    $expense = Expense::factory()->for($shift)->approved()->create(['amount' => 200]);
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $shift->id)
+        ->set('receivedAmount', '14750')
+        ->set('settlementNotes', 'Counted twice')
+        ->call('settle')
+        ->assertHasNoErrors();
+
+    $settlement = $shift->refresh()->settlement;
+
+    expect($settlement)->not->toBeNull()
+        ->and($settlement->settled_by)->toBe($manager->id)
+        ->and($settlement->business_date->toDateString())->toBe('2026-09-29')
+        ->and($settlement->period)->toBe(FinanceShiftPeriod::Morning)
+        ->and($settlement->expected_amount)->toBe(14800.0)
+        ->and($settlement->online_sales)->toBe(700.0)
+        ->and($settlement->received_amount)->toBe(14750.0)
+        ->and($settlement->difference)->toBe(-50.0)
+        ->and($settlement->isShort())->toBeTrue()
+        ->and($settlement->notes)->toBe('Counted twice');
+
+    expect(fn () => app(SettleShift::class)->handle($manager, $shift, 99999))
+        ->toThrow(InvalidArgumentException::class);
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $shift->id)
+        ->call('declineExpense', $expense->id);
+
+    expect($expense->refresh()->approval_status)->toBe(ApprovalStatus::Approved)
+        ->and($shift->settlement()->count())->toBe(1)
+        ->and($shift->settlement()->first()->received_amount)->toBe(14750.0);
+});
+
+test('settling requires a valid received amount', function () {
+    $manager = User::factory()->management()->create();
+    $shift = Shift::factory()->closed()->create();
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->call('selectShift', $shift->id)
+        ->set('receivedAmount', '')
+        ->call('settle')
+        ->assertHasErrors(['receivedAmount' => 'required'])
+        ->set('receivedAmount', '-5')
+        ->call('settle')
+        ->assertHasErrors(['receivedAmount' => 'min']);
+
+    expect(ShiftSettlement::query()->count())->toBe(0);
+});
+
+test('shifts before the finance tracking cutoff cannot be approved or settled', function () {
+    config(['hospital.finance.tracking_started_at' => '2026-09-22']);
+
+    $manager = User::factory()->management()->create();
+    $oldShift = Shift::factory()->closed()->create(['opened_at' => '2026-09-21 06:00:00']);
+    $firstNight = Shift::factory()->closed()->create(['opened_at' => '2026-09-21 20:30:00']);
+    $expense = Expense::factory()->for($oldShift)->create();
+
+    expect($oldShift->isBeforeFinanceTracking())->toBeTrue()
+        ->and($firstNight->isBeforeFinanceTracking())->toBeFalse();
+
+    Livewire::actingAs($manager)
+        ->test('pages::admin.finance')
+        ->set('date', '2026-09-21')
+        ->assertSee(__('Before tracking'))
+        ->call('selectShift', $oldShift->id)
+        ->call('approveExpense', $expense->id)
+        ->call('approveAll');
+
+    expect($expense->refresh()->approval_status)->toBe(ApprovalStatus::Pending);
+
+    Expense::query()->delete();
+
+    expect(fn () => app(SettleShift::class)->handle($manager, $oldShift, 100))
+        ->toThrow(InvalidArgumentException::class);
+
+    app(SettleShift::class)->handle($manager, $firstNight, 100);
+
+    expect($firstNight->settlement()->exists())->toBeTrue();
+});
+
+test('only admin or management may settle shifts', function () {
+    $receptionist = User::factory()->receptionist()->create();
+    $shift = Shift::factory()->closed()->create();
+
+    expect(fn () => app(SettleShift::class)->handle($receptionist, $shift, 100))
+        ->toThrow(HttpException::class);
+});
+
+test('month overview totals received cash, shortages and hospital expenses', function () {
+    $admin = User::factory()->admin()->create();
+
+    ShiftSettlement::factory()->create(['business_date' => '2026-09-10', 'expected_amount' => 1000, 'received_amount' => 950, 'difference' => -50]);
+    ShiftSettlement::factory()->create(['business_date' => '2026-09-10', 'expected_amount' => 2000, 'received_amount' => 2000, 'difference' => 0]);
+    ShiftSettlement::factory()->create(['business_date' => '2026-08-10', 'expected_amount' => 9999, 'received_amount' => 9999, 'difference' => 0]);
+    FinanceExpense::factory()->create(['expense_date' => '2026-09-15', 'amount' => 500]);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.finance')
-        ->call('editCashEntry', $entry->id)
-        ->set('cashAmountCollected', '5500')
-        ->set('cashAmountShort', '50')
-        ->call('saveCashEntry')
-        ->assertHasNoErrors();
-
-    $entry->refresh();
-
-    expect($entry->amount_collected)->toBe(5500.0)
-        ->and($entry->amount_short)->toBe(50.0);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.finance')
-        ->call('deleteCashEntry', $entry->id)
-        ->assertHasNoErrors();
-
-    expect(FinanceCashEntry::query()->whereKey($entry->id)->exists())->toBeFalse();
+        ->set('month', 9)
+        ->set('year', 2026)
+        ->assertSet('monthOverview.received', 2950.0)
+        ->assertSet('monthOverview.difference', -50.0)
+        ->assertSet('monthOverview.hospital_expenses', 500.0)
+        ->assertSet('monthOverview.net', 2450.0);
 });
 
 test('admin can create update and delete a finance expense', function () {
@@ -190,18 +322,8 @@ test('admin can create update and delete a finance expense', function () {
     expect(FinanceExpense::query()->whereKey($expense->id)->exists())->toBeFalse();
 });
 
-test('cash entry and expense forms reject invalid enum values', function () {
+test('expense form rejects invalid categories', function () {
     $admin = User::factory()->admin()->create();
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.finance')
-        ->call('openCashModal')
-        ->set('cashEntryDate', now()->toDateString())
-        ->set('cashPeriod', 'afternoon')
-        ->set('cashAmountCollected', '100')
-        ->set('cashAmountShort', '0')
-        ->call('saveCashEntry')
-        ->assertHasErrors(['cashPeriod']);
 
     Livewire::actingAs($admin)
         ->test('pages::admin.finance')
@@ -212,40 +334,4 @@ test('cash entry and expense forms reject invalid enum values', function () {
         ->set('expenseDate', now()->toDateString())
         ->call('saveExpense')
         ->assertHasErrors(['expenseCategory']);
-});
-
-test('cash summary totals collected short and net for the selected month', function () {
-    $admin = User::factory()->admin()->create();
-
-    FinanceCashEntry::factory()->create([
-        'user_id' => $admin->id,
-        'entry_date' => '2026-09-10',
-        'period' => FinanceShiftPeriod::Morning,
-        'amount_collected' => 1000,
-        'amount_short' => 50,
-    ]);
-
-    FinanceCashEntry::factory()->create([
-        'user_id' => $admin->id,
-        'entry_date' => '2026-09-10',
-        'period' => FinanceShiftPeriod::Evening,
-        'amount_collected' => 2000,
-        'amount_short' => 100,
-    ]);
-
-    FinanceCashEntry::factory()->create([
-        'user_id' => $admin->id,
-        'entry_date' => '2026-08-10',
-        'period' => FinanceShiftPeriod::Morning,
-        'amount_collected' => 9999,
-        'amount_short' => 0,
-    ]);
-
-    Livewire::actingAs($admin)
-        ->test('pages::admin.finance')
-        ->set('month', 9)
-        ->set('year', 2026)
-        ->assertSet('cashSummary.collected', 3000.0)
-        ->assertSet('cashSummary.short', 150.0)
-        ->assertSet('cashSummary.net', 2850.0);
 });

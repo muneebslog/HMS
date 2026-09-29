@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalStatus;
+use App\Enums\FinanceShiftPeriod;
 use App\Enums\PaymentMode;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Database\Factories\ShiftFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Shift extends Model
 {
@@ -109,6 +115,78 @@ class Shift extends Model
     public function doctorPayouts(): HasMany
     {
         return $this->hasMany(DoctorPayout::class);
+    }
+
+    /**
+     * Get the finance settlement recorded when management received this shift's cash.
+     *
+     * @return HasOne<ShiftSettlement, $this>
+     */
+    public function settlement(): HasOne
+    {
+        return $this->hasOne(ShiftSettlement::class);
+    }
+
+    /**
+     * Get the period (night, morning, evening) this shift belongs to.
+     */
+    public function period(): FinanceShiftPeriod
+    {
+        return FinanceShiftPeriod::forOpenedAt($this->opened_at);
+    }
+
+    /**
+     * Get the business date this shift belongs to.
+     */
+    public function businessDate(): CarbonImmutable
+    {
+        return FinanceShiftPeriod::businessDateFor($this->opened_at);
+    }
+
+    /**
+     * The first business day settled on the Finance page, or null when there is no cutoff.
+     */
+    public static function financeTrackingStartedAt(): ?CarbonImmutable
+    {
+        $date = config('hospital.finance.tracking_started_at');
+
+        return filled($date) ? CarbonImmutable::parse($date)->startOfDay() : null;
+    }
+
+    /**
+     * Determine whether this shift belongs to a business day before finance tracking started.
+     */
+    public function isBeforeFinanceTracking(): bool
+    {
+        $startedAt = self::financeTrackingStartedAt();
+
+        return $startedAt !== null && $this->businessDate()->lt($startedAt);
+    }
+
+    /**
+     * Scope shifts to one business day: the night opened the evening before, then that day's morning and evening.
+     *
+     * @param  Builder<Shift>  $query
+     * @return Builder<Shift>
+     */
+    public function scopeForBusinessDate(Builder $query, CarbonInterface $date): Builder
+    {
+        $start = CarbonImmutable::parse($date)->startOfDay()->subDay()->setHour(FinanceShiftPeriod::BusinessDayStartHour);
+
+        return $query
+            ->where('opened_at', '>=', $start)
+            ->where('opened_at', '<', $start->addDay());
+    }
+
+    /**
+     * Count the expenses and returns on this shift still waiting for approval.
+     */
+    public function pendingApprovalsCount(): int
+    {
+        return $this->expenses()->where('approval_status', ApprovalStatus::Pending)->count()
+            + $this->invoices()->where('status', 'returned')->where('return_approval_status', ApprovalStatus::Pending)->count()
+            + $this->labInvoices()->where('status', 'returned')->where('return_approval_status', ApprovalStatus::Pending)->count()
+            + $this->procedurePayments()->whereNotNull('returned_at')->where('return_approval_status', ApprovalStatus::Pending)->count();
     }
 
     /**
