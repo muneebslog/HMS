@@ -23,6 +23,7 @@ use App\Services\InventoryStockService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -269,6 +270,8 @@ new #[Title('Management')] class extends Component
 
     #[Validate]
     public bool $allowHaveNoNumber = true;
+
+    public string $financeOwnerPassword = '';
 
     /**
      * @var list<\Livewire\Features\SupportFileUploads\TemporaryUploadedFile>
@@ -1649,6 +1652,49 @@ new #[Title('Management')] class extends Component
     }
 
     /**
+     * Whether the public owner finance link is switched on.
+     */
+    #[Computed]
+    public function financeOwnerLinkEnabled(): bool
+    {
+        return AppSetting::financeOwnerPasswordHash() !== null;
+    }
+
+    /**
+     * Set or change the password for the public owner finance link.
+     */
+    public function saveFinanceOwnerPassword(): void
+    {
+        $this->activeTab = 'notifications';
+
+        $validated = $this->validate([
+            'financeOwnerPassword' => ['required', 'string', 'min:4', 'max:100'],
+        ], [], [
+            'financeOwnerPassword' => __('password'),
+        ]);
+
+        AppSetting::set(AppSetting::FinanceOwnerPassword, Hash::make($validated['financeOwnerPassword']));
+
+        $this->financeOwnerPassword = '';
+        unset($this->financeOwnerLinkEnabled);
+
+        Flux::toast(variant: 'success', text: __('Finance link password saved. Anyone opened with the old password must enter the new one.'));
+    }
+
+    /**
+     * Switch off the public owner finance link.
+     */
+    public function disableFinanceOwnerLink(): void
+    {
+        $this->activeTab = 'notifications';
+
+        AppSetting::set(AppSetting::FinanceOwnerPassword, null);
+        unset($this->financeOwnerLinkEnabled);
+
+        Flux::toast(variant: 'success', text: __('Finance link switched off.'));
+    }
+
+    /**
      * Get the list of doctors.
      *
      * @return Collection<int, Doctor>
@@ -2462,6 +2508,43 @@ new #[Title('Management')] class extends Component
 
                         <div class="flex justify-end">
                             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+                        </div>
+                    </form>
+
+                    <form wire:submit="saveFinanceOwnerPassword" class="mt-8 max-w-lg space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                        <div class="space-y-1">
+                            <flux:heading level="3">{{ __('Owner finance link') }}</flux:heading>
+                            <flux:text class="text-zinc-500">
+                                {{ __('A simple page that shows money in and out, for someone without an HMS login. It opens with a password.') }}
+                            </flux:text>
+                        </div>
+
+                        <flux:field>
+                            <flux:label>{{ __('Link') }}</flux:label>
+                            <flux:input :value="route('finance.owner')" readonly copyable />
+                            <flux:description>
+                                @if ($this->financeOwnerLinkEnabled)
+                                    <span class="text-green-700 dark:text-green-400">{{ __('On — a password is set.') }}</span>
+                                @else
+                                    <span class="text-amber-700 dark:text-amber-400">{{ __('Off — set a password to switch it on.') }}</span>
+                                @endif
+                            </flux:description>
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ $this->financeOwnerLinkEnabled ? __('Change password') : __('Set password') }}</flux:label>
+                            <flux:input wire:model="financeOwnerPassword" type="password" autocomplete="new-password" viewable />
+                            <flux:description>{{ __('At least 4 characters. Changing it signs out everyone who opened the link with the old one.') }}</flux:description>
+                            <flux:error name="financeOwnerPassword" />
+                        </flux:field>
+
+                        <div class="flex justify-end gap-2">
+                            @if ($this->financeOwnerLinkEnabled)
+                                <flux:button type="button" variant="ghost" wire:click="disableFinanceOwnerLink" wire:confirm="{{ __('Switch off the owner finance link? It will stop opening until a new password is set.') }}">
+                                    {{ __('Switch off') }}
+                                </flux:button>
+                            @endif
+                            <flux:button type="submit" variant="primary">{{ __('Save password') }}</flux:button>
                         </div>
                     </form>
                 @else

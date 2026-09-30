@@ -13,6 +13,8 @@ class AppSetting extends Model
 
     public const AllowHaveNoNumber = 'reception.allow_have_no_number';
 
+    public const FinanceOwnerPassword = 'finance.owner_password';
+
     protected $fillable = [
         'key',
         'value',
@@ -49,6 +51,16 @@ class AppSetting extends Model
     public static function allowsHaveNoNumber(): bool
     {
         return self::get(self::AllowHaveNoNumber, '1') === '1';
+    }
+
+    /**
+     * The hashed password for the public owner finance page, or null when the page is switched off.
+     */
+    public static function financeOwnerPasswordHash(): ?string
+    {
+        $hash = self::get(self::FinanceOwnerPassword);
+
+        return filled($hash) ? $hash : null;
     }
 
     /**

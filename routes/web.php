@@ -61,6 +61,9 @@ Route::view('display/er-drips', 'pages.display.er-drips')
 Route::livewire('display/shift-orders', 'pages::display.shift-orders')
     ->name('display.shift_orders');
 
+Route::livewire('owner/finance', 'pages::finance.owner')
+    ->name('finance.owner');
+
 Route::get('display/shift-orders/export', function (Request $request, ShiftOrdersExportService $export) {
     $validated = $request->validate([
         'shiftId' => ['required', 'integer', 'exists:shifts,id'],
