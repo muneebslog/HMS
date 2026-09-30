@@ -515,6 +515,24 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Number of previous medication slips for the selected patient, excluding the current visit.
+     */
+    #[Computed]
+    public function medicationHistoryCount(): int
+    {
+        $token = $this->selectedToken;
+
+        if ($token?->patient_id === null) {
+            return 0;
+        }
+
+        return MedicationOrder::query()
+            ->where('patient_id', $token->patient_id)
+            ->where('queue_token_id', '!=', $token->id)
+            ->count();
+    }
+
+    /**
      * Medication orders for the med-orders browse modal (any patient on the chosen date).
      *
      * @return Collection<int, MedicationOrder>
@@ -2266,7 +2284,7 @@ new #[Title('Medication')] class extends Component
     </div>
 
     @if ($selectedTokenId === null)
-        <div wire:poll.5 class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div wire:poll.5s class="grid flex-1 grid-cols-1 content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @forelse ($this->queue as $token)
                 <div wire:key="medication-token-{{ $token->id }}" class="relative">
                 <x-paper-slip
@@ -2350,6 +2368,9 @@ new #[Title('Medication')] class extends Component
                     </flux:button>
                     <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
                         {{ __('History') }}
+                        <flux:badge size="sm" :color="$this->medicationHistoryCount > 0 ? 'blue' : 'zinc'" class="ms-1">
+                            {{ $this->medicationHistoryCount }}
+                        </flux:badge>
                     </flux:button>
                 </div>
             </div>

@@ -140,7 +140,7 @@ test('medication queue polls for new slips only while no patient is selected', f
 
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->assertSeeHtml('wire:poll.10s');
+        ->assertSeeHtml('wire:poll.5s');
 
     $newPatient = Patient::factory()->create(['name' => 'Late Arrival']);
     QueueToken::factory()->create([
@@ -154,7 +154,7 @@ test('medication queue polls for new slips only while no patient is selected', f
     $component->call('$refresh')
         ->assertSee($newPatient->mrn)
         ->call('selectToken', $token->id)
-        ->assertDontSeeHtml('wire:poll.10s');
+        ->assertDontSeeHtml('wire:poll.5s');
 });
 
 test('medication queue excludes tokens for services that do not need medication', function () {
@@ -1440,9 +1440,13 @@ test('doctor can open medication history modal for a patient', function () {
         'name' => 'Amoxicillin',
     ]);
 
-    Livewire::actingAs($user)
+    $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
-        ->call('selectToken', $token->id)
+        ->call('selectToken', $token->id);
+
+    expect($component->instance()->medicationHistoryCount)->toBe(1);
+
+    $component
         ->call('openHistory')
         ->assertSet('showHistoryModal', true)
         ->assertSee('Amoxicillin')
@@ -1477,7 +1481,8 @@ test('medication history excludes the current visit order', function () {
         ->assertSee(__('No previous medication records'));
 
     expect($component->get('showHistoryModal'))->toBeTrue()
-        ->and($component->instance()->medicationHistory)->toHaveCount(0);
+        ->and($component->instance()->medicationHistory)->toHaveCount(0)
+        ->and($component->instance()->medicationHistoryCount)->toBe(0);
 });
 
 test('doctor can write a medicine that is not in the catalog', function () {

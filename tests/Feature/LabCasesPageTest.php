@@ -46,7 +46,7 @@ test('an in-house test is done only once its results are completed in the HMS', 
 
 test('the old lab software ready flag does not mark a case done', function () {
     $case = labCase(Patient::factory()->create(['name' => 'Synced Patient']), [
-        ['is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true, 'results_completed_at' => null],
+        ['test_name' => 'CBC', 'is_in_house' => true, 'outgoing_status' => null, 'lab_result_ready' => true, 'results_completed_at' => null],
     ]);
 
     expect($case->items->first()->isDone())->toBeFalse()
@@ -56,8 +56,8 @@ test('the old lab software ready flag does not mark a case done', function () {
         ->test('pages::lab.cases')
         ->assertSee('SYNCED PATIENT')
         ->assertSee('0/1')
-        ->assertSee('Awaiting results')
-        ->assertDontSee('Complete');
+        ->assertSeeHtml('title="Awaiting results"')
+        ->assertDontSeeHtml('title="Done"');
 });
 
 test('a send-out test is done once received or its report is uploaded', function () {
@@ -105,9 +105,22 @@ test('lab technicians can see cases with their progress and status', function ()
         ->assertSee('928554')
         ->assertSee('1/2')
         ->assertSee('MEERAB KHAN')
-        ->assertSee('1/1')
-        ->assertSee('Awaiting results')
-        ->assertSee('Complete');
+        ->assertSee('1/1');
+});
+
+test('each test on a case shows as its own badge coloured by whether it is done', function () {
+    labCase(Patient::factory()->create(['name' => 'Badge Patient']), [
+        ['test_name' => 'LIPID PROFILE', 'is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => now()],
+        ['test_name' => 'HBA1C', 'is_in_house' => true, 'outgoing_status' => null, 'results_completed_at' => null],
+        ['test_name' => 'VITAMIN D', 'is_in_house' => false, 'outgoing_status' => OutgoingSampleStatus::Received],
+    ]);
+
+    $html = Livewire::actingAs($this->labTechnician)->test('pages::lab.cases')->html();
+
+    expect($html)
+        ->toMatch('/title="Done"(?:(?!title=).)*LIPID PROFILE/s')
+        ->toMatch('/title="Awaiting results"(?:(?!title=).)*HBA1C/s')
+        ->toMatch('/title="Done"(?:(?!title=).)*VITAMIN D/s');
 });
 
 test('the pending filter hides finished cases', function () {

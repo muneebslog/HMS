@@ -242,7 +242,7 @@ new #[Title('Lab Cases')] class extends Component
                     <flux:table.column>{{ __('Patient') }}</flux:table.column>
                     <flux:table.column>{{ __('Age / Sex') }}</flux:table.column>
                     <flux:table.column>{{ __('Receipt No') }}</flux:table.column>
-                    <flux:table.column>{{ __('Status') }}</flux:table.column>
+                    <flux:table.column>{{ __('Tests') }}</flux:table.column>
                     <flux:table.column>{{ __('Progress') }}</flux:table.column>
                     <flux:table.column>{{ __('Registered') }}</flux:table.column>
                     <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
@@ -283,11 +283,15 @@ new #[Title('Lab Cases')] class extends Component
                             </flux:table.cell>
                             <flux:table.cell class="font-mono">{{ $case->invoice_number }}</flux:table.cell>
                             <flux:table.cell>
-                                @if ($isComplete)
-                                    <flux:badge size="sm" color="green" icon="check-circle">{{ __('Complete') }}</flux:badge>
-                                @else
-                                    <flux:badge size="sm" color="amber" icon="clock">{{ __('Awaiting results') }}</flux:badge>
-                                @endif
+                                <div class="flex max-w-xs flex-wrap gap-1">
+                                    @foreach ($case->items as $item)
+                                        @if ($item->isDone())
+                                            <flux:badge size="sm" color="green" icon="check-circle" wire:key="lab-case-item-{{ $item->id }}" :title="__('Done')">{{ $item->test_name }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="amber" icon="clock" wire:key="lab-case-item-{{ $item->id }}" :title="__('Awaiting results')">{{ $item->test_name }}</flux:badge>
+                                        @endif
+                                    @endforeach
+                                </div>
                             </flux:table.cell>
                             <flux:table.cell>
                                 <div class="flex items-center gap-2">

@@ -97,6 +97,12 @@ new #[Title('Finance')] class extends Component
         $this->deselectShift();
     }
 
+    public function goToToday(): void
+    {
+        $this->date = now()->toDateString();
+        $this->deselectShift();
+    }
+
     public function selectShift(int $shiftId): void
     {
         $this->selectedShiftId = $this->selectedShiftId === $shiftId ? null : $shiftId;
@@ -625,190 +631,352 @@ new #[Title('Finance')] class extends Component
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <flux:heading level="1">{{ __('Finance') }}</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">
-                {{ __('Review each shift, approve its expenses and returns, then receive the cash.') }}
-            </flux:text>
+<div class="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5">
+    @php($totals = $this->dayTotals)
+    @php($overview = $this->monthOverview)
+    @php($money = fn (?float $value): string => number_format((float) $value, fmod((float) $value, 1.0) == 0.0 ? 0 : 2))
+    @php($signed = fn (float $value): string => ($value > 0 ? '+' : ($value < 0 ? '−' : '')).number_format(abs($value), fmod($value, 1.0) == 0.0 ? 0 : 2))
+    @php($pickedDate = \Illuminate\Support\Carbon::parse($date))
+
+    <div>
+        <flux:heading size="xl" level="1">{{ __('Finance') }}</flux:heading>
+        <flux:text class="mt-1">{{ __('Pick a day, open each shift, check it, and record the cash you received.') }}</flux:text>
+    </div>
+
+    {{-- Month summary --}}
+    <div class="rounded-2xl bg-zinc-900 p-5 text-white ring-1 ring-zinc-900 dark:bg-zinc-800 dark:ring-zinc-600">
+        <div class="flex items-center justify-between gap-2 text-sm text-zinc-300">
+            <span>{{ __(':month total', ['month' => $this->monthLabel]) }}</span>
+            <span>{{ trans_choice(':count shift received|:count shifts received', $overview['settled'], ['count' => $overview['settled']]) }}</span>
+        </div>
+        <div class="mt-2 text-xs uppercase tracking-wide text-zinc-400">{{ __('Cash in hand (received − expenses)') }}</div>
+        <div class="text-4xl font-bold tabular-nums">{{ $money($overview['net']) }}</div>
+        <div class="mt-4 grid grid-cols-3 gap-2 text-sm">
+            <div class="rounded-xl bg-white/10 p-3">
+                <div class="text-xs text-zinc-300">{{ __('Received') }}</div>
+                <div class="font-semibold tabular-nums">{{ $money($overview['received']) }}</div>
+            </div>
+            <div class="rounded-xl bg-white/10 p-3">
+                <div class="text-xs text-zinc-300">{{ __('Expenses') }}</div>
+                <div class="font-semibold tabular-nums">{{ $money($overview['expenses']) }}</div>
+            </div>
+            <div class="rounded-xl bg-white/10 p-3">
+                <div class="text-xs text-zinc-300">{{ __('Short/Over') }}</div>
+                <div class="font-semibold tabular-nums {{ $overview['difference'] < 0 ? 'text-red-300' : ($overview['difference'] > 0 ? 'text-green-300' : '') }}">{{ $signed($overview['difference']) }}</div>
+            </div>
         </div>
     </div>
 
-    @php($totals = $this->dayTotals)
-    @php($overview = $this->monthOverview)
-    @php($stat = fn (float $value, bool $signed = false) => ($signed && $value > 0 ? '+' : '').number_format($value, 2))
-
-    @foreach ([
-        ['title' => __(':month total', ['month' => $this->monthLabel]), 'data' => $overview, 'meta' => trans_choice(':count shift settled|:count shifts settled', $overview['settled'], ['count' => $overview['settled']])],
-        ['title' => \Illuminate\Support\Carbon::parse($date)->format('D, M j'), 'data' => $totals, 'meta' => __(':settled / :total shifts settled', ['settled' => $totals['settled'], 'total' => $totals['total']])],
-    ] as $block)
-        @if ($loop->last)
-            <div class="flex items-end gap-2">
-                <flux:button variant="ghost" icon="chevron-left" wire:click="previousDay" :aria-label="__('Previous day')" />
-                <flux:field>
-                    <flux:label>{{ __('Date') }}</flux:label>
-                    <flux:input type="date" wire:model.live="date" />
-                </flux:field>
-                <flux:button variant="ghost" icon="chevron-right" wire:click="nextDay" :aria-label="__('Next day')" />
+    {{-- Day picker --}}
+    <div class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-700">
+        <div class="flex items-center gap-2">
+            <flux:button icon="chevron-left" wire:click="previousDay" :aria-label="__('Previous day')" />
+            <label class="relative flex-1 cursor-pointer text-center">
+                <span class="block text-lg font-semibold">{{ $pickedDate->format('D, j M Y') }}</span>
+                <span class="block text-xs text-zinc-500">
+                    @if ($pickedDate->isToday())
+                        {{ __('Today') }}
+                    @elseif ($pickedDate->isYesterday())
+                        {{ __('Yesterday') }}
+                    @else
+                        {{ __('Tap to change date') }}
+                    @endif
+                </span>
+                <input
+                    type="date"
+                    wire:model.live="date"
+                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    aria-label="{{ __('Date') }}"
+                    onclick="this.showPicker?.()"
+                />
+            </label>
+            <flux:button icon="chevron-right" wire:click="nextDay" :aria-label="__('Next day')" />
+        </div>
+        @unless ($pickedDate->isToday())
+            <div class="mt-2 text-center">
+                <flux:button size="sm" variant="ghost" icon="calendar" wire:click="goToToday">{{ __('Go to today') }}</flux:button>
             </div>
-        @endif
+        @endunless
 
-        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-            <div class="mb-3 flex items-baseline justify-between gap-2">
-                <flux:heading size="sm">{{ $block['title'] }}</flux:heading>
-                <flux:text class="text-xs text-zinc-500">{{ $block['meta'] }}</flux:text>
+        <div class="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-100 pt-3 text-sm sm:grid-cols-4 dark:border-zinc-800">
+            <div>
+                <div class="text-xs text-zinc-500">{{ __('Shifts done') }}</div>
+                <div class="font-semibold">{{ $totals['settled'] }} / {{ $totals['total'] }}</div>
             </div>
-            <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <div>
-                    <div class="text-zinc-500">{{ __('Received') }}</div>
-                    <div class="font-semibold tabular-nums text-green-700 dark:text-green-400">{{ $stat($block['data']['received']) }}</div>
-                </div>
-                <div>
-                    <div class="text-zinc-500">{{ __('Short / Over') }}</div>
-                    <div class="font-semibold tabular-nums {{ $block['data']['difference'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['difference'], true) }}</div>
-                </div>
-                <div>
-                    <div class="text-zinc-500">{{ __('Expenses') }}</div>
-                    <div class="font-semibold tabular-nums text-red-700 dark:text-red-400">{{ $stat($block['data']['expenses']) }}</div>
-                </div>
-                <div>
-                    <div class="text-zinc-500">{{ __('Net') }}</div>
-                    <div class="font-semibold tabular-nums {{ $block['data']['net'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $stat($block['data']['net']) }}</div>
-                </div>
+            <div>
+                <div class="text-xs text-zinc-500">{{ __('Received') }}</div>
+                <div class="font-semibold tabular-nums text-green-700 dark:text-green-400">{{ $money($totals['received']) }}</div>
+            </div>
+            <div>
+                <div class="text-xs text-zinc-500">{{ __('Expenses') }}</div>
+                <div class="font-semibold tabular-nums text-red-700 dark:text-red-400">{{ $money($totals['expenses']) }}</div>
+            </div>
+            <div>
+                <div class="text-xs text-zinc-500">{{ __('Short/Over') }}</div>
+                <div class="font-semibold tabular-nums {{ $totals['difference'] < 0 ? 'text-red-700 dark:text-red-400' : '' }}">{{ $signed($totals['difference']) }}</div>
             </div>
         </div>
-    @endforeach
+    </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        @foreach ($this->shiftsByPeriod as $periodValue => $shifts)
-            @php($period = \App\Enums\FinanceShiftPeriod::from($periodValue))
-            <div class="flex flex-col gap-2" wire:key="period-{{ $periodValue }}">
-                <flux:heading size="sm" class="flex items-center gap-2">
-                    <flux:icon :name="match ($period) { \App\Enums\FinanceShiftPeriod::Night => 'moon', \App\Enums\FinanceShiftPeriod::Morning => 'sun', \App\Enums\FinanceShiftPeriod::Evening => 'cloud' }" variant="mini" class="text-zinc-400" />
-                    {{ $period->label() }}
-                </flux:heading>
+    {{-- Shifts --}}
+    <div>
+        <flux:heading size="lg" class="mb-3">{{ __('Shifts') }}</flux:heading>
+
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            @foreach ($this->shiftsByPeriod as $periodValue => $shifts)
+                @php($period = \App\Enums\FinanceShiftPeriod::from($periodValue))
+                @php($periodIcon = match ($period) { \App\Enums\FinanceShiftPeriod::Night => 'moon', \App\Enums\FinanceShiftPeriod::Morning => 'sun', \App\Enums\FinanceShiftPeriod::Evening => 'cloud' })
 
                 @forelse ($shifts as $shift)
                     @php($pending = $this->pendingCounts[$shift->id] ?? 0)
+                    @php($isSelected = $selectedShiftId === $shift->id)
+                    @php($state = match (true) {
+                        $shift->settlement !== null => 'done',
+                        $shift->isBeforeFinanceTracking() => 'old',
+                        $shift->status !== 'closed' => 'open',
+                        $pending > 0 => 'review',
+                        default => 'ready',
+                    })
+                    @php($stateStyle = [
+                        'done' => ['border-green-300 bg-green-50 dark:border-green-900 dark:bg-green-950/40', 'text-green-700 dark:text-green-400', 'check-circle', __('Cash received')],
+                        'old' => ['border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50', 'text-zinc-500', 'archive-box', __('Before tracking')],
+                        'open' => ['border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40', 'text-sky-700 dark:text-sky-400', 'clock', __('Shift still running')],
+                        'review' => ['border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40', 'text-amber-700 dark:text-amber-400', 'exclamation-circle', trans_choice(':count item to check|:count items to check', $pending, ['count' => $pending])],
+                        'ready' => ['border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-900', 'text-zinc-700 dark:text-zinc-300', 'banknotes', __('Ready to receive cash')],
+                    ][$state])
+
                     <button
                         type="button"
                         wire:key="shift-card-{{ $shift->id }}"
                         wire:click="selectShift({{ $shift->id }})"
-                        class="cursor-pointer rounded-xl border p-4 text-left transition-colors {{ $selectedShiftId === $shift->id ? 'border-zinc-900 bg-zinc-50 dark:border-white dark:bg-zinc-800' : 'border-zinc-200 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500' }}"
+                        class="w-full cursor-pointer rounded-2xl border-2 p-4 text-left transition {{ $stateStyle[0] }} {{ $isSelected ? 'ring-2 ring-zinc-900 ring-offset-2 dark:ring-white dark:ring-offset-zinc-900' : 'hover:shadow-md' }}"
                     >
-                        <div class="flex items-start justify-between gap-2">
-                            <div>
-                                <div class="font-medium">{{ $shift->user?->name ?? __('Unknown') }}</div>
-                                <div class="text-xs text-zinc-500">
-                                    {{ $shift->opened_at->format('M j, H:i') }} → {{ $shift->closed_at?->format('M j, H:i') ?? __('now') }}
-                                </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 font-semibold">
+                                <flux:icon :name="$periodIcon" variant="mini" class="text-zinc-400" />
+                                {{ $period->label() }}
                             </div>
-
+                            <flux:icon :name="$isSelected ? 'chevron-up' : 'chevron-down'" variant="mini" class="text-zinc-400" />
+                        </div>
+                        <div class="mt-2 font-medium">{{ $shift->user?->name ?? __('Unknown') }}</div>
+                        <div class="text-xs text-zinc-500">{{ $shift->opened_at->format('D j M, g:i A') }} → {{ $shift->closed_at?->format('g:i A') ?? __('now') }}</div>
+                        <div class="mt-3 flex items-center justify-between gap-2 text-sm font-medium {{ $stateStyle[1] }}">
+                            <span class="flex items-center gap-1">
+                                <flux:icon :name="$stateStyle[2]" variant="micro" />
+                                {{ $stateStyle[3] }}
+                            </span>
                             @if ($shift->settlement)
-                                <flux:badge size="sm" color="green" icon="lock-closed">{{ __('Settled') }}</flux:badge>
-                            @elseif ($shift->isBeforeFinanceTracking())
-                                <flux:badge size="sm" color="zinc">{{ __('Before tracking') }}</flux:badge>
-                            @elseif ($shift->status !== 'closed')
-                                <flux:badge size="sm" color="sky">{{ __('Open') }}</flux:badge>
-                            @elseif ($pending > 0)
-                                <flux:badge size="sm" color="amber">{{ trans_choice(':count pending|:count pending', $pending, ['count' => $pending]) }}</flux:badge>
-                            @else
-                                <flux:badge size="sm" color="zinc">{{ __('Ready') }}</flux:badge>
+                                <span class="tabular-nums">{{ $money($shift->settlement->received_amount) }}</span>
                             @endif
                         </div>
-
-                        @if ($shift->settlement)
-                            <div class="mt-3 flex items-baseline justify-between text-sm">
-                                <span class="font-semibold">{{ number_format($shift->settlement->received_amount, 2) }}</span>
-                                @if ($shift->settlement->difference != 0)
-                                    <span class="text-xs {{ $shift->settlement->isShort() ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
-                                        {{ $shift->settlement->difference > 0 ? '+' : '' }}{{ number_format($shift->settlement->difference, 2) }}
-                                    </span>
-                                @endif
-                            </div>
-                        @endif
                     </button>
                 @empty
-                    <div class="rounded-xl border border-dashed border-zinc-200 p-4 text-center text-sm text-zinc-400 dark:border-zinc-700">
-                        {{ __('No shift') }}
+                    <div wire:key="period-empty-{{ $periodValue }}" class="flex items-center gap-2 rounded-2xl border-2 border-dashed border-zinc-200 p-4 text-sm text-zinc-400 dark:border-zinc-700">
+                        <flux:icon :name="$periodIcon" variant="mini" />
+                        {{ __(':period — no shift', ['period' => $period->label()]) }}
                     </div>
                 @endforelse
-            </div>
-        @endforeach
+            @endforeach
+        </div>
     </div>
 
+    {{-- Selected shift: guided steps --}}
     @if ($shift = $this->selectedShift)
         @php($summary = $this->shiftSummary)
         @php($settlement = $shift->settlement)
-        @php($readOnly = $settlement !== null || $shift->isBeforeFinanceTracking())
         @php($pendingCount = $this->selectedPendingCount)
+        @php($readOnly = $settlement !== null || $shift->isBeforeFinanceTracking())
+        @php($expected = $settlement?->expected_amount ?? $summary['expected'])
+        @php($itemsCount = $this->shiftExpenses->count() + $this->shiftReturns->count())
 
-        <flux:card class="space-y-6" wire:key="shift-detail-{{ $shift->id }}">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div
+            wire:key="shift-detail-{{ $shift->id }}"
+            x-data
+            x-init="$nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+            class="scroll-mt-4 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-700"
+        >
+            <div class="flex items-start justify-between gap-2 bg-zinc-50 p-4 dark:bg-zinc-800/60">
                 <div>
-                    <flux:heading size="lg">
-                        {{ $shift->period()->label() }} · {{ $shift->user?->name ?? __('Unknown') }}
-                    </flux:heading>
-                    <flux:text class="text-zinc-500">
-                        {{ $shift->opened_at->format('D, M j H:i') }} → {{ $shift->closed_at?->format('D, M j H:i') ?? __('still open') }}
-                    </flux:text>
+                    <flux:heading size="lg">{{ $shift->period()->label() }} · {{ $shift->user?->name ?? __('Unknown') }}</flux:heading>
+                    <flux:text class="text-sm">{{ $shift->opened_at->format('D j M, g:i A') }} → {{ $shift->closed_at?->format('D j M, g:i A') ?? __('still open') }}</flux:text>
                 </div>
-
-                @if (! $readOnly && $pendingCount > 0)
-                    <flux:button variant="primary" icon="check-circle" wire:click="approveAll" wire:confirm="{{ __('Approve all :count pending expenses and returns on this shift?', ['count' => $pendingCount]) }}">
-                        {{ __('Approve all (:count)', ['count' => $pendingCount]) }}
-                    </flux:button>
-                @endif
+                <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="deselectShift" :aria-label="__('Close')" />
             </div>
 
-            {{-- Cash summary --}}
-            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div class="space-y-2 text-sm">
-                    <flux:heading size="sm">{{ __('Cash summary') }}</flux:heading>
+            <div class="space-y-4 p-4">
+                @if ($shift->isBeforeFinanceTracking())
+                    <flux:callout icon="archive-box" color="zinc" :heading="__('Before finance tracking')" :text="__('Shifts before :date are not received here. You can only look at them.', ['date' => \App\Models\Shift::financeTrackingStartedAt()?->format('j M Y')])" />
+                @elseif ($shift->status !== 'closed')
+                    <flux:callout icon="clock" color="sky" :heading="__('Shift still running')" :text="__('Wait until the receptionist closes this shift, then come back to receive the cash.')" />
+                @endif
 
-                    @php($rows = $settlement ? [
-                        [__('Opening float'), $settlement->opening_balance, ''],
-                        [__('Cash sales'), $settlement->cash_sales, '+'],
-                        [__('Doctor payouts'), $settlement->doctor_payouts, '−'],
-                        [__('Expenses'), $settlement->expenses, '−'],
-                    ] : [
-                        [__('Opening float'), $shift->opening_balance, ''],
-                        [__('Walk-in cash'), $summary['walkin_cash'], '+'],
-                        [__('Lab cash'), $summary['lab_cash'], '+'],
-                        [__('Procedure cash'), $summary['procedure_cash'], '+'],
-                        [__('Doctor payouts'), $summary['payouts'], '−'],
-                        [__('Expenses (not declined)'), $summary['expenses'], '−'],
-                    ])
-
-                    @foreach ($rows as [$label, $amount, $sign])
-                        <div class="flex justify-between border-b border-zinc-100 pb-1 dark:border-zinc-800">
-                            <span class="text-zinc-600 dark:text-zinc-400">{{ $label }}</span>
-                            <span class="tabular-nums">{{ $sign }} {{ number_format($amount, 2) }}</span>
+                {{-- Step 1: check items --}}
+                @php($stepOneDone = $pendingCount === 0)
+                <section class="rounded-2xl border border-zinc-200 dark:border-zinc-700">
+                    <div class="flex items-center gap-3 p-4">
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ $stepOneDone ? 'bg-green-600 text-white' : 'bg-amber-500 text-white' }}">
+                            @if ($stepOneDone) <flux:icon name="check" variant="micro" /> @else 1 @endif
+                        </span>
+                        <div class="flex-1">
+                            <div class="font-semibold">{{ __('Check expenses & returns') }}</div>
+                            <div class="text-sm text-zinc-500">
+                                @if ($itemsCount === 0)
+                                    {{ __('Nothing to check on this shift.') }}
+                                @elseif ($stepOneDone)
+                                    {{ trans_choice('All :count item checked.|All :count items checked.', $itemsCount, ['count' => $itemsCount]) }}
+                                @else
+                                    {{ trans_choice(':count item needs your OK.|:count items need your OK.', $pendingCount, ['count' => $pendingCount]) }}
+                                @endif
+                            </div>
                         </div>
-                    @endforeach
-
-                    <div class="flex justify-between pt-1 text-base font-semibold">
-                        <span>{{ __('Expected in drawer') }}</span>
-                        <span class="tabular-nums">{{ number_format($settlement?->expected_amount ?? $summary['expected'], 2) }}</span>
                     </div>
 
-                    <div class="flex justify-between text-zinc-500">
-                        <span>{{ __('Online (not in drawer)') }}</span>
-                        <span class="tabular-nums">{{ number_format($settlement?->online_sales ?? $summary['online_sales'], 2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-zinc-500">
-                        <span>{{ __('Receptionist counted') }}</span>
-                        <span class="tabular-nums">{{ ($settlement?->declared_closing_balance ?? $shift->closing_balance) !== null ? number_format($settlement?->declared_closing_balance ?? $shift->closing_balance, 2) : '—' }}</span>
-                    </div>
-                </div>
+                    @if (! $readOnly && $pendingCount > 0)
+                        <div class="px-4 pb-3">
+                            <flux:button
+                                variant="primary"
+                                icon="check-circle"
+                                class="w-full"
+                                wire:click="approveAll"
+                                wire:confirm="{{ __('Approve all :count items on this shift?', ['count' => $pendingCount]) }}"
+                            >
+                                {{ __('Approve all (:count)', ['count' => $pendingCount]) }}
+                            </flux:button>
+                        </div>
+                    @endif
 
-                {{-- Receive cash --}}
-                <div>
+                    @if ($itemsCount > 0)
+                        <details class="group border-t border-zinc-100 dark:border-zinc-800" @if (! $stepOneDone) open @endif>
+                            <summary class="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                                <span>{{ __('See the list (:expenses expenses, :returns returns)', ['expenses' => $this->shiftExpenses->count(), 'returns' => $this->shiftReturns->count()]) }}</span>
+                                <flux:icon name="chevron-down" variant="mini" class="transition group-open:rotate-180" />
+                            </summary>
+
+                            <ul class="divide-y divide-zinc-100 border-t border-zinc-100 dark:divide-zinc-800 dark:border-zinc-800">
+                                @foreach ($this->shiftExpenses as $expense)
+                                    <li wire:key="shift-expense-{{ $expense->id }}" class="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <flux:badge size="sm" color="zinc">{{ __('Expense') }}</flux:badge>
+                                                <span class="truncate font-medium">{{ $expense->name }}</span>
+                                            </div>
+                                            <div class="mt-0.5 text-xs text-zinc-500">
+                                                {{ __('by :name', ['name' => $expense->user?->name ?? '-']) }}
+                                                @if ($expense->wasEdited())
+                                                    · <span class="text-amber-600">{{ __('edited, was :old :amount', ['old' => $expense->previous_name, 'amount' => $money($expense->previous_amount)]) }}</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-3 sm:justify-end">
+                                            <span class="text-lg font-semibold tabular-nums {{ $expense->isRejected() ? 'text-zinc-400 line-through' : '' }}">{{ $money($expense->amount) }}</span>
+                                            @if (! $readOnly && $expense->isPendingApproval())
+                                                <div class="flex gap-2">
+                                                    <flux:button size="sm" variant="primary" icon="check" wire:click="approveExpense({{ $expense->id }})">{{ __('Approve') }}</flux:button>
+                                                    <flux:button size="sm" variant="danger" icon="x-mark" wire:click="declineExpense({{ $expense->id }})" wire:confirm="{{ __('Decline this expense? It will be removed from the shift cash.') }}">{{ __('Decline') }}</flux:button>
+                                                </div>
+                                            @else
+                                                <flux:badge size="sm" :color="match ($expense->approval_status) { \App\Enums\ApprovalStatus::Approved => 'green', \App\Enums\ApprovalStatus::Rejected => 'red', default => 'amber' }">
+                                                    {{ $expense->isRejected() ? __('Declined') : $expense->approval_status->label() }}
+                                                </flux:badge>
+                                            @endif
+                                        </div>
+                                    </li>
+                                @endforeach
+
+                                @foreach ($this->shiftReturns as $return)
+                                    <li wire:key="shift-return-{{ $return['type'] }}-{{ $return['id'] }}" class="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <flux:badge size="sm" color="purple">{{ __(':type return', ['type' => $return['type_label']]) }}</flux:badge>
+                                                <span class="truncate font-medium">{{ $return['patient'] }}</span>
+                                            </div>
+                                            <div class="mt-0.5 text-xs text-zinc-500">{{ $return['reference'] }} · {{ __('by :name', ['name' => $return['requested_by']]) }}</div>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-3 sm:justify-end">
+                                            <span class="text-lg font-semibold tabular-nums">{{ $money($return['amount']) }}</span>
+                                            @if (! $readOnly && $return['status'] === \App\Enums\ApprovalStatus::Pending)
+                                                <div class="flex gap-2">
+                                                    <flux:button size="sm" variant="primary" icon="check" wire:click="approveReturn({{ $return['id'] }}, '{{ $return['type'] }}')">{{ __('Approve') }}</flux:button>
+                                                    <flux:button size="sm" variant="danger" icon="x-mark" wire:click="declineReturn({{ $return['id'] }}, '{{ $return['type'] }}')" wire:confirm="{{ __('Decline this return? The sale will be added back to the shift cash.') }}">{{ __('Decline') }}</flux:button>
+                                                </div>
+                                            @else
+                                                <flux:badge size="sm" :color="$return['status'] === \App\Enums\ApprovalStatus::Pending ? 'amber' : 'green'">
+                                                    {{ $return['status']?->label() ?? __('Approved') }}
+                                                </flux:badge>
+                                            @endif
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </details>
+                    @endif
+                </section>
+
+                {{-- Step 2: money in the drawer --}}
+                <section class="rounded-2xl border border-zinc-200 dark:border-zinc-700">
+                    <div class="flex items-center gap-3 p-4">
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">2</span>
+                        <div class="flex-1">
+                            <div class="font-semibold">{{ __('Cash that should be in the drawer') }}</div>
+                            <div class="text-3xl font-bold tabular-nums">{{ $money($expected) }}</div>
+                        </div>
+                    </div>
+
+                    <details class="group border-t border-zinc-100 dark:border-zinc-800">
+                        <summary class="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                            <span>{{ __('How is this calculated?') }}</span>
+                            <flux:icon name="chevron-down" variant="mini" class="transition group-open:rotate-180" />
+                        </summary>
+
+                        @php($rows = $settlement ? [
+                            [__('Starting cash (float)'), $settlement->opening_balance, ''],
+                            [__('Cash sales'), $settlement->cash_sales, '+'],
+                            [__('Doctor payouts'), $settlement->doctor_payouts, '−'],
+                            [__('Shift expenses'), $settlement->expenses, '−'],
+                        ] : [
+                            [__('Starting cash (float)'), $shift->opening_balance, ''],
+                            [__('Walk-in cash'), $summary['walkin_cash'], '+'],
+                            [__('Lab cash'), $summary['lab_cash'], '+'],
+                            [__('Procedure cash'), $summary['procedure_cash'], '+'],
+                            [__('Doctor payouts'), $summary['payouts'], '−'],
+                            [__('Shift expenses'), $summary['expenses'], '−'],
+                        ])
+
+                        <dl class="space-y-2 px-4 pb-4 text-sm">
+                            @foreach ($rows as [$label, $amount, $sign])
+                                <div class="flex justify-between gap-2">
+                                    <dt class="text-zinc-600 dark:text-zinc-400">{{ $label }}</dt>
+                                    <dd class="tabular-nums">{{ $sign }} {{ $money($amount) }}</dd>
+                                </div>
+                            @endforeach
+                            <div class="flex justify-between gap-2 border-t border-zinc-200 pt-2 font-semibold dark:border-zinc-700">
+                                <dt>{{ __('Should be in drawer') }}</dt>
+                                <dd class="tabular-nums">{{ $money($expected) }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-2 text-zinc-500">
+                                <dt>{{ __('Paid online (not in drawer)') }}</dt>
+                                <dd class="tabular-nums">{{ $money($settlement?->online_sales ?? $summary['online_sales']) }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-2 text-zinc-500">
+                                <dt>{{ __('Receptionist counted') }}</dt>
+                                <dd class="tabular-nums">{{ ($settlement?->declared_closing_balance ?? $shift->closing_balance) !== null ? $money($settlement?->declared_closing_balance ?? $shift->closing_balance) : '—' }}</dd>
+                            </div>
+                        </dl>
+                    </details>
+                </section>
+
+                {{-- Step 3: receive cash --}}
+                <section class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
+                    <div class="mb-3 flex items-center gap-3">
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ $settlement ? 'bg-green-600 text-white' : 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' }}">
+                            @if ($settlement) <flux:icon name="check" variant="micro" /> @else 3 @endif
+                        </span>
+                        <div class="font-semibold">{{ $settlement ? __('Cash received') : __('Enter the cash you received') }}</div>
+                    </div>
+
                     @if ($settlement && $editingSettlement)
-                        <form wire:submit="saveSettlementEdit" class="space-y-3 rounded-xl border border-amber-300 p-5 dark:border-amber-800">
-                            <flux:heading size="sm">{{ __('Correct settlement') }}</flux:heading>
-                            <flux:text class="text-zinc-500">{{ __('Expected :amount', ['amount' => number_format($settlement->expected_amount, 2)]) }}</flux:text>
+                        <form wire:submit="saveSettlementEdit" class="space-y-3">
+                            <flux:callout icon="pencil-square" color="amber" :text="__('You are correcting a locked shift. The old amount will be kept in the history.')" />
 
                             <flux:field>
                                 <flux:label>{{ __('Amount received') }}</flux:label>
@@ -817,55 +985,57 @@ new #[Title('Finance')] class extends Component
                             </flux:field>
 
                             <flux:field>
-                                <flux:label>{{ __('Notes (optional)') }}</flux:label>
-                                <flux:input wire:model="editSettlementNotes" />
+                                <flux:label>{{ __('Note (optional)') }}</flux:label>
+                                <flux:input wire:model="editSettlementNotes" :placeholder="__('Why is it being changed?')" />
                                 <flux:error name="editSettlementNotes" />
                             </flux:field>
 
-                            <div class="flex justify-end gap-2">
-                                <flux:button type="button" variant="ghost" wire:click="cancelEditingSettlement">{{ __('Cancel') }}</flux:button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <flux:button type="button" wire:click="cancelEditingSettlement">{{ __('Cancel') }}</flux:button>
                                 <flux:button type="submit" variant="primary">{{ __('Save correction') }}</flux:button>
                             </div>
                         </form>
                     @elseif ($settlement)
-                        <div class="rounded-xl border border-green-200 bg-green-50 p-5 dark:border-green-900 dark:bg-green-950/40">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="flex items-center gap-2 text-sm font-medium text-green-800 dark:text-green-300">
-                                    <flux:icon name="lock-closed" variant="mini" />
-                                    {{ __('Settled by :name on :time', ['name' => $settlement->settler?->name ?? __('Unknown'), 'time' => $settlement->settled_at->format('M j, H:i')]) }}
-                                </div>
-                                @if (auth()->user()->isAdmin())
-                                    <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="startEditingSettlement">{{ __('Edit') }}</flux:button>
-                                @endif
-                            </div>
-                            <div class="mt-3 text-3xl font-bold tabular-nums">{{ number_format($settlement->received_amount, 2) }}</div>
-                            @if ($settlement->wasEdited())
-                                <div class="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                                    {{ __('Edited by :name on :time', ['name' => $settlement->editor?->name ?? __('Unknown'), 'time' => $settlement->edited_at->format('M j, H:i')]) }}
-                                    @if ($settlement->previous_received_amount !== null)
-                                        · {{ __('was :amount', ['amount' => number_format($settlement->previous_received_amount, 2)]) }}
-                                    @endif
-                                </div>
-                            @endif
-                            <div class="mt-1 text-sm {{ $settlement->isShort() ? 'text-red-700 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-400' }}">
+                        <div class="rounded-xl bg-green-50 p-4 dark:bg-green-950/40">
+                            <div class="text-4xl font-bold tabular-nums">{{ $money($settlement->received_amount) }}</div>
+                            <div class="mt-1 font-medium {{ $settlement->isShort() ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400' }}">
                                 @if ($settlement->difference == 0)
-                                    {{ __('Exact match') }}
+                                    {{ __('Exact — nothing missing') }}
                                 @elseif ($settlement->isShort())
-                                    {{ __('Short by :amount', ['amount' => number_format(abs($settlement->difference), 2)]) }}
+                                    {{ __(':amount short', ['amount' => $money(abs($settlement->difference))]) }}
                                 @else
-                                    {{ __('Over by :amount', ['amount' => number_format($settlement->difference, 2)]) }}
+                                    {{ __(':amount extra', ['amount' => $money($settlement->difference)]) }}
                                 @endif
                             </div>
                             @if ($settlement->notes)
-                                <flux:text class="mt-2">{{ $settlement->notes }}</flux:text>
+                                <div class="mt-2 text-sm">“{{ $settlement->notes }}”</div>
+                            @endif
+                            <div class="mt-3 flex items-center gap-1 text-xs text-zinc-500">
+                                <flux:icon name="lock-closed" variant="micro" />
+                                {{ __('Locked by :name on :time', ['name' => $settlement->settler?->name ?? __('Unknown'), 'time' => $settlement->settled_at->format('j M, g:i A')]) }}
+                            </div>
+                            @if ($settlement->wasEdited())
+                                <div class="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                                    {{ __('Corrected by :name on :time', ['name' => $settlement->editor?->name ?? __('Unknown'), 'time' => $settlement->edited_at->format('j M, g:i A')]) }}
+                                    @if ($settlement->previous_received_amount !== null)
+                                        · {{ __('was :amount', ['amount' => $money($settlement->previous_received_amount)]) }}
+                                    @endif
+                                </div>
                             @endif
                         </div>
-                    @elseif ($shift->isBeforeFinanceTracking())
-                        <flux:callout icon="archive-box" color="zinc" :heading="__('Before finance tracking')" :text="__('Shifts before :date are not settled here.', ['date' => \App\Models\Shift::financeTrackingStartedAt()?->format('M j, Y')])" />
-                    @elseif ($shift->status !== 'closed')
-                        <flux:callout icon="clock" color="sky" :heading="__('Shift still open')" :text="__('Cash can be received once the receptionist closes this shift.')" />
+                        @if (auth()->user()->isAdmin())
+                            <flux:button class="mt-3 w-full" icon="pencil-square" wire:click="startEditingSettlement">{{ __('Correct this amount') }}</flux:button>
+                        @endif
+                    @elseif ($readOnly || $shift->status !== 'closed')
+                        <flux:text>{{ __('Not available for this shift.') }}</flux:text>
+                    @elseif ($pendingCount > 0)
+                        <flux:callout icon="arrow-up" color="amber" :text="__('First finish step 1: approve or decline the :count items above.', ['count' => $pendingCount])" />
                     @else
-                        <form wire:submit="settle" class="space-y-3 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700">
+                        <form
+                            wire:submit="settle"
+                            class="space-y-3"
+                            x-data="{ expected: {{ json_encode(round($expected, 2)) }}, get typed() { const value = parseFloat(this.$wire.receivedAmount); return isNaN(value) ? null : value }, get gap() { return this.typed === null ? null : Math.round((this.typed - this.expected) * 100) / 100 } }"
+                        >
                             <flux:field>
                                 <flux:label>{{ __('Amount received') }}</flux:label>
                                 <flux:input
@@ -874,183 +1044,80 @@ new #[Title('Finance')] class extends Component
                                     min="0"
                                     inputmode="decimal"
                                     wire:model="receivedAmount"
-                                    placeholder="{{ number_format($summary['expected'], 2, '.', '') }}"
+                                    :placeholder="$money($expected)"
                                     class:input="h-16! text-3xl! font-bold tabular-nums"
-                                    :disabled="$pendingCount > 0"
                                 />
                                 <flux:error name="receivedAmount" />
                             </flux:field>
 
+                            <div x-show="gap !== null" x-cloak class="rounded-xl p-3 text-center font-semibold" :class="gap < 0 ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400' : (gap > 0 ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400' : 'bg-zinc-100 dark:bg-zinc-800')">
+                                <span x-show="gap < 0">{{ __('Short by') }} <span x-text="Math.abs(gap ?? 0).toLocaleString()"></span></span>
+                                <span x-show="gap > 0">{{ __('Extra') }} <span x-text="(gap ?? 0).toLocaleString()"></span></span>
+                                <span x-show="gap === 0">{{ __('Exact — nothing missing') }}</span>
+                            </div>
+
                             <flux:field>
-                                <flux:label>{{ __('Notes (optional)') }}</flux:label>
-                                <flux:input wire:model="settlementNotes" :disabled="$pendingCount > 0" />
+                                <flux:label>{{ __('Note (optional)') }}</flux:label>
+                                <flux:input wire:model="settlementNotes" :placeholder="__('e.g. 500 given to Dr. X')" />
                                 <flux:error name="settlementNotes" />
                             </flux:field>
-
-                            @if ($pendingCount > 0)
-                                <flux:text class="text-amber-700 dark:text-amber-400">
-                                    {{ __('Approve or decline the :count pending items below first.', ['count' => $pendingCount]) }}
-                                </flux:text>
-                            @endif
 
                             <flux:button
                                 type="submit"
                                 variant="primary"
                                 icon="lock-closed"
-                                class="w-full"
-                                :disabled="$pendingCount > 0"
-                                wire:confirm="{{ __('Lock this shift? The received amount cannot be edited afterwards.') }}"
+                                class="h-12! w-full text-base!"
+                                wire:confirm="{{ __('Lock this shift? You will not be able to change the amount afterwards.') }}"
                             >
-                                {{ __('Receive cash & lock shift') }}
+                                {{ __('Save & lock shift') }}
                             </flux:button>
                         </form>
                     @endif
-                </div>
+                </section>
             </div>
-
-            {{-- Expenses --}}
-            <div>
-                <flux:heading size="sm" class="mb-2">{{ __('Expenses') }} ({{ $this->shiftExpenses->count() }})</flux:heading>
-
-                <flux:table>
-                    <flux:table.columns>
-                        <flux:table.column>{{ __('Name') }}</flux:table.column>
-                        <flux:table.column class="text-right">{{ __('Amount') }}</flux:table.column>
-                        <flux:table.column>{{ __('Logged by') }}</flux:table.column>
-                        <flux:table.column>{{ __('Status') }}</flux:table.column>
-                        <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                    </flux:table.columns>
-                    <flux:table.rows>
-                        @forelse ($this->shiftExpenses as $expense)
-                            <flux:table.row wire:key="shift-expense-{{ $expense->id }}">
-                                <flux:table.cell>
-                                    {{ $expense->name }}
-                                    @if ($expense->wasEdited())
-                                        <div class="text-xs text-zinc-500">
-                                            <flux:badge size="sm" color="amber">{{ __('Edited') }}</flux:badge>
-                                            {{ __('was :old', ['old' => $expense->previous_name]) }}
-                                            @if ((float) $expense->previous_amount !== (float) $expense->amount)
-                                                · {{ number_format($expense->previous_amount, 2) }}
-                                            @endif
-                                        </div>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell class="text-right tabular-nums {{ $expense->isRejected() ? 'text-zinc-400 line-through' : '' }}">{{ number_format($expense->amount, 2) }}</flux:table.cell>
-                                <flux:table.cell>{{ $expense->user?->name ?? '-' }}</flux:table.cell>
-                                <flux:table.cell>
-                                    <flux:badge size="sm" :color="match ($expense->approval_status) { \App\Enums\ApprovalStatus::Approved => 'green', \App\Enums\ApprovalStatus::Rejected => 'red', default => 'amber' }">
-                                        {{ $expense->approval_status === \App\Enums\ApprovalStatus::Rejected ? __('Declined') : $expense->approval_status->label() }}
-                                    </flux:badge>
-                                </flux:table.cell>
-                                <flux:table.cell class="text-right">
-                                    @if (! $readOnly && $expense->isPendingApproval())
-                                        <flux:button size="sm" variant="primary" wire:click="approveExpense({{ $expense->id }})">{{ __('Approve') }}</flux:button>
-                                        <flux:button size="sm" variant="danger" wire:click="declineExpense({{ $expense->id }})" wire:confirm="{{ __('Decline this expense? It will be removed from the shift cash.') }}">{{ __('Decline') }}</flux:button>
-                                    @endif
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @empty
-                            <flux:table.row>
-                                <flux:table.cell colspan="5" class="text-center text-zinc-500">{{ __('No expenses on this shift.') }}</flux:table.cell>
-                            </flux:table.row>
-                        @endforelse
-                    </flux:table.rows>
-                </flux:table>
-            </div>
-
-            {{-- Returns --}}
-            <div>
-                <flux:heading size="sm" class="mb-2">{{ __('Returns') }} ({{ $this->shiftReturns->count() }})</flux:heading>
-
-                <flux:table>
-                    <flux:table.columns>
-                        <flux:table.column>{{ __('Type') }}</flux:table.column>
-                        <flux:table.column>{{ __('Reference') }}</flux:table.column>
-                        <flux:table.column>{{ __('Patient') }}</flux:table.column>
-                        <flux:table.column class="text-right">{{ __('Amount') }}</flux:table.column>
-                        <flux:table.column>{{ __('Requested by') }}</flux:table.column>
-                        <flux:table.column>{{ __('Status') }}</flux:table.column>
-                        <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-                    </flux:table.columns>
-                    <flux:table.rows>
-                        @forelse ($this->shiftReturns as $return)
-                            <flux:table.row wire:key="shift-return-{{ $return['type'] }}-{{ $return['id'] }}">
-                                <flux:table.cell><flux:badge size="sm" color="zinc">{{ $return['type_label'] }}</flux:badge></flux:table.cell>
-                                <flux:table.cell>{{ $return['reference'] }}</flux:table.cell>
-                                <flux:table.cell>{{ $return['patient'] }}</flux:table.cell>
-                                <flux:table.cell class="text-right tabular-nums">{{ number_format($return['amount'], 2) }}</flux:table.cell>
-                                <flux:table.cell>{{ $return['requested_by'] }}</flux:table.cell>
-                                <flux:table.cell>
-                                    <flux:badge size="sm" :color="$return['status'] === \App\Enums\ApprovalStatus::Approved ? 'green' : 'amber'">
-                                        {{ $return['status']?->label() ?? __('Approved') }}
-                                    </flux:badge>
-                                </flux:table.cell>
-                                <flux:table.cell class="text-right">
-                                    @if (! $readOnly && $return['status'] === \App\Enums\ApprovalStatus::Pending)
-                                        <flux:button size="sm" variant="primary" wire:click="approveReturn({{ $return['id'] }}, '{{ $return['type'] }}')">{{ __('Approve') }}</flux:button>
-                                        <flux:button size="sm" variant="danger" wire:click="declineReturn({{ $return['id'] }}, '{{ $return['type'] }}')" wire:confirm="{{ __('Decline this return? The sale will be restored to the shift cash.') }}">{{ __('Decline') }}</flux:button>
-                                    @endif
-                                </flux:table.cell>
-                            </flux:table.row>
-                        @empty
-                            <flux:table.row>
-                                <flux:table.cell colspan="7" class="text-center text-zinc-500">{{ __('No returns on this shift.') }}</flux:table.cell>
-                            </flux:table.row>
-                        @endforelse
-                    </flux:table.rows>
-                </flux:table>
-            </div>
-        </flux:card>
+        </div>
     @endif
 
     {{-- Day expenses --}}
-    <flux:card>
-        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+        <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <flux:heading size="lg">{{ __('Expenses for :date', ['date' => \Illuminate\Support\Carbon::parse($date)->format('D, M j')]) }}</flux:heading>
-                <flux:text class="text-zinc-500">{{ __('Salaries, rent, bills and other hospital expenses (not reception shift expenses).') }}</flux:text>
+                <flux:heading size="lg">{{ __('Other expenses') }}</flux:heading>
+                <flux:text class="text-sm">{{ __('Salaries, rent, bills… paid on :date', ['date' => $pickedDate->format('j M')]) }}</flux:text>
             </div>
-            <flux:button variant="primary" icon="plus" wire:click="openExpenseModal">
+            <flux:button variant="primary" icon="plus" class="w-full sm:w-auto" wire:click="openExpenseModal">
                 {{ __('Add expense') }}
             </flux:button>
         </div>
 
-        <flux:table>
-            <flux:table.columns>
-                <flux:table.column>{{ __('Name') }}</flux:table.column>
-                <flux:table.column>{{ __('Category') }}</flux:table.column>
-                <flux:table.column class="text-right">{{ __('Amount') }}</flux:table.column>
-                <flux:table.column>{{ __('Notes') }}</flux:table.column>
-                <flux:table.column>{{ __('Added by') }}</flux:table.column>
-                <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
-            </flux:table.columns>
-            <flux:table.rows>
-                @forelse ($this->dayExpenses as $expense)
-                    <flux:table.row wire:key="finance-expense-{{ $expense->id }}">
-                        <flux:table.cell class="font-medium">{{ $expense->name }}</flux:table.cell>
-                        <flux:table.cell>
-                            <flux:badge size="sm" :color="$expense->category === \App\Enums\FinanceExpenseCategory::Salary ? 'blue' : 'zinc'">
-                                {{ $expense->category->label() }}
-                            </flux:badge>
-                        </flux:table.cell>
-                        <flux:table.cell class="text-right font-medium tabular-nums">{{ number_format($expense->amount, 2) }}</flux:table.cell>
-                        <flux:table.cell class="max-w-48 truncate text-zinc-500">{{ $expense->notes ?: '—' }}</flux:table.cell>
-                        <flux:table.cell>{{ $expense->user?->name ?? '-' }}</flux:table.cell>
-                        <flux:table.cell class="text-right">
-                            <flux:button size="sm" variant="ghost" wire:click="editExpense({{ $expense->id }})">{{ __('Edit') }}</flux:button>
-                            <flux:button size="sm" variant="ghost" wire:click="deleteExpense({{ $expense->id }})" wire:confirm="{{ __('Remove this expense?') }}">{{ __('Delete') }}</flux:button>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-6 text-center text-zinc-500">{{ __('No expenses on this day.') }}</flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </flux:card>
+        <div class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-700">
+            @forelse ($this->dayExpenses as $expense)
+                <div wire:key="finance-expense-{{ $expense->id }}" class="flex items-center gap-3 border-b border-zinc-100 p-4 last:border-b-0 dark:border-zinc-800">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="truncate font-medium">{{ $expense->name }}</span>
+                            <flux:badge size="sm" :color="$expense->category === \App\Enums\FinanceExpenseCategory::Salary ? 'blue' : 'zinc'">{{ $expense->category->label() }}</flux:badge>
+                        </div>
+                        <div class="mt-0.5 truncate text-xs text-zinc-500">
+                            {{ __('by :name', ['name' => $expense->user?->name ?? '-']) }}@if ($expense->notes) · {{ $expense->notes }}@endif
+                        </div>
+                    </div>
+                    <span class="text-lg font-semibold tabular-nums">{{ $money($expense->amount) }}</span>
+                    <flux:dropdown position="bottom" align="end">
+                        <flux:button size="sm" variant="ghost" icon="ellipsis-vertical" :aria-label="__('Options')" />
+                        <flux:menu>
+                            <flux:menu.item icon="pencil-square" wire:click="editExpense({{ $expense->id }})">{{ __('Edit') }}</flux:menu.item>
+                            <flux:menu.item icon="trash" variant="danger" wire:click="deleteExpense({{ $expense->id }})" wire:confirm="{{ __('Remove this expense?') }}">{{ __('Delete') }}</flux:menu.item>
+                        </flux:menu>
+                    </flux:dropdown>
+                </div>
+            @empty
+                <div class="p-6 text-center text-sm text-zinc-500">{{ __('No expenses on this day.') }}</div>
+            @endforelse
+        </div>
+    </div>
 
-    <flux:modal wire:model="showExpenseModal" class="max-w-md">
+    <flux:modal wire:model="showExpenseModal" class="w-full max-w-md">
         <form wire:submit="saveExpense" class="space-y-4">
             <flux:heading size="lg">
                 {{ $editingExpenseId ? __('Edit expense') : __('Add expense') }}
@@ -1074,7 +1141,7 @@ new #[Title('Finance')] class extends Component
 
             <flux:field>
                 <flux:label>{{ __('Amount') }}</flux:label>
-                <flux:input type="number" step="0.01" min="0.01" wire:model="expenseAmount" />
+                <flux:input type="number" step="0.01" min="0.01" inputmode="decimal" wire:model="expenseAmount" class:input="text-xl! font-semibold tabular-nums" />
                 <flux:error name="expenseAmount" />
             </flux:field>
 
