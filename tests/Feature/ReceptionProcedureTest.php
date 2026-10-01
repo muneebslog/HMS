@@ -704,7 +704,7 @@ test('a patient can be admitted with cnic and room number', function () {
         ->and($procedure->patient->fresh()->cnic)->toBe('35202-1234567-1');
 });
 
-test('cnic and room are required to admit a patient', function () {
+test('cnic is required to admit a patient', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
@@ -713,11 +713,30 @@ test('cnic and room are required to admit a patient', function () {
         ->test('pages::reception.procedures')
         ->call('addAdmission', $procedure->id)
         ->set('admissionCnic', '')
-        ->set('admissionRoomId', null)
         ->call('admitPatient')
-        ->assertHasErrors(['admissionCnic', 'admissionRoomId']);
+        ->assertHasErrors(['admissionCnic'])
+        ->assertHasNoErrors(['admissionRoomId']);
 
     expect($procedure->refresh()->isAdmitted())->toBeFalse();
+});
+
+test('a patient can be admitted without a room', function () {
+    $user = User::factory()->create();
+    $shift = Shift::factory()->for($user)->open()->create();
+    $procedure = Procedure::factory()->for($shift)->create(['room_number' => null]);
+
+    Livewire::actingAs($user)
+        ->test('pages::reception.procedures')
+        ->call('addAdmission', $procedure->id)
+        ->set('admissionCnic', '35202-1234567-1')
+        ->set('admissionRoomId', null)
+        ->call('admitPatient')
+        ->assertHasNoErrors();
+
+    $procedure->refresh();
+    expect($procedure->isAdmitted())->toBeTrue()
+        ->and($procedure->room_id)->toBeNull()
+        ->and($procedure->room_number)->toBeNull();
 });
 
 test('an existing admission can be edited without changing the admission time', function () {
@@ -840,7 +859,7 @@ test('only active rooms are available for admission', function () {
         });
 });
 
-test('an occupied room cannot be selected for another admission', function () {
+test('a room already in use can be selected for another admission', function () {
     $user = User::factory()->create();
     $shift = Shift::factory()->for($user)->open()->create();
     $room = Room::factory()->create(['number' => 'Room Taken']);
@@ -856,9 +875,11 @@ test('an occupied room cannot be selected for another admission', function () {
         ->set('admissionCnic', '35202-1234567-1')
         ->set('admissionRoomId', $room->id)
         ->call('admitPatient')
-        ->assertHasErrors(['admissionRoomId']);
+        ->assertHasNoErrors();
 
-    expect($procedure->refresh()->isAdmitted())->toBeFalse();
+    $procedure->refresh();
+    expect($procedure->isAdmitted())->toBeTrue()
+        ->and($procedure->room_id)->toBe($room->id);
 });
 
 test('inactive doctors are not available in procedures', function () {

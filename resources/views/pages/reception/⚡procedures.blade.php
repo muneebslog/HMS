@@ -217,22 +217,9 @@ new #[Title('Procedures')] class extends Component
             ],
             'admissionCnic' => ['required', 'string', 'max:20'],
             'admissionRoomId' => [
-                'required',
+                'nullable',
                 'integer',
                 Rule::exists('rooms', 'id')->where('is_active', true),
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    $room = Room::query()->find($value);
-
-                    if ($room === null) {
-                        return;
-                    }
-
-                    $occupying = $room->currentAdmission;
-
-                    if ($occupying !== null && $occupying->id !== $this->admittingProcedureId) {
-                        $fail(__('This room is already occupied.'));
-                    }
-                },
             ],
             'bcFatherName' => ['required', 'string', 'max:255'],
             'bcMotherName' => ['required', 'string', 'max:255'],
@@ -665,7 +652,9 @@ new #[Title('Procedures')] class extends Component
         ]);
 
         $procedure = Procedure::with('patient')->findOrFail($this->admittingProcedureId);
-        $room = Room::active()->findOrFail($validated['admissionRoomId']);
+        $room = $validated['admissionRoomId'] !== null
+            ? Room::active()->findOrFail($validated['admissionRoomId'])
+            : null;
 
         DB::transaction(function () use ($procedure, $room, $validated) {
             $procedure->patient->update([
@@ -673,8 +662,8 @@ new #[Title('Procedures')] class extends Component
             ]);
 
             $procedure->update([
-                'room_id' => $room->id,
-                'room_number' => $room->number,
+                'room_id' => $room?->id,
+                'room_number' => $room?->number,
                 'admitted_at' => $procedure->admitted_at ?? now(),
                 'status' => ProcedureStatus::Admitted,
             ]);
@@ -1416,7 +1405,7 @@ new #[Title('Procedures')] class extends Component
     }
 
     /**
-     * Get the list of active rooms with occupancy status.
+     * Get the list of active rooms.
      *
      * @return Collection<int, Room>
      */
@@ -1424,7 +1413,6 @@ new #[Title('Procedures')] class extends Component
     public function rooms(): Collection
     {
         return Room::active()
-            ->with('currentAdmission')
             ->orderBy('number')
             ->get();
     }
@@ -2220,24 +2208,11 @@ new #[Title('Procedures')] class extends Component
             </flux:field>
 
             <flux:field>
-                <flux:label>{{ __('Room number') }}</flux:label>
-                <flux:select wire:model="admissionRoomId" required>
-                    <option value="">{{ __('Select a room') }}</option>
+                <flux:label badge="{{ __('Optional') }}">{{ __('Room number') }}</flux:label>
+                <flux:select wire:model="admissionRoomId">
+                    <option value="">{{ __('No room') }}</option>
                     @foreach ($this->rooms as $room)
-                        @php
-                            $occupiedByOther = $room->isOccupied()
-                                && $room->currentAdmission?->id !== $admittingProcedureId;
-                        @endphp
-                        <option value="{{ $room->id }}" @disabled($occupiedByOther)>
-                            {{ $room->number }}
-                            @if ($occupiedByOther)
-                                — {{ __('Occupied') }}
-                            @elseif ($room->isOccupied())
-                                — {{ __('Current') }}
-                            @else
-                                — {{ __('Free') }}
-                            @endif
-                        </option>
+                        <option value="{{ $room->id }}">{{ $room->number }}</option>
                     @endforeach
                 </flux:select>
                 <flux:error name="admissionRoomId" />
