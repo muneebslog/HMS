@@ -7,6 +7,7 @@ use App\Models\LabInvoiceItem;
 use App\Models\PartnerLabReport;
 use App\Services\CeoLabOverview;
 use App\Services\PartnerLab\PartnerLabMatcher;
+use App\Services\PartnerLab\PartnerLabSync;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
@@ -101,11 +102,15 @@ new #[Title('Outsourced Tests')] class extends Component
     }
 
     /**
-     * When the partner portal was last read, for the "last checked" note.
+     * When the partner portal was last read successfully, for the "last checked" note.
      */
     #[Computed]
     public function partnerLastSeenAt(): ?CarbonImmutable
     {
+        if ($lastSynced = PartnerLabSync::lastSyncedAt()) {
+            return $lastSynced;
+        }
+
         $lastSeen = PartnerLabReport::query()->max('last_seen_at');
 
         return $lastSeen ? CarbonImmutable::parse($lastSeen) : null;

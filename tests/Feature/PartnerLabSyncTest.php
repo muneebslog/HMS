@@ -1,10 +1,14 @@
 <?php
 
 use App\Models\PartnerLabReport;
+use App\Models\User;
+use App\Services\PartnerLab\PartnerLabSync;
 use App\Services\PartnerLab\TestZonePageParser;
+use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -258,4 +262,31 @@ test('the sync does nothing until it is switched on with credentials', function 
         ->assertSuccessful();
 
     Http::assertNothingSent();
+});
+
+test('every successful sync records when the portal was checked, even with nothing new', function () {
+    fakeTestZone($this);
+    $this->artisan('partner-lab:sync')->assertSuccessful();
+
+    $this->travel(20)->minutes();
+    $this->artisan('partner-lab:sync')->assertSuccessful();
+    $this->artisan('partner-lab:sync')->assertSuccessful();
+
+    expect(PartnerLabSync::lastSyncedAt()?->toDateTimeString())->toBe(now()->toDateTimeString());
+
+    $this->seed(RolePagePermissionSeeder::class);
+
+    Livewire::actingAs(User::factory()->labTechnician()->create())
+        ->test('pages::lab.outsourced')
+        ->set('tab', 'partner')
+        ->assertSee('Portal last checked')
+        ->assertDontSee('20 minutes ago');
+});
+
+test('a failed sync does not move the last checked time', function () {
+    fakeTestZone($this, loginWorks: false);
+
+    $this->artisan('partner-lab:sync')->assertFailed();
+
+    expect(PartnerLabSync::lastSyncedAt())->toBeNull();
 });

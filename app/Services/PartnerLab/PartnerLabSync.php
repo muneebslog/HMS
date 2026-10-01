@@ -4,6 +4,7 @@ namespace App\Services\PartnerLab;
 
 use App\Models\PartnerLabReport;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Copies the tests on the partner lab's portal into partner_lab_reports so the lab
@@ -12,6 +13,8 @@ use Carbon\CarbonImmutable;
  */
 class PartnerLabSync
 {
+    public const LAST_SYNCED_CACHE_KEY = 'partner_lab.last_synced_at';
+
     public function __construct(
         private TestZoneClient $client,
         private TestZonePageParser $parser,
@@ -45,7 +48,19 @@ class PartnerLabSync
             }
         }
 
+        Cache::forever(self::LAST_SYNCED_CACHE_KEY, now()->toIso8601String());
+
         return $summary;
+    }
+
+    /**
+     * When the portal was last read successfully, even if nothing had changed.
+     */
+    public static function lastSyncedAt(): ?CarbonImmutable
+    {
+        $value = Cache::get(self::LAST_SYNCED_CACHE_KEY);
+
+        return $value ? CarbonImmutable::parse($value) : null;
     }
 
     /**
