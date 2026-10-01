@@ -104,10 +104,13 @@ class LabSampleRetake extends Model
     }
 
     /**
-     * Scope the query to retakes still waiting for the patient to come back.
+     * Scope the query to retakes still waiting for the patient to come back
+     * (a cancelled test is no longer waiting on anyone).
      */
     public function scopeOpen($query)
     {
-        return $query->whereNull('slip_printed_at');
+        return $query
+            ->whereNull('slip_printed_at')
+            ->whereHas('labInvoiceItem', fn ($item) => $item->whereNull('cancelled_at'));
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CancelLabTest;
 use App\Actions\RequestSampleRetake;
 use App\Actions\StorePartnerLabReport;
 use App\Enums\LabFieldType;
@@ -8,6 +9,7 @@ use App\Models\LabField;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
 use App\Models\LabSampleRetake;
+use App\Models\LabTest;
 use App\Services\LabReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +49,18 @@ new #[Title('Lab Case')] class extends Component
 
     public string $retakeOtherReason = '';
 
+    public bool $showCancelModal = false;
+
+    public ?int $cancelItemId = null;
+
+    public string $cancelReason = '';
+
+    public string $cancelOtherReason = '';
+
+    public bool $showAddTestModal = false;
+
+    public ?int $addLabTestId = null;
+
     /**
      * Load everything the case page shows up front.
      */
@@ -70,8 +84,9 @@ new #[Title('Lab Case')] class extends Component
     public function items()
     {
         return $this->labInvoice->items()
-            ->with(['labTest.fields', 'results', 'resultsCompletedByUser', 'reportUploadedByUser', 'latestRetake'])
+            ->with(['labTest.fields', 'results', 'resultsCompletedByUser', 'reportUploadedByUser', 'cancelledByUser', 'latestRetake'])
             ->get()
+            ->each(fn (LabInvoiceItem $item) => $item->setRelation('labInvoice', $this->labInvoice))
             ->sortBy([['is_in_house', 'desc'], ['id', 'asc']])
             ->values();
     }
@@ -99,6 +114,10 @@ new #[Title('Lab Case')] class extends Component
      */
     public function itemStatus(LabInvoiceItem $item): array
     {
+        if ($item->isCancelled()) {
+            return ['label' => __('Cancelled: :reason', ['reason' => $item->cancel_reason]), 'color' => 'zinc'];
+        }
+
         if ($item->isLegacy() && $item->results_completed_at === null) {
             return ['label' => __('Done in old lab software'), 'color' => 'zinc'];
         }
@@ -230,12 +249,154 @@ new #[Title('Lab Case')] class extends Component
     }
 
     /**
+     * Whether a test can be cancelled: the user works in the lab (results entry or sample receiving)
+     * and the test is not finished, not cancelled, and its case is not returned.
+     */
+    public function cancelAllowedFor(LabInvoiceItem $item): bool
+    {
+        return ($this->canManageResults || $this->canRequestRetake) && $item->canBeCancelled();
+    }
+
+    /**
+     * Open the cancel form for one of this case's tests.
+     */
+    public function openCancel(int $itemId): void
+    {
+        abort_unless($this->canManageResults || $this->canRequestRetake, 403);
+
+        $this->cancelItemId = $itemId;
+        $this->cancelReason = $this->items->firstWhere('id', $itemId)?->hasOpenRetake() ? 'Patient declined the retake' : '';
+        $this->cancelOtherReason = '';
+        $this->resetValidation();
+        $this->showCancelModal = true;
+    }
+
+    /**
+     * Cancel a test the patient no longer wants.
+     */
+    public function cancelTest(): void
+    {
+        abort_unless($this->canManageResults || $this->canRequestRetake, 403);
+
+        $this->validate([
+            'cancelReason' => ['required', 'string', Rule::in([...LabInvoiceItem::CANCEL_REASONS, 'other'])],
+            'cancelOtherReason' => ['required_if:cancelReason,other', 'nullable', 'string', 'max:255'],
+        ], [], [
+            'cancelReason' => __('reason'),
+            'cancelOtherReason' => __('reason'),
+        ]);
+
+        $item = $this->items->firstWhere('id', $this->cancelItemId);
+
+        try {
+            if ($item === null) {
+                throw new \InvalidArgumentException(__('This test cannot be cancelled.'));
+            }
+
+            app(CancelLabTest::class)->handle(
+                auth()->user(),
+                $item,
+                $this->cancelReason === 'other' ? $this->cancelOtherReason : $this->cancelReason,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            $this->showCancelModal = false;
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        $this->showCancelModal = false;
+        $this->cancelItemId = null;
+        unset($this->items);
+
+        Flux::toast(variant: 'success', text: __(':test cancelled.', ['test' => trim($item->test_name)]));
+    }
+
+    /**
+     * Whether another test can be added to this case (free of charge).
+     */
+    #[Computed]
+    public function canAddTest(): bool
+    {
+        return $this->canManageResults && ! $this->labInvoice->isReturned();
+    }
+
+    /**
+     * Active lab tests not already on this case, for the add-test picker.
+     *
+     * @return list<array{value: int, label: string, keywords: string}>
+     */
+    #[Computed]
+    public function addableLabTestOptions(): array
+    {
+        $existingTestIds = $this->items->pluck('lab_test_id')->filter()->all();
+
+        return LabTest::query()
+            ->active()
+            ->whereNotIn('id', $existingTestIds)
+            ->orderBy('test_name')
+            ->get()
+            ->map(fn (LabTest $labTest): array => [
+                'value' => $labTest->id,
+                'label' => filled($labTest->test_code)
+                    ? $labTest->test_name.' ('.$labTest->test_code.')'
+                    : $labTest->test_name,
+                'keywords' => trim($labTest->test_name.' '.($labTest->test_code ?? '')),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Open the form for adding another test to this case.
+     */
+    public function openAddTest(): void
+    {
+        abort_unless($this->canAddTest, 403);
+
+        $this->addLabTestId = null;
+        $this->resetValidation();
+        $this->showAddTestModal = true;
+    }
+
+    /**
+     * Add a test to this case at no charge; the bill and receipt stay as they are.
+     */
+    public function addTest(): void
+    {
+        abort_unless($this->canAddTest, 403);
+
+        $this->validate([
+            'addLabTestId' => ['required', 'integer', Rule::in(array_column($this->addableLabTestOptions, 'value'))],
+        ], [], ['addLabTestId' => __('test')]);
+
+        $labTest = LabTest::findOrFail($this->addLabTestId);
+
+        $this->labInvoice->items()->create([
+            'lab_test_id' => $labTest->id,
+            'test_name' => $labTest->test_name,
+            'test_code' => $labTest->test_code,
+            'sample' => $labTest->sample,
+            'time_required' => $labTest->time_required,
+            'is_in_house' => $labTest->is_in_house,
+            'outgoing_status' => $labTest->is_in_house ? null : OutgoingSampleStatus::Pending,
+            'price' => 0,
+        ]);
+
+        $this->showAddTestModal = false;
+        $this->addLabTestId = null;
+        unset($this->items, $this->addableLabTestOptions);
+
+        Flux::toast(variant: 'success', text: __(':test added to this case (no charge).', ['test' => trim($labTest->test_name)]));
+    }
+
+    /**
      * Whether results can be entered for a test: the user may manage results,
      * and the test has fields set up. Outsourced tests can be typed in from the partner lab's report.
      */
     public function canEnterResults(LabInvoiceItem $item): bool
     {
-        return $this->canManageResults && ($item->labTest?->fields->isNotEmpty() ?? false);
+        return $this->canManageResults && ! $item->isCancelled() && ($item->labTest?->fields->isNotEmpty() ?? false);
     }
 
     /**
@@ -243,7 +404,7 @@ new #[Title('Lab Case')] class extends Component
      */
     public function canUploadReport(LabInvoiceItem $item): bool
     {
-        return $this->canManageResults && ! $item->is_in_house && ! $this->labInvoice->isReturned();
+        return $this->canManageResults && ! $item->is_in_house && ! $item->isCancelled() && ! $this->labInvoice->isReturned();
     }
 
     /**
@@ -604,7 +765,12 @@ new #[Title('Lab Case')] class extends Component
         </flux:card>
 
         <flux:card>
-            <flux:heading level="2" class="mb-4">{{ __('Tests') }}</flux:heading>
+            <div class="mb-4 flex items-center justify-between gap-3">
+                <flux:heading level="2">{{ __('Tests') }}</flux:heading>
+                @if ($this->canAddTest)
+                        <flux:button size="sm" icon="plus" wire:click="openAddTest">{{ __('Add test') }}</flux:button>
+                    @endif
+            </div>
 
             <flux:table>
                 <flux:table.columns>
@@ -647,6 +813,11 @@ new #[Title('Lab Case')] class extends Component
                                         @else
                                             {{ __('Completed :date by :name', ['date' => $item->results_completed_at->format('d M, g:i A'), 'name' => $item->resultsCompletedByUser?->name ?? __('unknown')]) }}
                                         @endif
+                                    </div>
+                                @endif
+                                @if ($item->cancelled_at)
+                                    <div class="text-xs text-zinc-500">
+                                        {{ __('Cancelled :date by :name', ['date' => $item->cancelled_at->format('d M, g:i A'), 'name' => $item->cancelledByUser?->name ?? __('unknown')]) }}
                                     </div>
                                 @endif
                                 @if ($item->report_uploaded_at)
@@ -701,6 +872,12 @@ new #[Title('Lab Case')] class extends Component
                                     @if ($this->retakeAllowedFor($item))
                                         <flux:button size="sm" variant="ghost" icon="arrow-path" wire:click="openRetake({{ $item->id }})">
                                             {{ __('Retake') }}
+                                        </flux:button>
+                                    @endif
+
+                                    @if ($this->cancelAllowedFor($item))
+                                        <flux:button size="sm" variant="ghost" icon="x-circle" wire:click="openCancel({{ $item->id }})">
+                                            {{ __('Cancel test') }}
                                         </flux:button>
                                     @endif
 
@@ -862,6 +1039,30 @@ new #[Title('Lab Case')] class extends Component
         </form>
     </flux:modal>
 
+    @if ($this->canAddTest)
+        <flux:modal wire:model="showAddTestModal" class="w-full max-w-md">
+            <flux:heading level="2">{{ __('Add a test to this case') }}</flux:heading>
+            <flux:text class="mt-1 text-sm">{{ __('The test is added free of charge. The bill and receipt are not changed.') }}</flux:text>
+
+            <form wire:submit="addTest" class="mt-6 space-y-4">
+                <flux:field>
+                    <flux:label>{{ __('Test') }}</flux:label>
+                    <x-searchable-select
+                        wire:model="addLabTestId"
+                        :options="$this->addableLabTestOptions"
+                        :placeholder="__('Search by name or code')"
+                    />
+                    <flux:error name="addLabTestId" />
+                </flux:field>
+
+                <div class="flex justify-end gap-3">
+                    <flux:button type="button" variant="ghost" wire:click="$set('showAddTestModal', false)">{{ __('Cancel') }}</flux:button>
+                    <flux:button type="submit" variant="primary" icon="plus">{{ __('Add test') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
+    @endif
+
     <flux:modal wire:model="showRetakeModal" class="w-full max-w-md">
         <flux:heading level="2">{{ __('Ask for a new sample') }}</flux:heading>
         <flux:text class="mt-1 text-sm">{{ __('Reception will call the patient back and print a no-charge slip when they come.') }}</flux:text>
@@ -881,6 +1082,29 @@ new #[Title('Lab Case')] class extends Component
             <div class="flex justify-end gap-3">
                 <flux:button type="button" variant="ghost" wire:click="$set('showRetakeModal', false)">{{ __('Cancel') }}</flux:button>
                 <flux:button type="submit" variant="danger" icon="arrow-path">{{ __('Ask for retake') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal wire:model="showCancelModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('Cancel this test') }}</flux:heading>
+        <flux:text class="mt-1 text-sm">{{ __('The test leaves the lab and reception queues, including any retake waiting on the patient. The bill is not changed; return the receipt at reception if money is refunded.') }}</flux:text>
+
+        <form wire:submit="cancelTest" class="mt-6 space-y-4">
+            <flux:radio.group wire:model.live="cancelReason" :label="__('Why?')">
+                @foreach (LabInvoiceItem::CANCEL_REASONS as $reason)
+                    <flux:radio :value="$reason" :label="__($reason)" />
+                @endforeach
+                <flux:radio value="other" :label="__('Other')" />
+            </flux:radio.group>
+
+            @if ($cancelReason === 'other')
+                <flux:input wire:model="cancelOtherReason" :label="__('Reason')" />
+            @endif
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showCancelModal', false)">{{ __('Keep test') }}</flux:button>
+                <flux:button type="submit" variant="danger" icon="x-circle">{{ __('Cancel test') }}</flux:button>
             </div>
         </form>
     </flux:modal>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OutgoingSampleStatus;
 use App\Models\LabField;
 use App\Models\LabInvoice;
 use App\Models\LabInvoiceItem;
@@ -342,4 +343,65 @@ test('the result form copes when all values arrive at once', function () {
         ->assertHasNoErrors()
         ->assertSet("resultValues.{$this->note->id}", 'Nil')
         ->assertSet("resultValues.{$this->hb->id}", '12.1');
+});
+
+test('a test can be added to a case free of charge', function () {
+    $extraTest = LabTest::factory()->create(['test_name' => 'APTT', 'test_code' => '55', 'is_in_house' => true, 'test_price' => 900]);
+    $totalBefore = $this->invoice->total;
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openAddTest')
+        ->assertSet('showAddTestModal', true)
+        ->set('addLabTestId', $extraTest->id)
+        ->call('addTest')
+        ->assertHasNoErrors()
+        ->assertSet('showAddTestModal', false)
+        ->assertSee('APTT');
+
+    $added = $this->invoice->items()->where('lab_test_id', $extraTest->id)->first();
+
+    expect($added)->not->toBeNull()
+        ->and($added->price)->toBe(0.0)
+        ->and($added->test_code)->toBe('55')
+        ->and($added->is_in_house)->toBeTrue()
+        ->and($this->invoice->fresh()->total)->toBe($totalBefore);
+});
+
+test('an outsourced test added to a case starts as a pending send-out', function () {
+    $extraTest = LabTest::factory()->create(['is_in_house' => false]);
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->set('addLabTestId', $extraTest->id)
+        ->call('addTest')
+        ->assertHasNoErrors();
+
+    expect($this->invoice->items()->where('lab_test_id', $extraTest->id)->first()->outgoing_status)
+        ->toBe(OutgoingSampleStatus::Pending);
+});
+
+test('a test already on the case or inactive cannot be added', function () {
+    $inactive = LabTest::factory()->inactive()->create();
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->set('addLabTestId', $this->labTest->id)
+        ->call('addTest')
+        ->assertHasErrors('addLabTestId')
+        ->set('addLabTestId', $inactive->id)
+        ->call('addTest')
+        ->assertHasErrors('addLabTestId');
+
+    expect($this->invoice->items()->count())->toBe(1);
+});
+
+test('tests cannot be added to a returned case', function () {
+    $returned = LabInvoice::factory()->returned()->create(['patient_id' => $this->patient->id]);
+
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $returned])
+        ->assertDontSee('Add test')
+        ->call('openAddTest')
+        ->assertForbidden();
 });

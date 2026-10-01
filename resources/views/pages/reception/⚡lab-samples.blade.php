@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CancelLabTest;
 use App\Actions\CreatePrintJob;
 use App\Enums\OutgoingSampleStatus;
 use App\Models\LabInvoice;
@@ -48,6 +49,7 @@ new #[Title('Lab Samples')] class extends Component
     {
         return LabSampleRetake::query()
             ->open()
+            ->whereHas('labInvoiceItem.labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'))
             ->with(['labInvoiceItem.labInvoice.patient.family', 'requestedByUser', 'patientContactedByUser'])
             ->oldest()
             ->get()
@@ -189,6 +191,37 @@ new #[Title('Lab Samples')] class extends Component
     }
 
     /**
+     * The patient does not want the retake: cancel the case's tests that are waiting on one,
+     * so they leave this list and the lab's queues.
+     */
+    public function markRetakeDeclined(int $labInvoiceId): void
+    {
+        $this->authorizePage();
+
+        $retakes = LabSampleRetake::query()
+            ->open()
+            ->whereHas('labInvoiceItem', fn ($item) => $item->where('lab_invoice_id', $labInvoiceId))
+            ->with('labInvoiceItem.labInvoice')
+            ->get();
+
+        if ($retakes->isEmpty()) {
+            Flux::toast(variant: 'danger', text: __('No retake is waiting for this case.'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($retakes) {
+            foreach ($retakes as $retake) {
+                app(CancelLabTest::class)->handle(auth()->user(), $retake->labInvoiceItem, 'Patient declined the retake');
+            }
+        });
+
+        $this->refreshLists();
+
+        Flux::toast(variant: 'success', text: trans_choice(':count test cancelled.|:count tests cancelled.', $retakes->count(), ['count' => $retakes->count()]));
+    }
+
+    /**
      * Guard actions the same way as the page itself.
      */
     private function authorizePage(): void
@@ -320,6 +353,15 @@ new #[Title('Lab Samples')] class extends Component
                                 @unless ($contacted)
                                     <flux:button size="sm" icon="phone" wire:click="markPatientContacted({{ $labInvoiceId }})">{{ __('Patient called') }}</flux:button>
                                 @endunless
+                                <flux:button
+                                    size="sm"
+                                    variant="ghost"
+                                    icon="x-circle"
+                                    wire:click="markRetakeDeclined({{ $labInvoiceId }})"
+                                    wire:confirm="{{ __('The patient does not want the retake? These tests will be cancelled. The bill is not changed.') }}"
+                                >
+                                    {{ __('Patient declined') }}
+                                </flux:button>
                                 <flux:button
                                     size="sm"
                                     variant="primary"

@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\CreatePrintJob;
+use App\Actions\RequestSampleRetake;
 use App\Enums\OutgoingSampleStatus;
 use App\Models\Family;
 use App\Models\LabField;
@@ -293,4 +294,79 @@ test('a retake cannot be asked for a test from another case', function () {
         ->call('requestRetake');
 
     expect(LabSampleRetake::count())->toBe(0);
+});
+
+test('reception cancels tests when the patient declines the retake, and the case is no longer stuck', function () {
+    app(RequestSampleRetake::class)->handle($this->labTechnician, $this->cbc->id, 'Sample not received');
+
+    Livewire::actingAs($this->receptionist)
+        ->test('pages::reception.lab-samples')
+        ->set('tab', 'retakes')
+        ->assertSee('Patient declined')
+        ->call('markRetakeDeclined', $this->invoice->id)
+        ->assertSee('No retakes waiting.');
+
+    expect($this->cbc->fresh())
+        ->cancelled_at->not->toBeNull()
+        ->cancelled_by->toBe($this->receptionist->id)
+        ->cancel_reason->toBe('Patient declined the retake')
+        ->isDone()->toBeTrue()
+        ->and(LabSampleRetake::query()->open()->count())->toBe(0)
+        ->and(LabInvoiceItem::query()->awaitingSample()->pluck('id')->all())->toBe([$this->sugar->id])
+        ->and(LabInvoiceItem::query()->pending()->whereKey($this->cbc->id)->exists())->toBeFalse()
+        ->and($this->invoice->fresh()->status)->toBe('paid');
+});
+
+test('the lab cancels a test from the case page', function () {
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->call('openCancel', $this->tsh->id)
+        ->call('cancelTest')
+        ->assertHasErrors(['cancelReason' => 'required'])
+        ->set('cancelReason', 'other')
+        ->call('cancelTest')
+        ->assertHasErrors(['cancelOtherReason'])
+        ->set('cancelOtherReason', 'Doctor changed the order')
+        ->call('cancelTest')
+        ->assertHasNoErrors()
+        ->assertSet('showCancelModal', false)
+        ->assertSee('Cancelled: Doctor changed the order');
+
+    expect($this->tsh->fresh())
+        ->cancelled_by->toBe($this->labTechnician->id)
+        ->and(LabInvoiceItem::query()->awaitingRider()->count())->toBe(0);
+});
+
+test('a finished, cancelled or returned test cannot be cancelled', function () {
+    $this->cbc->update(['results_completed_at' => now()]);
+    $this->sugar->update(['cancelled_at' => now(), 'cancel_reason' => 'Ordered by mistake']);
+
+    $page = Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->assertDontSeeHtml('openCancel('.$this->cbc->id.')')
+        ->assertDontSeeHtml('openCancel('.$this->sugar->id.')')
+        ->assertSeeHtml('openCancel('.$this->tsh->id.')');
+
+    foreach ([$this->cbc, $this->sugar] as $item) {
+        $page->set('cancelItemId', $item->id)->set('cancelReason', 'Ordered by mistake')->call('cancelTest');
+    }
+
+    $this->invoice->update(['status' => 'returned']);
+    Livewire::actingAs($this->labTechnician)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice->fresh()])
+        ->set('cancelItemId', $this->tsh->id)
+        ->set('cancelReason', 'Ordered by mistake')
+        ->call('cancelTest');
+
+    expect($this->cbc->fresh()->cancelled_at)->toBeNull()
+        ->and($this->sugar->fresh()->cancel_reason)->toBe('Ordered by mistake')
+        ->and($this->tsh->fresh()->cancelled_at)->toBeNull();
+});
+
+test('reception cannot cancel a test from the case page', function () {
+    Livewire::actingAs($this->receptionist)
+        ->test('pages::lab.case', ['labInvoice' => $this->invoice])
+        ->assertDontSeeHtml('openCancel(')
+        ->call('openCancel', $this->cbc->id)
+        ->assertForbidden();
 });

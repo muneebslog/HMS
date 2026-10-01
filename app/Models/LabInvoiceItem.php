@@ -26,6 +26,17 @@ class LabInvoiceItem extends Model
     private const HMS_ACTIVITY_COLUMNS = ['sample_collected_at', 'sample_received_by', 'asked_at', 'given_at', 'report_path', 'results_completed_by'];
 
     /**
+     * Quick reasons offered when a test is cancelled.
+     *
+     * @var list<string>
+     */
+    public const CANCEL_REASONS = [
+        'Patient declined the test',
+        'Patient declined the retake',
+        'Ordered by mistake',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -59,6 +70,9 @@ class LabInvoiceItem extends Model
         'results_imported_at',
         'result_comment',
         'price',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
     ];
 
     /**
@@ -81,6 +95,7 @@ class LabInvoiceItem extends Model
             'lab_result_ready' => 'boolean',
             'results_completed_at' => 'datetime',
             'results_imported_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -194,11 +209,11 @@ class LabInvoiceItem extends Model
      * Determine whether this test is finished, using HMS data only: an in-house
      * test once its results are completed in the HMS, a send-out test once its
      * report is received or uploaded. The old lab software's `lab_result_ready`
-     * flag is deliberately not used. Tests from the old lab software count as done.
+     * flag is deliberately not used. Tests from the old lab software and cancelled tests count as done.
      */
     public function isDone(): bool
     {
-        if ($this->isLegacy()) {
+        if ($this->isLegacy() || $this->isCancelled()) {
             return true;
         }
 
@@ -269,7 +284,7 @@ class LabInvoiceItem extends Model
      */
     public function scopePending($query)
     {
-        return $query->tracked()->where(function ($query) {
+        return $query->tracked()->whereNull($this->qualifyColumn('cancelled_at'))->where(function ($query) {
             $query
                 ->where(function ($inHouse) {
                     $inHouse->where('is_in_house', true)->whereNull('results_completed_at');
@@ -356,17 +371,18 @@ class LabInvoiceItem extends Model
      */
     public function hasOpenRetake(): bool
     {
-        return $this->latestRetake?->isOpen() ?? false;
+        return ! $this->isCancelled() && ($this->latestRetake?->isOpen() ?? false);
     }
 
     /**
      * Scope the query to in-house tests whose sample the lab should be receiving now:
-     * not received, not finished, no retake waiting on the patient, case not returned.
+     * not received, not finished, not cancelled, no retake waiting on the patient, case not returned.
      */
     public function scopeAwaitingSample($query)
     {
         return $query
             ->tracked()
+            ->whereNull('cancelled_at')
             ->where('is_in_house', true)
             ->whereNull('sample_received_at')
             ->whereNull('results_completed_at')
@@ -381,6 +397,7 @@ class LabInvoiceItem extends Model
     {
         return $query
             ->tracked()
+            ->whereNull('cancelled_at')
             ->where('is_in_house', false)
             ->whereIn('outgoing_status', [OutgoingSampleStatus::Pending->value, OutgoingSampleStatus::Asked->value])
             ->whereHas('labInvoice', fn ($invoice) => $invoice->where('status', '!=', 'returned'));
@@ -438,6 +455,34 @@ class LabInvoiceItem extends Model
             'received_at' => null,
             'received_by' => null,
         ]);
+    }
+
+    /**
+     * Get the user who cancelled this test.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function cancelledByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Determine whether the test was cancelled (the patient no longer wants it).
+     */
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
+    }
+
+    /**
+     * Determine whether the test can still be cancelled: not finished or cancelled, case not returned.
+     */
+    public function canBeCancelled(): bool
+    {
+        return ! $this->isDone()
+            && $this->results_completed_at === null
+            && ! $this->labInvoice->isReturned();
     }
 
     /**

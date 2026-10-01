@@ -95,6 +95,10 @@ class PublicLabResultsController extends Controller
      */
     private function status(LabInvoiceItem $item): array
     {
+        if ($item->isCancelled()) {
+            return ['label' => __('Cancelled'), 'tone' => 'waiting'];
+        }
+
         if ($item->isDone()) {
             return $item->results_completed_at !== null || $item->hasReport()
                 ? ['label' => __('Ready'), 'tone' => 'ready']
