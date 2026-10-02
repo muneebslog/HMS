@@ -746,8 +746,8 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
                                                     @endif
                                                 </span>
                                             </span>
-                                            <span class="flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-400">
-                                                <flux:icon.check variant="micro" /> {{ __('Collected') }}
+                                            <span class="flex shrink-0 items-center gap-1 rounded-md border border-emerald-500/50 px-2 py-1 text-xs font-semibold text-emerald-400">
+                                                {{ __('Mark collected') }}
                                             </span>
                                         </button>
                                     @endforeach

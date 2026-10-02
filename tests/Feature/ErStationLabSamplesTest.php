@@ -38,11 +38,15 @@ test('the ER station lists in-house lab samples to collect', function () {
 
 test('an aide enters their PIN and marks a sample collected, which does not receive it in the lab', function () {
     Livewire::test('pages::display.medication-delivery')
+        ->assertSee('Mark collected')
+        ->assertSeeHtml('wire:key="er-lab-sample-'.$this->cbc->id.'"')
         ->call('requestReceiveSamples', null, $this->cbc->id)
         ->assertSet('showPinModal', true)
         ->set('pin', '4321')
         ->call('verifyPin')
-        ->assertHasNoErrors();
+        ->assertHasNoErrors()
+        ->assertDontSeeHtml('wire:key="er-lab-sample-'.$this->cbc->id.'"')
+        ->assertSeeHtml('wire:key="er-lab-sample-'.$this->lft->id.'"');
 
     expect($this->cbc->fresh())
         ->sample_collected_at->not->toBeNull()
