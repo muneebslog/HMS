@@ -84,10 +84,16 @@ new #[Title('Sample Receiving')] class extends Component
             return;
         }
 
-        $count = LabInvoiceItem::query()
+        // Resolve the IDs first: MySQL refuses an UPDATE whose subqueries read lab_invoice_items itself.
+        $itemIds = LabInvoiceItem::query()
             ->awaitingSample()
             ->when($itemId, fn ($query) => $query->whereKey($itemId))
             ->when($labInvoiceId, fn ($query) => $query->where('lab_invoice_id', $labInvoiceId))
+            ->pluck('id');
+
+        $count = LabInvoiceItem::query()
+            ->whereKey($itemIds)
+            ->whereNull('sample_received_at')
             ->update(['sample_received_at' => now(), 'sample_received_by' => auth()->id()]);
 
         $this->refreshLists();

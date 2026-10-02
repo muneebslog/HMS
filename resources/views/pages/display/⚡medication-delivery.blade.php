@@ -340,10 +340,16 @@ new #[Layout('layouts.display')] #[Title('ER Station')] class extends Component
             return;
         }
 
-        $count = LabInvoiceItem::query()
+        // Resolve the IDs first: MySQL refuses an UPDATE whose subqueries read lab_invoice_items itself.
+        $itemIds = LabInvoiceItem::query()
             ->awaitingCollection()
             ->when($itemId, fn ($query) => $query->whereKey($itemId))
             ->when($labInvoiceId, fn ($query) => $query->where('lab_invoice_id', $labInvoiceId))
+            ->pluck('id');
+
+        $count = LabInvoiceItem::query()
+            ->whereKey($itemIds)
+            ->whereNull('sample_collected_at')
             ->update([
                 'sample_collected_at' => now(),
                 'sample_collected_by_health_aide_id' => $aide->id,

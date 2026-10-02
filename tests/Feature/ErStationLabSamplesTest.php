@@ -109,3 +109,27 @@ test('the migration turns earlier ER receipts into collections and puts unfinish
         ->sample_received_at->toBeNull()
         ->and($this->lft->fresh()->sample_received_at)->not->toBeNull();
 });
+
+test('collecting and receiving samples never update lab_invoice_items with a subquery on itself, which MySQL rejects', function () {
+    $this->seed(RolePagePermissionSeeder::class);
+    $selfReferencingUpdates = [];
+
+    DB::listen(function ($query) use (&$selfReferencingUpdates) {
+        if (str_starts_with($query->sql, 'update "lab_invoice_items"') && str_contains($query->sql, 'from "lab_invoice_items"')) {
+            $selfReferencingUpdates[] = $query->sql;
+        }
+    });
+
+    Livewire::test('pages::display.medication-delivery')
+        ->set('pin', '4321')
+        ->call('verifyPin')
+        ->call('requestReceiveSamples', $this->invoice->id);
+
+    Livewire::actingAs(User::factory()->labTechnician()->create())
+        ->test('pages::lab.samples')
+        ->call('receive', $this->invoice->id);
+
+    expect($selfReferencingUpdates)->toBe([])
+        ->and($this->cbc->fresh()->sample_collected_at)->not->toBeNull()
+        ->and($this->lft->fresh()->sample_received_at)->not->toBeNull();
+});
