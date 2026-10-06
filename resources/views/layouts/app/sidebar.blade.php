@@ -98,6 +98,19 @@
                     @endunless
                 </flux:sidebar.group>
 
+                @if ($user->isAdmin() || $user->doctor?->isGynecologist())
+                    <flux:sidebar.group class="grid">
+                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                            <span class="size-2 rounded-full bg-rose-500"></span>
+                            {{ __('Gyne') }}
+                        </div>
+
+                        <flux:sidebar.item icon="heart" :href="route('gyne.opd')" :current="request()->routeIs('gyne.opd')" wire:navigate>
+                            {{ __("Today's OPD") }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
+
                 @if ($pageAccess->canAccessAny($user, $receptionRoutes))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">

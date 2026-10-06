@@ -10,6 +10,8 @@ use App\Enums\TokenResetType;
 use App\Models\DripBase;
 use App\Models\DripCharge;
 use App\Models\Injection;
+use App\Models\LabInvoice;
+use App\Models\LabInvoiceItem;
 use App\Models\MedicationOrder;
 use App\Models\Medicine;
 use App\Models\QueueToken;
@@ -33,6 +35,8 @@ new #[Title('Medication')] class extends Component
     public ?int $selectedTokenId = null;
 
     public bool $showHistoryModal = false;
+
+    public bool $showLabTestsModal = false;
 
     public bool $showMedOrdersModal = false;
 
@@ -533,6 +537,57 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
+     * Lab invoices (with their tests) for the selected patient, newest first.
+     *
+     * @return Collection<int, LabInvoice>
+     */
+    #[Computed]
+    public function labTestHistory(): Collection
+    {
+        if (! $this->showLabTestsModal) {
+            return new Collection;
+        }
+
+        $token = $this->selectedToken;
+
+        if ($token?->patient_id === null) {
+            return new Collection;
+        }
+
+        return LabInvoice::query()
+            ->with([
+                'items' => fn ($items) => $items->orderByDesc('is_in_house')->orderBy('id'),
+                'items.labTest',
+                'referredByDoctor',
+            ])
+            ->where('patient_id', $token->patient_id)
+            ->where('status', '!=', 'returned')
+            ->latest()
+            ->limit(20)
+            ->get();
+    }
+
+    /**
+     * Number of lab tests (not cancelled) ordered for the selected patient.
+     */
+    #[Computed]
+    public function labTestHistoryCount(): int
+    {
+        $token = $this->selectedToken;
+
+        if ($token?->patient_id === null) {
+            return 0;
+        }
+
+        return LabInvoiceItem::query()
+            ->whereNull('cancelled_at')
+            ->whereHas('labInvoice', fn (Builder $invoice) => $invoice
+                ->where('patient_id', $token->patient_id)
+                ->where('status', '!=', 'returned'))
+            ->count();
+    }
+
+    /**
      * Medication orders for the med-orders browse modal (any patient on the chosen date).
      *
      * @return Collection<int, MedicationOrder>
@@ -621,6 +676,7 @@ new #[Title('Medication')] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->showHistoryModal = false;
+        $this->showLabTestsModal = false;
         $this->showMedOrdersModal = false;
         $this->showRepeatConflictModal = false;
         $this->pendingRepeatOrderId = null;
@@ -674,6 +730,30 @@ new #[Title('Medication')] class extends Component
         $this->closeModals();
         $this->showHistoryModal = true;
         unset($this->medicationHistory);
+    }
+
+    /**
+     * Open the lab tests modal for the selected patient.
+     */
+    public function openLabTests(): void
+    {
+        if ($this->selectedToken?->patient_id === null) {
+            Flux::toast(variant: 'danger', text: __('Patient not found.'));
+
+            return;
+        }
+
+        $this->closeModals();
+        $this->showLabTestsModal = true;
+        unset($this->labTestHistory);
+    }
+
+    /**
+     * Close the lab tests modal.
+     */
+    public function closeLabTests(): void
+    {
+        $this->showLabTestsModal = false;
     }
 
     /**
@@ -926,6 +1006,7 @@ new #[Title('Medication')] class extends Component
     {
         $this->selectedTokenId = null;
         $this->showHistoryModal = false;
+        $this->showLabTestsModal = false;
         $this->showMedOrdersModal = false;
         $this->showRepeatConflictModal = false;
         $this->showOrderPreviewModal = false;
@@ -1447,6 +1528,7 @@ new #[Title('Medication')] class extends Component
     private function closeModals(): void
     {
         $this->showHistoryModal = false;
+        $this->showLabTestsModal = false;
         $this->showMedOrdersModal = false;
         $this->showRepeatConflictModal = false;
         $this->showOrderPreviewModal = false;
@@ -2365,6 +2447,12 @@ new #[Title('Medication')] class extends Component
                 <div class="flex shrink-0 items-center gap-1">
                     <flux:button type="button" size="sm" variant="ghost" icon="clipboard-document-list" wire:click="openMedOrders">
                         {{ __('Med Orders') }}
+                    </flux:button>
+                    <flux:button type="button" size="sm" variant="ghost" icon="beaker" wire:click="openLabTests">
+                        {{ __('Lab Tests') }}
+                        <flux:badge size="sm" :color="$this->labTestHistoryCount > 0 ? 'blue' : 'zinc'" class="ms-1">
+                            {{ $this->labTestHistoryCount }}
+                        </flux:badge>
                     </flux:button>
                     <flux:button type="button" size="sm" variant="ghost" icon="clock" wire:click="openHistory">
                         {{ __('History') }}
@@ -3289,6 +3377,85 @@ new #[Title('Medication')] class extends Component
 
             <div class="flex justify-end">
                 <flux:button type="button" variant="ghost" wire:click="closeHistory">
+                    {{ __('Close') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="lab-tests-history" wire:model="showLabTestsModal" class="w-full max-w-2xl">
+        <div class="space-y-4">
+            <flux:heading level="2">{{ __('Lab tests') }}</flux:heading>
+            <p class="flex items-center gap-2 text-sm text-zinc-500">
+                <x-patient-phone-indicator :patient="$this->selectedToken?->patient" />
+                <span>
+                    {{ $this->selectedToken?->patient?->name ?? __('Unknown') }}
+                    · {{ $this->selectedToken?->patient?->mrn ?? __('No MRN') }}
+                </span>
+            </p>
+
+            <div class="max-h-[70vh] space-y-4 overflow-y-auto pe-1">
+                @forelse ($this->labTestHistory as $labInvoice)
+                    @php($hasPublicLink = filled($labInvoice->public_token))
+                    <div wire:key="lab-invoice-{{ $labInvoice->id }}" class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p class="text-sm font-semibold text-zinc-900 dark:text-white">
+                                    {{ $labInvoice->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
+                                </p>
+                                <p class="text-xs text-zinc-500">
+                                    {{ $labInvoice->invoice_number }}
+                                    @if ($labInvoice->referredByDoctor)
+                                        · {{ $labInvoice->referredByDoctor->name }}
+                                    @endif
+                                </p>
+                            </div>
+                            @if ($hasPublicLink && $labInvoice->items->contains(fn ($item) => $item->results_completed_at !== null))
+                                <flux:button size="sm" variant="primary" icon="document-text" :href="route('lab.public.report', $labInvoice->public_token)" target="_blank">
+                                    {{ __('All reports') }}
+                                </flux:button>
+                            @endif
+                        </div>
+
+                        <div class="divide-y divide-zinc-100 dark:divide-zinc-700">
+                            @foreach ($labInvoice->items as $item)
+                                <div wire:key="lab-item-{{ $item->id }}" class="flex flex-wrap items-center justify-between gap-2 py-2">
+                                    <p @class(['text-sm', 'text-zinc-400 line-through' => $item->isCancelled(), 'text-zinc-700 dark:text-zinc-200' => ! $item->isCancelled()])>
+                                        {{ $item->labTest?->reportTitle() ?? trim((string) $item->test_name) }}
+                                    </p>
+                                    <div class="flex items-center gap-2">
+                                        @if ($item->isCancelled())
+                                            <flux:badge size="sm" color="zinc">{{ __('Cancelled') }}</flux:badge>
+                                        @elseif ($hasPublicLink && $item->results_completed_at !== null)
+                                            <flux:button size="sm" icon="document-text" :href="route('lab.public.report', ['token' => $labInvoice->public_token, 'item' => $item->id])" target="_blank">
+                                                {{ __('Report') }}
+                                            </flux:button>
+                                        @elseif ($hasPublicLink && $item->isOutgoing() && $item->hasReport())
+                                            <flux:button size="sm" icon="paper-clip" :href="route('lab.public.file', ['token' => $labInvoice->public_token, 'item' => $item->id])" target="_blank">
+                                                {{ __('Partner report') }}
+                                            </flux:button>
+                                        @elseif ($item->isDone())
+                                            <flux:badge size="sm" color="green">{{ __('Done') }}</flux:badge>
+                                        @elseif ($item->isOutgoing())
+                                            <flux:badge size="sm" color="amber">{{ __('Sent to partner lab') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="sm" color="amber">{{ __('In process') }}</flux:badge>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
+                        <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('No lab tests') }}</p>
+                        <p class="mt-1 text-sm text-zinc-500">{{ __('Lab tests ordered for this patient will appear here.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button type="button" variant="ghost" wire:click="closeLabTests">
                     {{ __('Close') }}
                 </flux:button>
             </div>

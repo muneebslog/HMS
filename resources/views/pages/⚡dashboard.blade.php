@@ -154,7 +154,7 @@ new #[Title('Dashboard')] class extends Component
                         'label' => __('Gyne'),
                         'description' => __('Gynecology department tools'),
                         'icon' => 'heart',
-                        'href' => null,
+                        'href' => route('gyne.opd'),
                         'icon_bg' => 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
                     ],
                     [

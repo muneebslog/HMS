@@ -8,6 +8,8 @@ use App\Models\Doctor;
 use App\Models\DripBase;
 use App\Models\Family;
 use App\Models\Injection;
+use App\Models\LabInvoice;
+use App\Models\LabInvoiceItem;
 use App\Models\MedicationOrder;
 use App\Models\Medicine;
 use App\Models\Patient;
@@ -1980,4 +1982,53 @@ test('doctor cannot repeat an order without a selected patient', function () {
         ->test('pages::doctor.medication')
         ->call('repeatOrder', $pastOrder->id)
         ->assertSet('medicationLines', []);
+});
+
+test('doctor can see the patient lab tests with links to their reports', function () {
+    [$user, , , , , $patient, $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $labInvoice = LabInvoice::factory()->paid()->create(['patient_id' => $patient->id]);
+    $readyItem = LabInvoiceItem::factory()->inHouse()->create([
+        'lab_invoice_id' => $labInvoice->id,
+        'test_name' => 'Complete Blood Count',
+        'results_completed_at' => now(),
+    ]);
+    LabInvoiceItem::factory()->inHouse()->create([
+        'lab_invoice_id' => $labInvoice->id,
+        'test_name' => 'Lipid Profile',
+        'cancelled_at' => now(),
+    ]);
+
+    $otherPatientInvoice = LabInvoice::factory()->paid()->create();
+    LabInvoiceItem::factory()->create(['lab_invoice_id' => $otherPatientInvoice->id]);
+
+    $returnedInvoice = LabInvoice::factory()->returned()->create(['patient_id' => $patient->id]);
+    LabInvoiceItem::factory()->create(['lab_invoice_id' => $returnedInvoice->id]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->assertSee(__('Lab Tests'));
+
+    expect($component->instance()->labTestHistoryCount)->toBe(1);
+
+    $component
+        ->call('openLabTests')
+        ->assertSet('showLabTestsModal', true)
+        ->assertSee($labInvoice->invoice_number)
+        ->assertDontSee($returnedInvoice->invoice_number)
+        ->assertSee(__('Cancelled'))
+        ->assertSeeHtml(e(route('lab.public.report', ['token' => $labInvoice->public_token, 'item' => $readyItem->id])))
+        ->call('closeLabTests')
+        ->assertSet('showLabTestsModal', false);
+});
+
+test('lab tests modal shows an empty state when the patient has no lab tests', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->call('openLabTests')
+        ->assertSee(__('No lab tests'));
 });

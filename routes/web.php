@@ -95,6 +95,10 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/act-as-role', 'pages::admin.act-as-role')->name('admin.act-as-role');
     });
 
+    Route::middleware('gynecologist')->group(function () {
+        Route::livewire('gyne/opd', 'pages::gyne.opd')->name('gyne.opd');
+    });
+
     Route::middleware('page.access')->group(function () {
         Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 
