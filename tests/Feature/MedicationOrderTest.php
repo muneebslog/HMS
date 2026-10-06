@@ -436,6 +436,59 @@ test('doctor can recall a pending medication order and edit the same order', fun
     ]);
 });
 
+test('recall modal lists the current shift by default and can switch to the last shift', function () {
+    [$user, , $previousShift, $service, $previousQueue, $previousPatient, $previousToken] = createMedicationQueuePatient(withDoctor: false, tokenStatus: 'served');
+    $previousOrder = MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $previousToken->id,
+        'patient_id' => $previousPatient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+
+    $previousShift->update(['status' => 'closed', 'closed_at' => now()->subMinute()]);
+    $previousQueue->update(['status' => 'closed', 'closed_at' => now()->subMinute()]);
+    $currentShift = Shift::factory()->open()->create(['opened_at' => now()]);
+    $currentQueue = ServiceQueue::factory()->create([
+        'service_id' => $service->id,
+        'doctor_id' => null,
+        'shift_id' => $currentShift->id,
+        'date' => today(),
+        'reset_type' => TokenResetType::Shift,
+        'status' => 'open',
+        'opened_at' => now(),
+    ]);
+    $currentPatient = Patient::factory()->create(['name' => 'Current Shift Patient']);
+    $currentToken = QueueToken::factory()->create([
+        'service_queue_id' => $currentQueue->id,
+        'patient_id' => $currentPatient->id,
+        'token_number' => 1,
+        'status' => 'served',
+        'arrived_at' => now(),
+    ]);
+    MedicationOrder::factory()->withoutDoctor()->create([
+        'queue_token_id' => $currentToken->id,
+        'patient_id' => $currentPatient->id,
+        'prescribed_by' => $user->id,
+        'status' => MedicationOrderStatus::Pending,
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('openRecall')
+        ->assertSet('recallShift', 'current')
+        ->assertSee($currentPatient->name)
+        ->assertDontSee($previousPatient->name)
+        ->call('selectRecallShift', 'previous')
+        ->assertSee($previousPatient->name)
+        ->assertDontSee($currentPatient->name)
+        ->call('recall', $previousOrder->id)
+        ->assertHasNoErrors()
+        ->assertSet('showRecallModal', false)
+        ->assertSee($previousPatient->name)
+        ->call('openRecall')
+        ->assertSet('recallShift', 'current');
+});
+
 test('recalling an administered order creates a blank draft on the same token', function () {
     [$user, , , , , $patient, $token] = createMedicationQueuePatient(
         withDoctor: false,

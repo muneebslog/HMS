@@ -50,6 +50,11 @@ new #[Title('Medication')] class extends Component
 
     public bool $showRecallModal = false;
 
+    /**
+     * Which shift the recall modal lists: `current` (latest) or `previous` (the one before it).
+     */
+    public string $recallShift = 'current';
+
     public bool $showFulfilledRecallOptions = false;
 
     public ?int $selectedRecallOrderId = null;
@@ -214,14 +219,16 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * Latest submitted medication orders that can be recalled from the recent shifts.
+     * Latest submitted medication orders that can be recalled from the chosen recent shift.
      *
      * @return Collection<int, MedicationOrder>
      */
     #[Computed]
     public function recallableOrders(): Collection
     {
-        if (! $this->showRecallModal || $this->recentShifts->isEmpty()) {
+        $recallShift = $this->recentShifts->get($this->recallShift === 'previous' ? 1 : 0);
+
+        if (! $this->showRecallModal || $recallShift === null) {
             return new Collection;
         }
 
@@ -230,7 +237,7 @@ new #[Title('Medication')] class extends Component
             ->whereHas('queueToken', fn ($query) => $query->whereIn('status', ['waiting', 'serving', 'served']))
             ->whereHas(
                 'queueToken.serviceQueue',
-                fn (Builder $query) => $this->whereInRecentShifts($query)
+                fn (Builder $query) => $query->forShift($recallShift)
             )
             ->latest('id')
             ->get()
@@ -888,7 +895,17 @@ new #[Title('Medication')] class extends Component
     public function openRecall(): void
     {
         $this->closeModals();
+        $this->recallShift = 'current';
         $this->showRecallModal = true;
+        unset($this->recallableOrders);
+    }
+
+    /**
+     * Switch the recall modal between the current and the previous shift.
+     */
+    public function selectRecallShift(string $shift): void
+    {
+        $this->recallShift = $shift === 'previous' ? 'previous' : 'current';
         unset($this->recallableOrders);
     }
 
@@ -3035,6 +3052,26 @@ new #[Title('Medication')] class extends Component
                 <flux:text class="mt-1">{{ __('Select a patient to return the same token to your medication list.') }}</flux:text>
             </div>
 
+            <flux:button.group>
+                <flux:button
+                    type="button"
+                    size="sm"
+                    :variant="$recallShift === 'current' ? 'primary' : 'outline'"
+                    wire:click="selectRecallShift('current')"
+                >
+                    {{ __('Current shift') }}
+                </flux:button>
+                <flux:button
+                    type="button"
+                    size="sm"
+                    :variant="$recallShift === 'previous' ? 'primary' : 'outline'"
+                    wire:click="selectRecallShift('previous')"
+                    :disabled="$this->recentShifts->count() < 2"
+                >
+                    {{ __('Last shift') }}
+                </flux:button>
+            </flux:button.group>
+
             <div class="max-h-[70vh] space-y-3 overflow-y-auto pe-1">
                 @forelse ($this->recallableOrders as $order)
                     <x-paper-slip
@@ -3067,7 +3104,7 @@ new #[Title('Medication')] class extends Component
                 @empty
                     <div class="rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-zinc-600">
                         <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('No medication orders to recall') }}</p>
-                        <p class="mt-1 text-sm text-zinc-500">{{ __('Orders from the current shift will appear here after they are submitted.') }}</p>
+                        <p class="mt-1 text-sm text-zinc-500">{{ $recallShift === 'previous' ? __('No submitted orders from the last shift.') : __('Orders from the current shift will appear here after they are submitted.') }}</p>
                     </div>
                 @endforelse
             </div>
