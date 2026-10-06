@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\TokenResetType;
+use App\Support\MedicationCatalog;
 use Database\Factories\ServiceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,6 +49,15 @@ class Service extends Model
         'appear_on_er' => false,
         'is_active' => true,
     ];
+
+    /**
+     * Clear the cached medication catalog (it lists drip services) whenever a service changes.
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn () => MedicationCatalog::forget());
+        static::deleted(fn () => MedicationCatalog::forget());
+    }
 
     /**
      * Get the attributes that should be cast.

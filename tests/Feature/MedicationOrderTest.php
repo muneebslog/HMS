@@ -20,8 +20,11 @@ use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\Vital;
+use App\Support\MedicationCatalog;
 use Database\Seeders\RolePagePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -130,7 +133,7 @@ test('doctors without the medication page flag cannot visit the medication page'
     $this->actingAs($user)
         ->get(route('doctor.portal'))
         ->assertSuccessful()
-        ->assertDontSee('href="'.route('doctor.medication', absolute: false).'"', false);
+        ->assertDontSee('href="'.route('doctor.medication').'"', false);
 });
 
 test('inactive doctors cannot visit the medication page', function () {
@@ -140,6 +143,15 @@ test('inactive doctors cannot visit the medication page', function () {
     $this->actingAs($user)
         ->get(route('doctor.medication'))
         ->assertForbidden();
+});
+
+test('admins see the medication page in the sidebar and can open it', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)
+        ->get(route('doctor.medication'))
+        ->assertSuccessful()
+        ->assertSee('href="'.route('doctor.medication').'"', false);
 });
 
 test('doctor users without a doctor profile cannot visit the medication page', function () {
@@ -1328,7 +1340,9 @@ test('visual badges toggle catalog medications with their default dose and admin
         ->test('pages::doctor.medication')
         ->call('selectToken', $token->id)
         ->set('orderInputMode', 'visual')
-        ->assertSeeHtml('wire:click="toggleMedicationSelection(\'medicine:'.$medicine->id.'\')"')
+        ->assertSeeHtml('x-on:click="toggle(item.value)"')
+        ->assertSeeHtml('medicine:'.$medicine->id)
+        ->assertSeeHtml('injection:'.$injection->id)
         ->call('toggleMedicationSelection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.selection', 'medicine:'.$medicine->id)
         ->assertSet('medicationLines.0.dose', '1-0-1')
@@ -1355,6 +1369,88 @@ test('visual badges toggle catalog medications with their default dose and admin
         'administration_type' => 'iv',
         'name' => 'Badge Diclofenac',
     ]);
+});
+
+test('setting a badge selection twice keeps one line so merged taps cannot flip it', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $medicine = Medicine::factory()->create();
+    $selection = 'medicine:'.$medicine->id;
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->call('setMedicationSelected', $selection, true)
+        ->call('setMedicationSelected', $selection, true);
+
+    expect(collect($component->get('medicationLines'))->where('selection', $selection))->toHaveCount(1);
+
+    $component->call('setMedicationSelected', $selection, false)
+        ->call('setMedicationSelected', $selection, false);
+
+    expect(collect($component->get('medicationLines'))->where('selection', $selection))->toBeEmpty();
+});
+
+test('visual badges list syrups after other medicines and skip inactive catalog items', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+    $syrup = Medicine::factory()->create(['name' => 'Syp. Amoxil', 'unit' => '.']);
+    $tablet = Medicine::factory()->create(['name' => 'Zinc Tab', 'unit' => '20mg']);
+    Medicine::factory()->create(['name' => 'Retired Tab', 'is_active' => false]);
+
+    $catalog = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id)
+        ->set('orderInputMode', 'visual')
+        ->instance()
+        ->visualCatalog;
+
+    expect(collect($catalog[0]['items'])->pluck('value')->all())->toBe(['medicine:'.$tablet->id, 'medicine:'.$syrup->id])
+        ->and($catalog[0]['items'][0]['label'])->toBe('Zinc Tab (20mg)')
+        ->and($catalog[0]['items'][1]['isSyrup'])->toBeTrue();
+});
+
+test('the medication catalog is cached and refreshed when a catalog item changes', function () {
+    $medicine = Medicine::factory()->create(['name' => 'Cached Paracetamol']);
+
+    expect(MedicationCatalog::medicines()->pluck('name')->all())->toBe(['Cached Paracetamol'])
+        ->and(Cache::has(MedicationCatalog::CacheKey))->toBeTrue();
+
+    DB::enableQueryLog();
+    MedicationCatalog::medicines();
+    MedicationCatalog::injections();
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $sql): bool => str_contains($sql, 'from "medicines"')))->toBeEmpty();
+    DB::disableQueryLog();
+
+    $medicine->update(['name' => 'Renamed Paracetamol']);
+    $injection = Injection::factory()->create(['name' => 'Fresh Diclofenac']);
+    $dripBase = DripBase::factory()->create(['name' => 'Fresh Saline']);
+    $dripService = Service::factory()->create(['name' => 'Fresh Drip', 'is_drip' => true]);
+
+    expect(MedicationCatalog::medicines()->pluck('name')->all())->toBe(['Renamed Paracetamol'])
+        ->and(MedicationCatalog::injections()->pluck('id')->all())->toContain($injection->id)
+        ->and(MedicationCatalog::dripBases()->pluck('id')->all())->toContain($dripBase->id)
+        ->and(MedicationCatalog::dripServices()->pluck('id')->all())->toContain($dripService->id)
+        ->and(MedicationCatalog::medicines()->first()->default_dose)->toBeInstanceOf(MedicineDose::class);
+
+    $medicine->delete();
+
+    expect(MedicationCatalog::medicines())->toBeEmpty();
+});
+
+test('the order form loads the selected patient without re-running the patient list query', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(withDoctor: false);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->call('selectToken', $token->id);
+
+    DB::enableQueryLog();
+    $component->call('addMedicationLine');
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries->filter(fn (string $sql): bool => str_contains($sql, 'medication_dismissed_at')))->toBeEmpty()
+        ->and($component->instance()->selectedToken?->id)->toBe($token->id);
 });
 
 test('doctor can write and select tab or inj medications from the visual badges', function () {

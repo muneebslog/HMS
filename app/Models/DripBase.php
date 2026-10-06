@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasStockBalances;
+use App\Support\MedicationCatalog;
 use Database\Factories\DripBaseFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,6 +35,15 @@ class DripBase extends Model
         'show_on_er' => false,
         'is_active' => true,
     ];
+
+    /**
+     * Clear the cached medication catalog whenever a drip base changes.
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn () => MedicationCatalog::forget());
+        static::deleted(fn () => MedicationCatalog::forget());
+    }
 
     /**
      * Get the attributes that should be cast.

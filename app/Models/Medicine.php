@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Concerns\IdentifiesSyrupMedicine;
 use App\Enums\MedicineDose;
 use App\Models\Concerns\HasStockBalances;
+use App\Support\MedicationCatalog;
 use Database\Factories\MedicineFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,6 +41,15 @@ class Medicine extends Model
         'default_days' => 3,
         'is_active' => true,
     ];
+
+    /**
+     * Clear the cached medication catalog whenever a medicine changes.
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn () => MedicationCatalog::forget());
+        static::deleted(fn () => MedicationCatalog::forget());
+    }
 
     /**
      * Get the attributes that should be cast.

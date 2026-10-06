@@ -85,11 +85,13 @@
                                 {{ __('Doctor Portal') }}
                             </flux:sidebar.item>
                         @endpageAccess
-                        @pageAccess('doctor.medication')
-                            <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
-                                {{ __('Medication') }}
-                            </flux:sidebar.item>
-                        @endpageAccess
+                    @endunless
+                    @pageAccess('doctor.medication')
+                        <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
+                            {{ __('Medication') }}
+                        </flux:sidebar.item>
+                    @endpageAccess
+                    @unless ($user->isAdmin())
                         @pageAccess('doctor.procedures')
                             <flux:sidebar.item icon="clipboard-document-list" :href="route('doctor.procedures')" :current="request()->routeIs('doctor.procedures')" wire:navigate>
                                 {{ __('My Procedures') }}

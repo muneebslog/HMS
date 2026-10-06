@@ -19,6 +19,7 @@ use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
 use App\Services\TokenDisplayService;
+use App\Support\MedicationCatalog;
 use App\Support\PriceShorthand;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
@@ -264,7 +265,7 @@ new #[Title('Medication')] class extends Component
     }
 
     /**
-     * The token currently being ordered for.
+     * The token currently being ordered for, loaded on its own so order-form clicks skip the patient list query.
      */
     #[Computed]
     public function selectedToken(): ?QueueToken
@@ -273,9 +274,8 @@ new #[Title('Medication')] class extends Component
             return null;
         }
 
-        return $this->queue->firstWhere('id', $this->selectedTokenId)
-            ?? QueueToken::with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder.medicines', 'medicationOrder.injections', 'medicationOrder.drips.additives'])
-                ->find($this->selectedTokenId);
+        return QueueToken::with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'vitals.recordedBy', 'medicationOrder'])
+            ->find($this->selectedTokenId);
     }
 
     /**
@@ -435,11 +435,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function dripServices(): Collection
     {
-        return Service::query()
-            ->active()
-            ->where('is_drip', true)
-            ->orderBy('name')
-            ->get();
+        return MedicationCatalog::dripServices();
     }
 
     /**
@@ -450,7 +446,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function medicines(): Collection
     {
-        return Medicine::query()->active()->orderByRaw('lower(name)')->orderBy('name')->get();
+        return MedicationCatalog::medicines();
     }
 
     /**
@@ -461,7 +457,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function injections(): Collection
     {
-        return Injection::query()->active()->orderByRaw('lower(name)')->orderBy('name')->get();
+        return MedicationCatalog::injections();
     }
 
     /**
@@ -472,7 +468,7 @@ new #[Title('Medication')] class extends Component
     #[Computed]
     public function dripBases(): Collection
     {
-        return DripBase::query()->active()->orderBy('name')->get();
+        return MedicationCatalog::dripBases();
     }
 
     /**
@@ -586,6 +582,35 @@ new #[Title('Medication')] class extends Component
         }
 
         return $names;
+    }
+
+    /**
+     * Catalog badges for visual mode, drawn by Alpine so a tap highlights instantly; syrups sort after other medicines.
+     *
+     * @return list<array{label: string, prefix: string, icon: string, idleColor: string, selectedColor: string, items: list<array{value: string, label: string, isSyrup: bool}>}>
+     */
+    #[Computed]
+    public function visualCatalog(): array
+    {
+        $medicines = $this->medicines
+            ->sortBy(fn (Medicine $medicine): array => [$medicine->isSyrup() ? 1 : 0, $medicine->catalogLabel()])
+            ->map(fn (Medicine $medicine): array => [
+                'value' => 'medicine:'.$medicine->id,
+                'label' => $medicine->catalogLabel(),
+                'isSyrup' => $medicine->isSyrup(),
+            ]);
+
+        $injections = $this->injections
+            ->map(fn (Injection $injection): array => [
+                'value' => 'injection:'.$injection->id,
+                'label' => $injection->name,
+                'isSyrup' => false,
+            ]);
+
+        return [
+            ['label' => __('Medicines'), 'prefix' => 'medicine', 'icon' => 'pill', 'idleColor' => 'violet', 'selectedColor' => 'green', 'items' => $medicines->values()->all()],
+            ['label' => __('Injections'), 'prefix' => 'injection', 'icon' => 'syringe', 'idleColor' => 'blue', 'selectedColor' => 'sky', 'items' => $injections->values()->all()],
+        ];
     }
 
     /**
@@ -1251,16 +1276,33 @@ new #[Title('Medication')] class extends Component
      */
     public function toggleMedicationSelection(string $selection): void
     {
+        $isSelected = collect($this->medicationLines)->contains(fn (array $line): bool => ($line['selection'] ?? null) === $selection);
+
+        $this->setMedicationSelected($selection, ! $isSelected);
+    }
+
+    /**
+     * Select or unselect a catalog medicine or injection; repeating the same call changes nothing,
+     * so badge taps that Livewire merges while a request is in flight cannot flip the result.
+     */
+    public function setMedicationSelected(string $selection, bool $selected): void
+    {
         if ($this->medicationSelectionId($selection) === null) {
             return;
         }
 
         foreach ($this->medicationLines as $index => $line) {
             if (($line['selection'] ?? null) === $selection) {
-                $this->removeMedicationLine($index);
+                if (! $selected) {
+                    $this->removeMedicationLine($index);
+                }
 
                 return;
             }
+        }
+
+        if (! $selected) {
+            return;
         }
 
         $index = $this->firstBlankMedicationLineIndex();
@@ -2983,44 +3025,84 @@ new #[Title('Medication')] class extends Component
             <flux:heading size="sm">{{ __('Medications') }}</flux:heading>
 
             @if ($orderInputMode === 'visual')
-                @php($selectedMedications = collect($medicationLines)->pluck('selection')->filter()->all())
+                @php($badgeColors = [
+                    'violet' => 'bg-violet-400/20 text-violet-700 hover:bg-violet-400/30 dark:bg-violet-400/40 dark:text-violet-200 dark:hover:bg-violet-400/50',
+                    'green' => 'bg-green-400/20 text-green-800 hover:bg-green-400/30 dark:bg-green-400/40 dark:text-green-200 dark:hover:bg-green-400/50',
+                    'blue' => 'bg-blue-400/20 text-blue-800 hover:bg-blue-400/30 dark:bg-blue-400/40 dark:text-blue-200 dark:hover:bg-blue-400/50',
+                    'sky' => 'bg-sky-400/20 text-sky-800 hover:bg-sky-400/30 dark:bg-sky-400/40 dark:text-sky-200 dark:hover:bg-sky-400/50',
+                    'amber' => 'bg-amber-400/25 text-amber-700 hover:bg-amber-400/40 dark:bg-amber-400/40 dark:text-amber-200 dark:hover:bg-amber-400/50',
+                ])
                 <div class="space-y-3">
-                    @foreach ([
-                        ['label' => __('Medicines'), 'prefix' => 'medicine', 'items' => $this->medicines, 'idleColor' => 'violet', 'selectedColor' => 'green', 'icon' => 'pill'],
-                        ['label' => __('Injections'), 'prefix' => 'injection', 'items' => $this->injections, 'idleColor' => 'blue', 'selectedColor' => 'sky', 'icon' => 'syringe'],
-                    ] as $group)
-                        <div wire:key="visual-group-{{ $group['prefix'] }}" class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                            <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                <flux:icon :name="$group['icon']" variant="mini" class="size-3.5" />
-                                {{ $group['label'] }}
-                            </p>
-                            <div class="flex flex-wrap gap-2">
-                                @forelse ($group['prefix'] === 'medicine' ? $group['items']->sortBy(fn ($item) => [$item->isSyrup() ? 1 : 0, $item->catalogLabel()])->values() : $group['items'] as $item)
-                                    @php($value = $group['prefix'].':'.$item->id)
-                                    @php($isSelected = in_array($value, $selectedMedications, true))
-                                    @php($isSyrup = $group['prefix'] === 'medicine' && $item->isSyrup())
-                                    <flux:badge
-                                        as="button"
-                                        type="button"
-                                        size="lg"
-                                        :color="$isSelected ? $group['selectedColor'] : ($isSyrup ? 'amber' : $group['idleColor'])"
-                                        :icon="$isSelected ? 'check' : ($isSyrup ? 'beaker' : $group['icon'])"
-                                        class="cursor-pointer"
-                                        wire:key="visual-{{ $group['prefix'] }}-{{ $item->id }}"
-                                        wire:click="toggleMedicationSelection('{{ $value }}')"
-                                    >
-                                        @if ($group['prefix'] === 'medicine')
-                                            {{ $item->catalogLabel() }}
-                                        @else
-                                            {{ $item->name }}
-                                        @endif
-                                    </flux:badge>
-                                @empty
-                                    <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
-                                @endforelse
+                    {{-- Alpine owns the badge highlight so a tap shows instantly; the server catches up in the background. --}}
+                    <div
+                        wire:ignore
+                        wire:key="visual-catalog-{{ md5(json_encode($this->visualCatalog)) }}"
+                        class="space-y-3"
+                        x-data="{
+                            wanted: {},
+                            sending: {},
+                            isSelected(value) {
+                                if (value in this.wanted) {
+                                    return this.wanted[value];
+                                }
+
+                                return Object.values(this.$wire.medicationLines ?? {}).some((line) => line.selection === value);
+                            },
+                            toggle(value) {
+                                this.wanted[value] = ! this.isSelected(value);
+                                this.send(value);
+                            },
+                            send(value) {
+                                if (this.sending[value]) {
+                                    return;
+                                }
+
+                                const selected = this.wanted[value];
+                                this.sending[value] = true;
+
+                                this.$wire.setMedicationSelected(value, selected).catch(() => {}).finally(() => {
+                                    delete this.sending[value];
+
+                                    if (this.wanted[value] !== selected) {
+                                        this.send(value);
+                                    } else {
+                                        delete this.wanted[value];
+                                    }
+                                });
+                            },
+                        }"
+                    >
+                        @foreach ($this->visualCatalog as $group)
+                            <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                <p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                                    <flux:icon :name="$group['icon']" variant="mini" class="size-3.5" />
+                                    {{ $group['label'] }}
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    @if ($group['items'] === [])
+                                        <p class="text-sm text-zinc-500">{{ __('Nothing in this catalog yet.') }}</p>
+                                    @endif
+                                    <template x-for="item in {{ \Illuminate\Support\Js::from($group['items']) }}" :key="item.value">
+                                        <button
+                                            type="button"
+                                            class="inline-flex cursor-pointer items-center whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium [print-color-adjust:exact]"
+                                            :class="isSelected(item.value) ? '{{ $badgeColors[$group['selectedColor']] }}' : (item.isSyrup ? '{{ $badgeColors['amber'] }}' : '{{ $badgeColors[$group['idleColor']] }}')"
+                                            :aria-pressed="isSelected(item.value)"
+                                            :data-medication="item.value"
+                                            x-on:click="toggle(item.value)"
+                                        >
+                                            <flux:icon name="check" variant="micro" class="me-2 size-4 shrink-0" x-show="isSelected(item.value)" />
+                                            @if ($group['prefix'] === 'medicine')
+                                                <flux:icon name="beaker" variant="micro" class="me-2 size-4 shrink-0" x-show="! isSelected(item.value) && item.isSyrup" />
+                                            @endif
+                                            <flux:icon :name="$group['icon']" variant="micro" class="me-2 size-4 shrink-0" x-show="! isSelected(item.value) && ! item.isSyrup" />
+                                            <span x-text="item.label"></span>
+                                        </button>
+                                    </template>
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
 
                     <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                         <div class="flex items-center justify-between gap-2">

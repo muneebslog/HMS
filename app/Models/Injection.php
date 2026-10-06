@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InjectionAdministrationType;
 use App\Models\Concerns\HasStockBalances;
+use App\Support\MedicationCatalog;
 use Database\Factories\InjectionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,6 +36,15 @@ class Injection extends Model
         'default_administration_type' => 'im',
         'is_active' => true,
     ];
+
+    /**
+     * Clear the cached medication catalog whenever an injection changes.
+     */
+    protected static function booted(): void
+    {
+        static::saved(fn () => MedicationCatalog::forget());
+        static::deleted(fn () => MedicationCatalog::forget());
+    }
 
     /**
      * Get the attributes that should be cast.
