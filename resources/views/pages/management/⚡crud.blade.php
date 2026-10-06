@@ -74,6 +74,9 @@ new #[Title('Management')] class extends Component
     public bool $doctorIsGynecologist = false;
 
     #[Validate]
+    public bool $doctorHasMedicationPage = false;
+
+    #[Validate]
     public bool $doctorPayoutDaily = false;
 
     #[Validate]
@@ -290,6 +293,7 @@ new #[Title('Management')] class extends Component
                 'doctorName' => ['required', 'string', 'max:255'],
                 'doctorSpecialization' => ['required', 'string', 'max:255'],
                 'doctorIsGynecologist' => ['boolean'],
+                'doctorHasMedicationPage' => ['boolean'],
                 'doctorPayoutDaily' => ['boolean'],
                 'doctorGetFullSlips' => ['boolean'],
                 'doctorFullSlipsCount' => ['required', 'integer', 'min:0'],
@@ -562,6 +566,7 @@ new #[Title('Management')] class extends Component
         $this->doctorName = $doctor->name;
         $this->doctorSpecialization = $doctor->specialization;
         $this->doctorIsGynecologist = $doctor->is_gynecologist;
+        $this->doctorHasMedicationPage = $doctor->has_medication_page;
         $this->doctorPayoutDaily = $doctor->payout_daily;
         $this->doctorGetFullSlips = $doctor->get_full_slips;
         $this->doctorFullSlipsCount = (string) $doctor->full_slips_count;
@@ -734,6 +739,7 @@ new #[Title('Management')] class extends Component
             'doctorName',
             'doctorSpecialization',
             'doctorIsGynecologist',
+            'doctorHasMedicationPage',
             'doctorPayoutDaily',
             'doctorGetFullSlips',
             'doctorFullSlipsCount',
@@ -934,6 +940,7 @@ new #[Title('Management')] class extends Component
             'name' => $validated['doctorName'],
             'specialization' => $validated['doctorSpecialization'],
             'is_gynecologist' => $validated['doctorIsGynecologist'],
+            'has_medication_page' => $validated['doctorHasMedicationPage'],
             'payout_daily' => $validated['doctorPayoutDaily'],
             'get_full_slips' => $validated['doctorGetFullSlips'],
             'full_slips_count' => $validated['doctorFullSlipsCount'],
@@ -2125,6 +2132,9 @@ new #[Title('Management')] class extends Component
                                         @if ($doctor->is_gynecologist)
                                             <flux:badge size="sm" color="pink" class="ml-1">{{ __('Gynae') }}</flux:badge>
                                         @endif
+                                        @if ($doctor->has_medication_page)
+                                            <flux:badge size="sm" color="teal" class="ml-1">{{ __('Medication') }}</flux:badge>
+                                        @endif
                                     </flux:table.cell>
                                     <flux:table.cell>
                                         @if ($doctor->payout_daily)
@@ -2620,6 +2630,12 @@ new #[Title('Management')] class extends Component
                     <flux:switch wire:model="doctorIsGynecologist" :label="__('Gynecologist')" />
                     <flux:description>{{ __('Gives this doctor access to the gynecology pages.') }}</flux:description>
                     <flux:error name="doctorIsGynecologist" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:switch wire:model="doctorHasMedicationPage" :label="__('Medication page')" />
+                    <flux:description>{{ __('Gives this doctor access to the medication page.') }}</flux:description>
+                    <flux:error name="doctorHasMedicationPage" />
                 </flux:field>
 
                 <flux:field>

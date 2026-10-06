@@ -35,7 +35,23 @@ class PageAccessService
             return false;
         }
 
-        return in_array($resolvedRoute, $this->routeNamesForRole($user->effectiveRole()), true);
+        if (! in_array($resolvedRoute, $this->routeNamesForRole($user->effectiveRole()), true)) {
+            return false;
+        }
+
+        return $this->passesDoctorFlags($user, $resolvedRoute);
+    }
+
+    /**
+     * Doctors only reach the medication page when their doctor profile has it switched on.
+     */
+    private function passesDoctorFlags(User $user, string $routeName): bool
+    {
+        if ($routeName !== 'doctor.medication' || $user->effectiveRole() !== UserRole::Doctor) {
+            return true;
+        }
+
+        return (bool) $user->doctor?->canUseMedicationPage();
     }
 
     /**
@@ -69,7 +85,10 @@ class PageAccessService
             return ['pending-role'];
         }
 
-        return $this->routeNamesForRole($user->effectiveRole());
+        return array_values(array_filter(
+            $this->routeNamesForRole($user->effectiveRole()),
+            fn (string $routeName): bool => $this->passesDoctorFlags($user, $routeName),
+        ));
     }
 
     /**

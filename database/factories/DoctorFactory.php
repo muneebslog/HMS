@@ -22,6 +22,7 @@ class DoctorFactory extends Factory
             'name' => fake()->name(),
             'specialization' => fake()->jobTitle(),
             'is_gynecologist' => false,
+            'has_medication_page' => false,
             'payout_daily' => false,
             'duty_start_time' => null,
             'is_active' => true,
@@ -45,6 +46,16 @@ class DoctorFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_gynecologist' => true,
+        ]);
+    }
+
+    /**
+     * Indicate that the doctor may use the medication page.
+     */
+    public function withMedicationPage(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'has_medication_page' => true,
         ]);
     }
 

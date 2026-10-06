@@ -110,12 +110,60 @@ test('a patient with a recalled order cannot be dismissed', function () {
     expect($token->refresh()->medication_dismissed_at)->toBeNull();
 });
 
-test('doctors can visit the medication page', function () {
+test('doctors with the medication page flag can visit the medication page', function () {
     $user = User::factory()->doctor()->create();
+    Doctor::factory()->withMedicationPage()->forUser($user)->create();
 
     $this->actingAs($user)
         ->get(route('doctor.medication'))
         ->assertSuccessful();
+});
+
+test('doctors without the medication page flag cannot visit the medication page', function () {
+    $user = User::factory()->doctor()->create();
+    Doctor::factory()->forUser($user)->create();
+
+    $this->actingAs($user)
+        ->get(route('doctor.medication'))
+        ->assertForbidden();
+
+    $this->actingAs($user)
+        ->get(route('doctor.portal'))
+        ->assertSuccessful()
+        ->assertDontSee('href="'.route('doctor.medication', absolute: false).'"', false);
+});
+
+test('inactive doctors cannot visit the medication page', function () {
+    $user = User::factory()->doctor()->create();
+    Doctor::factory()->withMedicationPage()->inactive()->forUser($user)->create();
+
+    $this->actingAs($user)
+        ->get(route('doctor.medication'))
+        ->assertForbidden();
+});
+
+test('doctor users without a doctor profile cannot visit the medication page', function () {
+    $user = User::factory()->doctor()->create();
+
+    $this->actingAs($user)
+        ->get(route('doctor.medication'))
+        ->assertForbidden();
+});
+
+test('admins can toggle the medication page flag on a doctor', function () {
+    $admin = User::factory()->admin()->create();
+    $doctor = Doctor::factory()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::management.crud')
+        ->set('activeTab', 'doctors')
+        ->call('edit', $doctor->id)
+        ->assertSet('doctorHasMedicationPage', false)
+        ->set('doctorHasMedicationPage', true)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($doctor->refresh()->has_medication_page)->toBeTrue();
 });
 
 test('receptionists cannot visit the doctor medication page', function () {

@@ -24,6 +24,7 @@ class Doctor extends Model
         'name',
         'specialization',
         'is_gynecologist',
+        'has_medication_page',
         'payout_daily',
         'get_full_slips',
         'full_slips_count',
@@ -40,6 +41,7 @@ class Doctor extends Model
     protected $attributes = [
         'is_active' => true,
         'is_gynecologist' => false,
+        'has_medication_page' => false,
     ];
 
     /**
@@ -51,6 +53,7 @@ class Doctor extends Model
     {
         return [
             'is_gynecologist' => 'boolean',
+            'has_medication_page' => 'boolean',
             'payout_daily' => 'boolean',
             'get_full_slips' => 'boolean',
             'full_slips_count' => 'integer',
@@ -81,6 +84,14 @@ class Doctor extends Model
     public function isGynecologist(): bool
     {
         return $this->is_gynecologist && $this->is_active;
+    }
+
+    /**
+     * Determine whether this doctor may use the medication page.
+     */
+    public function canUseMedicationPage(): bool
+    {
+        return $this->has_medication_page && $this->is_active;
     }
 
     /**
