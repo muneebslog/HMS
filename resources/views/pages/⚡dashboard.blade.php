@@ -27,6 +27,10 @@ new #[Title('Dashboard')] class extends Component
         if (auth()->user()?->isLabTechnician()) {
             $this->redirect(route('lab.dashboard'), navigate: true);
         }
+
+        if (auth()->user()?->isGyneAssistant()) {
+            $this->redirect(route('gyne.intake'), navigate: true);
+        }
     }
 
     /**

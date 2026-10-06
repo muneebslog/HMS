@@ -89,14 +89,16 @@ function createDeliveryOrderContext(bool $withMedicine = true, bool $withInjecti
     return [$order->fresh(['medicines', 'injections', 'drips']), $shift, $patient, $token];
 }
 
-test('medication delivery page is publicly accessible', function () {
+test('medication delivery page opens on a registered station pc', function () {
+    registerStationDevice(['display.er']);
     Shift::factory()->open()->create();
 
     $this->get(route('display.medication'))
         ->assertSuccessful();
 });
 
-test('drip delivery page is publicly accessible', function () {
+test('drip delivery page opens on a registered station pc', function () {
+    registerStationDevice(['display.drips']);
     Shift::factory()->open()->create();
 
     $this->get(route('display.drips'))

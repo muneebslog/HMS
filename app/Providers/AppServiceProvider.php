@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\EnsureStationDevice;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Date;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Reverb\Reverb;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Blade::if('pageAccess', fn (string $route) => auth()->user()?->canAccessRoute($route) ?? false);
+
+        Livewire::addPersistentMiddleware([EnsureStationDevice::class]);
 
         Reverb::registerDevCommands();
     }

@@ -146,6 +146,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Determine whether the user is a gyne OPD assistant.
+     */
+    public function isGyneAssistant(): bool
+    {
+        return $this->effectiveRole() === UserRole::GyneAssistant;
+    }
+
+    /**
      * Determine whether the user is a lab technician.
      */
     public function isLabTechnician(): bool

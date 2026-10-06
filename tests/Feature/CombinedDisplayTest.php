@@ -11,6 +11,8 @@ beforeEach(function () {
 });
 
 test('combined display shows er and drip stations side by side', function () {
+    registerStationDevice(['display.er_drips']);
+
     $this->get(route('display.er_drips'))
         ->assertSuccessful()
         ->assertSee('grid-cols-2', false)

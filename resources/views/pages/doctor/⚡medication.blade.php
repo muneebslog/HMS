@@ -68,6 +68,13 @@ new #[Title('Medication')] class extends Component
     public string $medOrdersSearch = '';
 
     /**
+     * The doctor-driven lane the floating token menu controls, as `serviceId-doctorId`.
+     */
+    public ?string $tokenControlLane = null;
+
+    public string $tokenControlNumber = '';
+
+    /**
      * @var array{
      *     medicines: list<array{name: string, dose: string, comment: string|null}>,
      *     injections: list<array{name: string, administration_type: string, comment: string|null}>,
@@ -118,6 +125,14 @@ new #[Title('Medication')] class extends Component
      * }>
      */
     public array $dripLines = [];
+
+    /**
+     * Initialize the floating token menu with the number currently on the patient display.
+     */
+    public function mount(): void
+    {
+        $this->syncTokenControlNumber();
+    }
 
     /**
      * The latest shift (open, or just closed between shifts) and the one before it.
@@ -282,10 +297,134 @@ new #[Title('Medication')] class extends Component
     public function advancesDisplayToken(): bool
     {
         $queue = $this->selectedToken?->serviceQueue;
+        $display = app(TokenDisplayService::class);
 
         return $queue !== null
-            && $queue->status === 'open'
-            && app(TokenDisplayService::class)->followsDoctorToken($queue);
+            && $display->followsDoctorToken($queue)
+            && $display->laneQueues($queue)->last()?->status === 'open';
+    }
+
+    /**
+     * Doctor-driven queues (one per lane, following shift changes), narrowed to the logged-in doctor's own queues when they have any.
+     *
+     * @return Collection<int, ServiceQueue>
+     */
+    #[Computed]
+    public function tokenControlQueues(): Collection
+    {
+        $queues = app(TokenDisplayService::class)->doctorDrivenQueues();
+
+        $doctorId = auth()->user()?->doctor?->id;
+        $ownQueues = $queues->where('doctor_id', $doctorId)->values();
+
+        return $ownQueues->isNotEmpty() ? $ownQueues : $queues;
+    }
+
+    /**
+     * The queue the floating token menu currently controls.
+     */
+    #[Computed]
+    public function tokenControlQueue(): ?ServiceQueue
+    {
+        return $this->tokenControlQueues->first(fn (ServiceQueue $queue): bool => $this->laneKey($queue) === $this->tokenControlLane)
+            ?? $this->tokenControlQueues->first();
+    }
+
+    /**
+     * The token shown on the patient display for the controlled queue.
+     */
+    #[Computed]
+    public function tokenControlCurrent(): ?QueueToken
+    {
+        if ($this->tokenControlQueue === null) {
+            return null;
+        }
+
+        return app(TokenDisplayService::class)->currentToken($this->tokenControlQueue);
+    }
+
+    /**
+     * Switch the floating token menu to another queue.
+     */
+    public function updatedTokenControlLane(): void
+    {
+        unset($this->tokenControlQueue, $this->tokenControlCurrent);
+        $this->syncTokenControlNumber();
+    }
+
+    /**
+     * Show the next token on the patient display.
+     */
+    public function tokenControlNext(): void
+    {
+        if ($this->tokenControlQueue === null) {
+            return;
+        }
+
+        app(TokenDisplayService::class)->callNext($this->tokenControlQueue);
+
+        $this->refreshTokenControl();
+    }
+
+    /**
+     * Show the previous token on the patient display.
+     */
+    public function tokenControlBack(): void
+    {
+        if ($this->tokenControlQueue === null || $this->tokenControlCurrent === null) {
+            return;
+        }
+
+        app(TokenDisplayService::class)->callPrevious($this->tokenControlQueue);
+
+        $this->refreshTokenControl();
+    }
+
+    /**
+     * Show the typed token number on the patient display.
+     */
+    public function tokenControlJump(): void
+    {
+        $number = filter_var($this->tokenControlNumber, FILTER_VALIDATE_INT);
+
+        if ($this->tokenControlQueue === null || $number === false || $number < 1) {
+            $this->syncTokenControlNumber();
+
+            return;
+        }
+
+        $token = app(TokenDisplayService::class)->callTokenNumber($this->tokenControlQueue, $number);
+
+        if ($token === null) {
+            Flux::toast(variant: 'danger', text: __('Token :number is not available.', ['number' => $number]));
+        }
+
+        $this->refreshTokenControl();
+    }
+
+    /**
+     * Reload the floating token menu and patient list after the displayed token changes.
+     */
+    private function refreshTokenControl(): void
+    {
+        unset($this->tokenControlCurrent, $this->queue);
+        $this->syncTokenControlNumber();
+    }
+
+    /**
+     * Identify a queue's doctor-driven lane across shift changes.
+     */
+    public function laneKey(ServiceQueue $queue): string
+    {
+        return $queue->service_id.'-'.$queue->doctor_id;
+    }
+
+    /**
+     * Copy the displayed token number into the editable field.
+     */
+    private function syncTokenControlNumber(): void
+    {
+        $this->tokenControlNumber = (string) ($this->tokenControlCurrent?->token_number ?? '');
     }
 
     /**
@@ -1719,6 +1858,7 @@ new #[Title('Medication')] class extends Component
 
         if ($advanceQueue) {
             $nextToken = app(TokenDisplayService::class)->callNext($token->serviceQueue);
+            $this->refreshTokenControl();
 
             Flux::toast(variant: 'success', text: __('Medication order saved. Next patient called.'));
 
@@ -2369,7 +2509,7 @@ new #[Title('Medication')] class extends Component
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-4">
+<div @class(['flex h-full w-full flex-1 flex-col gap-4', 'pb-20' => $this->tokenControlQueue])>
     <div class="flex items-center justify-between gap-3">
         <flux:heading level="1">{{ __('Medication') }}</flux:heading>
         @if ($selectedTokenId === null)
@@ -3028,6 +3168,63 @@ new #[Title('Medication')] class extends Component
                 </flux:button>
             </div>
         </form>
+    @endif
+
+    @if ($this->tokenControlQueue)
+        <div
+            class="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-zinc-200 bg-white/95 p-1.5 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
+            data-test="token-control-menu"
+        >
+            @if ($this->tokenControlQueues->count() > 1)
+                <select
+                    wire:model.live="tokenControlLane"
+                    aria-label="{{ __('Queue') }}"
+                    class="max-w-32 truncate rounded-full border-0 bg-zinc-100 py-1.5 ps-3 pe-7 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                >
+                    @foreach ($this->tokenControlQueues as $controlQueue)
+                        <option value="{{ $this->laneKey($controlQueue) }}" wire:key="token-control-lane-{{ $this->laneKey($controlQueue) }}" @selected($controlQueue->is($this->tokenControlQueue))>
+                            {{ $controlQueue->doctor?->name ?? $controlQueue->service?->name }}
+                        </option>
+                    @endforeach
+                </select>
+            @endif
+
+            <flux:tooltip :content="__('Previous token')">
+                <flux:button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon="chevron-left"
+                    class="rounded-full"
+                    aria-label="{{ __('Previous token') }}"
+                    wire:click="tokenControlBack"
+                    :disabled="! $this->tokenControlCurrent"
+                />
+            </flux:tooltip>
+
+            <input
+                type="text"
+                inputmode="numeric"
+                wire:model="tokenControlNumber"
+                wire:keydown.enter.prevent="tokenControlJump"
+                x-on:focus="$el.select()"
+                placeholder="—"
+                aria-label="{{ __('Token on patient display') }}"
+                class="w-16 rounded-full border-0 bg-zinc-100 py-1.5 text-center text-xl font-black tabular-nums text-zinc-900 focus:ring-2 focus:ring-accent dark:bg-zinc-800 dark:text-white"
+            />
+
+            <flux:tooltip :content="__('Next token')">
+                <flux:button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    icon="chevron-right"
+                    class="rounded-full"
+                    aria-label="{{ __('Next token') }}"
+                    wire:click="tokenControlNext"
+                />
+            </flux:tooltip>
+        </div>
     @endif
 
     @if ($selectedTokenId === null)

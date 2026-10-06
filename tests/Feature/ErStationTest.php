@@ -36,7 +36,8 @@ test('authenticated users can create a service with appear on er', function () {
     ]);
 });
 
-test('er station page is publicly accessible', function () {
+test('er station page opens on a registered station pc', function () {
+    registerStationDevice(['display.er']);
     Shift::factory()->open()->create();
 
     $this->get(route('display.er'))

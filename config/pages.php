@@ -34,6 +34,7 @@ return [
 
     'groups' => [
         'Platform',
+        'Gyne',
         'Reception',
         'Management',
         'Administration',
@@ -57,6 +58,9 @@ return [
         'doctor.portal' => ['label' => 'Doctor Portal', 'group' => 'Platform'],
         'doctor.medication' => ['label' => 'Medication', 'group' => 'Platform'],
         'doctor.procedures' => ['label' => 'My Procedures', 'group' => 'Platform'],
+
+        // Gyne
+        'gyne.intake' => ['label' => 'Gyne Intake', 'group' => 'Gyne'],
 
         // Indoor (Platform)
         'indoor.attachments.show' => ['label' => 'Indoor Attachment', 'group' => 'Platform'],
@@ -123,6 +127,7 @@ return [
         'employee-photos.show' => ['label' => 'Employee Photo', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'employee-qualifications.download' => ['label' => 'Employee Qualification Download', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'admin.health-aides' => ['label' => 'Health Aides', 'group' => 'Administration'],
+        'admin.stations' => ['label' => 'Stations', 'group' => 'Administration', 'admin_only' => true],
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],
         'admin.policy-journals.download' => ['label' => 'Policy Journal Download', 'group' => 'Administration', 'parent' => 'admin.policy-journal'],
         'admin.reports' => ['label' => 'Reports to Admin', 'group' => 'Administration'],
@@ -217,6 +222,10 @@ return [
             'lab.cases',
             'lab.outsourced',
             'reception.mr-lookup',
+        ],
+
+        UserRole::GyneAssistant->value => [
+            'gyne.intake',
         ],
 
         UserRole::Admin->value => 'all',

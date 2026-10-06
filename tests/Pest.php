@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Station;
+use App\Services\StationDeviceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +49,19 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Register the test browser as a station PC that may open the given pages.
+ *
+ * @param  list<string>  $pages
+ */
+function registerStationDevice(array $pages = ['display.er_drips']): Station
+{
+    $station = Station::factory()->create(['allowed_pages' => $pages]);
+    $token = app(StationDeviceService::class)->issueToken($station);
+
+    test()->withCookie(StationDeviceService::COOKIE, $token);
+
+    return $station->refresh();
 }

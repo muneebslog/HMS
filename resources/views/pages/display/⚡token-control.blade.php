@@ -48,12 +48,18 @@ new #[Layout('layouts.display')] #[Title('Token Control')] class extends Compone
             return null;
         }
 
-        return ServiceQueue::with([
+        $queue = ServiceQueue::find($this->selectedQueueId);
+
+        if ($queue === null) {
+            return null;
+        }
+
+        return app(TokenDisplayService::class)->activeQueue($queue)->load([
             'service',
             'doctor',
             'tokens.patient',
             'tokens.invoiceItem.invoice.patient',
-        ])->find($this->selectedQueueId);
+        ]);
     }
 
     /**

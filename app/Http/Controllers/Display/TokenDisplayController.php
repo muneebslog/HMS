@@ -135,11 +135,22 @@ class TokenDisplayController extends Controller
             'tokens.invoiceItem.invoice.patient',
         ])->find($queueId);
 
-        if ($queue === null || app(TokenDisplayService::class)->isFileCheckQueue($queue)) {
+        $display = app(TokenDisplayService::class);
+
+        if ($queue === null || $display->isFileCheckQueue($queue)) {
             return null;
         }
 
-        return $queue;
+        if (! $display->followsDoctorToken($queue)) {
+            return $queue;
+        }
+
+        return $display->activeQueue($queue)->load([
+            'service',
+            'doctor',
+            'tokens.patient',
+            'tokens.invoiceItem.invoice.patient',
+        ]);
     }
 
     /**

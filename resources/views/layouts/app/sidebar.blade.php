@@ -22,7 +22,7 @@
                 'admin.finance',
             ];
             $extrasRoutes = [
-                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides',
+                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.stations',
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
                 'admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats',
@@ -98,16 +98,24 @@
                     @endunless
                 </flux:sidebar.group>
 
-                @if ($user->isAdmin() || $user->doctor?->isGynecologist())
+                @php($canOpenGyneOpd = $user->isAdmin() || $user->doctor?->isGynecologist())
+                @if ($canOpenGyneOpd || $pageAccess->canAccess($user, 'gyne.intake'))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                             <span class="size-2 rounded-full bg-rose-500"></span>
                             {{ __('Gyne') }}
                         </div>
 
-                        <flux:sidebar.item icon="heart" :href="route('gyne.opd')" :current="request()->routeIs('gyne.opd')" wire:navigate>
-                            {{ __("Today's OPD") }}
-                        </flux:sidebar.item>
+                        @if ($canOpenGyneOpd)
+                            <flux:sidebar.item icon="heart" :href="route('gyne.opd')" :current="request()->routeIs('gyne.opd')" wire:navigate>
+                                {{ __("Today's OPD") }}
+                            </flux:sidebar.item>
+                        @endif
+                        @pageAccess('gyne.intake')
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('gyne.intake')" :current="request()->routeIs('gyne.intake')" wire:navigate>
+                                {{ __('Gyne Intake') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
                     </flux:sidebar.group>
                 @endif
 

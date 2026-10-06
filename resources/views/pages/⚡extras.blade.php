@@ -19,6 +19,7 @@ new #[Title('Extras')] class extends Component
                     'admin.users',
                     'admin.employees',
                     'admin.health-aides',
+                    'admin.stations',
                     'admin.policy-journal',
                     'admin.notifications',
                     'admin.reports',
@@ -98,6 +99,13 @@ new #[Title('Extras')] class extends Component
             'icon' => 'finger-print',
             'route' => 'admin.health-aides',
             'show' => $pageAccess->canAccess($user, 'admin.health-aides'),
+        ],
+        [
+            'label' => __('Stations'),
+            'description' => __('Register ER and drip PCs and see which are online.'),
+            'icon' => 'computer-desktop',
+            'route' => 'admin.stations',
+            'show' => $user->isAdmin(),
         ],
         [
             'label' => __('Admin Side'),

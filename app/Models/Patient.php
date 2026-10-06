@@ -178,4 +178,14 @@ class Patient extends Model
     {
         return $this->hasMany(UltrasoundReport::class);
     }
+
+    /**
+     * Get the gyne OPD histories taken for this patient, one per visit.
+     *
+     * @return HasMany<GyneHistory, $this>
+     */
+    public function gyneHistories(): HasMany
+    {
+        return $this->hasMany(GyneHistory::class);
+    }
 }

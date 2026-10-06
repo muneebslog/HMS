@@ -102,6 +102,16 @@ class QueueToken extends Model
     }
 
     /**
+     * Get the gyne OPD history taken at this visit.
+     *
+     * @return HasOne<GyneHistory, $this>
+     */
+    public function gyneHistory(): HasOne
+    {
+        return $this->hasOne(GyneHistory::class);
+    }
+
+    /**
      * Get the latest medication order for this token.
      *
      * @return HasOne<MedicationOrder, $this>

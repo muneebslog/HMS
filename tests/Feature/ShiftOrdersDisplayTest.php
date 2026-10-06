@@ -94,6 +94,7 @@ function createShiftOrder(
 }
 
 test('er station links to the shift orders board', function () {
+    registerStationDevice(['display.er']);
     Shift::factory()->open()->create();
 
     $this->get(route('display.er'))

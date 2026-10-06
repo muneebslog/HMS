@@ -109,6 +109,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Indicate that the user is a gyne OPD assistant.
+     */
+    public function gyneAssistant(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::GyneAssistant,
+        ]);
+    }
+
+    /**
      * Indicate that the user is a lab technician.
      */
     public function labTechnician(): static

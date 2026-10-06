@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\Display\StationHomeController;
 use App\Http\Controllers\Display\TokenDisplayController;
 use App\Http\Controllers\DriveFileController;
 use App\Http\Controllers\EmployeeDocumentController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Reception\ProcedureApparentInvoicePrintController;
 use App\Http\Controllers\Reception\ProcedureFileController;
 use App\Http\Controllers\Reception\ProcedurePrintController;
 use App\Http\Controllers\Reception\QueueTvController;
+use App\Http\Middleware\EnsureStationDevice;
 use App\Http\Middleware\RedirectLegacyDisplayDevices;
 use App\Models\Invoice;
 use App\Models\Shift;
@@ -46,17 +48,22 @@ Route::livewire('display/tokens/control', 'pages::display.token-control')
     ->middleware(['auth'])
     ->name('display.tokens.control');
 
-Route::livewire('display/er', 'pages::display.medication-delivery')
-    ->name('display.er');
+Route::middleware(EnsureStationDevice::class)->group(function () {
+    Route::livewire('display/er', 'pages::display.medication-delivery')
+        ->name('display.er');
 
-Route::livewire('display/medication', 'pages::display.medication-delivery')
-    ->name('display.medication');
+    Route::livewire('display/medication', 'pages::display.medication-delivery')
+        ->name('display.medication');
 
-Route::livewire('display/drips', 'pages::display.drip-delivery')
-    ->name('display.drips');
+    Route::livewire('display/drips', 'pages::display.drip-delivery')
+        ->name('display.drips');
 
-Route::view('display/er-drips', 'pages.display.er-drips')
-    ->name('display.er_drips');
+    Route::view('display/er-drips', 'pages.display.er-drips')
+        ->name('display.er_drips');
+});
+
+// Kiosk home page for station PCs: sends a registered PC to its station screen.
+Route::get('station', StationHomeController::class)->name('station.home');
 
 Route::livewire('display/shift-orders', 'pages::display.shift-orders')
     ->name('display.shift_orders');
@@ -120,6 +127,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
+        Route::livewire('admin/stations', 'pages::admin.stations')->name('admin.stations');
         Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
         Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])
             ->name('admin.policy-journals.download');
@@ -137,6 +145,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('doctor/portal', 'pages::doctor.portal')->name('doctor.portal');
         Route::livewire('doctor/medication', 'pages::doctor.medication')->name('doctor.medication');
         Route::livewire('doctor/procedures', 'pages::doctor.procedures')->name('doctor.procedures');
+
+        Route::livewire('gyne/intake', 'pages::gyne.intake')->name('gyne.intake');
 
         Route::get('indoor/attachments/{attachment}', ProcedureAttachmentController::class)->name('indoor.attachments.show');
         Route::get('indoor/procedures/{procedure}/discharge-certificate', ProcedureDischargeCertificateController::class)->name('indoor.procedures.discharge-certificate');

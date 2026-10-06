@@ -703,6 +703,68 @@ test('doctor can save an order and call the next patient when the token follows 
     ]);
 });
 
+test('doctor moves the patient display token with the floating menu', function () {
+    [$user, , , , $queue, , $firstToken] = createMedicationQueuePatient(tokenStatus: 'serving', followsDoctorToken: true);
+    $firstToken->update(['displayed_at' => now()]);
+
+    $secondToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 2,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+    $thirdToken = QueueToken::factory()->create([
+        'service_queue_id' => $queue->id,
+        'token_number' => 3,
+        'status' => 'waiting',
+        'arrived_at' => now(),
+    ]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertSeeHtml('data-test="token-control-menu"')
+        ->assertSet('tokenControlNumber', '1')
+        ->call('tokenControlNext')
+        ->assertSet('tokenControlNumber', '2');
+
+    expect($firstToken->fresh()->status)->toBe('served')
+        ->and($secondToken->fresh()->status)->toBe('serving');
+
+    $component->call('tokenControlBack')
+        ->assertSet('tokenControlNumber', '1');
+
+    expect($secondToken->fresh()->status)->toBe('waiting')
+        ->and($firstToken->fresh()->status)->toBe('serving');
+
+    $component->set('tokenControlNumber', '3')
+        ->call('tokenControlJump')
+        ->assertSet('tokenControlNumber', '3');
+
+    expect($thirdToken->fresh()->status)->toBe('serving')
+        ->and($thirdToken->fresh()->displayed_at)->not->toBeNull();
+});
+
+test('jumping to a missing token keeps the current display token', function () {
+    [$user, , , , , , $token] = createMedicationQueuePatient(tokenStatus: 'serving', followsDoctorToken: true);
+    $token->update(['displayed_at' => now()]);
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->set('tokenControlNumber', '99')
+        ->call('tokenControlJump')
+        ->assertSet('tokenControlNumber', '1');
+
+    expect($token->fresh()->status)->toBe('serving');
+});
+
+test('floating token menu is hidden for queues that do not follow the doctor', function () {
+    [$user] = createMedicationQueuePatient(tokenStatus: 'serving');
+
+    Livewire::actingAs($user)
+        ->test('pages::doctor.medication')
+        ->assertDontSeeHtml('data-test="token-control-menu"');
+});
+
 test('medication services that do not follow the doctor cannot advance the display token', function () {
     [$user, $doctor, , $service, $queue, , $currentToken] = createMedicationQueuePatient(tokenStatus: 'serving');
     $medicine = Medicine::factory()->create();
