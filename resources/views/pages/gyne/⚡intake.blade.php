@@ -127,12 +127,25 @@ new #[Title('Gyne Intake')] class extends Component
                         <span class="block truncate text-xs text-zinc-500">
                             {{ $token->patient?->mrn ?? __('No MRN') }} · {{ $token->serviceQueue?->doctor?->name }}
                         </span>
+                        @if ($token->arrived_at)
+                            <span class="mt-0.5 block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                                {{ __('Arrived :time', ['time' => $token->arrived_at->format('h:i A')]) }}
+                                · {{ $token->arrived_at->diffForHumans(short: true) }}
+                            </span>
+                        @endif
                     </span>
-                    @if ($token->gyneHistory)
-                        <flux:badge size="sm" color="green" icon="check">{{ __('Done') }}</flux:badge>
-                    @else
-                        <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
-                    @endif
+                    <span class="flex shrink-0 flex-col items-end gap-1">
+                        @if ($token->gyneHistory)
+                            <flux:badge size="sm" color="green" icon="check">{{ __('Done') }}</flux:badge>
+                        @else
+                            <flux:badge size="sm" color="amber">{{ __('Pending') }}</flux:badge>
+                        @endif
+                        @if ($token->status === 'serving')
+                            <flux:badge size="sm" color="blue">{{ __('Serving') }}</flux:badge>
+                        @else
+                            <flux:badge size="sm" color="zinc">{{ __('Waiting') }}</flux:badge>
+                        @endif
+                    </span>
                 </button>
             @empty
                 <div class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-600">

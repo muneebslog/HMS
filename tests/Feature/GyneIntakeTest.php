@@ -98,6 +98,22 @@ test('intake lists arrived patients of every gynecologist with their history sta
         ->assertSee('1 / 2');
 });
 
+test('intake shows when each patient arrived and whether she is waiting or serving', function () {
+    $this->travelTo(today()->setTime(18, 3));
+
+    $user = User::factory()->gyneAssistant()->create();
+    $shift = Shift::factory()->open()->create();
+    $gynecologist = Doctor::factory()->gynecologist()->create();
+
+    createGyneIntakeToken($gynecologist, $shift, 'WAITING PATIENT', ['arrived_at' => now()->subMinutes(17)]);
+    createGyneIntakeToken($gynecologist, $shift, 'SERVING PATIENT', ['status' => 'serving', 'arrived_at' => now()->subHours(8)]);
+
+    Livewire::actingAs($user)
+        ->test('pages::gyne.intake')
+        ->assertSeeInOrder(['WAITING PATIENT', 'Arrived 05:46 PM', '17m ago', 'Waiting'])
+        ->assertSeeInOrder(['SERVING PATIENT', 'Arrived 10:03 AM', '8h ago', 'Serving']);
+});
+
 test('the assistant saves a history and moves to the next pending patient', function () {
     $user = User::factory()->gyneAssistant()->create();
     $shift = Shift::factory()->open()->create();
