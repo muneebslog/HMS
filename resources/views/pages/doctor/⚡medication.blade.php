@@ -3172,58 +3172,89 @@ new #[Title('Medication')] class extends Component
 
     @if ($this->tokenControlQueue)
         <div
-            class="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-zinc-200 bg-white/95 p-1.5 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
+            x-data="{ open: $persist(true).as('doctor-token-menu-open') }"
+            class="fixed bottom-6 left-1/2 z-30 -translate-x-1/2"
             data-test="token-control-menu"
         >
-            @if ($this->tokenControlQueues->count() > 1)
-                <select
-                    wire:model.live="tokenControlLane"
-                    aria-label="{{ __('Queue') }}"
-                    class="max-w-32 truncate rounded-full border-0 bg-zinc-100 py-1.5 ps-3 pe-7 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                >
-                    @foreach ($this->tokenControlQueues as $controlQueue)
-                        <option value="{{ $this->laneKey($controlQueue) }}" wire:key="token-control-lane-{{ $this->laneKey($controlQueue) }}" @selected($controlQueue->is($this->tokenControlQueue))>
-                            {{ $controlQueue->doctor?->name ?? $controlQueue->service?->name }}
-                        </option>
-                    @endforeach
-                </select>
-            @endif
+            <button
+                type="button"
+                x-show="! open"
+                x-cloak
+                x-on:click="open = true"
+                aria-label="{{ __('Show token controls') }}"
+                title="{{ __('Show token controls') }}"
+                class="flex h-10 min-w-10 cursor-pointer items-center justify-center gap-1 rounded-full border border-zinc-200 bg-white/95 px-3 text-sm font-black tabular-nums text-zinc-900 shadow-xl backdrop-blur transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-white dark:hover:bg-zinc-800"
+            >
+                <flux:icon.chevron-up variant="micro" class="text-zinc-400" />
+                <span>{{ $this->tokenControlCurrent?->token_number ?? '—' }}</span>
+            </button>
 
-            <flux:tooltip :content="__('Previous token')">
-                <flux:button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    icon="chevron-left"
-                    class="rounded-full"
-                    aria-label="{{ __('Previous token') }}"
-                    wire:click="tokenControlBack"
-                    :disabled="! $this->tokenControlCurrent"
+            <div
+                x-show="open"
+                class="flex items-center gap-1 rounded-full border border-zinc-200 bg-white/95 p-1.5 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95"
+            >
+                @if ($this->tokenControlQueues->count() > 1)
+                    <select
+                        wire:model.live="tokenControlLane"
+                        aria-label="{{ __('Queue') }}"
+                        class="max-w-32 truncate rounded-full border-0 bg-zinc-100 py-1.5 ps-3 pe-7 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                    >
+                        @foreach ($this->tokenControlQueues as $controlQueue)
+                            <option value="{{ $this->laneKey($controlQueue) }}" wire:key="token-control-lane-{{ $this->laneKey($controlQueue) }}" @selected($controlQueue->is($this->tokenControlQueue))>
+                                {{ $controlQueue->doctor?->name ?? $controlQueue->service?->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                @endif
+
+                <flux:tooltip :content="__('Previous token')">
+                    <flux:button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        icon="chevron-left"
+                        class="rounded-full"
+                        aria-label="{{ __('Previous token') }}"
+                        wire:click="tokenControlBack"
+                        :disabled="! $this->tokenControlCurrent"
+                    />
+                </flux:tooltip>
+
+                <input
+                    type="text"
+                    inputmode="numeric"
+                    wire:model="tokenControlNumber"
+                    wire:keydown.enter.prevent="tokenControlJump"
+                    x-on:focus="$el.select()"
+                    placeholder="—"
+                    aria-label="{{ __('Token on patient display') }}"
+                    class="w-16 rounded-full border-0 bg-zinc-100 py-1.5 text-center text-xl font-black tabular-nums text-zinc-900 focus:ring-2 focus:ring-accent dark:bg-zinc-800 dark:text-white"
                 />
-            </flux:tooltip>
 
-            <input
-                type="text"
-                inputmode="numeric"
-                wire:model="tokenControlNumber"
-                wire:keydown.enter.prevent="tokenControlJump"
-                x-on:focus="$el.select()"
-                placeholder="—"
-                aria-label="{{ __('Token on patient display') }}"
-                class="w-16 rounded-full border-0 bg-zinc-100 py-1.5 text-center text-xl font-black tabular-nums text-zinc-900 focus:ring-2 focus:ring-accent dark:bg-zinc-800 dark:text-white"
-            />
+                <flux:tooltip :content="__('Next token')">
+                    <flux:button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        icon="chevron-right"
+                        class="rounded-full"
+                        aria-label="{{ __('Next token') }}"
+                        wire:click="tokenControlNext"
+                    />
+                </flux:tooltip>
 
-            <flux:tooltip :content="__('Next token')">
-                <flux:button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    icon="chevron-right"
-                    class="rounded-full"
-                    aria-label="{{ __('Next token') }}"
-                    wire:click="tokenControlNext"
-                />
-            </flux:tooltip>
+                <flux:tooltip :content="__('Hide token controls')">
+                    <flux:button
+                        type="button"
+                        variant="subtle"
+                        size="xs"
+                        icon="chevron-down"
+                        class="rounded-full"
+                        aria-label="{{ __('Hide token controls') }}"
+                        x-on:click="open = false"
+                    />
+                </flux:tooltip>
+            </div>
         </div>
     @endif
 

@@ -723,6 +723,8 @@ test('doctor moves the patient display token with the floating menu', function (
     $component = Livewire::actingAs($user)
         ->test('pages::doctor.medication')
         ->assertSeeHtml('data-test="token-control-menu"')
+        ->assertSeeHtml('x-on:click="open = false"')
+        ->assertSeeHtml('x-on:click="open = true"')
         ->assertSet('tokenControlNumber', '1')
         ->call('tokenControlNext')
         ->assertSet('tokenControlNumber', '2');
