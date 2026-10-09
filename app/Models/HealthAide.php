@@ -6,6 +6,7 @@ use Database\Factories\HealthAideFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Hash;
 
 class HealthAide extends Model
@@ -104,5 +105,15 @@ class HealthAide extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Biometric device enrollments linked to this health aide.
+     *
+     * @return HasMany<AttendanceDeviceUser, $this>
+     */
+    public function attendanceDeviceUsers(): HasMany
+    {
+        return $this->hasMany(AttendanceDeviceUser::class);
     }
 }

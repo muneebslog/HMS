@@ -13,6 +13,7 @@ enum UserRole: string
     case LabTechnician = 'lab_technician';
     case Ceo = 'ceo';
     case GyneAssistant = 'gyne_assistant';
+    case GyneHead = 'gyne_head';
     case User = 'user';
 
     /**
@@ -30,6 +31,7 @@ enum UserRole: string
             self::LabTechnician => __('Lab Technician'),
             self::Ceo => __('CEO'),
             self::GyneAssistant => __('Gyne Assistant'),
+            self::GyneHead => __('Gyne Head'),
             self::User => __('User'),
         };
     }

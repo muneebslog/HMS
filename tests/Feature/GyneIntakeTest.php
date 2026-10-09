@@ -73,6 +73,16 @@ test('a gyne assistant cannot open the doctor opd page', function () {
     $this->actingAs($user)->get(route('gyne.opd'))->assertForbidden();
 });
 
+test('the gyne head role has a label and can open the intake and ultrasound pages', function () {
+    $user = User::factory()->gyneHead()->create();
+
+    expect(UserRole::GyneHead->label())->toBe('Gyne Head')
+        ->and($user->isGyneHead())->toBeTrue();
+
+    $this->actingAs($user)->get(route('gyne.intake'))->assertOk();
+    $this->actingAs($user)->get(route('gyne.ultrasound'))->assertOk();
+});
+
 test('receptionists cannot open the intake page by default', function () {
     $user = User::factory()->receptionist()->create();
 

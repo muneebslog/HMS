@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Http\Middleware\EnsureStationDevice;
+use App\Services\Zkteco\AttendanceDeviceReader;
+use App\Services\Zkteco\ZktecoDeviceReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Date;
@@ -19,7 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(AttendanceDeviceReader::class, ZktecoDeviceReader::class);
     }
 
     /**

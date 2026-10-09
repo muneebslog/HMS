@@ -27,6 +27,7 @@ class RoleActingService
             UserRole::LabTechnician,
             UserRole::Ceo,
             UserRole::GyneAssistant,
+            UserRole::GyneHead,
         ];
     }
 

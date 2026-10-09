@@ -2,9 +2,11 @@
 
 use App\Enums\GyneOperation;
 use App\Enums\GyneProblem;
+use App\Enums\PlacentaPosition;
 use App\Enums\TokenResetType;
 use App\Models\Doctor;
 use App\Models\GyneHistory;
+use App\Models\GyneUltrasound;
 use App\Models\Patient;
 use App\Models\QueueToken;
 use App\Models\Service;
@@ -195,4 +197,52 @@ test('a patient without a history shows as not taken', function () {
     Livewire::actingAs($user)
         ->test('pages::gyne.opd')
         ->assertSee('History not taken yet');
+});
+
+test('the doctor sees the ultrasound summary on the card and in the modal', function () {
+    $user = User::factory()->doctor()->create();
+    $gynecologist = Doctor::factory()->gynecologist()->forUser($user)->create();
+    $token = createGyneOpdToken($gynecologist, Shift::factory()->open()->create(), 'SCANNED PATIENT');
+    GyneUltrasound::factory()->create([
+        'queue_token_id' => $token->id,
+        'patient_id' => $token->patient_id,
+        'fetus_count' => 2,
+        'ga_weeks' => 22,
+        'ga_days' => 3,
+        'fetal_heart_rate' => 172,
+        'placenta' => PlacentaPosition::Previa,
+        'impression' => 'Twin pregnancy, keep under watch',
+    ]);
+
+    Livewire::actingAs($user)
+        ->test('pages::gyne.opd')
+        ->assertSee('Twins')
+        ->assertSee('22+3 wks')
+        ->assertSee('FHR 172')
+        ->assertSee('Placenta Previa')
+        ->call('openHistory', $token->id)
+        ->assertSee("Today's ultrasound")
+        ->assertSee('172 bpm')
+        ->assertSee('Twin pregnancy, keep under watch');
+});
+
+test('the doctor can add and correct the ultrasound report', function () {
+    $user = User::factory()->doctor()->create();
+    $gynecologist = Doctor::factory()->gynecologist()->forUser($user)->create();
+    $token = createGyneOpdToken($gynecologist, Shift::factory()->open()->create(), 'EDIT SCAN PATIENT');
+    $ultrasound = GyneUltrasound::factory()->create(['queue_token_id' => $token->id, 'patient_id' => $token->patient_id, 'fetal_heart_rate' => 140]);
+
+    Livewire::actingAs($user)
+        ->test('pages::gyne.opd')
+        ->call('openHistory', $token->id)
+        ->call('editUltrasound')
+        ->assertSet('isEditingUltrasound', true)
+        ->assertSet('fetalHeartRate', 140)
+        ->set('fetalHeartRate', 150)
+        ->call('saveUltrasound')
+        ->assertHasNoErrors()
+        ->assertSet('isEditingUltrasound', false);
+
+    expect($ultrasound->refresh()->fetal_heart_rate)->toBe(150)
+        ->and($ultrasound->updated_by)->toBe($user->id);
 });

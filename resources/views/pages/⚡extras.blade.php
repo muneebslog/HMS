@@ -101,6 +101,13 @@ new #[Title('Extras')] class extends Component
             'show' => $pageAccess->canAccess($user, 'admin.health-aides'),
         ],
         [
+            'label' => __('Attendance'),
+            'description' => __('Import staff and punches from the attendance machine.'),
+            'icon' => 'clock',
+            'route' => 'admin.attendance',
+            'show' => $user->isAdmin(),
+        ],
+        [
             'label' => __('Stations'),
             'description' => __('Register ER and drip PCs and see which are online.'),
             'icon' => 'computer-desktop',

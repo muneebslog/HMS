@@ -22,7 +22,7 @@
                 'admin.finance',
             ];
             $extrasRoutes = [
-                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.stations',
+                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.attendance', 'admin.stations',
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
                 'admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats',
@@ -90,6 +90,7 @@
                         <flux:sidebar.item icon="beaker" :href="route('doctor.medication')" :current="request()->routeIs('doctor.medication')" wire:navigate>
                             {{ __('Medication') }}
                         </flux:sidebar.item>
+                        <livewire:er-station-status />
                     @endpageAccess
                     @unless ($user->isAdmin())
                         @pageAccess('doctor.procedures')
@@ -101,7 +102,7 @@
                 </flux:sidebar.group>
 
                 @php($canOpenGyneOpd = $user->isAdmin() || $user->doctor?->isGynecologist())
-                @if ($canOpenGyneOpd || $pageAccess->canAccess($user, 'gyne.intake'))
+                @if ($canOpenGyneOpd || $pageAccess->canAccessAny($user, ['gyne.intake', 'gyne.ultrasound']))
                     <flux:sidebar.group class="grid">
                         <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                             <span class="size-2 rounded-full bg-rose-500"></span>
@@ -116,6 +117,11 @@
                         @pageAccess('gyne.intake')
                             <flux:sidebar.item icon="clipboard-document-check" :href="route('gyne.intake')" :current="request()->routeIs('gyne.intake')" wire:navigate>
                                 {{ __('Gyne Intake') }}
+                            </flux:sidebar.item>
+                        @endpageAccess
+                        @pageAccess('gyne.ultrasound')
+                            <flux:sidebar.item icon="signal" :href="route('gyne.ultrasound')" :current="request()->routeIs('gyne.ultrasound')" wire:navigate>
+                                {{ __('Gyne Ultrasound') }}
                             </flux:sidebar.item>
                         @endpageAccess
                     </flux:sidebar.group>

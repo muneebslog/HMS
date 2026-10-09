@@ -112,6 +112,16 @@ class QueueToken extends Model
     }
 
     /**
+     * Get the gyne ultrasound report entered at this visit.
+     *
+     * @return HasOne<GyneUltrasound, $this>
+     */
+    public function gyneUltrasound(): HasOne
+    {
+        return $this->hasOne(GyneUltrasound::class);
+    }
+
+    /**
      * Get the latest medication order for this token.
      *
      * @return HasOne<MedicationOrder, $this>

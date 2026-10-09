@@ -67,7 +67,7 @@ trait InteractsWithGyneHistory
         }
 
         return QueueToken::query()
-            ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'gyneHistory'])
+            ->with(['patient.family', 'serviceQueue.service', 'serviceQueue.doctor', 'vital', 'gyneHistory', 'gyneUltrasound.recordedBy'])
             ->whereNotNull('arrived_at')
             ->whereIn('status', ['waiting', 'serving'])
             ->whereHas('serviceQueue', function (Builder $queueQuery) use ($shift, $doctorId): void {

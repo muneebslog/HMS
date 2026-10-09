@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\InteractsWithGyneHistory;
+use App\Livewire\Concerns\InteractsWithGyneUltrasound;
 use App\Models\GyneHistory;
 use App\Models\QueueToken;
 use Flux\Flux;
@@ -12,12 +13,15 @@ use Livewire\Component;
 new #[Title("Today's OPD")] class extends Component
 {
     use InteractsWithGyneHistory;
+    use InteractsWithGyneUltrasound;
 
     public ?int $selectedTokenId = null;
 
     public bool $showHistoryModal = false;
 
     public bool $isEditingHistory = false;
+
+    public bool $isEditingUltrasound = false;
 
     /**
      * Arrived patients (waiting or serving) in gynecologist queues for the latest shift.
@@ -62,7 +66,7 @@ new #[Title("Today's OPD")] class extends Component
         }
 
         return GyneHistory::query()
-            ->with('queueToken')
+            ->with('queueToken.gyneUltrasound')
             ->where('patient_id', $token->patient_id)
             ->where('queue_token_id', '!=', $token->id)
             ->latest('id')
@@ -83,6 +87,7 @@ new #[Title("Today's OPD")] class extends Component
 
         $this->selectedTokenId = $tokenId;
         $this->isEditingHistory = false;
+        $this->isEditingUltrasound = false;
         $this->showHistoryModal = true;
         unset($this->selectedToken, $this->previousHistories);
     }
@@ -98,6 +103,7 @@ new #[Title("Today's OPD")] class extends Component
             return;
         }
 
+        $this->cancelEditUltrasound();
         $this->fillGyneHistoryForm($token);
         $this->isEditingHistory = true;
     }
@@ -133,14 +139,62 @@ new #[Title("Today's OPD")] class extends Component
     }
 
     /**
+     * Switch this visit's ultrasound report into edit mode, prefilled.
+     */
+    public function editUltrasound(): void
+    {
+        $token = $this->selectedToken;
+
+        if ($token === null) {
+            return;
+        }
+
+        $this->cancelEditHistory();
+        $this->fillGyneUltrasoundForm($token);
+        $this->isEditingUltrasound = true;
+    }
+
+    /**
+     * Leave ultrasound edit mode without saving.
+     */
+    public function cancelEditUltrasound(): void
+    {
+        $this->isEditingUltrasound = false;
+        $this->resetGyneUltrasoundForm();
+    }
+
+    /**
+     * Save the doctor's changes to this visit's ultrasound report.
+     */
+    public function saveUltrasound(): void
+    {
+        $token = $this->selectedToken;
+
+        if ($token === null) {
+            $this->closeHistory();
+
+            return;
+        }
+
+        $this->saveGyneUltrasound($token);
+
+        $this->isEditingUltrasound = false;
+        unset($this->patients, $this->selectedToken);
+
+        Flux::toast(variant: 'success', text: __('Ultrasound saved.'));
+    }
+
+    /**
      * Close the history modal.
      */
     public function closeHistory(): void
     {
         $this->showHistoryModal = false;
         $this->isEditingHistory = false;
+        $this->isEditingUltrasound = false;
         $this->selectedTokenId = null;
         $this->resetGyneHistoryForm();
+        $this->resetGyneUltrasoundForm();
     }
 }; ?>
 
@@ -203,6 +257,9 @@ new #[Title("Today's OPD")] class extends Component
                     @else
                         <p class="text-xs italic text-zinc-500">{{ __('History not taken yet') }}</p>
                     @endif
+                    @if ($token->gyneUltrasound)
+                        <x-gyne-ultrasound-summary :ultrasound="$token->gyneUltrasound" compact class="mt-2" />
+                    @endif
                 </div>
 
                 <div class="mt-auto flex items-center justify-between gap-2 pt-2">
@@ -256,6 +313,18 @@ new #[Title("Today's OPD")] class extends Component
                             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
                         </div>
                     </form>
+                @elseif ($isEditingUltrasound)
+                    <form wire:submit="saveUltrasound" class="flex flex-col gap-4">
+                        <flux:heading>{{ __("Today's ultrasound") }}</flux:heading>
+                        <x-gyne-ultrasound-fields
+                            :edd-preview="$this->ultrasoundEddPreview()"
+                            :lmp-gestation="$token->gyneHistory?->gestationalAgeLabel()"
+                        />
+                        <div class="flex justify-end gap-2">
+                            <flux:button variant="ghost" wire:click="cancelEditUltrasound">{{ __('Cancel') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+                        </div>
+                    </form>
                 @else
                     <div class="flex flex-col gap-3">
                         <div class="flex items-center justify-between gap-2">
@@ -277,6 +346,26 @@ new #[Title("Today's OPD")] class extends Component
                         @endif
                     </div>
 
+                    <div class="flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <div class="flex items-center justify-between gap-2">
+                            <flux:heading>{{ __("Today's ultrasound") }}</flux:heading>
+                            <flux:button size="sm" icon="pencil-square" wire:click="editUltrasound">
+                                {{ $token->gyneUltrasound ? __('Edit') : __('Add') }}
+                            </flux:button>
+                        </div>
+                        @if ($token->gyneUltrasound)
+                            <x-gyne-ultrasound-summary :ultrasound="$token->gyneUltrasound" />
+                            <flux:text class="text-xs">
+                                {{ __('Entered by :name at :time', [
+                                    'name' => $token->gyneUltrasound->recordedBy?->name ?? __('unknown'),
+                                    'time' => $token->gyneUltrasound->created_at->format('h:i A'),
+                                ]) }}
+                            </flux:text>
+                        @else
+                            <flux:text>{{ __('No ultrasound report has been entered for this visit.') }}</flux:text>
+                        @endif
+                    </div>
+
                     @if ($this->previousHistories->isNotEmpty())
                         <div class="flex flex-col gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                             <flux:heading>{{ __('Previous visits') }}</flux:heading>
@@ -286,6 +375,9 @@ new #[Title("Today's OPD")] class extends Component
                                         {{ ($previous->queueToken?->arrived_at ?? $previous->created_at)->format('d M Y') }}
                                     </p>
                                     <x-gyne-history-summary :history="$previous" />
+                                    @if ($previous->queueToken?->gyneUltrasound)
+                                        <x-gyne-ultrasound-summary :ultrasound="$previous->queueToken->gyneUltrasound" class="mt-3 border-t border-zinc-200 pt-2 dark:border-zinc-700" />
+                                    @endif
                                 </div>
                             @endforeach
                         </div>

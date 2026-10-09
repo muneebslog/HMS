@@ -127,6 +127,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
+        Route::livewire('admin/attendance', 'pages::admin.attendance')->name('admin.attendance');
         Route::livewire('admin/stations', 'pages::admin.stations')->name('admin.stations');
         Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
         Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])
@@ -147,6 +148,7 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('doctor/procedures', 'pages::doctor.procedures')->name('doctor.procedures');
 
         Route::livewire('gyne/intake', 'pages::gyne.intake')->name('gyne.intake');
+        Route::livewire('gyne/ultrasound', 'pages::gyne.ultrasound')->name('gyne.ultrasound');
 
         Route::get('indoor/attachments/{attachment}', ProcedureAttachmentController::class)->name('indoor.attachments.show');
         Route::get('indoor/procedures/{procedure}/discharge-certificate', ProcedureDischargeCertificateController::class)->name('indoor.procedures.discharge-certificate');

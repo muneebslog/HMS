@@ -61,6 +61,7 @@ return [
 
         // Gyne
         'gyne.intake' => ['label' => 'Gyne Intake', 'group' => 'Gyne'],
+        'gyne.ultrasound' => ['label' => 'Gyne Ultrasound', 'group' => 'Gyne'],
 
         // Indoor (Platform)
         'indoor.attachments.show' => ['label' => 'Indoor Attachment', 'group' => 'Platform'],
@@ -127,6 +128,7 @@ return [
         'employee-photos.show' => ['label' => 'Employee Photo', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'employee-qualifications.download' => ['label' => 'Employee Qualification Download', 'group' => 'Administration', 'parent' => 'admin.employees'],
         'admin.health-aides' => ['label' => 'Health Aides', 'group' => 'Administration'],
+        'admin.attendance' => ['label' => 'Attendance', 'group' => 'Administration', 'admin_only' => true],
         'admin.stations' => ['label' => 'Stations', 'group' => 'Administration', 'admin_only' => true],
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],
         'admin.policy-journals.download' => ['label' => 'Policy Journal Download', 'group' => 'Administration', 'parent' => 'admin.policy-journal'],
@@ -226,6 +228,12 @@ return [
 
         UserRole::GyneAssistant->value => [
             'gyne.intake',
+            'gyne.ultrasound',
+        ],
+
+        UserRole::GyneHead->value => [
+            'gyne.intake',
+            'gyne.ultrasound',
         ],
 
         UserRole::Admin->value => 'all',
