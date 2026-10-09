@@ -23,8 +23,8 @@ return new class extends Migration
             $table->timestamp('last_seen_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['attendance_device_id', 'device_user_id']);
-            $table->unique(['attendance_device_id', 'health_aide_id']);
+            $table->unique(['attendance_device_id', 'device_user_id'], 'attendance_device_users_device_user_unique');
+            $table->unique(['attendance_device_id', 'health_aide_id'], 'attendance_device_users_device_aide_unique');
         });
     }
 
