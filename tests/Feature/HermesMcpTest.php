@@ -4,6 +4,7 @@ use App\Enums\OutgoingSampleStatus;
 use App\Mcp\Servers\HermesServer;
 use App\Mcp\Tools\DailyDigestTool;
 use App\Mcp\Tools\LabStatusTool;
+use App\Mcp\Tools\NeedsAttentionTool;
 use App\Mcp\Tools\PrescriptionsTool;
 use App\Mcp\Tools\ProceduresTool;
 use App\Mcp\Tools\ShiftSummaryTool;
@@ -19,6 +20,7 @@ use App\Models\QueueToken;
 use App\Models\Service;
 use App\Models\ServiceQueue;
 use App\Models\Shift;
+use App\Models\ShiftSettlement;
 use App\Services\Hermes\ReportPeriod;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -113,6 +115,15 @@ test('the endpoint requires the hermes token', function (?string $token) {
     'wrong' => ['not-the-token'],
 ]);
 
+test('each assistant can use its own token', function (string $token) {
+    config(['services.hermes_mcp.token' => 'muneeb-token, brother-token']);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '172.17.0.3'])
+        ->withToken($token)
+        ->postJson('/mcp/hermes', hermesInitializePayload(), ['Accept' => 'application/json, text/event-stream'])
+        ->assertOk();
+})->with(['muneeb-token', 'brother-token']);
+
 test('the endpoint is closed when no token is configured', function () {
     config(['services.hermes_mcp.token' => null]);
 
@@ -138,7 +149,7 @@ test('hermes can initialize and list the read-only tools', function () {
         ->json('result.tools');
 
     expect(collect($tools)->pluck('name')->sort()->values()->all())
-        ->toBe(['daily_digest', 'general_checkup_prescriptions', 'lab_status', 'procedures', 'shift_summary'])
+        ->toBe(['daily_digest', 'general_checkup_prescriptions', 'lab_status', 'needs_attention', 'procedures', 'shift_summary'])
         ->and(collect($tools)->every(fn (array $tool) => $tool['annotations']['readOnlyHint'] ?? false))->toBeTrue();
 });
 
@@ -289,4 +300,46 @@ test('the daily digest combines every report', function () {
                 ->has('shifts', 3)
                 ->etc();
         });
+});
+
+test('needs attention lists what to follow up on and who to ask', function () {
+    $shifts = hermesBusinessDayShifts();
+    $shifts['morning']->user->update(['name' => 'Zobia']);
+    ShiftSettlement::factory()->create(['shift_id' => $shifts['morning']->id, 'difference' => -2500]);
+
+    hermesPrescribe(hermesCheckupToken($shifts['morning'], '2026-10-15 09:00'), '2026-10-15 09:05');
+    hermesCheckupToken($shifts['morning'], '2026-10-15 09:30');
+
+    $patient = Patient::factory()->create(['name' => 'Secret Patient Name', 'mrn' => 'MR-9001']);
+    $case = LabInvoice::factory()->paid()->create(['patient_id' => $patient->id]);
+    LabInvoiceItem::factory()->create(['lab_invoice_id' => $case->id, 'test_name' => 'CBC', 'is_in_house' => true, 'outgoing_status' => null, 'created_at' => now()->subHours(3)]);
+    LabInvoiceItem::factory()->create(['lab_invoice_id' => $case->id, 'test_name' => 'Fresh CBC', 'is_in_house' => true, 'outgoing_status' => null, 'created_at' => now()->subMinutes(10)]);
+
+    Procedure::factory()->admitted()->create(['patient_id' => $patient->id, 'admitted_at' => now()->subDays(10), 'file_printed_at' => now()->subDays(10)]);
+    Procedure::factory()->discharged()->create(['full_amount' => 40000, 'discharged_at' => now()->subDays(2)]);
+
+    $response = HermesServer::tool(NeedsAttentionTool::class, ['date' => '2026-10-15'])
+        ->assertOk()
+        ->assertSee(['MR-9001', 'Zobia', 'Rs 2,500 short', 'Rs 40,000 due', '1 of 2 without prescription'])
+        ->assertDontSee(['Secret Patient Name', 'Fresh CBC']);
+
+    $response->assertStructuredContent(function ($json) {
+        $json->where('issues', function ($issues) {
+            $byIssue = collect($issues)->keyBy('issue');
+
+            return $byIssue['Samples billed but not taken / not in lab (over 60 min)']['count'] === 1
+                && $byIssue['Samples billed but not taken / not in lab (over 60 min)']['ask'] === 'Lab / health aide on duty'
+                && $byIssue['General checkup patients without a prescription in the HMS']['count'] === 1
+                && $byIssue['On the ward for more than 4 days (discharge them in the HMS if they have left)']['count'] === 1
+                && $byIssue['Discharged with payment still due (last 30 days)']['count'] === 1
+                && $byIssue['Shift cash short at settlement']['ask'] === 'Receptionist of that shift';
+        })->where('message', fn (string $message) => str_contains($message, '*HMS daily check* — Business day 2026-10-15'))
+            ->etc();
+    });
+});
+
+test('needs attention says so when nothing is wrong', function () {
+    HermesServer::tool(NeedsAttentionTool::class, ['date' => '2026-10-10'])
+        ->assertOk()
+        ->assertSee('Nothing needs your attention.');
 });
