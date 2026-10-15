@@ -43,6 +43,11 @@ return [
         'token' => env('PDF_PRINT_AGENT_TOKEN'),
     ],
 
+    'hermes_mcp' => [
+        'token' => env('HERMES_MCP_TOKEN'),
+        'allowed_ips' => env('HERMES_MCP_ALLOWED_IPS', '172.16.0.0/12'),
+    ],
+
     'veevo_sms' => [
         'enabled' => env('VEEVO_SMS_ENABLED', false),
         'hash' => env('VEEVO_SMS_HASH'),
