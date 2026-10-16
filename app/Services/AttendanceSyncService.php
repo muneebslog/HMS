@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\AttendanceDevice;
 use App\Models\AttendanceDeviceUser;
 use App\Models\AttendancePunch;
-use App\Models\HealthAide;
+use App\Models\Employee;
 use App\Services\Zkteco\AttendanceDeviceReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -55,24 +55,24 @@ class AttendanceSyncService
     }
 
     /**
-     * Link a device user to a health aide, replacing any previous link on that device.
+     * Link a device user to a staff profile, replacing any previous link on that device.
      */
-    public function link(AttendanceDeviceUser $deviceUser, HealthAide $healthAide): void
+    public function link(AttendanceDeviceUser $deviceUser, Employee $employee): void
     {
-        DB::transaction(function () use ($deviceUser, $healthAide): void {
+        DB::transaction(function () use ($deviceUser, $employee): void {
             AttendanceDeviceUser::query()
                 ->where('attendance_device_id', $deviceUser->attendance_device_id)
-                ->where('health_aide_id', $healthAide->id)
+                ->where('employee_id', $employee->id)
                 ->whereKeyNot($deviceUser->id)
-                ->update(['health_aide_id' => null]);
+                ->update(['employee_id' => null]);
 
-            $deviceUser->update(['health_aide_id' => $healthAide->id]);
+            $deviceUser->update(['employee_id' => $employee->id]);
         });
     }
 
     public function unlink(AttendanceDeviceUser $deviceUser): void
     {
-        $deviceUser->update(['health_aide_id' => null]);
+        $deviceUser->update(['employee_id' => null]);
     }
 
     /**

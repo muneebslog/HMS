@@ -1,12 +1,16 @@
 <?php
 
+use App\Enums\StaffCategory;
+use App\Models\AttendanceDeviceUser;
 use App\Models\Doctor;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeExperience;
 use App\Models\EmployeeQualification;
+use App\Models\EmployeeSalary;
 use App\Models\EmployeeTodo;
 use App\Models\User;
+use App\Services\AttendanceSyncService;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -122,6 +126,20 @@ new #[Title('Staff Profile')] class extends Component
 
     public string $experienceReasonForLeaving = '';
 
+    public string $staffCategory = 'non_medical';
+
+    public bool $tracksAttendance = true;
+
+    public ?string $expectedMonthlyDuties = null;
+
+    public bool $showSalaryModal = false;
+
+    public ?string $salaryAmount = null;
+
+    public ?string $salaryEffectiveFrom = null;
+
+    public string $salaryNotes = '';
+
     /**
      * Mount the component with the given employee.
      */
@@ -133,6 +151,7 @@ new #[Title('Staff Profile')] class extends Component
 
         $this->employee = $employee->load(['user', 'doctor']);
         $this->resetInfoForm();
+        $this->resetAttendanceForm();
     }
 
     /**
@@ -800,6 +819,149 @@ new #[Title('Staff Profile')] class extends Component
     }
 
     /**
+     * Get the salary history for this employee.
+     *
+     * @return Collection<int, EmployeeSalary>
+     */
+    #[Computed]
+    public function salaries(): Collection
+    {
+        return $this->employee->salaries()->with('creator:id,name')->get();
+    }
+
+    /**
+     * Machine users linked to this employee, plus unlinked ones that can be picked.
+     *
+     * @return Collection<int, AttendanceDeviceUser>
+     */
+    #[Computed]
+    public function machineUsers(): Collection
+    {
+        return AttendanceDeviceUser::query()
+            ->with('device:id,name')
+            ->where(fn ($query) => $query->whereNull('employee_id')->orWhere('employee_id', $this->employee->id))
+            ->orderBy('attendance_device_id')
+            ->orderBy('device_uid')
+            ->get();
+    }
+
+    /**
+     * Fill the attendance settings form from the employee model.
+     */
+    public function resetAttendanceForm(): void
+    {
+        $this->staffCategory = $this->employee->staff_category->value;
+        $this->tracksAttendance = $this->employee->tracks_attendance;
+        $this->expectedMonthlyDuties = $this->employee->expected_monthly_duties !== null
+            ? (string) $this->employee->expected_monthly_duties
+            : null;
+    }
+
+    /**
+     * Default the attendance switch to what the chosen category usually needs.
+     */
+    public function updatedStaffCategory(string $value): void
+    {
+        $this->tracksAttendance = StaffCategory::tryFrom($value)?->tracksAttendanceByDefault() ?? true;
+    }
+
+    /**
+     * Save the staff category and attendance settings.
+     */
+    public function saveAttendanceSettings(): void
+    {
+        $validated = $this->validate([
+            'staffCategory' => ['required', Rule::enum(StaffCategory::class)],
+            'tracksAttendance' => ['required', 'boolean'],
+            'expectedMonthlyDuties' => ['nullable', 'integer', 'between:1,62'],
+        ]);
+
+        $this->employee->update([
+            'staff_category' => $validated['staffCategory'],
+            'tracks_attendance' => $validated['tracksAttendance'],
+            'expected_monthly_duties' => filled($validated['expectedMonthlyDuties']) ? (int) $validated['expectedMonthlyDuties'] : null,
+        ]);
+
+        $this->resetAttendanceForm();
+
+        Flux::toast(variant: 'success', text: __('Attendance settings saved.'));
+    }
+
+    /**
+     * Link or unlink an attendance machine user to this employee.
+     */
+    public function toggleMachineUser(int $deviceUserId, AttendanceSyncService $attendanceSyncService): void
+    {
+        $deviceUser = AttendanceDeviceUser::query()->findOrFail($deviceUserId);
+
+        if ($deviceUser->employee_id === $this->employee->id) {
+            $attendanceSyncService->unlink($deviceUser);
+            Flux::toast(variant: 'success', text: __('Machine user unlinked.'));
+        } elseif ($deviceUser->employee_id === null) {
+            $attendanceSyncService->link($deviceUser, $this->employee);
+            Flux::toast(variant: 'success', text: __('Machine user linked.'));
+        }
+
+        unset($this->machineUsers);
+    }
+
+    /**
+     * Open the modal to record a new salary.
+     */
+    public function openSalaryModal(): void
+    {
+        $this->salaryAmount = null;
+        $this->salaryEffectiveFrom = today()->startOfMonth()->toDateString();
+        $this->salaryNotes = '';
+        $this->resetValidation();
+        $this->showSalaryModal = true;
+    }
+
+    /**
+     * Record a salary that applies from the given date.
+     */
+    public function saveSalary(): void
+    {
+        $validated = $this->validate([
+            'salaryAmount' => ['required', 'integer', 'min:0', 'max:10000000'],
+            'salaryEffectiveFrom' => [
+                'required',
+                'date',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if ($this->employee->salaries()->whereDate('effective_from', $value)->exists()) {
+                        $fail(__('A salary already starts on this date.'));
+                    }
+                },
+            ],
+            'salaryNotes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $this->employee->salaries()->create([
+            'monthly_salary' => (int) $validated['salaryAmount'],
+            'effective_from' => $validated['salaryEffectiveFrom'],
+            'notes' => $validated['salaryNotes'] ?: null,
+            'created_by' => auth()->id(),
+        ]);
+
+        $this->showSalaryModal = false;
+        unset($this->salaries);
+
+        Flux::toast(variant: 'success', text: __('Salary recorded.'));
+    }
+
+    /**
+     * Delete a salary record entered by mistake.
+     */
+    public function deleteSalary(int $salaryId): void
+    {
+        EmployeeSalary::query()->where('employee_id', $this->employee->id)->findOrFail($salaryId)->delete();
+
+        unset($this->salaries);
+
+        Flux::toast(variant: 'success', text: __('Salary record deleted.'));
+    }
+
+    /**
      * Get the label for a document type.
      */
     public function documentTypeLabel(string $type): string
@@ -920,6 +1082,9 @@ new #[Title('Staff Profile')] class extends Component
                         <flux:text class="text-xs text-zinc-500">{{ __('Employee ID') }} #{{ $employee->id }}</flux:text>
                         <div class="flex items-center gap-3">
                             <flux:heading level="1">{{ $employee->name }}</flux:heading>
+                            <flux:badge size="sm" :color="$employee->staff_category->color()">
+                                {{ $employee->staff_category->label() }}
+                            </flux:badge>
                             <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
                                 {{ ucfirst($employee->status) }}
                             </flux:badge>
@@ -1265,13 +1430,122 @@ new #[Title('Staff Profile')] class extends Component
             @endif
         </flux:card>
 
+        {{-- Attendance & Pay --}}
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <flux:card>
+                <flux:heading level="2">{{ __('Attendance Settings') }}</flux:heading>
+
+                <form wire:submit="saveAttendanceSettings" class="mt-6 space-y-6">
+                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <flux:field>
+                            <flux:label>{{ __('Staff Category') }}</flux:label>
+                            <flux:select wire:model.live="staffCategory">
+                                @foreach (StaffCategory::cases() as $category)
+                                    <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:error name="staffCategory" />
+                        </flux:field>
+
+                        <flux:field>
+                            <flux:label>{{ __('Expected duties / month') }}</flux:label>
+                            <flux:input type="number" min="1" max="62" wire:model="expectedMonthlyDuties" placeholder="{{ __('Days in month') }}" />
+                            <flux:description>{{ __('Leave blank for one duty per calendar day.') }}</flux:description>
+                            <flux:error name="expectedMonthlyDuties" />
+                        </flux:field>
+
+                        <flux:field class="sm:col-span-2">
+                            <flux:switch wire:model="tracksAttendance" :label="__('Punches on attendance machine')" />
+                            <flux:error name="tracksAttendance" />
+                        </flux:field>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <flux:button type="submit" size="sm" variant="primary">{{ __('Save settings') }}</flux:button>
+                    </div>
+                </form>
+
+                @if ($employee->tracks_attendance)
+                    <flux:separator class="my-6" />
+
+                    <flux:heading level="3">{{ __('Attendance machine users') }}</flux:heading>
+                    <div class="mt-3 space-y-2">
+                        @forelse ($this->machineUsers as $machineUser)
+                            <div wire:key="machine-user-{{ $machineUser->id }}" class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                                <div class="min-w-0">
+                                    <flux:text class="font-medium">
+                                        <span class="font-mono">#{{ $machineUser->device_user_id }}</span>
+                                        {{ $machineUser->name ?? __('No name on machine') }}
+                                    </flux:text>
+                                    <flux:text size="sm">{{ $machineUser->device?->name }}</flux:text>
+                                </div>
+                                @if ($machineUser->employee_id === $employee->id)
+                                    <flux:button size="sm" variant="ghost" icon="link-slash" wire:click="toggleMachineUser({{ $machineUser->id }})">{{ __('Unlink') }}</flux:button>
+                                @else
+                                    <flux:button size="sm" variant="outline" icon="link" wire:click="toggleMachineUser({{ $machineUser->id }})">{{ __('Link') }}</flux:button>
+                                @endif
+                            </div>
+                        @empty
+                            <flux:text>{{ __('No machine users imported yet. Sync a device from the Attendance page.') }}</flux:text>
+                        @endforelse
+                    </div>
+                @endif
+            </flux:card>
+
+            <flux:card>
+                <div class="flex items-center justify-between gap-4">
+                    <flux:heading level="2">{{ __('Salary History') }}</flux:heading>
+                    <flux:button size="sm" variant="primary" icon="plus" wire:click="openSalaryModal">
+                        {{ __('New salary') }}
+                    </flux:button>
+                </div>
+
+                <flux:table class="mt-4">
+                    <flux:table.columns>
+                        <flux:table.column>{{ __('Effective from') }}</flux:table.column>
+                        <flux:table.column>{{ __('Monthly salary') }}</flux:table.column>
+                        <flux:table.column>{{ __('Note') }}</flux:table.column>
+                        <flux:table.column></flux:table.column>
+                    </flux:table.columns>
+                    <flux:table.rows>
+                        @forelse ($this->salaries as $salary)
+                            <flux:table.row wire:key="salary-{{ $salary->id }}">
+                                <flux:table.cell class="whitespace-nowrap">
+                                    {{ $salary->effective_from->format('j M Y') }}
+                                    @if ($loop->first && $salary->effective_from->lte(today()))
+                                        <flux:badge size="sm" color="green" class="ms-1">{{ __('Current') }}</flux:badge>
+                                    @elseif ($salary->effective_from->isFuture())
+                                        <flux:badge size="sm" color="sky" class="ms-1">{{ __('Upcoming') }}</flux:badge>
+                                    @endif
+                                </flux:table.cell>
+                                <flux:table.cell class="font-mono">Rs {{ number_format($salary->monthly_salary) }}</flux:table.cell>
+                                <flux:table.cell>
+                                    {{ $salary->notes ?? '—' }}
+                                    @if ($salary->creator)
+                                        <flux:text size="sm">{{ __('by :name', ['name' => $salary->creator->name]) }}</flux:text>
+                                    @endif
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteSalary({{ $salary->id }})" wire:confirm="{{ __('Delete this salary record?') }}" :aria-label="__('Delete salary')" />
+                                </flux:table.cell>
+                            </flux:table.row>
+                        @empty
+                            <flux:table.row>
+                                <flux:table.cell colspan="4" class="text-center text-zinc-500">{{ __('No salary recorded yet.') }}</flux:table.cell>
+                            </flux:table.row>
+                        @endforelse
+                    </flux:table.rows>
+                </flux:table>
+            </flux:card>
+        </div>
+
         {{-- Qualifications --}}
         <flux:card>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <flux:heading level="2">{{ __('Qualifications') }}</flux:heading>
+                <flux:heading level="2">{{ $employee->staff_category->holdsDegrees() ? __('Degrees & Qualifications') : __('Training & Courses') }}</flux:heading>
 
                 <flux:button size="sm" variant="primary" icon="plus" wire:click="openQualificationModal">
-                    {{ __('Add Qualification') }}
+                    {{ $employee->staff_category->holdsDegrees() ? __('Add Qualification') : __('Add Training') }}
                 </flux:button>
             </div>
 
@@ -1577,6 +1851,37 @@ new #[Title('Staff Profile')] class extends Component
                 <flux:button type="submit" variant="primary">
                     {{ __('Upload') }}
                 </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    {{-- Salary Modal --}}
+    <flux:modal wire:model="showSalaryModal" class="w-full max-w-md">
+        <flux:heading level="2">{{ __('New salary') }}</flux:heading>
+
+        <form wire:submit="saveSalary" class="mt-6 space-y-6">
+            <flux:field>
+                <flux:label>{{ __('Monthly salary (Rs)') }}</flux:label>
+                <flux:input type="number" min="0" wire:model="salaryAmount" required />
+                <flux:error name="salaryAmount" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Effective from') }}</flux:label>
+                <flux:input type="date" wire:model="salaryEffectiveFrom" required />
+                <flux:description>{{ __('A change in the middle of a month is split by days in that month\'s payroll.') }}</flux:description>
+                <flux:error name="salaryEffectiveFrom" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>{{ __('Note') }}</flux:label>
+                <flux:input wire:model="salaryNotes" placeholder="{{ __('e.g. Joining salary, annual raise') }}" />
+                <flux:error name="salaryNotes" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3">
+                <flux:button type="button" variant="ghost" wire:click="$set('showSalaryModal', false)">{{ __('Cancel') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             </div>
         </form>
     </flux:modal>

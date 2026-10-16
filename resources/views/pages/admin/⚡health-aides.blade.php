@@ -50,6 +50,7 @@ new #[Title('Health Aides')] class extends Component
     public function aides()
     {
         return HealthAide::query()
+            ->with('employee:id,name')
             ->when($this->search !== '', function ($query) {
                 $query->where('name', 'like', '%'.$this->search.'%');
             })
@@ -110,8 +111,8 @@ new #[Title('Health Aides')] class extends Component
             HealthAide::query()->findOrFail($this->editingId)->update($attributes);
             Flux::toast(variant: 'success', text: __('Health aide updated.'));
         } else {
-            HealthAide::query()->create($attributes);
-            Flux::toast(variant: 'success', text: __('Health aide created.'));
+            HealthAide::query()->create($attributes)->ensureEmployee(auth()->id());
+            Flux::toast(variant: 'success', text: __('Health aide and staff profile created.'));
         }
 
         $this->showModal = false;
@@ -129,6 +130,16 @@ new #[Title('Health Aides')] class extends Component
             variant: 'success',
             text: $aide->is_active ? __('Health aide activated.') : __('Health aide deactivated.'),
         );
+    }
+
+    /**
+     * Open the aide's staff profile, creating one first when it does not exist yet.
+     */
+    public function openProfile(int $id): void
+    {
+        $employee = HealthAide::query()->findOrFail($id)->ensureEmployee(auth()->id());
+
+        $this->redirect(route('admin.employees.profile', $employee), navigate: true);
     }
 
     public function resetForm(): void
@@ -184,6 +195,9 @@ new #[Title('Health Aides')] class extends Component
                         </flux:table.cell>
                         <flux:table.cell>
                             <div class="flex gap-2">
+                                <flux:button size="sm" variant="ghost" icon="identification" wire:click="openProfile({{ $aide->id }})">
+                                    {{ $aide->employee ? __('Staff profile') : __('Create staff profile') }}
+                                </flux:button>
                                 <flux:button size="sm" variant="ghost" wire:click="editAide({{ $aide->id }})">
                                     {{ __('Edit') }}
                                 </flux:button>

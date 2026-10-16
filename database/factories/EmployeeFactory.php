@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\StaffCategory;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -32,6 +33,25 @@ class EmployeeFactory extends Factory
             'doctor_id' => null,
             'created_by' => User::factory()->admin(),
         ];
+    }
+
+    /**
+     * Put the employee in the given staff category.
+     */
+    public function category(StaffCategory $category): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'staff_category' => $category,
+            'tracks_attendance' => $category->tracksAttendanceByDefault(),
+        ]);
+    }
+
+    /**
+     * Indicate that the employee is a health aide.
+     */
+    public function healthAide(): static
+    {
+        return $this->category(StaffCategory::HealthAide);
     }
 
     /**

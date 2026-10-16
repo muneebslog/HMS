@@ -3,7 +3,7 @@
 use App\Models\AttendanceDevice;
 use App\Models\AttendanceDeviceUser;
 use App\Models\AttendancePunch;
-use App\Models\HealthAide;
+use App\Models\Employee;
 use App\Services\AttendanceSyncService;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
@@ -70,12 +70,12 @@ new #[Title('Attendance')] class extends Component
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, HealthAide>
+     * @return \Illuminate\Database\Eloquent\Collection<int, Employee>
      */
     #[Computed]
-    public function healthAides()
+    public function staffMembers()
     {
-        return HealthAide::query()->orderBy('name')->get(['id', 'name', 'is_active']);
+        return Employee::query()->tracksAttendance()->orderBy('name')->get(['id', 'name', 'status', 'staff_category']);
     }
 
     /**
@@ -85,18 +85,18 @@ new #[Title('Attendance')] class extends Component
     public function deviceUsers()
     {
         return AttendanceDeviceUser::query()
-            ->with(['device:id,name', 'healthAide:id,name'])
+            ->with(['device:id,name', 'employee:id,name'])
             ->withCount('punches')
             ->withMax('punches', 'punched_at')
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($query) {
                     $query->where('name', 'like', '%'.$this->search.'%')
                         ->orWhere('device_user_id', $this->search)
-                        ->orWhereHas('healthAide', fn ($query) => $query->where('name', 'like', '%'.$this->search.'%'));
+                        ->orWhereHas('employee', fn ($query) => $query->where('name', 'like', '%'.$this->search.'%'));
                 });
             })
-            ->when($this->linkFilter === 'linked', fn ($query) => $query->whereNotNull('health_aide_id'))
-            ->when($this->linkFilter === 'unlinked', fn ($query) => $query->whereNull('health_aide_id'))
+            ->when($this->linkFilter === 'linked', fn ($query) => $query->whereNotNull('employee_id'))
+            ->when($this->linkFilter === 'unlinked', fn ($query) => $query->whereNull('employee_id'))
             ->orderBy('attendance_device_id')
             ->orderBy('device_uid')
             ->paginate(25);
@@ -111,14 +111,14 @@ new #[Title('Attendance')] class extends Component
         $date = rescue(fn () => CarbonImmutable::parse($this->punchDate), now()->toImmutable(), false);
 
         return AttendancePunch::query()
-            ->with(['device:id,name', 'deviceUser.healthAide:id,name'])
+            ->with(['device:id,name', 'deviceUser.employee:id,name'])
             ->whereBetween('punched_at', [$date->startOfDay(), $date->endOfDay()])
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($query) {
                     $query->where('device_user_id', $this->search)
                         ->orWhereHas('deviceUser', function ($query) {
                             $query->where('name', 'like', '%'.$this->search.'%')
-                                ->orWhereHas('healthAide', fn ($query) => $query->where('name', 'like', '%'.$this->search.'%'));
+                                ->orWhereHas('employee', fn ($query) => $query->where('name', 'like', '%'.$this->search.'%'));
                         });
                 });
             })
@@ -150,16 +150,16 @@ new #[Title('Attendance')] class extends Component
         unset($this->devices, $this->deviceUsers, $this->punches);
     }
 
-    public function linkHealthAide(int $deviceUserId, string $healthAideId, AttendanceSyncService $attendanceSyncService): void
+    public function linkEmployee(int $deviceUserId, string $employeeId, AttendanceSyncService $attendanceSyncService): void
     {
         $deviceUser = AttendanceDeviceUser::query()->findOrFail($deviceUserId);
 
-        if ($healthAideId === '') {
+        if ($employeeId === '') {
             $attendanceSyncService->unlink($deviceUser);
             Flux::toast(variant: 'success', text: __('Device user unlinked.'));
         } else {
-            $attendanceSyncService->link($deviceUser, HealthAide::query()->findOrFail((int) $healthAideId));
-            Flux::toast(variant: 'success', text: __('Linked to health aide.'));
+            $attendanceSyncService->link($deviceUser, Employee::query()->findOrFail((int) $employeeId));
+            Flux::toast(variant: 'success', text: __('Linked to staff profile.'));
         }
 
         unset($this->deviceUsers);
@@ -346,7 +346,7 @@ new #[Title('Attendance')] class extends Component
                 <flux:table.columns>
                     <flux:table.column>{{ __('Machine ID') }}</flux:table.column>
                     <flux:table.column>{{ __('Name on machine') }}</flux:table.column>
-                    <flux:table.column>{{ __('Health aide') }}</flux:table.column>
+                    <flux:table.column>{{ __('Staff profile') }}</flux:table.column>
                     <flux:table.column>{{ __('Punches') }}</flux:table.column>
                     <flux:table.column>{{ __('Last punch') }}</flux:table.column>
                 </flux:table.columns>
@@ -369,13 +369,13 @@ new #[Title('Attendance')] class extends Component
                                 <flux:select
                                     size="sm"
                                     class="w-56"
-                                    wire:key="attendance-link-{{ $deviceUser->id }}-{{ $deviceUser->health_aide_id }}"
-                                    wire:change="linkHealthAide({{ $deviceUser->id }}, $event.target.value)"
+                                    wire:key="attendance-link-{{ $deviceUser->id }}-{{ $deviceUser->employee_id }}"
+                                    wire:change="linkEmployee({{ $deviceUser->id }}, $event.target.value)"
                                 >
                                     <option value="">{{ __('— Not linked —') }}</option>
-                                    @foreach ($this->healthAides as $aide)
-                                        <option value="{{ $aide->id }}" @selected($deviceUser->health_aide_id === $aide->id)>
-                                            {{ $aide->name }}{{ $aide->is_active ? '' : ' ('.__('inactive').')' }}
+                                    @foreach ($this->staffMembers as $staffMember)
+                                        <option value="{{ $staffMember->id }}" @selected($deviceUser->employee_id === $staffMember->id)>
+                                            {{ $staffMember->name }} — {{ $staffMember->staff_category->label() }}{{ $staffMember->isActive() ? '' : ' ('.__('inactive').')' }}
                                         </option>
                                     @endforeach
                                 </flux:select>
@@ -412,8 +412,8 @@ new #[Title('Attendance')] class extends Component
                         <flux:table.row wire:key="attendance-punch-{{ $punch->id }}">
                             <flux:table.cell class="whitespace-nowrap">{{ $punch->punched_at->format('h:i:s A') }}</flux:table.cell>
                             <flux:table.cell class="font-medium">
-                                @if ($punch->deviceUser?->healthAide)
-                                    {{ $punch->deviceUser->healthAide->name }}
+                                @if ($punch->deviceUser?->employee)
+                                    {{ $punch->deviceUser->employee->name }}
                                 @else
                                     {{ $punch->deviceUser?->name ?? __('Unknown') }}
                                     <flux:badge size="sm" color="zinc" class="ms-1">{{ __('Not linked') }}</flux:badge>

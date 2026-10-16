@@ -25,7 +25,7 @@ class AttendanceDeviceUser extends Model
         'name',
         'privilege',
         'card_number',
-        'health_aide_id',
+        'employee_id',
         'last_seen_at',
     ];
 
@@ -60,11 +60,13 @@ class AttendanceDeviceUser extends Model
     }
 
     /**
-     * @return BelongsTo<HealthAide, $this>
+     * The staff profile this machine user is linked to.
+     *
+     * @return BelongsTo<Employee, $this>
      */
-    public function healthAide(): BelongsTo
+    public function employee(): BelongsTo
     {
-        return $this->belongsTo(HealthAide::class);
+        return $this->belongsTo(Employee::class);
     }
 
     /**

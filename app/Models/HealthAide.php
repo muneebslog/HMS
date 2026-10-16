@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use App\Enums\StaffCategory;
 use Database\Factories\HealthAideFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Hash;
 
 class HealthAide extends Model
@@ -20,6 +21,7 @@ class HealthAide extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'employee_id',
         'name',
         'pin',
         'is_active',
@@ -108,12 +110,36 @@ class HealthAide extends Model
     }
 
     /**
-     * Biometric device enrollments linked to this health aide.
-     *
-     * @return HasMany<AttendanceDeviceUser, $this>
+     * Get the HR profile behind this aide, creating a health aide profile when missing.
      */
-    public function attendanceDeviceUsers(): HasMany
+    public function ensureEmployee(int $createdBy): Employee
     {
-        return $this->hasMany(AttendanceDeviceUser::class);
+        if ($this->employee !== null) {
+            return $this->employee;
+        }
+
+        $employee = Employee::query()->create([
+            'name' => $this->name,
+            'designation' => __('Health Aide'),
+            'staff_category' => StaffCategory::HealthAide,
+            'tracks_attendance' => true,
+            'employment_type' => 'full_time',
+            'status' => $this->is_active ? 'active' : 'inactive',
+            'created_by' => $createdBy,
+        ]);
+
+        $this->update(['employee_id' => $employee->id]);
+
+        return $this->setRelation('employee', $employee)->employee;
+    }
+
+    /**
+     * The HR profile behind this kiosk identity.
+     *
+     * @return BelongsTo<Employee, $this>
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 }

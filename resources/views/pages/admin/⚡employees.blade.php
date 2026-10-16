@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StaffCategory;
 use App\Models\Doctor;
 use App\Models\Employee;
 use App\Models\User;
@@ -8,6 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -18,6 +20,9 @@ new #[Title('Staff Profiles')] class extends Component
     public string $search = '';
 
     public string $statusFilter = 'all';
+
+    #[Url]
+    public string $categoryFilter = 'all';
 
     public bool $showModal = false;
 
@@ -36,6 +41,10 @@ new #[Title('Staff Profiles')] class extends Component
     public ?string $joiningDate = null;
 
     public string $employmentType = 'full_time';
+
+    public string $staffCategory = 'non_medical';
+
+    public bool $tracksAttendance = true;
 
     public string $status = 'active';
 
@@ -64,6 +73,8 @@ new #[Title('Staff Profiles')] class extends Component
     public function employees()
     {
         return Employee::with(['user', 'doctor'])
+            ->withCount('attendanceDeviceUsers')
+            ->when($this->categoryFilter !== 'all', fn ($query) => $query->where('staff_category', $this->categoryFilter))
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', "%{$this->search}%")
@@ -77,6 +88,63 @@ new #[Title('Staff Profiles')] class extends Component
             })
             ->orderBy('name')
             ->paginate(15);
+    }
+
+    /**
+     * Default the attendance switch to what the chosen category usually needs.
+     */
+    public function updatedStaffCategory(string $value): void
+    {
+        $this->tracksAttendance = StaffCategory::tryFrom($value)?->tracksAttendanceByDefault() ?? true;
+    }
+
+    /**
+     * Reset pagination when a filter changes.
+     */
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['search', 'statusFilter', 'categoryFilter'], true)) {
+            $this->resetPage();
+        }
+    }
+
+    /**
+     * Active staff count per category for the filter tabs.
+     *
+     * @return array<string, int>
+     */
+    #[Computed]
+    public function categoryCounts(): array
+    {
+        $counts = Employee::query()
+            ->active()
+            ->selectRaw('staff_category, count(*) as aggregate')
+            ->groupBy('staff_category')
+            ->pluck('aggregate', 'staff_category')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
+
+        return ['all' => array_sum($counts)] + $counts;
+    }
+
+    /**
+     * Active staff with a birthday in the next seven days, soonest first.
+     *
+     * @return \Illuminate\Support\Collection<int, array{employee: Employee, date: \Carbon\CarbonInterface}>
+     */
+    #[Computed]
+    public function upcomingBirthdays()
+    {
+        $today = today();
+
+        return Employee::query()
+            ->active()
+            ->whereNotNull('date_of_birth')
+            ->get(['id', 'name', 'date_of_birth'])
+            ->map(fn (Employee $employee): array => ['employee' => $employee, 'date' => $employee->nextBirthday($today)])
+            ->filter(fn (array $birthday): bool => $birthday['date']->lte($today->copy()->addDays(6)))
+            ->sortBy(fn (array $birthday) => $birthday['date']->timestamp)
+            ->values();
     }
 
     /**
@@ -125,6 +193,8 @@ new #[Title('Staff Profiles')] class extends Component
         $this->department = $employee->department ?? '';
         $this->joiningDate = $employee->joining_date?->format('Y-m-d');
         $this->employmentType = $employee->employment_type;
+        $this->staffCategory = $employee->staff_category->value;
+        $this->tracksAttendance = $employee->tracks_attendance;
         $this->status = $employee->status;
         $this->notes = $employee->notes ?? '';
         $this->linkedUserId = $employee->user_id;
@@ -146,6 +216,8 @@ new #[Title('Staff Profiles')] class extends Component
             'department' => ['nullable', 'string', 'max:255'],
             'joiningDate' => ['nullable', 'date'],
             'employmentType' => ['required', Rule::in(['full_time', 'part_time', 'intern', 'consultant'])],
+            'staffCategory' => ['required', Rule::enum(StaffCategory::class)],
+            'tracksAttendance' => ['required', 'boolean'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
             'notes' => ['nullable', 'string', 'max:5000'],
             'linkedUserId' => ['nullable', 'integer', 'exists:users,id'],
@@ -162,6 +234,8 @@ new #[Title('Staff Profiles')] class extends Component
             'department' => $validated['department'] ?: null,
             'joining_date' => $validated['joiningDate'] ?: null,
             'employment_type' => $validated['employmentType'],
+            'staff_category' => $validated['staffCategory'],
+            'tracks_attendance' => $validated['tracksAttendance'],
             'status' => $validated['status'],
             'notes' => $validated['notes'] ?: null,
             'user_id' => $validated['linkedUserId'],
@@ -212,6 +286,8 @@ new #[Title('Staff Profiles')] class extends Component
         $this->department = '';
         $this->joiningDate = null;
         $this->employmentType = 'full_time';
+        $this->staffCategory = 'non_medical';
+        $this->tracksAttendance = true;
         $this->status = 'active';
         $this->notes = '';
         $this->linkedUserId = null;
@@ -253,6 +329,32 @@ new #[Title('Staff Profiles')] class extends Component
             <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
                 {{ __('Add Staff') }}
             </flux:button>
+        </div>
+
+        @if ($this->upcomingBirthdays->isNotEmpty())
+            <flux:callout icon="cake" color="amber">
+                <flux:callout.heading>{{ __('Birthdays this week') }}</flux:callout.heading>
+                <flux:callout.text>
+                    @foreach ($this->upcomingBirthdays as $birthday)
+                        <span wire:key="birthday-{{ $birthday['employee']->id }}">
+                            {{ $birthday['employee']->name }} — {{ $birthday['date']->isToday() ? __('today') : $birthday['date']->format('D j M') }}@if (! $loop->last) &middot; @endif
+                        </span>
+                    @endforeach
+                </flux:callout.text>
+            </flux:callout>
+        @endif
+
+        <div class="flex flex-wrap gap-2">
+            @foreach (['all' => __('All')] + collect(StaffCategory::cases())->mapWithKeys(fn ($category) => [$category->value => $category->label()])->all() as $value => $label)
+                <flux:button
+                    wire:key="category-tab-{{ $value }}"
+                    size="sm"
+                    :variant="$categoryFilter === $value ? 'primary' : 'outline'"
+                    wire:click="$set('categoryFilter', '{{ $value }}')"
+                >
+                    {{ $label }} ({{ $this->categoryCounts[$value] ?? 0 }})
+                </flux:button>
+            @endforeach
         </div>
 
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -303,6 +405,17 @@ new #[Title('Staff Profiles')] class extends Component
                             <flux:badge size="sm" color="{{ $employee->status === 'active' ? 'green' : 'zinc' }}">
                                 {{ ucfirst($employee->status) }}
                             </flux:badge>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2">
+                            <flux:badge size="sm" :color="$employee->staff_category->color()">{{ $employee->staff_category->label() }}</flux:badge>
+                            @if (! $employee->tracks_attendance)
+                                <flux:badge size="sm" color="zinc">{{ __('No attendance') }}</flux:badge>
+                            @elseif ($employee->attendance_device_users_count > 0)
+                                <flux:badge size="sm" color="green" icon="finger-print">{{ __('On machine') }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" color="red" icon="finger-print">{{ __('Not linked to machine') }}</flux:badge>
+                            @endif
                         </div>
 
                         <div class="space-y-1 text-sm">
@@ -406,6 +519,23 @@ new #[Title('Staff Profiles')] class extends Component
                         <flux:select.option value="inactive">{{ __('Inactive') }}</flux:select.option>
                     </flux:select>
                     <flux:error name="status" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Staff Category') }}</flux:label>
+                    <flux:select wire:model="staffCategory" required>
+                        @foreach (StaffCategory::cases() as $category)
+                            <flux:select.option value="{{ $category->value }}">{{ $category->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:error name="staffCategory" />
+                </flux:field>
+
+                <flux:field>
+                    <flux:label>{{ __('Punches on attendance machine') }}</flux:label>
+                    <flux:switch wire:model="tracksAttendance" />
+                    <flux:description>{{ __('Turn off for doctors and anyone who does not punch.') }}</flux:description>
+                    <flux:error name="tracksAttendance" />
                 </flux:field>
 
                 <flux:field class="sm:col-span-2">

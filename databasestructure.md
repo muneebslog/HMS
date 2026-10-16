@@ -482,14 +482,13 @@ Admin-managed catalog used by doctors to pick one or more symptoms when prescrib
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint | PK |
+| employee_id | unsignedBigInteger | nullable, UQ — HR profile (`employees.id`) behind this kiosk identity; no DB constraint (employees are never hard-deleted) |
 | name | string | |
 | pin | string | hashed PIN (unique among active aides at validation) |
 | is_active | boolean | default true |
-| device_user_id | string | nullable, UQ — ZKTeco user ID on biometric device |
-| attendance_enrolled_at | timestamp | nullable |
 | timestamps | | |
 
-Separate from `users` / staff profiles. Used for kiosk PIN identity when delivering medicines, injections, and drips, and for biometric attendance via ZKTeco K60.
+Kiosk PIN identity used when delivering medicines, injections, and drips. HR data and attendance live on the linked `employees` row (category `health_aide`).
 
 ### `attendance_devices`
 | Column | Type | Notes |
@@ -515,12 +514,13 @@ Separate from `users` / staff profiles. Used for kiosk PIN identity when deliver
 | device_uid | unsignedInteger | nullable — device-local slot |
 | device_user_id | string | human-facing ID used in punches |
 | name | string | nullable — name stored on the K60 |
-| health_aide_id | FK → health_aides | nullable, nullOnDelete |
+| employee_id | unsignedBigInteger | nullable — linked staff profile (`employees.id`), no DB constraint |
 | last_seen_at | timestamp | nullable — last fetch from device |
 | timestamps | | |
 | | | UQ `(attendance_device_id, device_user_id)` as `att_device_users_device_user_unique` |
+| | | UQ `(attendance_device_id, employee_id)` as `attendance_device_users_device_employee_unique` |
 
-Users enrolled on the biometric device, synced via Fetch Users, then linked to HMS health aides.
+Users enrolled on the biometric device, synced via Fetch Users, then linked to HMS staff profiles (`employees`) of any category.
 
 ### `duty_shift_templates`
 | Column | Type | Notes |
@@ -1343,6 +1343,9 @@ Gyne Ward & Private Rooms daily maintenance form. One submission per calendar da
 | distance_time_from_hospital | string | nullable |
 | designation | string | nullable |
 | department | string | nullable, IDX |
+| staff_category | string | default `non_medical`, IDX (`StaffCategory`: doctor, medical, non_medical, health_aide) |
+| tracks_attendance | boolean | default true — false for staff who do not punch (doctors) |
+| expected_monthly_duties | unsignedTinyInteger | nullable — null = one duty per calendar day |
 | joining_date | date | nullable |
 | employment_type | string | default `full_time` |
 | status | string | default `active`, IDX |
@@ -1354,6 +1357,18 @@ Gyne Ward & Private Rooms daily maintenance form. One submission per calendar da
 | doctor_id | FK → doctors | nullable, nullOnDelete |
 | created_by | FK → users | |
 | timestamps | | |
+
+### `employee_salaries`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| employee_id | FK → employees | cascadeOnDelete |
+| monthly_salary | unsignedInteger | whole rupees |
+| effective_from | date | salary applies from this date until the next record |
+| notes | string | nullable |
+| created_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+| | | UQ `(employee_id, effective_from)` |
 
 ### `employee_qualifications`
 | Column | Type | Notes |
