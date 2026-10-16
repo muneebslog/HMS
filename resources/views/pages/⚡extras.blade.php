@@ -19,6 +19,8 @@ new #[Title('Extras')] class extends Component
                     'admin.users',
                     'admin.employees',
                     'admin.health-aides',
+                    'hr.pairing',
+                    'hr.backlog',
                     'admin.stations',
                     'admin.policy-journal',
                     'admin.notifications',
@@ -99,6 +101,13 @@ new #[Title('Extras')] class extends Component
             'icon' => 'finger-print',
             'route' => 'admin.health-aides',
             'show' => $pageAccess->canAccess($user, 'admin.health-aides'),
+        ],
+        [
+            'label' => __('Pairing Desk'),
+            'description' => __('Turn machine punches into confirmed duties, day by day.'),
+            'icon' => 'calendar-days',
+            'route' => 'hr.pairing',
+            'show' => $pageAccess->canAccess($user, 'hr.pairing'),
         ],
         [
             'label' => __('Attendance'),

@@ -8,6 +8,7 @@ use App\Models\EmployeeDocument;
 use App\Models\EmployeeExperience;
 use App\Models\EmployeeQualification;
 use App\Models\EmployeeSalary;
+use App\Models\ShiftTemplate;
 use App\Models\EmployeeTodo;
 use App\Models\User;
 use App\Services\AttendanceSyncService;
@@ -131,6 +132,8 @@ new #[Title('Staff Profile')] class extends Component
     public bool $tracksAttendance = true;
 
     public ?string $expectedMonthlyDuties = null;
+
+    public string $defaultShiftTemplateId = '';
 
     public bool $showSalaryModal = false;
 
@@ -855,6 +858,18 @@ new #[Title('Staff Profile')] class extends Component
         $this->expectedMonthlyDuties = $this->employee->expected_monthly_duties !== null
             ? (string) $this->employee->expected_monthly_duties
             : null;
+        $this->defaultShiftTemplateId = (string) $this->employee->default_shift_template_id;
+    }
+
+    /**
+     * Active shifts a person can have as their usual shift.
+     *
+     * @return Collection<int, ShiftTemplate>
+     */
+    #[Computed]
+    public function shiftTemplates(): Collection
+    {
+        return ShiftTemplate::query()->active()->get();
     }
 
     /**
@@ -874,12 +889,14 @@ new #[Title('Staff Profile')] class extends Component
             'staffCategory' => ['required', Rule::enum(StaffCategory::class)],
             'tracksAttendance' => ['required', 'boolean'],
             'expectedMonthlyDuties' => ['nullable', 'integer', 'between:1,62'],
+            'defaultShiftTemplateId' => ['nullable', 'integer', 'exists:shift_templates,id'],
         ]);
 
         $this->employee->update([
             'staff_category' => $validated['staffCategory'],
             'tracks_attendance' => $validated['tracksAttendance'],
             'expected_monthly_duties' => filled($validated['expectedMonthlyDuties']) ? (int) $validated['expectedMonthlyDuties'] : null,
+            'default_shift_template_id' => filled($validated['defaultShiftTemplateId']) ? (int) $validated['defaultShiftTemplateId'] : null,
         ]);
 
         $this->resetAttendanceForm();
@@ -1452,6 +1469,18 @@ new #[Title('Staff Profile')] class extends Component
                             <flux:input type="number" min="1" max="62" wire:model="expectedMonthlyDuties" placeholder="{{ __('Days in month') }}" />
                             <flux:description>{{ __('Leave blank for one duty per calendar day.') }}</flux:description>
                             <flux:error name="expectedMonthlyDuties" />
+                        </flux:field>
+
+                        <flux:field class="sm:col-span-2">
+                            <flux:label>{{ __('Usual shift') }}</flux:label>
+                            <flux:select wire:model="defaultShiftTemplateId">
+                                <flux:select.option value="">{{ __('Rotating / no usual shift') }}</flux:select.option>
+                                @foreach ($this->shiftTemplates as $shiftTemplate)
+                                    <flux:select.option value="{{ $shiftTemplate->id }}">{{ $shiftTemplate->label() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+                            <flux:description>{{ __('Preferred when the pairing desk suggests shifts.') }}</flux:description>
+                            <flux:error name="defaultShiftTemplateId" />
                         </flux:field>
 
                         <flux:field class="sm:col-span-2">

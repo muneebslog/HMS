@@ -24,6 +24,9 @@ class AttendancePunch extends Model
         'punched_at',
         'verify_type',
         'punch_state',
+        'ignored_at',
+        'ignored_by',
+        'ignore_reason',
     ];
 
     /**
@@ -37,7 +40,16 @@ class AttendancePunch extends Model
             'punched_at' => 'datetime',
             'verify_type' => 'integer',
             'punch_state' => 'integer',
+            'ignored_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether the pairing desk set this punch aside (e.g. an accidental tap).
+     */
+    public function isIgnored(): bool
+    {
+        return $this->ignored_at !== null;
     }
 
     /**

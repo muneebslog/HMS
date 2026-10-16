@@ -128,6 +128,9 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/employees/{employee}/profile', 'pages::admin.employee-profile')->name('admin.employees.profile');
         Route::livewire('admin/health-aides', 'pages::admin.health-aides')->name('admin.health-aides');
         Route::livewire('admin/attendance', 'pages::admin.attendance')->name('admin.attendance');
+        Route::livewire('hr/pairing', 'pages::hr.pairing')->name('hr.pairing');
+        Route::livewire('hr/backlog', 'pages::hr.backlog')->name('hr.backlog');
+        Route::livewire('hr/settings', 'pages::hr.settings')->name('hr.settings');
         Route::livewire('admin/stations', 'pages::admin.stations')->name('admin.stations');
         Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
         Route::get('admin/policy-journals/{policyJournal}/attachments/{index}/download', [PolicyJournalController::class, 'download'])

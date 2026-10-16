@@ -45,6 +45,7 @@ class Employee extends Model
         'staff_category',
         'tracks_attendance',
         'expected_monthly_duties',
+        'default_shift_template_id',
         'joining_date',
         'employment_type',
         'status',
@@ -244,6 +245,26 @@ class Employee extends Model
     public function attendanceDeviceUsers(): HasMany
     {
         return $this->hasMany(AttendanceDeviceUser::class);
+    }
+
+    /**
+     * The shift this person usually works; preferred when pairing suggests duties.
+     *
+     * @return BelongsTo<ShiftTemplate, $this>
+     */
+    public function defaultShiftTemplate(): BelongsTo
+    {
+        return $this->belongsTo(ShiftTemplate::class, 'default_shift_template_id');
+    }
+
+    /**
+     * Confirmed stretches of work from the pairing desk.
+     *
+     * @return HasMany<DutySession, $this>
+     */
+    public function dutySessions(): HasMany
+    {
+        return $this->hasMany(DutySession::class);
     }
 
     /**

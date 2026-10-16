@@ -15,6 +15,29 @@ class AppSetting extends Model
 
     public const FinanceOwnerPassword = 'finance.owner_password';
 
+    public const LateGraceMinutes = 'attendance.late_grace_minutes';
+
+    public const DuplicatePunchMinutes = 'attendance.duplicate_punch_minutes';
+
+    public const BreakMergeMinutes = 'attendance.break_merge_minutes';
+
+    public const MaxSessionHours = 'attendance.max_session_hours';
+
+    public const LongSessionHours = 'attendance.long_session_hours';
+
+    /**
+     * Attendance pairing rules and their defaults.
+     *
+     * @var array<string, array{label: string, default: int, min: int, max: int}>
+     */
+    public const AttendanceRules = [
+        self::LateGraceMinutes => ['label' => 'Late grace (minutes)', 'default' => 15, 'min' => 0, 'max' => 120],
+        self::DuplicatePunchMinutes => ['label' => 'Ignore repeat punches within (minutes)', 'default' => 10, 'min' => 0, 'max' => 120],
+        self::BreakMergeMinutes => ['label' => 'Join sessions split by a break up to (minutes)', 'default' => 90, 'min' => 0, 'max' => 480],
+        self::MaxSessionHours => ['label' => 'Longest possible session (hours)', 'default' => 36, 'min' => 4, 'max' => 72],
+        self::LongSessionHours => ['label' => 'Flag sessions longer than (hours)', 'default' => 14, 'min' => 4, 'max' => 72],
+    ];
+
     protected $fillable = [
         'key',
         'value',
@@ -43,6 +66,16 @@ class AppSetting extends Model
         );
 
         Cache::forget(self::cacheKey($key));
+    }
+
+    /**
+     * Read one of the attendance pairing rules as a whole number.
+     */
+    public static function attendanceRule(string $key): int
+    {
+        $rule = self::AttendanceRules[$key];
+
+        return (int) self::get($key, (string) $rule['default']);
     }
 
     /**

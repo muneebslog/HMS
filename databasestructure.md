@@ -578,16 +578,73 @@ Users enrolled on the biometric device, synced via Fetch Users, then linked to H
 |--------|------|-------|
 | id | bigint | PK |
 | attendance_device_id | FK → attendance_devices | cascadeOnDelete |
-| device_punch_uid | string | UQ with device |
-| device_user_id | string | |
-| health_aide_id | FK → health_aides | nullable, nullOnDelete |
-| punched_at | datetime | |
+| attendance_device_user_id | FK → attendance_device_users | nullable, nullOnDelete |
+| device_user_id | string | machine user ID as stored on the K60 |
+| punched_at | datetime | IDX — the K60 records only who and when, never in/out |
 | verify_type | unsignedTinyInteger | nullable — fingerprint/card/etc. |
-| punch_state | unsignedSmallInteger | nullable — 0=in, 1=out, 255=raw |
-| punch_state_source | string | `device` / `inferred_first` / `inferred_last` / `manual` |
-| processed_at | timestamp | nullable |
+| punch_state | unsignedTinyInteger | nullable — not trusted for pairing |
+| ignored_at | timestamp | nullable — set aside on the pairing desk |
+| ignored_by | unsignedBigInteger | nullable — user id, no DB constraint |
+| ignore_reason | string | nullable |
 | timestamps | | |
-| | | IDX `(health_aide_id, punched_at)` |
+| | | UQ `(attendance_device_id, device_user_id, punched_at)` |
+
+### `shift_templates`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| name | string | e.g. Morning |
+| starts_at | time | |
+| ends_at | time | earlier than `starts_at` = ends next day |
+| color | string | default `sky` — Flux badge colour |
+| is_active | boolean | default true |
+| sort_order | unsignedSmallInteger | default 0 |
+| timestamps | | |
+
+Seeded with Morning 08:00–15:00, Evening 15:00–22:00, Night 22:00–08:00. Every shift counts as one duty.
+
+### `duty_sessions`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| employee_id | FK → employees | cascadeOnDelete |
+| duty_date | date | the day the session started |
+| starts_at | datetime | |
+| ends_at | datetime | |
+| in_punch_id | FK → attendance_punches | nullable, nullOnDelete — null = time typed in |
+| out_punch_id | FK → attendance_punches | nullable, nullOnDelete — null = time typed in |
+| break_minutes | unsignedSmallInteger | default 0 — time out between two halves joined into one session |
+| notes | text | nullable — required when a time was typed in |
+| confirmed_by | FK → users | nullable, nullOnDelete |
+| confirmed_at | timestamp | nullable |
+| timestamps | | |
+| | | IDX `(duty_date, employee_id)`, IDX `(employee_id, starts_at)` |
+
+A stretch of work confirmed on the pairing desk. Punches inside it are treated as used.
+
+### `attendance_duties`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| duty_session_id | FK → duty_sessions | cascadeOnDelete |
+| shift_template_id | FK → shift_templates | nullable, nullOnDelete — null = custom timing |
+| scheduled_start | datetime | |
+| scheduled_end | datetime | |
+| late_minutes | unsignedSmallInteger | default 0 — raw, grace applied when reporting |
+| early_leave_minutes | unsignedSmallInteger | default 0 |
+| sort_order | unsignedTinyInteger | default 0 |
+| timestamps | | |
+
+One row per duty (counts as 1). A double duty is one session with two rows.
+
+### `attendance_day_reviews`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| review_date | date | UQ |
+| reviewed_by | FK → users | nullable, nullOnDelete |
+| reviewed_at | timestamp | punches created after this show as "new punches" on the backlog |
+| timestamps | | |
 
 ### `attendance_records`
 | Column | Type | Notes |
@@ -1346,6 +1403,7 @@ Gyne Ward & Private Rooms daily maintenance form. One submission per calendar da
 | staff_category | string | default `non_medical`, IDX (`StaffCategory`: doctor, medical, non_medical, health_aide) |
 | tracks_attendance | boolean | default true — false for staff who do not punch (doctors) |
 | expected_monthly_duties | unsignedTinyInteger | nullable — null = one duty per calendar day |
+| default_shift_template_id | unsignedBigInteger | nullable — usual shift (`shift_templates.id`), preferred by pairing; no DB constraint |
 | joining_date | date | nullable |
 | employment_type | string | default `full_time` |
 | status | string | default `active`, IDX |
