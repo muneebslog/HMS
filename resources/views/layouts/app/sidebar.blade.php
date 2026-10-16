@@ -104,7 +104,7 @@
                 @php($canOpenGyneOpd = $user->isAdmin() || $user->doctor?->isGynecologist())
                 @if ($canOpenGyneOpd || $pageAccess->canAccessAny($user, ['gyne.intake', 'gyne.ultrasound']))
                     <flux:sidebar.group class="grid">
-                        <div class="mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                        <div class="mt-4 mb-2 flex items-center gap-2 px-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                             <span class="size-2 rounded-full bg-rose-500"></span>
                             {{ __('Gyne') }}
                         </div>
