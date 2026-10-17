@@ -131,6 +131,8 @@ return [
         'admin.attendance' => ['label' => 'Attendance', 'group' => 'Administration', 'admin_only' => true],
         'hr.pairing' => ['label' => 'Pairing Desk', 'group' => 'Administration'],
         'hr.backlog' => ['label' => 'Pairing Backlog', 'group' => 'Administration'],
+        'hr.leaves' => ['label' => 'Leaves & Absences', 'group' => 'Administration'],
+        'hr.sheet' => ['label' => 'Monthly Attendance Sheet', 'group' => 'Administration'],
         'hr.settings' => ['label' => 'Shifts & Attendance Rules', 'group' => 'Administration', 'admin_only' => true],
         'admin.stations' => ['label' => 'Stations', 'group' => 'Administration', 'admin_only' => true],
         'admin.policy-journal' => ['label' => 'Policy Journal', 'group' => 'Administration'],

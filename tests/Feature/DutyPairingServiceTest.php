@@ -249,6 +249,19 @@ test('a day can only be marked reviewed once nothing is left to confirm', functi
     pairing()->markReviewed(dutyDay('2026-10-15'), $admin);
 
     expect(AttendanceDayReview::query()->whereDate('review_date', '2026-10-15')->value('reviewed_by'))->toBe($admin->id);
+
+    pairing()->markReviewed(dutyDay('2026-10-15'), $admin);
+
+    expect(AttendanceDayReview::query()->count())->toBe(1);
+});
+
+test('the last day of the month shows its review on the backlog', function () {
+    $admin = User::factory()->admin()->create();
+    AttendanceDayReview::factory()->create(['review_date' => '2026-09-30', 'reviewed_by' => $admin->id]);
+
+    $days = Livewire\Livewire::actingAs($admin)->test('pages::hr.backlog', ['month' => '2026-09'])->instance()->days;
+
+    expect($days->last()['status'])->toBe('reviewed');
 });
 
 test('staff who do not punch are left out of the day', function () {

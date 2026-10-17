@@ -347,6 +347,15 @@ class DutyPairingService
             }
         }
 
+        $fullDayLeave = $employee->leaves()
+            ->whereDate('leave_date', $data['starts_at'])
+            ->where('days', '>=', 1)
+            ->exists();
+
+        if ($fullDayLeave) {
+            throw ValidationException::withMessages(['starts_at' => __(':name is on leave that day. Remove the leave first.', ['name' => $employee->name])]);
+        }
+
         $overlaps = $employee->dutySessions()
             ->where('starts_at', '<', $data['ends_at'])
             ->where('ends_at', '>', $data['starts_at'])
@@ -470,10 +479,12 @@ class DutyPairingService
             throw ValidationException::withMessages(['review' => trans_choice('{1} 1 session still needs confirming.|[2,*] :count sessions still need confirming.', $pending)]);
         }
 
-        return AttendanceDayReview::query()->updateOrCreate(
-            ['review_date' => $date->toDateString()],
-            ['reviewed_by' => $user->id, 'reviewed_at' => now()],
-        );
+        $review = AttendanceDayReview::query()->whereDate('review_date', $date)->first()
+            ?? new AttendanceDayReview(['review_date' => $date->toDateString()]);
+
+        $review->fill(['reviewed_by' => $user->id, 'reviewed_at' => now()])->save();
+
+        return $review;
     }
 
     /**

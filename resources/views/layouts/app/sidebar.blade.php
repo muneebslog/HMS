@@ -22,7 +22,7 @@
                 'admin.finance',
             ];
             $extrasRoutes = [
-                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.attendance', 'hr.pairing', 'hr.backlog', 'hr.settings', 'admin.stations',
+                'management.crud', 'admin.users', 'admin.employees', 'admin.health-aides', 'admin.attendance', 'hr.pairing', 'hr.backlog', 'hr.leaves', 'hr.sheet', 'hr.settings', 'admin.stations',
                 'admin.policy-journal', 'admin.notifications', 'admin.reports',
                 'admin.sms-logs', 'admin.merge-duplicates', 'admin.sql-runner', 'admin.kanban',
                 'admin.monthly-report', 'admin.finance', 'admin.procedure-finances', 'admin.service-stats',

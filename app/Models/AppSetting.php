@@ -25,6 +25,8 @@ class AppSetting extends Model
 
     public const LongSessionHours = 'attendance.long_session_hours';
 
+    public const PaidLeavesPerMonth = 'attendance.paid_leaves_per_month';
+
     /**
      * Attendance pairing rules and their defaults.
      *
@@ -36,6 +38,7 @@ class AppSetting extends Model
         self::BreakMergeMinutes => ['label' => 'Join sessions split by a break up to (minutes)', 'default' => 90, 'min' => 0, 'max' => 480],
         self::MaxSessionHours => ['label' => 'Longest possible session (hours)', 'default' => 36, 'min' => 4, 'max' => 72],
         self::LongSessionHours => ['label' => 'Flag sessions longer than (hours)', 'default' => 14, 'min' => 4, 'max' => 72],
+        self::PaidLeavesPerMonth => ['label' => 'Paid informed leaves per month (days)', 'default' => 2, 'min' => 0, 'max' => 10],
     ];
 
     protected $fillable = [

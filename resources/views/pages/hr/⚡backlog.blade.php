@@ -52,7 +52,8 @@ new #[Title('Pairing Backlog')] class extends Component
 
         $reviews = AttendanceDayReview::query()
             ->with('reviewer:id,name')
-            ->whereBetween('review_date', [$start->toDateString(), $end->toDateString()])
+            ->whereDate('review_date', '>=', $start)
+            ->whereDate('review_date', '<=', $end)
             ->get()
             ->keyBy(fn (AttendanceDayReview $review): string => $review->review_date->toDateString());
 

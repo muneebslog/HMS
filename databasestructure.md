@@ -646,6 +646,29 @@ One row per duty (counts as 1). A double duty is one session with two rows.
 | reviewed_at | timestamp | punches created after this show as "new punches" on the backlog |
 | timestamps | | |
 
+### `staff_leaves`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| employee_id | FK → employees | cascadeOnDelete |
+| leave_date | date | IDX — one row per person per day off |
+| kind | string | `LeaveKind`: informed / uninformed |
+| days | decimal(3,1) | 1 or 0.5 (half day) |
+| paid_days | decimal(3,1) | recalculated per month: informed leave is paid in date order until the monthly allowance (`attendance.paid_leaves_per_month`, default 2) runs out; uninformed = 0 |
+| force_paid | boolean | default false — admin override, paid regardless of allowance |
+| reason | string | nullable |
+| created_by | FK → users | nullable, nullOnDelete |
+| timestamps | | |
+| | | UQ `(employee_id, leave_date)` |
+
+### `holidays`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | bigint | PK |
+| holiday_date | date | UQ — leave spanning a holiday skips it |
+| name | string | |
+| timestamps | | |
+
 ### `attendance_records`
 | Column | Type | Notes |
 |--------|------|-------|

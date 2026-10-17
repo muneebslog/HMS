@@ -268,6 +268,16 @@ class Employee extends Model
     }
 
     /**
+     * Days off: informed leaves and uninformed absences.
+     *
+     * @return HasMany<StaffLeave, $this>
+     */
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(StaffLeave::class);
+    }
+
+    /**
      * Salary history, newest first.
      *
      * @return HasMany<EmployeeSalary, $this>

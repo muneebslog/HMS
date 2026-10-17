@@ -1,10 +1,14 @@
 <?php
 
+use App\Enums\LeaveKind;
 use App\Models\AttendanceDayReview;
 use App\Models\AttendancePunch;
 use App\Models\DutySession;
 use App\Models\Employee;
+use App\Models\Holiday;
+use App\Models\StaffLeave;
 use App\Services\DutyPairingService;
+use App\Services\StaffLeaveService;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -59,17 +63,61 @@ new #[Title('Pairing Desk')] class extends Component
     public function rows(): Collection
     {
         $pairing = app(DutyPairingService::class);
+        $leaves = StaffLeave::query()->whereDate('leave_date', $this->day)->get()->keyBy('employee_id');
 
-        return $pairing->day($this->day)->map(function (array $row) use ($pairing): array {
+        return $pairing->day($this->day)->map(function (array $row) use ($pairing, $leaves): array {
+            $row['leave'] = $leaves->get($row['employee']->id);
             $row['status'] = match (true) {
                 collect($row['suggestions'])->contains(fn (array $suggestion): bool => $pairing->needsAttention($suggestion)) => 'attention',
                 $row['suggestions'] !== [] => 'suggested',
                 $row['confirmed']->isNotEmpty() => 'confirmed',
+                $row['leave'] !== null => 'leave',
                 default => 'none',
             };
 
             return $row;
         });
+    }
+
+    #[Computed]
+    public function holiday(): ?Holiday
+    {
+        return Holiday::query()->whereDate('holiday_date', $this->day)->first();
+    }
+
+    /**
+     * Record a full day off for someone with no punches on this date.
+     */
+    public function recordDayOff(int $employeeId, string $kind, StaffLeaveService $leaves): void
+    {
+        try {
+            $created = $leaves->record(
+                Employee::query()->findOrFail($employeeId),
+                $this->day,
+                $this->day,
+                LeaveKind::from($kind),
+                false,
+                __('From the pairing desk'),
+                false,
+                auth()->user(),
+            );
+        } catch (ValidationException $exception) {
+            Flux::toast(variant: 'danger', text: collect($exception->errors())->flatten()->first());
+
+            return;
+        }
+
+        $this->refreshDay();
+
+        $unpaid = $created->sum(fn (StaffLeave $leave): float => $leave->unpaidDays());
+
+        Flux::toast(variant: $unpaid > 0 ? 'warning' : 'success', text: $unpaid > 0 ? __('Saved — this day will be deducted.') : __('Saved as paid leave.'));
+    }
+
+    public function removeDayOff(int $leaveId, StaffLeaveService $leaves): void
+    {
+        $leaves->delete(StaffLeave::query()->findOrFail($leaveId));
+        $this->refreshDay();
     }
 
     /**
@@ -80,7 +128,7 @@ new #[Title('Pairing Desk')] class extends Component
     {
         return $this->rows
             ->when($this->filter !== 'all', fn (Collection $rows) => $rows->where('status', $this->filter))
-            ->sortBy(fn (array $row): string => ['attention' => 0, 'suggested' => 1, 'confirmed' => 2, 'none' => 3][$row['status']].$row['employee']->name);
+            ->sortBy(fn (array $row): string => ['attention' => 0, 'suggested' => 1, 'none' => 2, 'confirmed' => 3, 'leave' => 4][$row['status']].$row['employee']->name);
     }
 
     /**
@@ -422,7 +470,7 @@ new #[Title('Pairing Desk')] class extends Component
 
     private function refreshDay(): void
     {
-        unset($this->rows, $this->visibleRows, $this->counts, $this->review, $this->punchesSinceReview);
+        unset($this->rows, $this->visibleRows, $this->counts, $this->review, $this->punchesSinceReview, $this->holiday);
     }
 }; ?>
 
@@ -443,7 +491,7 @@ new #[Title('Pairing Desk')] class extends Component
     </div>
 
     @php
-        $done = ($this->counts['confirmed'] ?? 0) + ($this->counts['none'] ?? 0);
+        $done = ($this->counts['confirmed'] ?? 0) + ($this->counts['leave'] ?? 0) + ($this->counts['none'] ?? 0);
         $total = max(1, $this->counts['all']);
     @endphp
 
@@ -456,6 +504,10 @@ new #[Title('Pairing Desk')] class extends Component
             <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
                 <div class="h-full bg-green-600" style="width: {{ round($done / $total * 100) }}%"></div>
             </div>
+
+            @if ($this->holiday)
+                <flux:text class="mt-2 font-medium text-violet-700 dark:text-violet-400">{{ __('Public holiday: :name. Nobody is marked absent today.', ['name' => $this->holiday->name]) }}</flux:text>
+            @endif
 
             @if ($this->review)
                 <flux:text class="mt-2 text-green-700 dark:text-green-400">
@@ -478,7 +530,7 @@ new #[Title('Pairing Desk')] class extends Component
     </flux:card>
 
     <div class="flex flex-wrap gap-2">
-        @foreach (['all' => __('All'), 'attention' => __('Need attention'), 'suggested' => __('Suggested'), 'confirmed' => __('Confirmed'), 'none' => __('No punches')] as $value => $label)
+        @foreach (['all' => __('All'), 'attention' => __('Need attention'), 'suggested' => __('Suggested'), 'confirmed' => __('Confirmed'), 'none' => __('No punches'), 'leave' => __('On leave')] as $value => $label)
             <flux:button
                 wire:key="filter-{{ $value }}"
                 size="sm"
@@ -543,6 +595,8 @@ new #[Title('Pairing Desk')] class extends Component
 
                             @if ($row['status'] === 'none')
                                 <flux:text size="sm" class="absolute left-3 top-2.5">{{ __('No punches') }}</flux:text>
+                            @elseif ($row['status'] === 'leave')
+                                <flux:text size="sm" class="absolute left-3 top-2.5">{{ $row['leave']->kind->label() }}{{ $row['leave']->reason ? ' — '.$row['leave']->reason : '' }}</flux:text>
                             @endif
                         </div>
 
@@ -566,6 +620,12 @@ new #[Title('Pairing Desk')] class extends Component
                                         <flux:badge size="sm" color="green" icon="check">{{ __('Confirmed') }}</flux:badge>
                                         @break
                                 @endswitch
+                                @if ($row['leave'])
+                                    <flux:badge size="sm" :color="$row['leave']->unpaidDays() > 0 ? 'amber' : 'green'">
+                                        {{ $row['leave']->isHalfDay() ? __('½ day leave') : ($row['leave']->kind === \App\Enums\LeaveKind::Uninformed ? __('Absent') : __('On leave')) }}
+                                        · {{ $row['leave']->unpaidDays() > 0 ? __('deducted') : __('paid') }}
+                                    </flux:badge>
+                                @endif
                             </div>
 
                             @foreach (collect($row['suggestions'])->pluck('flags')->flatten()->unique() as $flag)
@@ -579,7 +639,14 @@ new #[Title('Pairing Desk')] class extends Component
                                 @endif
                             @endforeach
 
-                            <div class="flex gap-1">
+                            <div class="flex flex-wrap gap-1">
+                                @if ($row['status'] === 'none' && ! $this->holiday)
+                                    <flux:button size="xs" variant="danger" wire:click="recordDayOff({{ $employee->id }}, 'uninformed')">{{ __('Absent') }}</flux:button>
+                                    <flux:button size="xs" wire:click="recordDayOff({{ $employee->id }}, 'informed')">{{ __('Informed leave') }}</flux:button>
+                                @endif
+                                @if ($row['status'] === 'leave')
+                                    <flux:button size="xs" variant="ghost" wire:click="removeDayOff({{ $row['leave']->id }})" wire:confirm="{{ __('Remove this leave?') }}">{{ __('Remove leave') }}</flux:button>
+                                @endif
                                 @if ($row['status'] === 'suggested')
                                     <flux:button size="xs" variant="primary" wire:click="confirmEmployee({{ $employee->id }})">{{ __('Confirm') }}</flux:button>
                                 @endif

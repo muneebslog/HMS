@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AppSetting;
+use App\Models\Holiday;
 use App\Models\ShiftTemplate;
 use Flux\Flux;
 use Illuminate\Validation\Rule;
@@ -29,6 +30,10 @@ new #[Title('Shifts & Attendance Rules')] class extends Component
 
     /** @var array<string, string> */
     public array $rules = [];
+
+    public string $holidayDate = '';
+
+    public string $holidayName = '';
 
     public function mount(): void
     {
@@ -118,6 +123,42 @@ new #[Title('Shifts & Attendance Rules')] class extends Component
         Flux::toast(variant: 'success', text: __('Rules saved.'));
     }
 
+    /**
+     * Holidays from the start of last year onwards, soonest first.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Holiday>
+     */
+    #[Computed]
+    public function holidays()
+    {
+        return Holiday::query()->whereDate('holiday_date', '>=', today()->subYear()->startOfYear())->orderBy('holiday_date')->get();
+    }
+
+    public function addHoliday(): void
+    {
+        $this->validate([
+            'holidayDate' => ['required', 'date', function (string $attribute, mixed $value, Closure $fail): void {
+                if (Holiday::query()->whereDate('holiday_date', $value)->exists()) {
+                    $fail(__('There is already a holiday on that date.'));
+                }
+            }],
+            'holidayName' => ['required', 'string', 'max:100'],
+        ]);
+
+        Holiday::query()->create(['holiday_date' => $this->holidayDate, 'name' => $this->holidayName]);
+
+        $this->reset('holidayDate', 'holidayName');
+        unset($this->holidays);
+
+        Flux::toast(variant: 'success', text: __('Holiday added.'));
+    }
+
+    public function deleteHoliday(int $holidayId): void
+    {
+        Holiday::query()->findOrFail($holidayId)->delete();
+        unset($this->holidays);
+    }
+
     public function ruleField(string $key): string
     {
         return str_replace('attendance.', '', $key);
@@ -183,6 +224,37 @@ new #[Title('Shifts & Attendance Rules')] class extends Component
             </form>
         </flux:card>
     </div>
+
+    <flux:card>
+        <flux:heading size="lg">{{ __('Public holidays') }}</flux:heading>
+        <flux:text class="mt-1">{{ __('Leave is not counted on a holiday. Whoever works on a holiday gets a normal duty.') }}</flux:text>
+
+        <form wire:submit="addHoliday" class="mt-4 flex flex-wrap items-start gap-3">
+            <flux:field>
+                <flux:input type="date" wire:model="holidayDate" :aria-label="__('Holiday date')" />
+                <flux:error name="holidayDate" />
+            </flux:field>
+            <flux:field class="min-w-56 flex-1">
+                <flux:input wire:model="holidayName" :placeholder="__('e.g. Eid ul Fitr')" :aria-label="__('Holiday name')" />
+                <flux:error name="holidayName" />
+            </flux:field>
+            <flux:button type="submit" variant="primary" icon="plus">{{ __('Add holiday') }}</flux:button>
+        </form>
+
+        <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            @forelse ($this->holidays as $holiday)
+                <div wire:key="holiday-{{ $holiday->id }}" @class(['flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700', 'opacity-60' => $holiday->holiday_date->isPast() && ! $holiday->holiday_date->isToday()])>
+                    <div>
+                        <div class="font-medium">{{ $holiday->name }}</div>
+                        <flux:text size="sm">{{ $holiday->holiday_date->format('D j M Y') }}</flux:text>
+                    </div>
+                    <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteHoliday({{ $holiday->id }})" wire:confirm="{{ __('Remove this holiday?') }}" :aria-label="__('Remove holiday')" />
+                </div>
+            @empty
+                <flux:text>{{ __('No holidays added yet.') }}</flux:text>
+            @endforelse
+        </div>
+    </flux:card>
 
     <flux:modal wire:model="showShiftModal" class="w-full max-w-md">
         <flux:heading size="lg">{{ $editingShiftId ? __('Edit shift') : __('Add shift') }}</flux:heading>

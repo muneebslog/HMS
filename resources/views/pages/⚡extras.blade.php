@@ -21,6 +21,8 @@ new #[Title('Extras')] class extends Component
                     'admin.health-aides',
                     'hr.pairing',
                     'hr.backlog',
+                    'hr.leaves',
+                    'hr.sheet',
                     'admin.stations',
                     'admin.policy-journal',
                     'admin.notifications',

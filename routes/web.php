@@ -130,6 +130,8 @@ Route::middleware(['auth', 'verified', 'role.assigned'])->group(function () {
         Route::livewire('admin/attendance', 'pages::admin.attendance')->name('admin.attendance');
         Route::livewire('hr/pairing', 'pages::hr.pairing')->name('hr.pairing');
         Route::livewire('hr/backlog', 'pages::hr.backlog')->name('hr.backlog');
+        Route::livewire('hr/leaves', 'pages::hr.leaves')->name('hr.leaves');
+        Route::livewire('hr/sheet', 'pages::hr.sheet')->name('hr.sheet');
         Route::livewire('hr/settings', 'pages::hr.settings')->name('hr.settings');
         Route::livewire('admin/stations', 'pages::admin.stations')->name('admin.stations');
         Route::livewire('admin/policy-journal', 'pages::admin.policy-journal')->name('admin.policy-journal');
